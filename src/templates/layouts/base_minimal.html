@@ -82,9 +82,9 @@
         
         <ul class="nav nav-pills flex-column">
             <li class="nav-item mb-2">
-                <a class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}" 
-                   href="{{ url_for('main.index') }}"
-                   hx-get="{{ url_for('main.index') }}"
+                <a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" 
+                   href="{{ url_for('main.dashboard') }}"
+                   hx-get="{{ url_for('main.dashboard') }}"
                    hx-target="#main-content"
                    hx-indicator=".htmx-indicator">
                     <i class="bi bi-house-fill me-2"></i>

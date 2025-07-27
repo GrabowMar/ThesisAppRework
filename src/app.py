@@ -15,6 +15,7 @@ from flask import Flask
 from core_services import (
     # Service initialization
     initialize_logging, setup_request_middleware, initialize_model_service,
+    ServiceInitializer, ServiceManager,
     
     # Global services (these will be available to routes)
     get_model_service, get_docker_manager,
@@ -63,8 +64,16 @@ def create_app(config_name=None):
             # Initialize the model integration service
             service = initialize_model_service(app_root)
             app.logger.info(f"Model service initialized with {len(service.get_all_models())} models")
+            
+            # Initialize additional services (Docker, ZAP, etc.)
+            service_manager = ServiceManager(app)
+            service_initializer = ServiceInitializer(app, service_manager)
+            service_initializer.initialize_all()
+            app.logger.info("All application services initialized successfully")
+            
         except Exception as e:
-            app.logger.error(f"Failed to initialize model service: {e}")
+            app.logger.error(f"Failed to initialize services: {e}")
+            # Continue anyway to allow the app to start
     
     # Register blueprints with HTMX routes
     register_blueprints(app)

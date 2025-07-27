@@ -4523,16 +4523,27 @@ class FlaskApplicationFactory:
             self.logger.info("Registering blueprints")
         
         try:
-            # Blueprints are defined in this module, so we reference them directly
-            blueprints = [main_bp, api_bp, analysis_bp, performance_bp, quality_bp, 
-                         gpt4all_bp, zap_bp, generation_bp, batch_analysis_bp]
-            for blueprint in blueprints:
-                app.register_blueprint(blueprint)
+            if BLUEPRINTS_AVAILABLE:
+                # Use the register_blueprints function from web_routes
+                register_blueprints(app)
                 if self.logger:
-                    self.logger.debug(f"Registered blueprint: {blueprint.name}")
+                    self.logger.info("Blueprints registered via web_routes.register_blueprints()")
+            else:
+                # Fallback to manual registration with available blueprints
+                blueprints = [main_bp, api_bp, analysis_bp, performance_bp, 
+                             zap_bp, generation_bp, batch_bp, openrouter_bp, docker_bp]
+                for blueprint in blueprints:
+                    app.register_blueprint(blueprint)
+                    if self.logger:
+                        self.logger.debug(f"Registered blueprint: {blueprint.name}")
+                if self.logger:
+                    self.logger.warning("Used fallback blueprint registration")
+                    
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Failed to register blueprints: {e}")
+                self.logger.error(f"BLUEPRINTS_AVAILABLE: {BLUEPRINTS_AVAILABLE}")
+            raise
     
     def _initialize_batch_analysis(self, app: Flask) -> None:
         """Initialize batch analysis module."""
@@ -4542,8 +4553,7 @@ class FlaskApplicationFactory:
             
             app.batch_service = batch_service
             
-            app.register_blueprint(batch_analysis_bp)
-            
+            # batch_analysis_bp is now an alias for batch_bp, which is already registered in _register_blueprints
             if self.logger:
                 self.logger.info("Batch analysis module initialized successfully")
             
@@ -4591,16 +4601,37 @@ class FlaskApplicationFactory:
 # FLASK ROUTES AND BLUEPRINTS
 # ===========================
 
-# Create blueprints
-main_bp = Blueprint("main", __name__)
-api_bp = Blueprint("api", __name__, url_prefix="/api")
-analysis_bp = Blueprint("analysis", __name__, url_prefix="/analysis")
-quality_bp = Blueprint("quality", __name__, url_prefix="/quality")
-performance_bp = Blueprint("performance", __name__, url_prefix="/performance")
-gpt4all_bp = Blueprint("gpt4all", __name__, url_prefix="/gpt4all")
-zap_bp = Blueprint("zap", __name__, url_prefix="/zap")
-generation_bp = Blueprint("generation", __name__, url_prefix="/generation")
-batch_analysis_bp = Blueprint('batch_analysis', __name__, url_prefix='/batch-analysis')
+# Import blueprints from web_routes module
+try:
+    from web_routes import (
+        main_bp, api_bp, analysis_bp, performance_bp, zap_bp,
+        openrouter_bp, batch_bp, generation_bp, docker_bp,
+        register_blueprints
+    )
+    BLUEPRINTS_AVAILABLE = True
+except ImportError as e:
+    logger = create_logger_for_component('blueprint_import')
+    logger.error(f"Failed to import blueprints from web_routes: {e}")
+    BLUEPRINTS_AVAILABLE = False
+    # Create empty blueprints as fallback
+    main_bp = Blueprint("main", __name__)
+    api_bp = Blueprint("api", __name__, url_prefix="/api")
+    analysis_bp = Blueprint("analysis", __name__, url_prefix="/analysis")
+    performance_bp = Blueprint("performance", __name__, url_prefix="/performance")
+    zap_bp = Blueprint("zap", __name__, url_prefix="/zap")
+    generation_bp = Blueprint("generation", __name__, url_prefix="/generation")
+    batch_bp = Blueprint("batch", __name__, url_prefix="/batch")
+    openrouter_bp = Blueprint("openrouter", __name__, url_prefix="/openrouter")
+    docker_bp = Blueprint("docker", __name__, url_prefix="/docker")
+    
+    def register_blueprints(app):
+        """Fallback blueprint registration."""
+        pass
+
+# Legacy blueprint aliases for backward compatibility
+batch_analysis_bp = batch_bp  # batch_analysis_bp -> batch_bp
+quality_bp = analysis_bp      # quality_bp -> analysis_bp  
+gpt4all_bp = openrouter_bp   # gpt4all_bp -> openrouter_bp
 
 
 class ScanState(Enum):
@@ -4657,477 +4688,6 @@ def filter_apps(apps, search=None, model=None, status=None):
     
     return filtered
 
-
-# Main Routes
-@main_bp.route("/")
-def index():
-    """Dashboard with all applications and their statuses."""
-    logger.info("Loading dashboard")
-    
-    try:
-        docker_manager = get_docker_manager()
-        dashboard_data = get_dashboard_data_optimized(docker_manager)
-        
-        all_apps = dashboard_data.get('apps', [])
-        models = dashboard_data.get('models', [])
-        
-        # Handle filtering
-        search = request.args.get('search', '')
-        model_filter = request.args.get('model', '')
-        status_filter = request.args.get('status', '')
-        
-        filtered_apps = filter_apps(all_apps, search, model_filter, status_filter)
-        
-        # Sort apps by model name and app number
-        filtered_apps = sorted(filtered_apps, key=lambda x: (x['model'], x['app_num']))
-        
-        # Get unique models for filter dropdown
-        unique_models = sorted(set(app['model'] for app in all_apps))
-        
-        # Calculate statistics
-        total_apps = len(all_apps)
-        running_apps = sum(1 for app in all_apps 
-                          if app.get('backend_status', {}).get('running', False) and 
-                             app.get('frontend_status', {}).get('running', False))
-        
-        stats = {
-            'total_apps': total_apps,
-            'running_apps': running_apps,
-            'stopped_apps': total_apps - running_apps,
-            'total_models': len(unique_models)
-        }
-        
-        logger.info(f"Dashboard loaded: {total_apps} apps, {len(unique_models)} models")
-        
-        return render_template(
-            "index.html",
-            apps=filtered_apps,
-            models=models,
-            unique_models=unique_models,
-            stats=stats,
-            search=search,
-            model_filter=model_filter,
-            status_filter=status_filter,
-            cache_used=dashboard_data.get('cache_used', False)
-        )
-        
-    except Exception as e:
-        logger.error(f"Error loading dashboard: {e}", exc_info=True)
-        flash(f"Error loading dashboard: {str(e)}", "error")
-        return render_template("error.html", error="Dashboard loading failed")
-
-
-@main_bp.route("/app/<model>/<int:app_num>")
-def app_details(model, app_num):
-    """Show detailed information about a specific application."""
-    try:
-        app_info = get_app_info(model, app_num)
-        if not app_info:
-            flash(f"Application {model}/app{app_num} not found", "error")
-            return redirect(url_for("main.index"))
-        
-        docker_manager = get_docker_manager()
-        container_statuses = get_app_container_statuses(model, app_num, docker_manager)
-        
-        # Load analysis results
-        analysis_results = load_json_results_for_template(model, app_num)
-        available_analyses = get_available_analysis_results(model, app_num)
-        last_analysis = get_latest_analysis_timestamp(model, app_num)
-        
-        return render_template(
-            "app_details.html",
-            app=app_info,
-            container_statuses=container_statuses,
-            analysis_results=analysis_results,
-            available_analyses=available_analyses,
-            last_analysis=last_analysis
-        )
-        
-    except Exception as e:
-        logger.error(f"Error loading app details for {model}/app{app_num}: {e}")
-        flash(f"Error loading application details: {str(e)}", "error")
-        return redirect(url_for("main.index"))
-
-
-@main_bp.route("/models")
-def models_overview():
-    """Show overview of all AI models."""
-    try:
-        models = get_ai_models()
-        port_config = get_port_config()
-        
-        # Group apps by model
-        models_with_apps = {}
-        for config in port_config:
-            model_name = config.get('model_name')
-            if model_name:
-                if model_name not in models_with_apps:
-                    models_with_apps[model_name] = []
-                models_with_apps[model_name].append(config)
-        
-        # Get model statistics
-        model_stats = get_model_stats()
-        
-        return render_template(
-            "models.html",
-            models=models,
-            models_with_apps=models_with_apps,
-            model_stats=model_stats
-        )
-        
-    except Exception as e:
-        logger.error(f"Error loading models overview: {e}")
-        flash(f"Error loading models: {str(e)}", "error")
-        return render_template("error.html", error="Models loading failed")
-
-
-# API Routes
-@api_bp.route("/docker/<action>/<model>/<int:app_num>", methods=["POST"])
-def docker_action(action, model, app_num):
-    """Handle Docker actions for applications."""
-    try:
-        logger.info(f"Docker {action} requested for {model}/app{app_num}")
-        
-        success, message = handle_docker_action(action, model, app_num)
-        
-        if success:
-            # Clear cache after successful action
-            clear_container_cache(model, app_num)
-            logger.info(f"Docker {action} succeeded for {model}/app{app_num}")
-            return create_api_response(success=True, message=message)
-        else:
-            logger.warning(f"Docker {action} failed for {model}/app{app_num}: {message}")
-            return create_api_response(success=False, error=message)
-            
-    except Exception as e:
-        logger.error(f"Error in docker {action} for {model}/app{app_num}: {e}")
-        return create_api_response(success=False, error=str(e))
-
-
-@api_bp.route("/status/<model>/<int:app_num>")
-def get_app_status(model, app_num):
-    """Get current status of application containers."""
-    try:
-        docker_manager = get_docker_manager()
-        container_statuses = get_app_container_statuses(model, app_num, docker_manager)
-        
-        return create_api_response(success=True, data=container_statuses)
-        
-    except Exception as e:
-        logger.error(f"Error getting status for {model}/app{app_num}: {e}")
-        return create_api_response(success=False, error=str(e))
-
-
-@api_bp.route("/cache/clear", methods=["POST"])
-def clear_cache():
-    """Clear all caches."""
-    try:
-        clear_container_cache()
-        cache_stats = get_cache_stats()
-        return create_api_response(
-            success=True, 
-            message="Cache cleared successfully",
-            data=cache_stats
-        )
-    except Exception as e:
-        return create_api_response(success=False, error=str(e))
-
-
-@api_bp.route("/cache/stats")
-def cache_stats():
-    """Get cache statistics."""
-    try:
-        stats = get_cache_stats()
-        return create_api_response(success=True, data=stats)
-    except Exception as e:
-        return create_api_response(success=False, error=str(e))
-
-
-# Analysis Routes
-@analysis_bp.route("/")
-def analysis_dashboard():
-    """Analysis dashboard showing available analysis types."""
-    return render_template("analysis_dashboard.html")
-
-
-@analysis_bp.route("/<analysis_type>/<model>/<int:app_num>")
-def run_analysis(analysis_type, model, app_num):
-    """Run a specific type of analysis on an application."""
-    try:
-        app_info = get_app_info(model, app_num)
-        if not app_info:
-            flash(f"Application {model}/app{app_num} not found", "error")
-            return redirect(url_for("main.index"))
-        
-        if analysis_type == "backend_security":
-            analyzer = getattr(current_app, 'backend_security_analyzer', None)
-            if not analyzer:
-                flash("Backend security analyzer not available", "error")
-                return redirect(url_for("main.app_details", model=model, app_num=app_num))
-            
-            issues, status, outputs = analyzer.run_security_analysis(model, app_num)
-            
-        elif analysis_type == "frontend_security":
-            analyzer = getattr(current_app, 'frontend_security_analyzer', None)
-            if not analyzer:
-                flash("Frontend security analyzer not available", "error")
-                return redirect(url_for("main.app_details", model=model, app_num=app_num))
-            
-            issues, status, outputs = analyzer.run_security_analysis(model, app_num)
-            
-        else:
-            flash(f"Unknown analysis type: {analysis_type}", "error")
-            return redirect(url_for("main.app_details", model=model, app_num=app_num))
-        
-        return render_template(
-            "analysis_results.html",
-            app=app_info,
-            analysis_type=analysis_type,
-            issues=issues,
-            status=status,
-            outputs=outputs
-        )
-        
-    except Exception as e:
-        logger.error(f"Error running {analysis_type} analysis for {model}/app{app_num}: {e}")
-        flash(f"Analysis failed: {str(e)}", "error")
-        return redirect(url_for("main.app_details", model=model, app_num=app_num))
-
-
-# Performance Routes
-@performance_bp.route("/")
-def performance_dashboard():
-    """Performance testing dashboard."""
-    return render_template("performance_dashboard.html")
-
-
-@performance_bp.route("/test/<model>/<int:app_num>")
-def run_performance_test(model, app_num):
-    """Run performance test on an application."""
-    try:
-        app_info = get_app_info(model, app_num)
-        if not app_info:
-            flash(f"Application {model}/app{app_num} not found", "error")
-            return redirect(url_for("main.index"))
-        
-        performance_analyzer = getattr(current_app, 'performance_analyzer', None)
-        if not performance_analyzer:
-            flash("Performance analyzer not available", "error")
-            return redirect(url_for("main.app_details", model=model, app_num=app_num))
-        
-        result = performance_analyzer.run_performance_test(model, app_num)
-        
-        return render_template(
-            "performance_results.html",
-            app=app_info,
-            result=result
-        )
-        
-    except Exception as e:
-        logger.error(f"Error running performance test for {model}/app{app_num}: {e}")
-        flash(f"Performance test failed: {str(e)}", "error")
-        return redirect(url_for("main.app_details", model=model, app_num=app_num))
-
-
-# ZAP Routes
-@zap_bp.route("/")
-def zap_dashboard():
-    """ZAP scanning dashboard."""
-    return render_template("zap_dashboard.html")
-
-
-@zap_bp.route("/scan/<model>/<int:app_num>")
-def start_zap_scan(model, app_num):
-    """Start ZAP security scan on an application."""
-    try:
-        app_info = get_app_info(model, app_num)
-        if not app_info:
-            flash(f"Application {model}/app{app_num} not found", "error")
-            return redirect(url_for("main.index"))
-        
-        zap_scanner = getattr(current_app, 'zap_scanner', None)
-        if not zap_scanner:
-            flash("ZAP scanner not available", "error")
-            return redirect(url_for("main.app_details", model=model, app_num=app_num))
-        
-        scan_result = zap_scanner.scan_app(model, app_num)
-        
-        return render_template(
-            "zap_results.html",
-            app=app_info,
-            scan_result=scan_result
-        )
-        
-    except Exception as e:
-        logger.error(f"Error running ZAP scan for {model}/app{app_num}: {e}")
-        flash(f"ZAP scan failed: {str(e)}", "error")
-        return redirect(url_for("main.app_details", model=model, app_num=app_num))
-
-
-# Generation Routes
-@generation_bp.route("/")
-def generation_dashboard():
-    """Generation dashboard showing available generation runs."""
-    try:
-        global generation_lookup_service
-        if not generation_lookup_service:
-            try:
-                generation_lookup_service = GenerationLookupService()
-            except Exception as init_error:
-                logger.error(f"Failed to initialize GenerationLookupService: {init_error}")
-                flash("Generation lookup service not available", "error")
-                return render_template("error.html", error="Generation service unavailable")
-        
-        runs = generation_lookup_service.list_generation_runs()
-        
-        return render_template(
-            "generation_dashboard.html",
-            runs=runs
-        )
-        
-    except Exception as e:
-        logger.error(f"Error loading generation dashboard: {e}")
-        flash(f"Error loading generation data: {str(e)}", "error")
-        return render_template("error.html", error="Generation dashboard loading failed")
-
-
-@generation_bp.route("/run/<timestamp>")
-def view_generation_run(timestamp):
-    """View details of a specific generation run."""
-    try:
-        global generation_lookup_service
-        if not generation_lookup_service:
-            try:
-                generation_lookup_service = GenerationLookupService()
-            except Exception as init_error:
-                logger.error(f"Failed to initialize GenerationLookupService: {init_error}")
-                flash("Generation lookup service not available", "error")
-                return redirect(url_for("generation.generation_dashboard"))
-        
-        details = generation_lookup_service.get_generation_details(timestamp)
-        if not details:
-            flash(f"Generation run {timestamp} not found", "error")
-            return redirect(url_for("generation.generation_dashboard"))
-        
-        summary = generation_lookup_service.get_model_performance_summary(timestamp)
-        
-        return render_template(
-            "generation_run_details.html",
-            timestamp=timestamp,
-            details=details,
-            summary=summary
-        )
-        
-    except Exception as e:
-        logger.error(f"Error loading generation run {timestamp}: {e}")
-        flash(f"Error loading generation run: {str(e)}", "error")
-        return redirect(url_for("generation.generation_dashboard"))
-
-
-# Batch Analysis Routes (already defined earlier in the file)
-@batch_analysis_bp.route('/')
-def batch_dashboard():
-    """Batch analysis dashboard."""
-    try:
-        service = current_app.batch_service
-        jobs = service.get_all_jobs()
-        stats = service.get_job_stats()
-        
-        # Convert jobs to safe dictionaries
-        safe_jobs = [_create_safe_job_dict(job) for job in jobs]
-        
-        return render_template(
-            'batch_analysis/dashboard.html',
-            jobs=safe_jobs,
-            stats=stats
-        )
-    except Exception as e:
-        logger.error(f"Error loading batch dashboard: {e}")
-        flash(f"Error loading batch dashboard: {str(e)}", "error")
-        return render_template("error.html", error="Batch dashboard loading failed")
-
-
-@batch_analysis_bp.route('/create', methods=['GET', 'POST'])
-def create_batch_job():
-    """Create a new batch analysis job."""
-    if request.method == 'GET':
-        try:
-            models = get_ai_models()
-            analysis_types = [
-                {'value': 'frontend_security', 'label': 'Frontend Security'},
-                {'value': 'backend_security', 'label': 'Backend Security'},
-                {'value': 'performance', 'label': 'Performance Testing'},
-                {'value': 'zap', 'label': 'ZAP Security Scan'},
-                {'value': 'gpt4all', 'label': 'GPT4All Analysis'},
-                {'value': 'code_quality', 'label': 'Code Quality'}
-            ]
-            
-            return render_template(
-                'batch_analysis/create.html',
-                models=models,
-                analysis_types=analysis_types
-            )
-        except Exception as e:
-            logger.error(f"Error loading batch job creation form: {e}")
-            flash(f"Error loading form: {str(e)}", "error")
-            return redirect(url_for('batch_analysis.batch_dashboard'))
-    
-    try:
-        service = current_app.batch_service
-        
-        name = request.form.get('name', '').strip()
-        description = request.form.get('description', '').strip()
-        analysis_types = request.form.getlist('analysis_types')
-        models = request.form.getlist('models')
-        app_range = request.form.get('app_range', '').strip()
-        auto_start = request.form.get('auto_start') == 'on'
-        
-        if not name:
-            flash("Job name is required", "error")
-            return redirect(url_for('batch_analysis.create_batch_job'))
-        
-        job = service.create_job(name, description, analysis_types, models, app_range, auto_start)
-        
-        flash(f"Batch job '{name}' created successfully", "success")
-        return redirect(url_for('batch_analysis.view_job', job_id=job.id))
-        
-    except Exception as e:
-        logger.error(f"Error creating batch job: {e}")
-        flash(f"Error creating batch job: {str(e)}", "error")
-        return redirect(url_for('batch_analysis.create_batch_job'))
-
-
-@batch_analysis_bp.route('/job/<job_id>')
-def view_job(job_id):
-    """View details of a specific batch job."""
-    try:
-        service = current_app.batch_service
-        job = service.get_job(job_id)
-        
-        if not job:
-            flash("Job not found", "error")
-            return redirect(url_for('batch_analysis.batch_dashboard'))
-        
-        tasks = service.get_job_tasks(job_id)
-        
-        # Convert to safe dictionaries
-        safe_job = _create_safe_job_dict(job)
-        safe_tasks = [_create_safe_task_dict(task) for task in tasks]
-        
-        # Calculate additional statistics
-        progress_stats = _calculate_progress_stats(safe_tasks) 
-        
-        return render_template(
-            'batch_analysis/job_details.html',
-            job=safe_job,
-            tasks=safe_tasks,
-            progress_stats=progress_stats
-        )
-        
-    except Exception as e:
-        logger.error(f"Error viewing batch job {job_id}: {e}")
-        flash(f"Error loading job details: {str(e)}", "error")
-        return redirect(url_for('batch_analysis.batch_dashboard'))
 
 
 def create_app() -> Flask:

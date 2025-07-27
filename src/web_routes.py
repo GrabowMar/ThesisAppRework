@@ -25,24 +25,143 @@ from flask import (
     redirect, render_template, request, session, url_for
 )
 
-# Import service access helpers following the coding instructions
-from core_services import (
-    # Core services
-    get_model_service, get_scan_manager, get_docker_manager,
-    
-    # Utility functions
-    get_all_apps, get_app_info, get_ai_models, get_port_config,
-    get_app_container_statuses, handle_docker_action, verify_container_health,
-    load_json_results_for_template, get_available_analysis_results,
-    get_latest_analysis_timestamp, get_dashboard_data_optimized,
-    create_api_response, filter_apps, get_cache_stats, clear_container_cache,
-    
-    # Data classes and enums
-    ScanState, TaskStatus, JobStatus, AnalysisType,
-    
-    # Logging
-    create_logger_for_component
-)
+# ===========================
+# SERVICE ACCESS HELPERS
+# ===========================
+
+def get_core_services():
+    """Get core services module to avoid circular imports."""
+    import core_services
+    return core_services
+
+def get_model_service():
+    """Get model service."""
+    return get_core_services().get_model_service()
+
+def get_scan_manager():
+    """Get scan manager."""
+    return get_core_services().get_scan_manager()
+
+def get_docker_manager():
+    """Get docker manager."""
+    return get_core_services().get_docker_manager()
+
+def get_all_apps():
+    """Get all apps."""
+    return get_core_services().get_all_apps()
+
+def get_app_info(model: str, app_num: int):
+    """Get app information."""
+    return get_core_services().get_app_info(model, app_num)
+
+def get_ai_models():
+    """Get AI models."""
+    return get_core_services().get_ai_models()
+
+def get_port_config():
+    """Get port configuration."""
+    return get_core_services().get_port_config()
+
+def get_app_container_statuses(model: str, app_num: int, docker_manager):
+    """Get app container statuses."""
+    return get_core_services().get_app_container_statuses(model, app_num, docker_manager)
+
+def handle_docker_action(action: str, model: str, app_num: int):
+    """Handle docker action."""
+    return get_core_services().handle_docker_action(action, model, app_num)
+
+def verify_container_health(docker_manager, model: str, app_num: int, max_retries: int = 15, retry_delay: int = 5):
+    """Verify container health."""
+    return get_core_services().verify_container_health(docker_manager, model, app_num, max_retries, retry_delay)
+
+def load_json_results_for_template(model: str, app_num: int, analysis_type: Optional[str] = None):
+    """Load JSON results for template."""
+    return get_core_services().load_json_results_for_template(model, app_num, analysis_type)
+
+def get_available_analysis_results(model: str, app_num: int):
+    """Get available analysis results."""
+    return get_core_services().get_available_analysis_results(model, app_num)
+
+def get_latest_analysis_timestamp(model: str, app_num: int):
+    """Get latest analysis timestamp."""
+    return get_core_services().get_latest_analysis_timestamp(model, app_num)
+
+def get_dashboard_data_optimized(docker_manager):
+    """Get dashboard data optimized."""
+    return get_core_services().get_dashboard_data_optimized(docker_manager)
+
+def create_api_response(success: bool = True, data: Any = None, error: Optional[str] = None, message: Optional[str] = None, code: int = 200):
+    """Create API response."""
+    return get_core_services().create_api_response(success, data, error, message, code)
+
+def filter_apps(apps, search=None, model=None, status=None):
+    """Filter apps."""
+    return get_core_services().filter_apps(apps, search, model, status)
+
+def get_cache_stats():
+    """Get cache statistics."""
+    return get_core_services().get_cache_stats()
+
+def clear_container_cache(model: Optional[str] = None, app_num: Optional[int] = None):
+    """Clear container cache."""
+    return get_core_services().clear_container_cache(model, app_num)
+
+def create_logger_for_component(component_name: str):
+    """Create logger for component."""
+    return get_core_services().create_logger_for_component(component_name)
+
+# Batch analysis helper functions
+def _create_safe_job_dict(job):
+    """Create safe job dict."""
+    return get_core_services()._create_safe_job_dict(job)
+
+def _create_safe_task_dict(task):
+    """Create safe task dict."""
+    return get_core_services()._create_safe_task_dict(task)
+
+def _calculate_progress_stats(tasks):
+    """Calculate progress stats."""
+    return get_core_services()._calculate_progress_stats(tasks)
+
+# Enums and constants
+class ScanState:
+    NOT_RUN = "Not Run"
+    STARTING = "Starting"
+    SPIDERING = "Spidering"
+    SCANNING = "Scanning"
+    COMPLETE = "Complete"
+    FAILED = "Failed"
+    ERROR = "Error"
+    STOPPED = "Stopped"
+
+class TaskStatus:
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    SKIPPED = "skipped"
+    TIMED_OUT = "timed_out"
+
+class JobStatus:
+    PENDING = "pending"
+    QUEUED = "queued"
+    INITIALIZING = "initializing"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    CANCELLING = "cancelling"
+    ARCHIVED = "archived"
+    ERROR = "error"
+
+class AnalysisType:
+    FRONTEND_SECURITY = "frontend_security"
+    BACKEND_SECURITY = "backend_security"
+    PERFORMANCE = "performance"
+    ZAP = "zap"
+    GPT4ALL = "gpt4all"
+    CODE_QUALITY = "code_quality"
 
 # Initialize logger
 logger = create_logger_for_component('routes')
