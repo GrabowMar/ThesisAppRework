@@ -4044,8 +4044,7 @@ class AnalyzerInitializer:
     def _initialize_security_analyzers(self, models_dir: Path) -> None:
         """Initialize security analyzers."""
         try:
-            from backend_security_analysis import BackendSecurityAnalyzer
-            from frontend_security_analysis import FrontendSecurityAnalyzer
+            from cli_tools_analysis import BackendSecurityAnalyzer, FrontendSecurityAnalyzer
             
             self._initialize_analyzer(
                 BackendSecurityAnalyzer,
@@ -4063,7 +4062,7 @@ class AnalyzerInitializer:
     def _initialize_quality_analyzers(self, models_dir: Path) -> None:
         """Initialize code quality analyzers."""
         try:
-            from code_quality_analysis import BackendQualityAnalyzer, FrontendQualityAnalyzer
+            from cli_tools_analysis import BackendQualityAnalyzer, FrontendQualityAnalyzer
             
             self._initialize_analyzer(
                 BackendQualityAnalyzer,
@@ -4137,11 +4136,18 @@ class AnalyzerInitializer:
     def _initialize_gpt4all_analyzer(self) -> None:
         """Initialize GPT4All analyzer for batch processing."""
         try:
-            from gpt4all_analyzer import create_gpt4all_analyzer
-            analyzer = create_gpt4all_analyzer()
+            # Try to import from the gpt4all_analyzer file if it exists
+            import importlib.util
+            spec = importlib.util.find_spec('gpt4all_analyzer')
+            if spec is not None:
+                from gpt4all_analyzer import create_gpt4all_analyzer
+                analyzer = create_gpt4all_analyzer()
+                self.service_manager.register_service('gpt4all_analyzer', analyzer)
+                self.logger.info("GPT4All analyzer initialized successfully")
+                return
             
-            self.service_manager.register_service('gpt4all_analyzer', analyzer)
-            self.logger.info("GPT4All analyzer initialized successfully")
+            # If module doesn't exist, create a placeholder
+            raise ImportError("gpt4all_analyzer module not found")
             
         except Exception as e:
             self.logger.warning(f"GPT4All analyzer initialization failed: {e}")
@@ -4517,17 +4523,16 @@ class FlaskApplicationFactory:
             self.logger.info("Registering blueprints")
         
         try:
-            from routes import analysis_bp, api_bp, gpt4all_bp, main_bp, performance_bp, quality_bp, zap_bp
-            from generation_routes import generation_bp
-            
-            blueprints = [main_bp, api_bp, analysis_bp, performance_bp, quality_bp, gpt4all_bp, zap_bp, generation_bp]
+            # Blueprints are defined in this module, so we reference them directly
+            blueprints = [main_bp, api_bp, analysis_bp, performance_bp, quality_bp, 
+                         gpt4all_bp, zap_bp, generation_bp, batch_analysis_bp]
             for blueprint in blueprints:
                 app.register_blueprint(blueprint)
                 if self.logger:
                     self.logger.debug(f"Registered blueprint: {blueprint.name}")
-        except ImportError as e:
+        except Exception as e:
             if self.logger:
-                self.logger.error(f"Failed to import blueprints: {e}")
+                self.logger.error(f"Failed to register blueprints: {e}")
     
     def _initialize_batch_analysis(self, app: Flask) -> None:
         """Initialize batch analysis module."""
@@ -4613,7 +4618,7 @@ class ScanState(Enum):
 def get_scan_manager():
     """Get scan manager from app context."""
     if not hasattr(current_app, 'scan_manager'):
-        from services import ScanManager
+        # ScanManager is defined in this module
         current_app.scan_manager = ScanManager()
     return current_app.scan_manager
 

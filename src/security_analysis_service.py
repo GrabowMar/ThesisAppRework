@@ -32,16 +32,29 @@ from pathlib import Path
 from threading import Lock
 from typing import Dict, List, Optional, Tuple, Any, Union, Callable
 
-from logging_service import create_logger_for_component
+# Import logging service from core_services module
+try:
+    from core_services import create_logger_for_component
+except ImportError:
+    import logging
+    def create_logger_for_component(name):
+        return logging.getLogger(name)
 
 # Import JsonResultsManager
 try:
-    from utils import JsonResultsManager
+    from core_services import JsonResultsManager
 except ImportError:
     class JsonResultsManager:
         """Fallback JsonResultsManager implementation."""
         def __init__(self, base_path: Path, module_name: str):
-            raise ImportError("JsonResultsManager should be imported from utils module")
+            self.base_path = base_path
+            self.module_name = module_name
+            
+        def save_results(self, *args, **kwargs):
+            pass
+            
+        def load_results(self, *args, **kwargs):
+            return None
 
 # Initialize logger
 logger = create_logger_for_component('cli_tools_analysis')

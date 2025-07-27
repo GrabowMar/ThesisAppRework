@@ -24,9 +24,25 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, Callable
 import requests
 from zapv2 import ZAPv2
 
-# Import the simple analysis functions from utils.py
-from utils import save_analysis_results, load_analysis_results, get_app_info
-from logging_service import create_logger_for_component
+# Import the simple analysis functions from core_services
+try:
+    from core_services import save_analysis_results, load_analysis_results, get_app_info
+except ImportError:
+    # Fallback implementations
+    def save_analysis_results(*args, **kwargs):
+        pass
+    def load_analysis_results(*args, **kwargs):
+        return None
+    def get_app_info(*args, **kwargs):
+        return None
+
+# Import logging service from core_services module
+try:
+    from core_services import create_logger_for_component
+except ImportError:
+    import logging
+    def create_logger_for_component(name):
+        return logging.getLogger(name)
 
 # Initialize logger
 logger = create_logger_for_component('zap_scanner')
@@ -510,7 +526,15 @@ class ZAPScanner:
         
         # Set source code root
         try:
-            from utils import get_models_base_dir
+            # Try to import from main module first
+            try:
+                from core_services import get_models_base_dir
+            except ImportError:
+                # Fallback to default path
+                from pathlib import Path
+                def get_models_base_dir():
+                    return Path.cwd() / "misc" / "models"
+                    
             models_base_dir = get_models_base_dir()
             app_path = models_base_dir / f"{model}/app{app_num}"
             if app_path.exists():

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Thesis Research App{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Custom CSS -->
+    <style>
+        body {
+            padding-top: 56px; /* Account for fixed navbar */
+        }
+        
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+        
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+        
+        .htmx-request.htmx-indicator {
+            opacity: 1;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .status-running { color: #28a745; }
+        .status-stopped { color: #dc3545; }
+        .status-partial { color: #ffc107; }
+        
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: all 0.2s ease-in-out;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .search-highlight {
+            background-color: yellow;
+            font-weight: bold;
+        }
+    </style>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">
+                <i class="bi bi-clipboard-data"></i> Thesis Research App
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.dashboard') }}">
+                            <i class="bi bi-house"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.models_overview') }}">
+                            <i class="bi bi-cpu"></i> Models
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-shield-check"></i> Analysis
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('analysis.analysis_overview') }}">Security Analysis</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('performance.performance_overview') }}">Performance Testing</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('zap.zap_overview') }}">ZAP Scanning</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('openrouter.openrouter_overview') }}">Requirements Analysis</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('batch.batch_overview') }}">
+                            <i class="bi bi-layers"></i> Batch Jobs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('generation.generation_overview') }}">
+                            <i class="bi bi-file-code"></i> Generation
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <button class="btn btn-outline-light btn-sm" 
+                                hx-post="{{ url_for('api.clear_cache') }}"
+                                hx-target="#cache-status"
+                                hx-swap="innerHTML">
+                            <i class="bi bi-arrow-clockwise"></i> Clear Cache
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <span class="navbar-text" id="cache-status">
+                            <i class="bi bi-info-circle"></i>
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container-fluid mt-3">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="container-fluid py-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Loading Indicator -->
+    <div class="htmx-indicator loading-overlay">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- HTMX Extensions and Configuration -->
+    <script>
+        // HTMX Configuration
+        htmx.config.globalViewTransitions = true;
+        htmx.config.defaultSwapStyle = 'innerHTML';
+        htmx.config.defaultSwapDelay = 0;
+        htmx.config.defaultSettleDelay = 20;
+        
+        // Global HTMX event listeners
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            // Show loading indicator for long requests
+            setTimeout(function() {
+                if (evt.detail.xhr.readyState !== 4) {
+                    document.querySelector('.loading-overlay').style.display = 'flex';
+                }
+            }, 500);
+        });
+        
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            // Hide loading indicator
+            document.querySelector('.loading-overlay').style.display = 'none';
+            
+            // Handle errors
+            if (evt.detail.xhr.status >= 400) {
+                console.error('HTMX request failed:', evt.detail.xhr.status, evt.detail.xhr.statusText);
+            }
+        });
+        
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            console.error('HTMX response error:', evt.detail);
+            alert('Request failed. Please try again.');
+        });
+        
+        // Auto-refresh functionality
+        function toggleAutoRefresh() {
+            const isEnabled = localStorage.getItem('autoRefresh') === 'true';
+            const newState = !isEnabled;
+            localStorage.setItem('autoRefresh', newState);
+            
+            if (newState) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+            
+            updateAutoRefreshButton(newState);
+        }
+        
+        function startAutoRefresh() {
+            if (window.autoRefreshInterval) return;
+            
+            window.autoRefreshInterval = setInterval(function() {
+                const statusElements = document.querySelectorAll('[data-auto-refresh="true"]');
+                statusElements.forEach(function(el) {
+                    htmx.trigger(el, 'refresh');
+                });
+            }, 5000); // Refresh every 5 seconds
+        }
+        
+        function stopAutoRefresh() {
+            if (window.autoRefreshInterval) {
+                clearInterval(window.autoRefreshInterval);
+                window.autoRefreshInterval = null;
+            }
+        }
+        
+        function updateAutoRefreshButton(enabled) {
+            const button = document.querySelector('#auto-refresh-toggle');
+            if (button) {
+                button.innerHTML = enabled ? 
+                    '<i class="bi bi-pause-circle"></i> Stop Auto-refresh' : 
+                    '<i class="bi bi-play-circle"></i> Start Auto-refresh';
+                button.className = enabled ? 
+                    'btn btn-warning btn-sm' : 
+                    'btn btn-success btn-sm';
+            }
+        }
+        
+        // Initialize auto-refresh on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const autoRefreshEnabled = localStorage.getItem('autoRefresh') === 'true';
+            if (autoRefreshEnabled) {
+                startAutoRefresh();
+            }
+            updateAutoRefreshButton(autoRefreshEnabled);
+        });
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,214 @@
+{% extends "layouts/base_minimal.html" %}
+
+{% block title %}Dashboard - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-4 fw-bold text-primary">
+            <i class="bi bi-speedometer2 me-3"></i>
+            Research Dashboard
+        </h1>
+        <p class="lead text-muted">
+            AI-Generated Application Analysis Platform
+        </p>
+    </div>
+</div>
+
+<!-- System Status Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-hover h-100 {% if docker_available %}border-success{% else %}border-warning{% endif %}">
+            <div class="card-body text-center">
+                <i class="bi bi-hdd-rack display-4 {% if docker_available %}text-success{% else %}text-warning{% endif %} mb-3"></i>
+                <h5 class="card-title">Docker</h5>
+                <p class="card-text">
+                    {% if docker_available %}
+                        <span class="badge bg-success">Available</span>
+                    {% else %}
+                        <span class="badge bg-warning">Setup Required</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card card-hover h-100 {% if analyzers_available %}border-success{% else %}border-warning{% endif %}">
+            <div class="card-body text-center">
+                <i class="bi bi-bug display-4 {% if analyzers_available %}text-success{% else %}text-warning{% endif %} mb-3"></i>
+                <h5 class="card-title">Security Analysis</h5>
+                <p class="card-text">
+                    {% if analyzers_available %}
+                        <span class="badge bg-success">Ready</span>
+                    {% else %}
+                        <span class="badge bg-warning">Setup Required</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card card-hover h-100 {% if performance_available %}border-success{% else %}border-warning{% endif %}">
+            <div class="card-body text-center">
+                <i class="bi bi-speedometer2 display-4 {% if performance_available %}text-success{% else %}text-warning{% endif %} mb-3"></i>
+                <h5 class="card-title">Performance Testing</h5>
+                <p class="card-text">
+                    {% if performance_available %}
+                        <span class="badge bg-success">Ready</span>
+                    {% else %}
+                        <span class="badge bg-warning">Setup Required</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card card-hover h-100 {% if zap_available %}border-success{% else %}border-warning{% endif %}">
+            <div class="card-body text-center">
+                <i class="bi bi-shield-check display-4 {% if zap_available %}text-success{% else %}text-warning{% endif %} mb-3"></i>
+                <h5 class="card-title">ZAP Scanning</h5>
+                <p class="card-text">
+                    {% if zap_available %}
+                        <span class="badge bg-success">Ready</span>
+                    {% else %}
+                        <span class="badge bg-warning">Setup Required</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Project Overview -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Project Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    This research platform analyzes AI-generated applications across multiple models and frameworks.
+                    The system manages <strong>{{ total_apps or 900 }} generated applications</strong> from 30 different AI models,
+                    performing comprehensive security analysis, performance testing, and comparative evaluation.
+                </p>
+                
+                <h6 class="mt-4 mb-3">Key Features:</h6>
+                <ul class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <strong>Multi-Model Analysis:</strong> 30 AI models from 13 providers
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <strong>Application Diversity:</strong> 30 different app types per model
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <strong>Docker Integration:</strong> Containerized deployment and testing
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-{% if analyzers_available %}check-circle-fill text-success{% else %}clock text-warning{% endif %} me-2"></i>
+                        <strong>Security Analysis:</strong> bandit, safety, pylint, eslint
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-{% if performance_available %}check-circle-fill text-success{% else %}clock text-warning{% endif %} me-2"></i>
+                        <strong>Performance Testing:</strong> Locust-based load testing
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-{% if zap_available %}check-circle-fill text-success{% else %}clock text-warning{% endif %} me-2"></i>
+                        <strong>Security Scanning:</strong> OWASP ZAP integration
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-check me-2"></i>
+                    Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('analysis.analysis_overview') }}" 
+                       class="btn btn-outline-primary"
+                       hx-get="{{ url_for('analysis.analysis_overview') }}"
+                       hx-target="#main-content">
+                        <i class="bi bi-bug me-2"></i>
+                        Run Security Analysis
+                    </a>
+                    
+                    <a href="{{ url_for('performance.performance_overview') }}" 
+                       class="btn btn-outline-success"
+                       hx-get="{{ url_for('performance.performance_overview') }}"
+                       hx-target="#main-content">
+                        <i class="bi bi-speedometer2 me-2"></i>
+                        Performance Testing
+                    </a>
+                    
+                    <a href="{{ url_for('batch.batch_overview') }}" 
+                       class="btn btn-outline-info"
+                       hx-get="{{ url_for('batch.batch_overview') }}"
+                       hx-target="#main-content">
+                        <i class="bi bi-collection me-2"></i>
+                        Batch Operations
+                    </a>
+                    
+                    <a href="{{ url_for('generation.generation_overview') }}" 
+                       class="btn btn-outline-secondary"
+                       hx-get="{{ url_for('generation.generation_overview') }}"
+                       hx-target="#main-content">
+                        <i class="bi bi-code-slash me-2"></i>
+                        View Generated Apps
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity (placeholder) -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Recent Activity
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-info-circle mb-2"></i>
+                    <p class="small mb-0">No recent activity</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Development Status -->
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-info" role="alert">
+            <h5 class="alert-heading">
+                <i class="bi bi-info-circle me-2"></i>
+                Development Status
+            </h5>
+            <p class="mb-2">
+                This is a minimal development version. Full functionality will be available once all dependencies are properly configured.
+            </p>
+            <hr>
+            <p class="mb-0">
+                <strong>Next steps:</strong> Configure analysis tools, performance testing framework, and ZAP integration.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+<!-- Dashboard Statistics Cards -->
+<div class="col-md-3">
+    <div class="card text-white bg-primary">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <h5 class="card-title">Total Apps</h5>
+                    <h2 class="mb-0">{{ stats.total_apps }}</h2>
+                </div>
+                <div class="align-self-center">
+                    <i class="bi bi-app-indicator fs-1"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3">
+    <div class="card text-white bg-success">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <h5 class="card-title">Running</h5>
+                    <h2 class="mb-0">{{ stats.running_apps }}</h2>
+                </div>
+                <div class="align-self-center">
+                    <i class="bi bi-play-circle fs-1"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3">
+    <div class="card text-white bg-danger">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <h5 class="card-title">Stopped</h5>
+                    <h2 class="mb-0">{{ stats.total_apps - stats.running_apps }}</h2>
+                </div>
+                <div class="align-self-center">
+                    <i class="bi bi-stop-circle fs-1"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3">
+    <div class="card text-white bg-info">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <h5 class="card-title">Models</h5>
+                    <h2 class="mb-0">{{ stats.models_count }}</h2>
+                </div>
+                <div class="align-self-center">
+                    <i class="bi bi-cpu fs-1"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if cache_used %}
+<div class="col-12">
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="bi bi-info-circle"></i> 
+        <strong>Cache Hit!</strong> Dashboard data loaded from cache for faster performance.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+{% endif %}

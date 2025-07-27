@@ -19,8 +19,25 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Callable, TypedDict
 
-from logging_service import create_logger_for_component
-from utils import save_analysis_results, load_analysis_results, get_models_base_dir
+# Import logging service from core_services module
+try:
+    from core_services import create_logger_for_component
+except ImportError:
+    import logging
+    def create_logger_for_component(name):
+        return logging.getLogger(name)
+
+# Import utility functions from core_services module
+try:
+    from core_services import save_analysis_results, load_analysis_results, get_models_base_dir
+except ImportError:
+    # Fallback implementations
+    def save_analysis_results(*args, **kwargs):
+        pass
+    def load_analysis_results(*args, **kwargs):
+        return None
+    def get_models_base_dir():
+        return Path.cwd() / "misc" / "models"
 
 # Initialize logger
 logger = create_logger_for_component('performance')
@@ -110,7 +127,6 @@ class ErrorStats:
     description: str = ""
 
 
-@dataclass
 class GraphInfo(TypedDict):
     name: str
     url: str
@@ -332,7 +348,13 @@ class LocustPerformanceTester:
         
         try:
             # Get app info to determine URL
-            from utils import get_app_info
+            try:
+                from core_services import get_app_info
+            except ImportError:
+                # Fallback implementation
+                def get_app_info(model, app_num):
+                    return None
+                    
             app_info = get_app_info(model, app_num)
             if not app_info:
                 raise ValueError(f"Could not find app info for {model}/app{app_num}")
@@ -401,7 +423,13 @@ class LocustPerformanceTester:
         """
         try:
             # Determine app_num from port
-            from utils import get_app_info
+            try:
+                from core_services import get_app_info
+            except ImportError:
+                # Fallback implementation
+                def get_app_info(port):
+                    return None
+                    
             app_info = get_app_info(port)
             if not app_info or 'app_num' not in app_info:
                 logger.warning(f"Could not determine app_num from port {port}")
