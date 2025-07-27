@@ -1,0 +1,223 @@
+<!-- Error Page: 404 Not Found -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found - Thesis Research App</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/missing.css@1.1.3/dist/missing.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <style>
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: var(--spacing-xl);
+            text-align: center;
+            background: linear-gradient(135deg, var(--background-color) 0%, var(--surface-color) 100%);
+        }
+        
+        .error-content {
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        .error-code {
+            font-size: 6rem;
+            font-weight: 700;
+            color: var(--accent-color);
+            margin: 0;
+            line-height: 1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .error-title {
+            font-size: 2rem;
+            font-weight: 600;
+            margin: var(--spacing) 0;
+            color: var(--text-color);
+        }
+        
+        .error-message {
+            font-size: 1.125rem;
+            color: var(--text-muted);
+            margin-bottom: var(--spacing-xl);
+            line-height: 1.6;
+        }
+        
+        .error-actions {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing);
+            align-items: center;
+        }
+        
+        .error-actions .btn {
+            min-width: 200px;
+        }
+        
+        .error-suggestions {
+            margin-top: var(--spacing-xl);
+            padding: var(--spacing);
+            background: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            text-align: left;
+        }
+        
+        .error-suggestions h4 {
+            margin: 0 0 var(--spacing-sm) 0;
+            font-size: 1rem;
+            color: var(--text-color);
+        }
+        
+        .error-suggestions ul {
+            margin: 0;
+            padding-left: var(--spacing);
+        }
+        
+        .error-suggestions li {
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-muted);
+        }
+        
+        .error-suggestions a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+        
+        .error-suggestions a:hover {
+            text-decoration: underline;
+        }
+        
+        .error-illustration {
+            font-size: 4rem;
+            margin-bottom: var(--spacing);
+            opacity: 0.6;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        @media (max-width: 768px) {
+            .error-code {
+                font-size: 4rem;
+            }
+            
+            .error-title {
+                font-size: 1.5rem;
+            }
+            
+            .error-message {
+                font-size: 1rem;
+            }
+            
+            .error-actions {
+                flex-direction: column;
+            }
+            
+            .error-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-content">
+            <div class="error-illustration">🔍</div>
+            <h1 class="error-code">404</h1>
+            <h2 class="error-title">Page Not Found</h2>
+            <p class="error-message">
+                The page you're looking for doesn't exist or has been moved. 
+                This might happen if the application or model you're trying to access is no longer available.
+            </p>
+            
+            <div class="error-actions">
+                <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+                    🏠 Go to Dashboard
+                </a>
+                
+                <button onclick="history.back()" class="btn btn-outline">
+                    ← Go Back
+                </button>
+                
+                <a href="{{ url_for('main.dashboard') }}#search" class="btn btn-link">
+                    🔍 Search Applications
+                </a>
+            </div>
+            
+            <div class="error-suggestions">
+                <h4>What you can do:</h4>
+                <ul>
+                    <li>Check the URL for typos or incorrect parameters</li>
+                    <li>
+                        <a href="{{ url_for('main.dashboard') }}">Browse all applications</a> 
+                        to find what you're looking for
+                    </li>
+                    <li>
+                        Use the <a href="{{ url_for('main.dashboard') }}#search">search functionality</a> 
+                        to locate specific models or app types
+                    </li>
+                    <li>
+                        Visit the <a href="{{ url_for('main.models_overview') }}">models overview</a> 
+                        to see all available AI models
+                    </li>
+                    <li>
+                        If you think this is an error, please 
+                        <a href="mailto:support@thesisapp.com">contact support</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Enhanced error tracking
+        if (window.ThesisApp && window.ThesisApp.analytics) {
+            window.ThesisApp.analytics.trackError('404', {
+                url: window.location.href,
+                referrer: document.referrer,
+                userAgent: navigator.userAgent,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Auto-redirect after extended time (optional)
+        setTimeout(function() {
+            if (confirm('Would you like to be redirected to the dashboard?')) {
+                window.location.href = '{{ url_for("main.dashboard") }}';
+            }
+        }, 30000); // 30 seconds
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            switch(event.key) {
+                case 'h':
+                case 'H':
+                    if (!event.ctrlKey && !event.altKey) {
+                        window.location.href = '{{ url_for("main.dashboard") }}';
+                    }
+                    break;
+                case 'b':
+                case 'B':
+                    if (!event.ctrlKey && !event.altKey) {
+                        history.back();
+                    }
+                    break;
+                case 's':
+                case 'S':
+                    if (!event.ctrlKey && !event.altKey) {
+                        window.location.href = '{{ url_for("main.dashboard") }}#search';
+                    }
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

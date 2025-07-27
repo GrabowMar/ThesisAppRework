@@ -1,0 +1,564 @@
+<!-- Global Search Component -->
+<div class="search-container">
+    <div class="search-input-wrapper">
+        <span class="search-icon">🔍</span>
+        <input type="search" 
+               id="search-input" 
+               class="search-input" 
+               placeholder="Search applications, models, or analyses..."
+               hx-get="{{ url_for('api.search_apps') }}"
+               hx-trigger="keyup changed delay:300ms, search"
+               hx-target="#search-results"
+               hx-indicator="#search-loading"
+               hx-swap="innerHTML"
+               autocomplete="off"
+               aria-label="Search applications">
+        <div id="search-loading" class="search-loading htmx-indicator">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+    
+    <!-- Search Results Dropdown -->
+    <div id="search-results" class="search-results" style="display: none;"></div>
+</div>
+
+<!-- Advanced Search Modal Trigger -->
+<button class="btn btn-secondary btn-sm advanced-search-btn" 
+        onclick="showAdvancedSearch()"
+        title="Advanced search options"
+        aria-label="Open advanced search">
+    <span class="icon">⚙️</span>
+</button>
+
+<!-- Advanced Search Modal -->
+<div id="advanced-search-modal" class="modal-overlay" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Advanced Search</h3>
+            <button onclick="hideAdvancedSearch()" class="btn btn-secondary btn-sm">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="advanced-search-form" 
+                  hx-get="{{ url_for('api.advanced_search') }}"
+                  hx-target="#advanced-search-results"
+                  hx-trigger="submit"
+                  hx-swap="innerHTML">
+                
+                <div class="form-group">
+                    <label for="search-term">Search Term</label>
+                    <input type="text" 
+                           id="search-term" 
+                           name="q" 
+                           class="form-control"
+                           placeholder="Enter search terms...">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="model-filter">AI Model</label>
+                        <select id="model-filter" name="model" class="form-control">
+                            <option value="">All Models</option>
+                            {% if get_ai_models %}
+                                {% for model in get_ai_models() %}
+                                <option value="{{ model.slug }}">{{ model.name }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="app-type-filter">Application Type</label>
+                        <select id="app-type-filter" name="app_type" class="form-control">
+                            <option value="">All Types</option>
+                            <option value="1">Login System</option>
+                            <option value="2">Chat Application</option>
+                            <option value="3">Feedback System</option>
+                            <option value="4">Blog Platform</option>
+                            <option value="5">E-commerce Cart</option>
+                            <option value="6">Note Taking</option>
+                            <option value="7">File Upload</option>
+                            <option value="8">Forum</option>
+                            <option value="9">CRUD Manager</option>
+                            <option value="10">Microblog</option>
+                            <option value="11">Polling System</option>
+                            <option value="12">Reservation System</option>
+                            <option value="13">Photo Gallery</option>
+                            <option value="14">Cloud Storage</option>
+                            <option value="15">Kanban Board</option>
+                            <option value="16">IoT Dashboard</option>
+                            <option value="17">Fitness Tracker</option>
+                            <option value="18">Wiki</option>
+                            <option value="19">Crypto Wallet</option>
+                            <option value="20">Mapping App</option>
+                            <option value="21">Recipe Manager</option>
+                            <option value="22">Learning Platform</option>
+                            <option value="23">Finance Tracker</option>
+                            <option value="24">Networking Tool</option>
+                            <option value="25">Health Monitor</option>
+                            <option value="26">Environment Tracker</option>
+                            <option value="27">Team Management</option>
+                            <option value="28">Art Portfolio</option>
+                            <option value="29">Event Planner</option>
+                            <option value="30">Research Collaboration</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="status-filter">Container Status</label>
+                        <select id="status-filter" name="status" class="form-control">
+                            <option value="">All Statuses</option>
+                            <option value="running">Running</option>
+                            <option value="stopped">Stopped</option>
+                            <option value="error">Error</option>
+                            <option value="starting">Starting</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="analysis-status">Analysis Status</label>
+                        <select id="analysis-status" name="analysis_status" class="form-control">
+                            <option value="">Any Analysis Status</option>
+                            <option value="analyzed">Has Analysis</option>
+                            <option value="pending">Pending Analysis</option>
+                            <option value="failed">Analysis Failed</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Analysis Types</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="analysis_types" value="security">
+                            Security Analysis
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="analysis_types" value="performance">
+                            Performance Testing
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="analysis_types" value="zap">
+                            ZAP Security Scan
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="analysis_types" value="openrouter">
+                            AI Analysis
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="htmx-indicator loading-spinner"></span>
+                        Search
+                    </button>
+                    <button type="button" onclick="resetAdvancedSearch()" class="btn btn-secondary">
+                        Reset
+                    </button>
+                </div>
+            </form>
+            
+            <div id="advanced-search-results" class="search-results-container">
+                <!-- Advanced search results will appear here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="hideAdvancedSearch()" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Search Component Styles -->
+<style>
+.search-container {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+    margin-right: var(--spacing);
+}
+
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.5rem 2.5rem 0.5rem 2.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    background: var(--background-color);
+    transition: all var(--transition-fast);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.search-icon {
+    position: absolute;
+    left: 0.75rem;
+    color: var(--text-muted);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.search-loading {
+    position: absolute;
+    right: 0.75rem;
+    display: flex;
+    align-items: center;
+}
+
+.search-loading .loading-spinner {
+    width: 16px;
+    height: 16px;
+}
+
+.search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.search-results:empty {
+    display: none !important;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing);
+    border-bottom: 1px solid var(--border-color);
+    text-decoration: none;
+    color: var(--text-color);
+    transition: background var(--transition-fast);
+}
+
+.search-result-item:hover {
+    background: var(--surface-color);
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: var(--spacing);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-color);
+    border-radius: var(--border-radius);
+    font-size: 0.8rem;
+}
+
+.search-result-content {
+    flex: 1;
+}
+
+.search-result-title {
+    font-weight: 500;
+    margin: 0 0 0.25rem 0;
+    font-size: 0.875rem;
+}
+
+.search-result-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.search-result-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.search-no-results {
+    padding: var(--spacing-lg);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.advanced-search-btn {
+    margin-left: var(--spacing-sm);
+}
+
+/* Advanced Search Modal Styles */
+.form-group {
+    margin-bottom: var(--spacing);
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-color);
+    font-size: 0.875rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    background: var(--background-color);
+    transition: border-color var(--transition-fast);
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing);
+}
+
+.checkbox-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-weight: normal;
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--spacing);
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+}
+
+.search-results-container {
+    margin-top: var(--spacing-lg);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .search-container {
+        max-width: none;
+        margin-right: var(--spacing-sm);
+    }
+    
+    .search-input {
+        font-size: 0.8rem;
+    }
+    
+    .advanced-search-btn {
+        margin-left: 0;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .checkbox-group {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .search-container {
+        order: -1;
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: var(--spacing);
+    }
+    
+    .search-results {
+        position: fixed;
+        top: var(--header-height);
+        left: 0;
+        right: 0;
+        border-radius: 0;
+        max-height: calc(100vh - var(--header-height));
+    }
+}
+
+/* Keyboard navigation */
+.search-result-item:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+    background: var(--surface-color);
+}
+
+/* Search result highlighting */
+.search-highlight {
+    background: rgba(0, 122, 204, 0.2);
+    font-weight: 500;
+}
+</style>
+
+<!-- Search Component JavaScript -->
+<script>
+// Search functionality
+let searchTimeout;
+let currentSearchResults = [];
+
+// Show search results when input has focus and contains text
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+    
+    if (searchInput && searchResults) {
+        // Show results on focus if there's content
+        searchInput.addEventListener('focus', function() {
+            if (this.value.trim() && searchResults.children.length > 0) {
+                searchResults.style.display = 'block';
+            }
+        });
+        
+        // Hide results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+        
+        // Keyboard navigation in search results
+        searchInput.addEventListener('keydown', function(e) {
+            const results = searchResults.querySelectorAll('.search-result-item');
+            
+            if (e.key === 'ArrowDown' && results.length > 0) {
+                e.preventDefault();
+                results[0].focus();
+            } else if (e.key === 'Escape') {
+                searchResults.style.display = 'none';
+                this.blur();
+            }
+        });
+        
+        // Navigate between search results with arrow keys
+        searchResults.addEventListener('keydown', function(e) {
+            const results = Array.from(this.querySelectorAll('.search-result-item'));
+            const current = document.activeElement;
+            const currentIndex = results.indexOf(current);
+            
+            if (e.key === 'ArrowDown' && currentIndex < results.length - 1) {
+                e.preventDefault();
+                results[currentIndex + 1].focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (currentIndex > 0) {
+                    results[currentIndex - 1].focus();
+                } else {
+                    searchInput.focus();
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                current.click();
+            } else if (e.key === 'Escape') {
+                this.style.display = 'none';
+                searchInput.focus();
+            }
+        });
+    }
+});
+
+// HTMX event handlers for search
+document.body.addEventListener('htmx:afterSwap', function(e) {
+    if (e.detail.target.id === 'search-results') {
+        const searchResults = document.getElementById('search-results');
+        const hasResults = searchResults.children.length > 0;
+        
+        searchResults.style.display = hasResults ? 'block' : 'none';
+        
+        // Update current results for keyboard navigation
+        currentSearchResults = Array.from(searchResults.querySelectorAll('.search-result-item'));
+    }
+});
+
+// Advanced Search Modal Functions
+function showAdvancedSearch() {
+    document.getElementById('advanced-search-modal').style.display = 'flex';
+    document.getElementById('search-term').focus();
+}
+
+function hideAdvancedSearch() {
+    document.getElementById('advanced-search-modal').style.display = 'none';
+}
+
+function resetAdvancedSearch() {
+    const form = document.getElementById('advanced-search-form');
+    form.reset();
+    document.getElementById('advanced-search-results').innerHTML = '';
+}
+
+// Handle advanced search form submission
+document.body.addEventListener('htmx:afterRequest', function(e) {
+    if (e.detail.elt.id === 'advanced-search-form') {
+        // Scroll to results if they exist
+        const results = document.getElementById('advanced-search-results');
+        if (results.children.length > 0) {
+            results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+});
+
+// Quick search helpers
+function searchByModel(modelSlug) {
+    const searchInput = document.getElementById('search-input');
+    searchInput.value = `model:${modelSlug}`;
+    htmx.trigger(searchInput, 'keyup');
+}
+
+function searchByStatus(status) {
+    const searchInput = document.getElementById('search-input');
+    searchInput.value = `status:${status}`;
+    htmx.trigger(searchInput, 'keyup');
+}
+
+function searchByType(appType) {
+    const searchInput = document.getElementById('search-input');
+    searchInput.value = `type:${appType}`;
+    htmx.trigger(searchInput, 'keyup');
+}
+
+// Export functions for use in other components
+window.SearchUtils = {
+    searchByModel,
+    searchByStatus,
+    searchByType,
+    showAdvancedSearch,
+    hideAdvancedSearch,
+    resetAdvancedSearch
+};
+</script>

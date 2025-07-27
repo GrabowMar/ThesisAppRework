@@ -1,0 +1,157 @@
+<!-- Breadcrumb Navigation Component -->
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+    <ol class="breadcrumb-list">
+        <!-- Home -->
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('main.dashboard') }}" 
+               class="breadcrumb-link"
+               hx-get="{{ url_for('main.dashboard') }}"
+               hx-target="#main-content"
+               hx-push-url="true">
+                <span class="breadcrumb-icon">🏠</span>
+                <span class="breadcrumb-text">Dashboard</span>
+            </a>
+        </li>
+        
+        {% block breadcrumb_items %}
+        <!-- Default breadcrumbs - override in page templates -->
+        {% endblock %}
+        
+        <!-- Current Page -->
+        {% block current_breadcrumb %}
+        <li class="breadcrumb-item active" aria-current="page">
+            <span class="breadcrumb-text">{{ request.endpoint.split('.')[-1].title() }}</span>
+        </li>
+        {% endblock %}
+    </ol>
+</nav>
+
+<!-- Breadcrumb Styles -->
+<style>
+.breadcrumbs {
+    margin-bottom: var(--spacing-lg);
+    font-size: 0.875rem;
+}
+
+.breadcrumb-list {
+    display: flex;
+    align-items: center;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex-wrap: wrap;
+}
+
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+}
+
+.breadcrumb-item:not(:last-child)::after {
+    content: '›';
+    margin: 0 var(--spacing-sm);
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.breadcrumb-link {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--text-muted);
+    transition: color var(--transition-fast);
+    gap: 4px;
+}
+
+.breadcrumb-link:hover {
+    color: var(--accent-color);
+}
+
+.breadcrumb-item.active .breadcrumb-text {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.breadcrumb-icon {
+    font-size: 0.8rem;
+}
+
+.breadcrumb-text {
+    font-size: 0.875rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .breadcrumb-text {
+        display: none;
+    }
+    
+    .breadcrumb-item:first-child .breadcrumb-text {
+        display: inline;
+    }
+    
+    .breadcrumb-item:last-child .breadcrumb-text {
+        display: inline;
+    }
+    
+    .breadcrumb-icon {
+        font-size: 1rem;
+    }
+}
+
+/* Focus styles for accessibility */
+.breadcrumb-link:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* HTMX loading state */
+.breadcrumb-link.htmx-request {
+    opacity: 0.6;
+}
+</style>
+
+<!-- Breadcrumb JavaScript -->
+<script>
+// Update breadcrumbs based on navigation
+document.body.addEventListener('htmx:afterSwap', function(e) {
+    if (e.detail.target.id === 'main-content') {
+        // Update breadcrumbs if new content includes them
+        updateBreadcrumbsFromContent();
+    }
+});
+
+function updateBreadcrumbsFromContent() {
+    // This function would update breadcrumbs based on the new content
+    // Implementation depends on how you want to handle dynamic breadcrumbs
+}
+
+// Structured data for SEO
+function generateBreadcrumbStructuredData() {
+    const breadcrumbs = document.querySelectorAll('.breadcrumb-item a');
+    const itemListElement = Array.from(breadcrumbs).map((link, index) => ({
+        "@type": "ListItem",
+        "position": index + 1,
+        "name": link.querySelector('.breadcrumb-text').textContent.trim(),
+        "item": link.href
+    }));
+    
+    return {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": itemListElement
+    };
+}
+
+// Add structured data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.querySelectorAll('.breadcrumb-item a').length > 0) {
+        const structuredData = generateBreadcrumbStructuredData();
+        const script = document.createElement('script');
+        script.type = 'application/ld+json';
+        script.textContent = JSON.stringify(structuredData);
+        document.head.appendChild(script);
+    }
+});
+</script>

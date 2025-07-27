@@ -1,0 +1,711 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Thesis Research App{% endblock %}
+
+{% block meta_description %}AI-generated application analysis dashboard - Monitor 900+ applications across 30 models{% endblock %}
+
+{% block page_title %}Application Dashboard{% endblock %}
+
+{% block page_description %}
+Monitor and analyze {{ stats.total_apps if stats else '900+' }} AI-generated applications across {{ stats.models_count if stats else '30' }} different models
+{% endblock %}
+
+{% block breadcrumb_items %}
+<!-- Dashboard is the root, no additional breadcrumbs -->
+{% endblock %}
+
+{% block current_breadcrumb %}
+<li class="breadcrumb-item active" aria-current="page">
+    <span class="breadcrumb-text">Dashboard</span>
+</li>
+{% endblock %}
+
+{% block page_actions %}
+<div class="dashboard-actions">
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <button class="btn btn-primary" 
+                hx-get="{{ url_for('batch.create_batch_job') }}"
+                hx-target="#batch-modal-content"
+                onclick="showBatchModal()"
+                title="Create batch analysis job">
+            <span class="btn-icon">⚙️</span>
+            <span class="btn-text">Batch Analysis</span>
+        </button>
+        
+        <button class="btn btn-secondary" 
+                hx-post="{{ url_for('api.clear_cache') }}"
+                hx-confirm="Clear all cached data?"
+                hx-target="#cache-status"
+                title="Clear application cache">
+            <span class="btn-icon">🗑️</span>
+            <span class="btn-text">Clear Cache</span>
+        </button>
+        
+        <button class="btn btn-secondary" 
+                onclick="refreshDashboard()"
+                title="Refresh dashboard data">
+            <span class="btn-icon">🔄</span>
+            <span class="btn-text">Refresh</span>
+        </button>
+    </div>
+    
+    <!-- View Options -->
+    <div class="view-options">
+        <div class="btn-group" role="group" aria-label="View options">
+            <button type="button" 
+                    class="btn btn-secondary btn-sm active" 
+                    data-view="grid"
+                    onclick="switchView('grid')">
+                <span class="btn-icon">⊞</span>
+            </button>
+            <button type="button" 
+                    class="btn btn-secondary btn-sm" 
+                    data-view="list"
+                    onclick="switchView('list')">
+                <span class="btn-icon">☰</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    
+    <!-- Statistics Cards -->
+    {% if stats %}
+    <section class="stats-section" aria-labelledby="stats-heading">
+        <h2 id="stats-heading" class="sr-only">Application Statistics</h2>
+        <div class="stats-grid" 
+             hx-get="{{ url_for('api.dashboard_stats') }}"
+             hx-trigger="load, every 60s"
+             hx-swap="outerHTML">
+            
+            <div class="stat-card">
+                <span class="stat-number">{{ stats.total_apps }}</span>
+                <span class="stat-label">Total Applications</span>
+                <div class="stat-trend">
+                    <span class="trend-icon">📊</span>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <span class="stat-number">{{ stats.running_apps }}</span>
+                <span class="stat-label">Running Containers</span>
+                <div class="stat-trend">
+                    <span class="trend-icon {{ 'trend-up' if stats.running_apps > 0 else 'trend-neutral' }}">
+                        {{ '📈' if stats.running_apps > 0 else '📊' }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <span class="stat-number">{{ stats.models_count }}</span>
+                <span class="stat-label">AI Models</span>
+                <div class="stat-trend">
+                    <span class="trend-icon">🤖</span>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <span class="stat-number">{{ stats.filtered_apps if filters and filters.search else stats.total_apps }}</span>
+                <span class="stat-label">{{ 'Filtered Results' if filters and filters.search else 'Available Apps' }}</span>
+                <div class="stat-trend">
+                    <span class="trend-icon">🔍</span>
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+    
+    <!-- Filters and Search -->
+    <section class="filters-section" aria-labelledby="filters-heading">
+        <h2 id="filters-heading" class="sr-only">Filter Applications</h2>
+        <div class="filters" 
+             hx-get="{{ url_for('main.dashboard') }}"
+             hx-target="#dashboard-content"
+             hx-trigger="change"
+             hx-include="[name='search'], [name='model'], [name='status']"
+             hx-push-url="true">
+            
+            <!-- Search is in the header, but we include a secondary search here -->
+            <div class="filter-group">
+                <label for="dashboard-search" class="filter-label">Search:</label>
+                <input type="search" 
+                       id="dashboard-search" 
+                       name="search"
+                       class="form-control"
+                       placeholder="Search applications..."
+                       value="{{ filters.search if filters else '' }}"
+                       hx-get="{{ url_for('api.search_apps') }}"
+                       hx-trigger="keyup changed delay:300ms"
+                       hx-target="#apps-list"
+                       hx-swap="outerHTML">
+            </div>
+            
+            <div class="filter-group">
+                <label for="model-filter" class="filter-label">Model:</label>
+                <select id="model-filter" name="model" class="form-control">
+                    <option value="">All Models</option>
+                    {% for model in unique_models %}
+                    <option value="{{ model }}" {{ 'selected' if filters and filters.model == model else '' }}>
+                        {{ model.replace('_', ' ').title() }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="status-filter" class="filter-label">Status:</label>
+                <select id="status-filter" name="status" class="form-control">
+                    <option value="">All Statuses</option>
+                    <option value="running" {{ 'selected' if filters and filters.status == 'running' else '' }}>Running</option>
+                    <option value="stopped" {{ 'selected' if filters and filters.status == 'stopped' else '' }}>Stopped</option>
+                    <option value="error" {{ 'selected' if filters and filters.status == 'error' else '' }}>Error</option>
+                    <option value="starting" {{ 'selected' if filters and filters.status == 'starting' else '' }}>Starting</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="per-page" class="filter-label">Per Page:</label>
+                <select id="per-page" name="per_page" class="form-control">
+                    <option value="20" {{ 'selected' if filters and filters.per_page == 20 else '' }}>20</option>
+                    <option value="50" {{ 'selected' if filters and filters.per_page == 50 else '' }}>50</option>
+                    <option value="100" {{ 'selected' if filters and filters.per_page == 100 else '' }}>100</option>
+                </select>
+            </div>
+            
+            <div class="filter-actions">
+                <button type="button" 
+                        class="btn btn-secondary btn-sm"
+                        onclick="clearFilters()">
+                    Clear Filters
+                </button>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Main Content Area -->
+    <main class="dashboard-content" id="dashboard-content">
+        
+        <!-- Applications Grid/List -->
+        <section class="apps-section" aria-labelledby="apps-heading">
+            <div class="section-header">
+                <h2 id="apps-heading">Applications</h2>
+                <div class="section-meta">
+                    {% if apps %}
+                        Showing {{ apps|length }} of {{ stats.filtered_apps if stats else apps|length }} applications
+                        {% if cache_used %}
+                            <span class="cache-indicator" title="Data from cache">⚡</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Applications List -->
+            <div id="apps-list" class="apps-container view-grid">
+                {% if apps %}
+                    <div class="app-grid">
+                        {% for app in apps %}
+                            {% include 'components/app_card.html' %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">📱</div>
+                        <h3>No Applications Found</h3>
+                        <p>
+                            {% if filters and (filters.search or filters.model or filters.status) %}
+                                No applications match your current filters. Try adjusting your search criteria.
+                            {% else %}
+                                No applications are currently available. Check your configuration or generate some applications.
+                            {% endif %}
+                        </p>
+                        {% if filters and (filters.search or filters.model or filters.status) %}
+                        <button class="btn btn-primary" onclick="clearFilters()">
+                            Clear Filters
+                        </button>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Pagination -->
+            {% if has_more %}
+            <div class="pagination-section">
+                <button class="btn btn-secondary" 
+                        hx-get="{{ url_for('main.dashboard') }}?page={{ (filters.page if filters else 1) + 1 }}&{{ request.query_string.decode() }}"
+                        hx-target="#apps-list .app-grid"
+                        hx-swap="beforeend"
+                        hx-indicator="#load-more-spinner">
+                    <span id="load-more-spinner" class="htmx-indicator loading-spinner"></span>
+                    Load More Applications
+                </button>
+            </div>
+            {% endif %}
+        </section>
+        
+        <!-- Recent Activity -->
+        <section class="activity-section" aria-labelledby="activity-heading">
+            <div class="section-header">
+                <h2 id="activity-heading">Recent Activity</h2>
+                <button class="btn btn-secondary btn-sm" 
+                        hx-get="{{ url_for('api.recent_activity') }}"
+                        hx-target="#activity-list"
+                        hx-swap="innerHTML">
+                    <span class="htmx-indicator loading-spinner"></span>
+                    Refresh
+                </button>
+            </div>
+            
+            <div id="activity-list" 
+                 class="activity-list"
+                 hx-get="{{ url_for('api.recent_activity') }}"
+                 hx-trigger="load, every 120s"
+                 hx-swap="innerHTML">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading recent activity...</span>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Batch Job Modal -->
+<div id="batch-modal" class="modal-overlay" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Create Batch Analysis Job</h3>
+            <button onclick="hideBatchModal()" class="btn btn-secondary btn-sm">×</button>
+        </div>
+        <div class="modal-body" id="batch-modal-content">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <span>Loading batch job form...</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="hideBatchModal()" class="btn btn-secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Dashboard-specific JavaScript
+
+// View switching
+function switchView(viewType) {
+    const container = document.getElementById('apps-list');
+    const buttons = document.querySelectorAll('[data-view]');
+    
+    // Update container class
+    container.className = `apps-container view-${viewType}`;
+    
+    // Update button states
+    buttons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === viewType);
+    });
+    
+    // Save preference
+    localStorage.setItem('dashboardView', viewType);
+    
+    // Announce change to screen readers
+    const announcement = `View changed to ${viewType}`;
+    if (window.ThesisApp?.accessibility?.announce) {
+        window.ThesisApp.accessibility.announce(announcement);
+    }
+}
+
+// Load saved view preference
+document.addEventListener('DOMContentLoaded', function() {
+    const savedView = localStorage.getItem('dashboardView') || 'grid';
+    switchView(savedView);
+});
+
+// Clear filters
+function clearFilters() {
+    document.getElementById('dashboard-search').value = '';
+    document.getElementById('model-filter').value = '';
+    document.getElementById('status-filter').value = '';
+    document.getElementById('per-page').value = '20';
+    
+    // Trigger update
+    htmx.trigger(document.querySelector('.filters'), 'change');
+}
+
+// Refresh dashboard
+function refreshDashboard() {
+    // Clear cache first
+    htmx.ajax('POST', '{{ url_for("api.clear_cache") }}', {
+        swap: 'none'
+    }).then(() => {
+        // Refresh dashboard content
+        htmx.ajax('GET', '{{ url_for("main.dashboard") }}', {
+            target: '#dashboard-content',
+            swap: 'outerHTML'
+        });
+        
+        // Show success message
+        if (window.showToast) {
+            window.showToast('Dashboard refreshed', 'success');
+        }
+    });
+}
+
+// Batch job modal
+function showBatchModal() {
+    document.getElementById('batch-modal').style.display = 'flex';
+}
+
+function hideBatchModal() {
+    document.getElementById('batch-modal').style.display = 'none';
+}
+
+// Auto-refresh functionality
+let autoRefreshInterval;
+
+function startAutoRefresh(intervalSeconds = 30) {
+    stopAutoRefresh(); // Clear any existing interval
+    
+    autoRefreshInterval = setInterval(() => {
+        // Only refresh if tab is visible
+        if (!document.hidden) {
+            // Refresh stats
+            htmx.trigger(document.querySelector('.stats-grid'), 'every 60s');
+            
+            // Refresh activity
+            htmx.trigger(document.querySelector('#activity-list'), 'every 120s');
+            
+            console.log('Dashboard auto-refreshed');
+        }
+    }, intervalSeconds * 1000);
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+}
+
+// Handle visibility change
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        stopAutoRefresh();
+    } else {
+        startAutoRefresh();
+    }
+});
+
+// Start auto-refresh on page load
+document.addEventListener('DOMContentLoaded', function() {
+    startAutoRefresh(30); // Refresh every 30 seconds
+});
+
+// Handle keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + R: Refresh dashboard
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+        e.preventDefault();
+        refreshDashboard();
+    }
+    
+    // Ctrl/Cmd + F: Focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        document.getElementById('dashboard-search').focus();
+    }
+    
+    // Ctrl/Cmd + B: Open batch modal
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        showBatchModal();
+    }
+});
+
+// Handle HTMX events
+document.body.addEventListener('htmx:afterSwap', function(e) {
+    if (e.detail.target.id === 'apps-list') {
+        // Announce new content loaded
+        const appCount = e.detail.target.querySelectorAll('.app-card').length;
+        if (window.ThesisApp?.accessibility?.announce) {
+            window.ThesisApp.accessibility.announce(`${appCount} applications loaded`);
+        }
+    }
+});
+
+// Handle infinite scroll
+let isLoadingMore = false;
+
+function checkInfiniteScroll() {
+    if (isLoadingMore) return;
+    
+    const loadMoreBtn = document.querySelector('.pagination-section button');
+    if (!loadMoreBtn) return;
+    
+    const rect = loadMoreBtn.getBoundingClientRect();
+    const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+    
+    if (isVisible) {
+        isLoadingMore = true;
+        loadMoreBtn.click();
+        
+        // Reset flag after load
+        setTimeout(() => {
+            isLoadingMore = false;
+        }, 1000);
+    }
+}
+
+// Optional: Enable infinite scroll on scroll
+window.addEventListener('scroll', checkInfiniteScroll);
+
+// Search suggestions (if implemented)
+function setupSearchSuggestions() {
+    const searchInput = document.getElementById('dashboard-search');
+    if (!searchInput) return;
+    
+    // Add search suggestions functionality here
+    // This could include recent searches, popular filters, etc.
+}
+
+// Performance monitoring
+let performanceObserver;
+
+if ('PerformanceObserver' in window) {
+    performanceObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+            if (entry.entryType === 'navigation') {
+                console.log(`Dashboard loaded in ${entry.loadEventEnd - entry.loadEventStart}ms`);
+            }
+        }
+    });
+    
+    performanceObserver.observe({ entryTypes: ['navigation'] });
+}
+
+// Error handling
+window.addEventListener('error', function(e) {
+    console.error('Dashboard error:', e.error);
+    if (window.showToast) {
+        window.showToast('An error occurred. Please refresh the page.', 'error');
+    }
+});
+
+// Handle network status
+window.addEventListener('online', function() {
+    if (window.showToast) {
+        window.showToast('Connection restored', 'success');
+    }
+    refreshDashboard();
+});
+
+window.addEventListener('offline', function() {
+    if (window.showToast) {
+        window.showToast('Connection lost', 'warning');
+    }
+    stopAutoRefresh();
+});
+</script>
+
+<style>
+/* Dashboard-specific styles */
+.dashboard-container {
+    max-width: 100%;
+}
+
+.dashboard-actions {
+    display: flex;
+    gap: var(--spacing);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.quick-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.view-options {
+    margin-left: auto;
+}
+
+.btn-group {
+    display: flex;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.btn-group .btn {
+    border: none;
+    border-radius: 0;
+    margin: 0;
+}
+
+.btn-group .btn:not(:last-child) {
+    border-right: 1px solid var(--border-color);
+}
+
+.btn-group .btn.active {
+    background: var(--accent-color);
+    color: white;
+}
+
+.stats-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.filters-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.apps-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing);
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--text-color);
+}
+
+.section-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.cache-indicator {
+    color: var(--warning-color);
+    font-size: 1rem;
+}
+
+.apps-container.view-list .app-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing);
+}
+
+.apps-container.view-list .app-card {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--spacing-xl) var(--spacing);
+    color: var(--text-muted);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: var(--spacing);
+}
+
+.empty-state h3 {
+    margin: 0 0 var(--spacing) 0;
+    color: var(--text-color);
+}
+
+.empty-state p {
+    margin-bottom: var(--spacing-lg);
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.pagination-section {
+    text-align: center;
+    margin-top: var(--spacing-xl);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+}
+
+.activity-section {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+}
+
+.activity-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.activity-item {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.875rem;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-icon {
+    width: 24px;
+    text-align: center;
+    margin-right: var(--spacing);
+}
+
+.activity-content {
+    flex: 1;
+}
+
+.activity-time {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+@media (max-width: 768px) {
+    .dashboard-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .view-options {
+        margin-left: 0;
+        margin-top: var(--spacing);
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+    
+    .section-meta {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .quick-actions {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .btn-text {
+        display: none;
+    }
+}
+</style>
+{% endblock %}

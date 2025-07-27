@@ -1,0 +1,243 @@
+<!-- Simple App List Partial for Search Results -->
+<div class="search-apps-list">
+    {% if apps %}
+    <div class="search-results-info">
+        <span class="results-count">{{ apps|length }} apps found</span>
+        {% if search_term %}
+        <span class="search-term">for "<em>{{ search_term }}</em>"</span>
+        {% endif %}
+    </div>
+    
+    <div class="apps-list">
+        {% for app in apps %}
+        <div class="app-list-item" onclick="navigateToApp('{{ app.model.slug if app.model else '' }}', '{{ app.app_number or '' }}')">
+            <div class="app-list-icon">
+                {{ app.app_number or '📱' }}
+            </div>
+            
+            <div class="app-list-content">
+                <div class="app-list-title">
+                    {{ app.model.name if app.model else 'Unknown Model' }} - App {{ app.app_number or 'Unknown' }}
+                </div>
+                
+                <div class="app-list-meta">
+                    <span class="status-badge status-{{ app.status|lower if app.status else 'unknown' }}">
+                        {{ app.status or 'Unknown' }}
+                    </span>
+                    
+                    {% if app.description %}
+                    <span class="app-description">{{ app.description[:50] }}{% if app.description|length > 50 %}...{% endif %}</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="app-list-actions">
+                {% if app.status == 'running' and app.frontend_port %}
+                <a href="http://localhost:{{ app.frontend_port }}" 
+                   target="_blank" 
+                   class="btn btn-xs btn-primary"
+                   onclick="event.stopPropagation()">Open</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if has_more %}
+    <div class="load-more-search">
+        <button class="btn btn-outline btn-sm"
+                hx-get="{{ url_for('api.search_apps') }}"
+                hx-vals='{"search": "{{ search_term }}", "page": {{ (apps|length // 20) + 2 }}}'
+                hx-target=".apps-list"
+                hx-swap="beforeend">
+            Load More
+        </button>
+    </div>
+    {% endif %}
+    
+    {% else %}
+    <div class="no-search-results">
+        <div class="no-results-icon">🔍</div>
+        <div class="no-results-text">
+            {% if search_term %}
+            No apps found for "<em>{{ search_term }}</em>"
+            {% else %}
+            No apps found
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.search-apps-list {
+    width: 100%;
+}
+
+.search-results-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) 0;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: var(--spacing-sm);
+}
+
+.results-count {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.apps-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.app-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing);
+    padding: var(--spacing-sm);
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.app-list-item:hover {
+    background: var(--surface-color);
+    border-color: var(--accent-color);
+}
+
+.app-list-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--accent-color);
+    color: white;
+    border-radius: var(--border-radius);
+    font-size: 0.8rem;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.app-list-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.app-list-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: var(--spacing-xs);
+}
+
+.app-list-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.75rem;
+}
+
+.status-badge {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-badge.status-running {
+    background: var(--success-color);
+    color: white;
+}
+
+.status-badge.status-stopped {
+    background: var(--warning-color);
+    color: white;
+}
+
+.status-badge.status-error {
+    background: var(--danger-color);
+    color: white;
+}
+
+.status-badge.status-unknown {
+    background: var(--text-muted);
+    color: white;
+}
+
+.app-description {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.app-list-actions {
+    flex-shrink: 0;
+}
+
+.load-more-search {
+    text-align: center;
+    margin-top: var(--spacing);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-color);
+}
+
+.no-search-results {
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-muted);
+}
+
+.no-results-icon {
+    font-size: 2rem;
+    margin-bottom: var(--spacing-sm);
+    opacity: 0.5;
+}
+
+.no-results-text {
+    font-size: 0.875rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .app-list-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+    
+    .app-list-content {
+        width: 100%;
+    }
+    
+    .app-list-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-xs);
+    }
+    
+    .app-list-actions {
+        width: 100%;
+        text-align: right;
+    }
+}
+</style>
+
+<script>
+function navigateToApp(modelSlug, appNumber) {
+    if (modelSlug && appNumber) {
+        htmx.ajax('GET', `/app/${modelSlug}/${appNumber}`, {
+            target: '#main-content',
+            pushUrl: true
+        });
+    }
+}
+</script>

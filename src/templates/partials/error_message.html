@@ -1,0 +1,30 @@
+<!-- Error Message Partial -->
+<div class="error-message">
+    <div class="error-icon">⚠️</div>
+    <div class="error-text">
+        {{ error if error else "An error occurred" }}
+    </div>
+</div>
+
+<style>
+.error-message {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing);
+    background: var(--danger-color);
+    color: white;
+    border-radius: var(--border-radius);
+    margin: var(--spacing) 0;
+}
+
+.error-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.error-text {
+    font-size: 0.875rem;
+    flex: 1;
+}
+</style>

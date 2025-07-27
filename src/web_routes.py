@@ -488,6 +488,95 @@ def search_apps():
                              error="Search failed")
 
 
+@api_bp.route("/advanced-search")
+def advanced_search():
+    """
+    Advanced search endpoint with multiple filters.
+    
+    Returns filtered app list as HTML partial for HTMX.
+    """
+    try:
+        # Get all apps
+        docker_manager = get_docker_manager()
+        dashboard_data = get_dashboard_data_optimized(docker_manager)
+        all_apps = dashboard_data.get('apps', [])
+        
+        # Get search parameters
+        search_term = request.args.get('q', '').strip()
+        model_filter = request.args.get('model', '').strip()
+        app_type_filter = request.args.get('app_type', '').strip()
+        status_filter = request.args.get('status', '').strip()
+        analysis_status = request.args.get('analysis_status', '').strip()
+        analysis_types = request.args.getlist('analysis_types')
+        
+        # Apply filters
+        filtered_apps = all_apps
+        
+        # Basic search filter
+        if search_term:
+            filtered_apps = filter_apps(filtered_apps, search=search_term)
+        
+        # Model filter
+        if model_filter:
+            filtered_apps = [app for app in filtered_apps 
+                           if app.get('model', {}).get('slug') == model_filter]
+        
+        # App type filter
+        if app_type_filter:
+            filtered_apps = [app for app in filtered_apps 
+                           if str(app.get('app_number', '')) == app_type_filter]
+        
+        # Status filter
+        if status_filter:
+            filtered_apps = [app for app in filtered_apps 
+                           if app.get('status', '').lower() == status_filter.lower()]
+                           
+        # Analysis status filter
+        if analysis_status:
+            if analysis_status == 'analyzed':
+                filtered_apps = [app for app in filtered_apps 
+                               if app.get('has_analysis', False)]
+            elif analysis_status == 'pending':
+                filtered_apps = [app for app in filtered_apps 
+                               if not app.get('has_analysis', False)]
+            elif analysis_status == 'failed':
+                filtered_apps = [app for app in filtered_apps 
+                               if app.get('analysis_failed', False)]
+        
+        # Analysis types filter
+        if analysis_types:
+            # This would need to be implemented based on your analysis tracking
+            pass
+        
+        # Pagination
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 20))
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paginated_apps = filtered_apps[start_idx:end_idx]
+        
+        context = {
+            'apps': paginated_apps,
+            'has_more': end_idx < len(filtered_apps),
+            'total_results': len(filtered_apps),
+            'search_params': {
+                'q': search_term,
+                'model': model_filter,
+                'app_type': app_type_filter,
+                'status': status_filter,
+                'analysis_status': analysis_status,
+                'analysis_types': analysis_types
+            }
+        }
+        
+        return render_template("partials/advanced_search_results.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error in advanced search: {e}")
+        return render_template("partials/error_message.html", 
+                             error="Advanced search failed")
+
+
 @api_bp.route("/cache/stats")
 def cache_stats():
     """Get cache statistics for monitoring."""

@@ -1,0 +1,172 @@
+<!-- HTMX Partial: Search Results -->
+{% if apps %}
+<div class="search-results-list">
+    {% for app in apps %}
+    <a href="{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}" 
+       class="search-result-item"
+       hx-get="{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}"
+       hx-target="#main-content"
+       hx-push-url="true">
+        
+        <div class="search-result-icon">
+            {% if app.status == 'running' %}🟢
+            {% elif app.status == 'stopped' %}⚫
+            {% elif app.status == 'error' %}🔴
+            {% else %}⚪
+            {% endif %}
+        </div>
+        
+        <div class="search-result-content">
+            <h4 class="search-result-title">
+                {{ app.title or (app.model.replace('_', ' ').title() + ' App ' + app.app_num|string) }}
+            </h4>
+            <p class="search-result-subtitle">
+                {{ app.model.replace('_', ' ').title() }} · 
+                {{ app.type_name or ('App ' + app.app_num|string) }} · 
+                {% include 'components/status_badge.html' with context %}
+            </p>
+        </div>
+        
+        <div class="search-result-meta">
+            {% if app.frontend_port %}
+            <span class="port-indicator" title="Frontend port">{{ app.frontend_port }}</span>
+            {% endif %}
+            {% if app.last_analysis %}
+            <span class="analysis-indicator" title="Last analysis">📊</span>
+            {% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="search-no-results">
+    <div class="no-results-icon">🔍</div>
+    <h4>No results found</h4>
+    <p>Try adjusting your search terms or filters.</p>
+</div>
+{% endif %}
+
+<style>
+.search-results-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing);
+    border-bottom: 1px solid var(--border-color);
+    text-decoration: none;
+    color: var(--text-color);
+    transition: background var(--transition-fast);
+}
+
+.search-result-item:hover,
+.search-result-item:focus {
+    background: var(--surface-color);
+    outline: none;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: var(--spacing);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-color);
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.search-result-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.search-result-title {
+    font-weight: 500;
+    margin: 0 0 0.25rem 0;
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.search-result-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.search-result-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+}
+
+.port-indicator {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--accent-color);
+    background: rgba(0, 122, 204, 0.1);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.75rem;
+}
+
+.analysis-indicator {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.search-no-results {
+    padding: var(--spacing-xl);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.no-results-icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing);
+    opacity: 0.5;
+}
+
+.search-no-results h4 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-color);
+    font-size: 1rem;
+}
+
+.search-no-results p {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .search-result-item {
+        padding: var(--spacing-sm);
+    }
+    
+    .search-result-icon {
+        width: 24px;
+        height: 24px;
+        margin-right: var(--spacing-sm);
+    }
+    
+    .search-result-meta {
+        flex-direction: column;
+        align-items: flex-end;
+    }
+}
+</style>

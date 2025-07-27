@@ -1,0 +1,380 @@
+<!-- Application Header/Navbar -->
+<header class="app-header" role="banner">
+    <div class="header-left">
+        <!-- Mobile Sidebar Toggle -->
+        <button class="sidebar-toggle btn btn-secondary btn-sm" 
+                onclick="ThesisApp.ui.toggleSidebar()"
+                aria-label="Toggle navigation menu"
+                aria-expanded="false"
+                type="button">
+            <span class="hamburger-icon">☰</span>
+        </button>
+        
+        <!-- Application Logo and Title -->
+        <div class="app-brand">
+            <a href="{{ url_for('main.dashboard') }}" class="brand-link">
+                <img src="{{ url_for('static', filename='img/logo.svg') }}" 
+                     alt="Thesis Research App Logo" 
+                     class="brand-logo"
+                     width="32" 
+                     height="32">
+                <span class="brand-text">Thesis Research</span>
+            </a>
+        </div>
+        
+        <!-- Global Search -->
+        {% include 'components/search_bar.html' %}
+    </div>
+    
+    <div class="header-right">
+        <!-- Real-time Stats -->
+        <div class="header-stats" 
+             hx-get="{{ url_for('api.get_header_stats') }}"
+             hx-trigger="load, every 30s"
+             hx-swap="innerHTML">
+            <div class="stat-item">
+                <span class="stat-value">-</span>
+                <span class="stat-label">Running</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">-</span>
+                <span class="stat-label">Apps</span>
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="header-actions">
+            <!-- Cache Status -->
+            <button class="btn btn-secondary btn-sm" 
+                    hx-get="{{ url_for('api.cache_stats') }}"
+                    hx-target="#cache-modal-content"
+                    hx-trigger="click"
+                    onclick="showCacheModal()"
+                    title="View cache statistics">
+                <span class="icon">💾</span>
+                <span class="text">Cache</span>
+            </button>
+            
+            <!-- System Health -->
+            <div class="health-indicator" 
+                 hx-get="{{ url_for('api.health_status') }}"
+                 hx-trigger="load, every 60s"
+                 hx-swap="outerHTML"
+                 title="System health status">
+                <span class="health-dot health-unknown"></span>
+            </div>
+            
+            <!-- Notifications -->
+            <button class="btn btn-secondary btn-sm notification-btn" 
+                    onclick="toggleNotifications()"
+                    title="View notifications"
+                    aria-label="View notifications">
+                <span class="icon">🔔</span>
+                <span class="notification-badge htmx-indicator" id="notification-count">0</span>
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- Cache Modal -->
+<div id="cache-modal" class="modal-overlay" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Cache Statistics</h3>
+            <button onclick="hideCacheModal()" class="btn btn-secondary btn-sm">×</button>
+        </div>
+        <div class="modal-body" id="cache-modal-content">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <span>Loading cache statistics...</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-danger btn-sm" 
+                    hx-post="{{ url_for('api.clear_cache') }}"
+                    hx-confirm="Are you sure you want to clear the cache?"
+                    hx-target="#cache-modal-content">
+                Clear Cache
+            </button>
+            <button onclick="hideCacheModal()" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Notifications Dropdown -->
+<div id="notifications-dropdown" class="notifications-dropdown" style="display: none;">
+    <div class="notifications-header">
+        <h4>Notifications</h4>
+        <button onclick="clearAllNotifications()" class="btn btn-sm">Clear All</button>
+    </div>
+    <div class="notifications-content" 
+         hx-get="{{ url_for('api.get_notifications') }}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="loading">
+            <div class="loading-spinner"></div>
+            <span>Loading notifications...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Header Styles -->
+<style>
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.sidebar-toggle {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .sidebar-toggle {
+        display: flex;
+    }
+}
+
+.hamburger-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.app-brand {
+    display: flex;
+    align-items: center;
+}
+
+.brand-link {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--text-color);
+    gap: var(--spacing-sm);
+}
+
+.brand-link:hover {
+    color: var(--accent-color);
+}
+
+.brand-logo {
+    width: 32px;
+    height: 32px;
+}
+
+.brand-text {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+@media (max-width: 480px) {
+    .brand-text {
+        display: none;
+    }
+}
+
+.header-stats {
+    display: flex;
+    gap: var(--spacing);
+}
+
+.stat-item {
+    text-align: center;
+    padding: 0 var(--spacing-sm);
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent-color);
+    line-height: 1;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+    .header-stats {
+        display: none;
+    }
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.health-indicator {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-sm);
+}
+
+.health-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.health-dot.health-good {
+    background: var(--success-color);
+}
+
+.health-dot.health-warning {
+    background: var(--warning-color);
+}
+
+.health-dot.health-error {
+    background: var(--error-color);
+}
+
+.health-dot.health-unknown {
+    background: var(--text-muted);
+}
+
+.notification-btn {
+    position: relative;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--error-color);
+    color: white;
+    font-size: 0.6rem;
+    padding: 2px 4px;
+    border-radius: 8px;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-badge:empty {
+    display: none;
+}
+
+.notifications-dropdown {
+    position: absolute;
+    top: 100%;
+    right: var(--spacing);
+    width: 320px;
+    max-height: 400px;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    z-index: 1001;
+    overflow: hidden;
+}
+
+.notifications-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--surface-color);
+}
+
+.notifications-header h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.notifications-content {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: var(--spacing-sm);
+}
+
+.notification-item {
+    padding: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.875rem;
+}
+
+.notification-item:last-child {
+    border-bottom: none;
+}
+
+.notification-item.unread {
+    background: rgba(0, 122, 204, 0.05);
+    border-left: 3px solid var(--accent-color);
+}
+
+@media (max-width: 480px) {
+    .notifications-dropdown {
+        width: calc(100vw - 2rem);
+        right: 1rem;
+    }
+}
+</style>
+
+<!-- Header JavaScript -->
+<script>
+function showCacheModal() {
+    document.getElementById('cache-modal').style.display = 'flex';
+}
+
+function hideCacheModal() {
+    document.getElementById('cache-modal').style.display = 'none';
+}
+
+function toggleNotifications() {
+    const dropdown = document.getElementById('notifications-dropdown');
+    const isVisible = dropdown.style.display === 'block';
+    dropdown.style.display = isVisible ? 'none' : 'block';
+    
+    if (!isVisible) {
+        // Trigger HTMX to load notifications
+        htmx.trigger(dropdown.querySelector('.notifications-content'), 'load');
+    }
+}
+
+function clearAllNotifications() {
+    if (confirm('Clear all notifications?')) {
+        // Implementation would go here
+        document.getElementById('notification-count').textContent = '0';
+        toggleNotifications();
+    }
+}
+
+// Close notifications when clicking outside
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('notifications-dropdown');
+    const btn = document.querySelector('.notification-btn');
+    
+    if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+
+// Update sidebar toggle aria-expanded
+function updateSidebarToggle() {
+    const toggle = document.querySelector('.sidebar-toggle');
+    const sidebar = document.querySelector('.app-sidebar');
+    
+    if (toggle && sidebar) {
+        const isOpen = sidebar.classList.contains('open');
+        toggle.setAttribute('aria-expanded', isOpen);
+    }
+}
+
+// Update toggle state when sidebar changes
+const sidebar = document.querySelector('.app-sidebar');
+if (sidebar) {
+    const observer = new MutationObserver(updateSidebarToggle);
+    observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+}
+</script>
