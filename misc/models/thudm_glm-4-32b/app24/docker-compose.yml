@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: thudm_glm_4_32b_app24_backend_5677
+        ports:
+            - "5677:5677"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: thudm_glm_4_32b_app24_frontend_8677
+        ports:
+            - "8677:8677"
+        environment:
+            - PORT=8677
+            - VITE_BACKEND_API_TARGET=http://backend:5677
+            - VITE_FRONTEND_PORT=8677
+        restart: always
+        depends_on:
+            - backend

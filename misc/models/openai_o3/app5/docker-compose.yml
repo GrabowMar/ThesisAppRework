@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: openai_o3_app5_backend_6339
+        ports:
+            - "6339:6339"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: openai_o3_app5_frontend_9339
+        ports:
+            - "9339:9339"
+        environment:
+            - PORT=9339
+            - VITE_BACKEND_API_TARGET=http://backend:6339
+            - VITE_FRONTEND_PORT=9339
+        restart: always
+        depends_on:
+            - backend

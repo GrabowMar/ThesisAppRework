@@ -1,0 +1,16 @@
+{
+     "name": "login-app",
+     "version": "1.0.0",
+     "private": true,
+     "dependencies": {
+       "react": "^18.2.0",
+       "react-dom": "^18.2.0",
+       "react-router-dom": "^6.4.3",
+       "axios": "^1.6.2"
+     },
+     "scripts": {
+       "dev": "vite",
+       "build": "vite build",
+       "serve": "npm run build && serve dist -p 5505"
+     }
+   }

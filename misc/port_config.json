@@ -1,0 +1,4502 @@
+[
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 1,
+    "backend_port": 6051,
+    "frontend_port": 9051
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 2,
+    "backend_port": 6053,
+    "frontend_port": 9053
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 3,
+    "backend_port": 6055,
+    "frontend_port": 9055
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 4,
+    "backend_port": 6057,
+    "frontend_port": 9057
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 5,
+    "backend_port": 6059,
+    "frontend_port": 9059
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 6,
+    "backend_port": 6061,
+    "frontend_port": 9061
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 7,
+    "backend_port": 6063,
+    "frontend_port": 9063
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 8,
+    "backend_port": 6065,
+    "frontend_port": 9065
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 9,
+    "backend_port": 6067,
+    "frontend_port": 9067
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 10,
+    "backend_port": 6069,
+    "frontend_port": 9069
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 11,
+    "backend_port": 6071,
+    "frontend_port": 9071
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 12,
+    "backend_port": 6073,
+    "frontend_port": 9073
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 13,
+    "backend_port": 6075,
+    "frontend_port": 9075
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 14,
+    "backend_port": 6077,
+    "frontend_port": 9077
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 15,
+    "backend_port": 6079,
+    "frontend_port": 9079
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 16,
+    "backend_port": 6081,
+    "frontend_port": 9081
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 17,
+    "backend_port": 6083,
+    "frontend_port": 9083
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 18,
+    "backend_port": 6085,
+    "frontend_port": 9085
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 19,
+    "backend_port": 6087,
+    "frontend_port": 9087
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 20,
+    "backend_port": 6089,
+    "frontend_port": 9089
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 21,
+    "backend_port": 6091,
+    "frontend_port": 9091
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 22,
+    "backend_port": 6093,
+    "frontend_port": 9093
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 23,
+    "backend_port": 6095,
+    "frontend_port": 9095
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 24,
+    "backend_port": 6097,
+    "frontend_port": 9097
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 25,
+    "backend_port": 6099,
+    "frontend_port": 9099
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 26,
+    "backend_port": 6101,
+    "frontend_port": 9101
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 27,
+    "backend_port": 6103,
+    "frontend_port": 9103
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 28,
+    "backend_port": 6105,
+    "frontend_port": 9105
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 29,
+    "backend_port": 6107,
+    "frontend_port": 9107
+  },
+  {
+    "model_name": "anthropic_claude-3.7-sonnet",
+    "app_number": 30,
+    "backend_port": 6109,
+    "frontend_port": 9109
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 1,
+    "backend_port": 5981,
+    "frontend_port": 8981
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 2,
+    "backend_port": 5983,
+    "frontend_port": 8983
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 3,
+    "backend_port": 5985,
+    "frontend_port": 8985
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 4,
+    "backend_port": 5987,
+    "frontend_port": 8987
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 5,
+    "backend_port": 5989,
+    "frontend_port": 8989
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 6,
+    "backend_port": 5991,
+    "frontend_port": 8991
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 7,
+    "backend_port": 5993,
+    "frontend_port": 8993
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 8,
+    "backend_port": 5995,
+    "frontend_port": 8995
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 9,
+    "backend_port": 5997,
+    "frontend_port": 8997
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 10,
+    "backend_port": 5999,
+    "frontend_port": 8999
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 11,
+    "backend_port": 6001,
+    "frontend_port": 9001
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 12,
+    "backend_port": 6003,
+    "frontend_port": 9003
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 13,
+    "backend_port": 6005,
+    "frontend_port": 9005
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 14,
+    "backend_port": 6007,
+    "frontend_port": 9007
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 15,
+    "backend_port": 6009,
+    "frontend_port": 9009
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 16,
+    "backend_port": 6011,
+    "frontend_port": 9011
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 17,
+    "backend_port": 6013,
+    "frontend_port": 9013
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 18,
+    "backend_port": 6015,
+    "frontend_port": 9015
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 19,
+    "backend_port": 6017,
+    "frontend_port": 9017
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 20,
+    "backend_port": 6019,
+    "frontend_port": 9019
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 21,
+    "backend_port": 6021,
+    "frontend_port": 9021
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 22,
+    "backend_port": 6023,
+    "frontend_port": 9023
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 23,
+    "backend_port": 6025,
+    "frontend_port": 9025
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 24,
+    "backend_port": 6027,
+    "frontend_port": 9027
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 25,
+    "backend_port": 6029,
+    "frontend_port": 9029
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 26,
+    "backend_port": 6031,
+    "frontend_port": 9031
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 27,
+    "backend_port": 6033,
+    "frontend_port": 9033
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 28,
+    "backend_port": 6035,
+    "frontend_port": 9035
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 29,
+    "backend_port": 6037,
+    "frontend_port": 9037
+  },
+  {
+    "model_name": "anthropic_claude-sonnet-4",
+    "app_number": 30,
+    "backend_port": 6039,
+    "frontend_port": 9039
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 1,
+    "backend_port": 5001,
+    "frontend_port": 8001
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 2,
+    "backend_port": 5003,
+    "frontend_port": 8003
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 3,
+    "backend_port": 5005,
+    "frontend_port": 8005
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 4,
+    "backend_port": 5007,
+    "frontend_port": 8007
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 5,
+    "backend_port": 5009,
+    "frontend_port": 8009
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 6,
+    "backend_port": 5011,
+    "frontend_port": 8011
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 7,
+    "backend_port": 5013,
+    "frontend_port": 8013
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 8,
+    "backend_port": 5015,
+    "frontend_port": 8015
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 9,
+    "backend_port": 5017,
+    "frontend_port": 8017
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 10,
+    "backend_port": 5019,
+    "frontend_port": 8019
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 11,
+    "backend_port": 5021,
+    "frontend_port": 8021
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 12,
+    "backend_port": 5023,
+    "frontend_port": 8023
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 13,
+    "backend_port": 5025,
+    "frontend_port": 8025
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 14,
+    "backend_port": 5027,
+    "frontend_port": 8027
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 15,
+    "backend_port": 5029,
+    "frontend_port": 8029
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 16,
+    "backend_port": 5031,
+    "frontend_port": 8031
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 17,
+    "backend_port": 5033,
+    "frontend_port": 8033
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 18,
+    "backend_port": 5035,
+    "frontend_port": 8035
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 19,
+    "backend_port": 5037,
+    "frontend_port": 8037
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 20,
+    "backend_port": 5039,
+    "frontend_port": 8039
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 21,
+    "backend_port": 5041,
+    "frontend_port": 8041
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 22,
+    "backend_port": 5043,
+    "frontend_port": 8043
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 23,
+    "backend_port": 5045,
+    "frontend_port": 8045
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 24,
+    "backend_port": 5047,
+    "frontend_port": 8047
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 25,
+    "backend_port": 5049,
+    "frontend_port": 8049
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 26,
+    "backend_port": 5051,
+    "frontend_port": 8051
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 27,
+    "backend_port": 5053,
+    "frontend_port": 8053
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 28,
+    "backend_port": 5055,
+    "frontend_port": 8055
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 29,
+    "backend_port": 5057,
+    "frontend_port": 8057
+  },
+  {
+    "model_name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 30,
+    "backend_port": 5059,
+    "frontend_port": 8059
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 1,
+    "backend_port": 6191,
+    "frontend_port": 9191
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 2,
+    "backend_port": 6193,
+    "frontend_port": 9193
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 3,
+    "backend_port": 6195,
+    "frontend_port": 9195
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 4,
+    "backend_port": 6197,
+    "frontend_port": 9197
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 5,
+    "backend_port": 6199,
+    "frontend_port": 9199
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 6,
+    "backend_port": 6201,
+    "frontend_port": 9201
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 7,
+    "backend_port": 6203,
+    "frontend_port": 9203
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 8,
+    "backend_port": 6205,
+    "frontend_port": 9205
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 9,
+    "backend_port": 6207,
+    "frontend_port": 9207
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 10,
+    "backend_port": 6209,
+    "frontend_port": 9209
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 11,
+    "backend_port": 6211,
+    "frontend_port": 9211
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 12,
+    "backend_port": 6213,
+    "frontend_port": 9213
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 13,
+    "backend_port": 6215,
+    "frontend_port": 9215
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 14,
+    "backend_port": 6217,
+    "frontend_port": 9217
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 15,
+    "backend_port": 6219,
+    "frontend_port": 9219
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 16,
+    "backend_port": 6221,
+    "frontend_port": 9221
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 17,
+    "backend_port": 6223,
+    "frontend_port": 9223
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 18,
+    "backend_port": 6225,
+    "frontend_port": 9225
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 19,
+    "backend_port": 6227,
+    "frontend_port": 9227
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 20,
+    "backend_port": 6229,
+    "frontend_port": 9229
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 21,
+    "backend_port": 6231,
+    "frontend_port": 9231
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 22,
+    "backend_port": 6233,
+    "frontend_port": 9233
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 23,
+    "backend_port": 6235,
+    "frontend_port": 9235
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 24,
+    "backend_port": 6237,
+    "frontend_port": 9237
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 25,
+    "backend_port": 6239,
+    "frontend_port": 9239
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 26,
+    "backend_port": 6241,
+    "frontend_port": 9241
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 27,
+    "backend_port": 6243,
+    "frontend_port": 9243
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 28,
+    "backend_port": 6245,
+    "frontend_port": 9245
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 29,
+    "backend_port": 6247,
+    "frontend_port": 9247
+  },
+  {
+    "model_name": "deepseek_deepseek-chat-v3-0324",
+    "app_number": 30,
+    "backend_port": 6249,
+    "frontend_port": 9249
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 1,
+    "backend_port": 6261,
+    "frontend_port": 9261
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 2,
+    "backend_port": 6263,
+    "frontend_port": 9263
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 3,
+    "backend_port": 6265,
+    "frontend_port": 9265
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 4,
+    "backend_port": 6267,
+    "frontend_port": 9267
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 5,
+    "backend_port": 6269,
+    "frontend_port": 9269
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 6,
+    "backend_port": 6271,
+    "frontend_port": 9271
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 7,
+    "backend_port": 6273,
+    "frontend_port": 9273
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 8,
+    "backend_port": 6275,
+    "frontend_port": 9275
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 9,
+    "backend_port": 6277,
+    "frontend_port": 9277
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 10,
+    "backend_port": 6279,
+    "frontend_port": 9279
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 11,
+    "backend_port": 6281,
+    "frontend_port": 9281
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 12,
+    "backend_port": 6283,
+    "frontend_port": 9283
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 13,
+    "backend_port": 6285,
+    "frontend_port": 9285
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 14,
+    "backend_port": 6287,
+    "frontend_port": 9287
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 15,
+    "backend_port": 6289,
+    "frontend_port": 9289
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 16,
+    "backend_port": 6291,
+    "frontend_port": 9291
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 17,
+    "backend_port": 6293,
+    "frontend_port": 9293
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 18,
+    "backend_port": 6295,
+    "frontend_port": 9295
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 19,
+    "backend_port": 6297,
+    "frontend_port": 9297
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 20,
+    "backend_port": 6299,
+    "frontend_port": 9299
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 21,
+    "backend_port": 6301,
+    "frontend_port": 9301
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 22,
+    "backend_port": 6303,
+    "frontend_port": 9303
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 23,
+    "backend_port": 6305,
+    "frontend_port": 9305
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 24,
+    "backend_port": 6307,
+    "frontend_port": 9307
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 25,
+    "backend_port": 6309,
+    "frontend_port": 9309
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 26,
+    "backend_port": 6311,
+    "frontend_port": 9311
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 27,
+    "backend_port": 6313,
+    "frontend_port": 9313
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 28,
+    "backend_port": 6315,
+    "frontend_port": 9315
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 29,
+    "backend_port": 6317,
+    "frontend_port": 9317
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528",
+    "app_number": 30,
+    "backend_port": 6319,
+    "frontend_port": 9319
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 1,
+    "backend_port": 5351,
+    "frontend_port": 8351
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 2,
+    "backend_port": 5353,
+    "frontend_port": 8353
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 3,
+    "backend_port": 5355,
+    "frontend_port": 8355
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 4,
+    "backend_port": 5357,
+    "frontend_port": 8357
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 5,
+    "backend_port": 5359,
+    "frontend_port": 8359
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 6,
+    "backend_port": 5361,
+    "frontend_port": 8361
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 7,
+    "backend_port": 5363,
+    "frontend_port": 8363
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 8,
+    "backend_port": 5365,
+    "frontend_port": 8365
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 9,
+    "backend_port": 5367,
+    "frontend_port": 8367
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 10,
+    "backend_port": 5369,
+    "frontend_port": 8369
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 11,
+    "backend_port": 5371,
+    "frontend_port": 8371
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 12,
+    "backend_port": 5373,
+    "frontend_port": 8373
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 13,
+    "backend_port": 5375,
+    "frontend_port": 8375
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 14,
+    "backend_port": 5377,
+    "frontend_port": 8377
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 15,
+    "backend_port": 5379,
+    "frontend_port": 8379
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 16,
+    "backend_port": 5381,
+    "frontend_port": 8381
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 17,
+    "backend_port": 5383,
+    "frontend_port": 8383
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 18,
+    "backend_port": 5385,
+    "frontend_port": 8385
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 19,
+    "backend_port": 5387,
+    "frontend_port": 8387
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 20,
+    "backend_port": 5389,
+    "frontend_port": 8389
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 21,
+    "backend_port": 5391,
+    "frontend_port": 8391
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 22,
+    "backend_port": 5393,
+    "frontend_port": 8393
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 23,
+    "backend_port": 5395,
+    "frontend_port": 8395
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 24,
+    "backend_port": 5397,
+    "frontend_port": 8397
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 25,
+    "backend_port": 5399,
+    "frontend_port": 8399
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 26,
+    "backend_port": 5401,
+    "frontend_port": 8401
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 27,
+    "backend_port": 5403,
+    "frontend_port": 8403
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 28,
+    "backend_port": 5405,
+    "frontend_port": 8405
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 29,
+    "backend_port": 5407,
+    "frontend_port": 8407
+  },
+  {
+    "model_name": "deepseek_deepseek-r1-0528-qwen3-8b",
+    "app_number": 30,
+    "backend_port": 5409,
+    "frontend_port": 8409
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 1,
+    "backend_port": 5771,
+    "frontend_port": 8771
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 2,
+    "backend_port": 5773,
+    "frontend_port": 8773
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 3,
+    "backend_port": 5775,
+    "frontend_port": 8775
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 4,
+    "backend_port": 5777,
+    "frontend_port": 8777
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 5,
+    "backend_port": 5779,
+    "frontend_port": 8779
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 6,
+    "backend_port": 5781,
+    "frontend_port": 8781
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 7,
+    "backend_port": 5783,
+    "frontend_port": 8783
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 8,
+    "backend_port": 5785,
+    "frontend_port": 8785
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 9,
+    "backend_port": 5787,
+    "frontend_port": 8787
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 10,
+    "backend_port": 5789,
+    "frontend_port": 8789
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 11,
+    "backend_port": 5791,
+    "frontend_port": 8791
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 12,
+    "backend_port": 5793,
+    "frontend_port": 8793
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 13,
+    "backend_port": 5795,
+    "frontend_port": 8795
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 14,
+    "backend_port": 5797,
+    "frontend_port": 8797
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 15,
+    "backend_port": 5799,
+    "frontend_port": 8799
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 16,
+    "backend_port": 5801,
+    "frontend_port": 8801
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 17,
+    "backend_port": 5803,
+    "frontend_port": 8803
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 18,
+    "backend_port": 5805,
+    "frontend_port": 8805
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 19,
+    "backend_port": 5807,
+    "frontend_port": 8807
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 20,
+    "backend_port": 5809,
+    "frontend_port": 8809
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 21,
+    "backend_port": 5811,
+    "frontend_port": 8811
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 22,
+    "backend_port": 5813,
+    "frontend_port": 8813
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 23,
+    "backend_port": 5815,
+    "frontend_port": 8815
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 24,
+    "backend_port": 5817,
+    "frontend_port": 8817
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 25,
+    "backend_port": 5819,
+    "frontend_port": 8819
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 26,
+    "backend_port": 5821,
+    "frontend_port": 8821
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 27,
+    "backend_port": 5823,
+    "frontend_port": 8823
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 28,
+    "backend_port": 5825,
+    "frontend_port": 8825
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 29,
+    "backend_port": 5827,
+    "frontend_port": 8827
+  },
+  {
+    "model_name": "featherless_qwerky-72b",
+    "app_number": 30,
+    "backend_port": 5829,
+    "frontend_port": 8829
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 1,
+    "backend_port": 5911,
+    "frontend_port": 8911
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 2,
+    "backend_port": 5913,
+    "frontend_port": 8913
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 3,
+    "backend_port": 5915,
+    "frontend_port": 8915
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 4,
+    "backend_port": 5917,
+    "frontend_port": 8917
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 5,
+    "backend_port": 5919,
+    "frontend_port": 8919
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 6,
+    "backend_port": 5921,
+    "frontend_port": 8921
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 7,
+    "backend_port": 5923,
+    "frontend_port": 8923
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 8,
+    "backend_port": 5925,
+    "frontend_port": 8925
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 9,
+    "backend_port": 5927,
+    "frontend_port": 8927
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 10,
+    "backend_port": 5929,
+    "frontend_port": 8929
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 11,
+    "backend_port": 5931,
+    "frontend_port": 8931
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 12,
+    "backend_port": 5933,
+    "frontend_port": 8933
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 13,
+    "backend_port": 5935,
+    "frontend_port": 8935
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 14,
+    "backend_port": 5937,
+    "frontend_port": 8937
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 15,
+    "backend_port": 5939,
+    "frontend_port": 8939
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 16,
+    "backend_port": 5941,
+    "frontend_port": 8941
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 17,
+    "backend_port": 5943,
+    "frontend_port": 8943
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 18,
+    "backend_port": 5945,
+    "frontend_port": 8945
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 19,
+    "backend_port": 5947,
+    "frontend_port": 8947
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 20,
+    "backend_port": 5949,
+    "frontend_port": 8949
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 21,
+    "backend_port": 5951,
+    "frontend_port": 8951
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 22,
+    "backend_port": 5953,
+    "frontend_port": 8953
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 23,
+    "backend_port": 5955,
+    "frontend_port": 8955
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 24,
+    "backend_port": 5957,
+    "frontend_port": 8957
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 25,
+    "backend_port": 5959,
+    "frontend_port": 8959
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 26,
+    "backend_port": 5961,
+    "frontend_port": 8961
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 27,
+    "backend_port": 5963,
+    "frontend_port": 8963
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 28,
+    "backend_port": 5965,
+    "frontend_port": 8965
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 29,
+    "backend_port": 5967,
+    "frontend_port": 8967
+  },
+  {
+    "model_name": "google_gemini-2.5-flash",
+    "app_number": 30,
+    "backend_port": 5969,
+    "frontend_port": 8969
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 1,
+    "backend_port": 5841,
+    "frontend_port": 8841
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 2,
+    "backend_port": 5843,
+    "frontend_port": 8843
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 3,
+    "backend_port": 5845,
+    "frontend_port": 8845
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 4,
+    "backend_port": 5847,
+    "frontend_port": 8847
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 5,
+    "backend_port": 5849,
+    "frontend_port": 8849
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 6,
+    "backend_port": 5851,
+    "frontend_port": 8851
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 7,
+    "backend_port": 5853,
+    "frontend_port": 8853
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 8,
+    "backend_port": 5855,
+    "frontend_port": 8855
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 9,
+    "backend_port": 5857,
+    "frontend_port": 8857
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 10,
+    "backend_port": 5859,
+    "frontend_port": 8859
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 11,
+    "backend_port": 5861,
+    "frontend_port": 8861
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 12,
+    "backend_port": 5863,
+    "frontend_port": 8863
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 13,
+    "backend_port": 5865,
+    "frontend_port": 8865
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 14,
+    "backend_port": 5867,
+    "frontend_port": 8867
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 15,
+    "backend_port": 5869,
+    "frontend_port": 8869
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 16,
+    "backend_port": 5871,
+    "frontend_port": 8871
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 17,
+    "backend_port": 5873,
+    "frontend_port": 8873
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 18,
+    "backend_port": 5875,
+    "frontend_port": 8875
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 19,
+    "backend_port": 5877,
+    "frontend_port": 8877
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 20,
+    "backend_port": 5879,
+    "frontend_port": 8879
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 21,
+    "backend_port": 5881,
+    "frontend_port": 8881
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 22,
+    "backend_port": 5883,
+    "frontend_port": 8883
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 23,
+    "backend_port": 5885,
+    "frontend_port": 8885
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 24,
+    "backend_port": 5887,
+    "frontend_port": 8887
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 25,
+    "backend_port": 5889,
+    "frontend_port": 8889
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 26,
+    "backend_port": 5891,
+    "frontend_port": 8891
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 27,
+    "backend_port": 5893,
+    "frontend_port": 8893
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 28,
+    "backend_port": 5895,
+    "frontend_port": 8895
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 29,
+    "backend_port": 5897,
+    "frontend_port": 8897
+  },
+  {
+    "model_name": "google_gemini-2.5-pro",
+    "app_number": 30,
+    "backend_port": 5899,
+    "frontend_port": 8899
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 1,
+    "backend_port": 6681,
+    "frontend_port": 9681
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 2,
+    "backend_port": 6683,
+    "frontend_port": 9683
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 3,
+    "backend_port": 6685,
+    "frontend_port": 9685
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 4,
+    "backend_port": 6687,
+    "frontend_port": 9687
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 5,
+    "backend_port": 6689,
+    "frontend_port": 9689
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 6,
+    "backend_port": 6691,
+    "frontend_port": 9691
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 7,
+    "backend_port": 6693,
+    "frontend_port": 9693
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 8,
+    "backend_port": 6695,
+    "frontend_port": 9695
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 9,
+    "backend_port": 6697,
+    "frontend_port": 9697
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 10,
+    "backend_port": 6699,
+    "frontend_port": 9699
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 11,
+    "backend_port": 6701,
+    "frontend_port": 9701
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 12,
+    "backend_port": 6703,
+    "frontend_port": 9703
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 13,
+    "backend_port": 6705,
+    "frontend_port": 9705
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 14,
+    "backend_port": 6707,
+    "frontend_port": 9707
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 15,
+    "backend_port": 6709,
+    "frontend_port": 9709
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 16,
+    "backend_port": 6711,
+    "frontend_port": 9711
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 17,
+    "backend_port": 6713,
+    "frontend_port": 9713
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 18,
+    "backend_port": 6715,
+    "frontend_port": 9715
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 19,
+    "backend_port": 6717,
+    "frontend_port": 9717
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 20,
+    "backend_port": 6719,
+    "frontend_port": 9719
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 21,
+    "backend_port": 6721,
+    "frontend_port": 9721
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 22,
+    "backend_port": 6723,
+    "frontend_port": 9723
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 23,
+    "backend_port": 6725,
+    "frontend_port": 9725
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 24,
+    "backend_port": 6727,
+    "frontend_port": 9727
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 25,
+    "backend_port": 6729,
+    "frontend_port": 9729
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 26,
+    "backend_port": 6731,
+    "frontend_port": 9731
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 27,
+    "backend_port": 6733,
+    "frontend_port": 9733
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 28,
+    "backend_port": 6735,
+    "frontend_port": 9735
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 29,
+    "backend_port": 6737,
+    "frontend_port": 9737
+  },
+  {
+    "model_name": "minimax_minimax-m1",
+    "app_number": 30,
+    "backend_port": 6739,
+    "frontend_port": 9739
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 1,
+    "backend_port": 6401,
+    "frontend_port": 9401
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 2,
+    "backend_port": 6403,
+    "frontend_port": 9403
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 3,
+    "backend_port": 6405,
+    "frontend_port": 9405
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 4,
+    "backend_port": 6407,
+    "frontend_port": 9407
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 5,
+    "backend_port": 6409,
+    "frontend_port": 9409
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 6,
+    "backend_port": 6411,
+    "frontend_port": 9411
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 7,
+    "backend_port": 6413,
+    "frontend_port": 9413
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 8,
+    "backend_port": 6415,
+    "frontend_port": 9415
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 9,
+    "backend_port": 6417,
+    "frontend_port": 9417
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 10,
+    "backend_port": 6419,
+    "frontend_port": 9419
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 11,
+    "backend_port": 6421,
+    "frontend_port": 9421
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 12,
+    "backend_port": 6423,
+    "frontend_port": 9423
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 13,
+    "backend_port": 6425,
+    "frontend_port": 9425
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 14,
+    "backend_port": 6427,
+    "frontend_port": 9427
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 15,
+    "backend_port": 6429,
+    "frontend_port": 9429
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 16,
+    "backend_port": 6431,
+    "frontend_port": 9431
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 17,
+    "backend_port": 6433,
+    "frontend_port": 9433
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 18,
+    "backend_port": 6435,
+    "frontend_port": 9435
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 19,
+    "backend_port": 6437,
+    "frontend_port": 9437
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 20,
+    "backend_port": 6439,
+    "frontend_port": 9439
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 21,
+    "backend_port": 6441,
+    "frontend_port": 9441
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 22,
+    "backend_port": 6443,
+    "frontend_port": 9443
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 23,
+    "backend_port": 6445,
+    "frontend_port": 9445
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 24,
+    "backend_port": 6447,
+    "frontend_port": 9447
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 25,
+    "backend_port": 6449,
+    "frontend_port": 9449
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 26,
+    "backend_port": 6451,
+    "frontend_port": 9451
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 27,
+    "backend_port": 6453,
+    "frontend_port": 9453
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 28,
+    "backend_port": 6455,
+    "frontend_port": 9455
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 29,
+    "backend_port": 6457,
+    "frontend_port": 9457
+  },
+  {
+    "model_name": "mistralai_devstral-medium",
+    "app_number": 30,
+    "backend_port": 6459,
+    "frontend_port": 9459
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 1,
+    "backend_port": 5211,
+    "frontend_port": 8211
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 2,
+    "backend_port": 5213,
+    "frontend_port": 8213
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 3,
+    "backend_port": 5215,
+    "frontend_port": 8215
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 4,
+    "backend_port": 5217,
+    "frontend_port": 8217
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 5,
+    "backend_port": 5219,
+    "frontend_port": 8219
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 6,
+    "backend_port": 5221,
+    "frontend_port": 8221
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 7,
+    "backend_port": 5223,
+    "frontend_port": 8223
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 8,
+    "backend_port": 5225,
+    "frontend_port": 8225
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 9,
+    "backend_port": 5227,
+    "frontend_port": 8227
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 10,
+    "backend_port": 5229,
+    "frontend_port": 8229
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 11,
+    "backend_port": 5231,
+    "frontend_port": 8231
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 12,
+    "backend_port": 5233,
+    "frontend_port": 8233
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 13,
+    "backend_port": 5235,
+    "frontend_port": 8235
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 14,
+    "backend_port": 5237,
+    "frontend_port": 8237
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 15,
+    "backend_port": 5239,
+    "frontend_port": 8239
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 16,
+    "backend_port": 5241,
+    "frontend_port": 8241
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 17,
+    "backend_port": 5243,
+    "frontend_port": 8243
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 18,
+    "backend_port": 5245,
+    "frontend_port": 8245
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 19,
+    "backend_port": 5247,
+    "frontend_port": 8247
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 20,
+    "backend_port": 5249,
+    "frontend_port": 8249
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 21,
+    "backend_port": 5251,
+    "frontend_port": 8251
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 22,
+    "backend_port": 5253,
+    "frontend_port": 8253
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 23,
+    "backend_port": 5255,
+    "frontend_port": 8255
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 24,
+    "backend_port": 5257,
+    "frontend_port": 8257
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 25,
+    "backend_port": 5259,
+    "frontend_port": 8259
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 26,
+    "backend_port": 5261,
+    "frontend_port": 8261
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 27,
+    "backend_port": 5263,
+    "frontend_port": 8263
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 28,
+    "backend_port": 5265,
+    "frontend_port": 8265
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 29,
+    "backend_port": 5267,
+    "frontend_port": 8267
+  },
+  {
+    "model_name": "mistralai_mistral-small-3.2-24b-instruct",
+    "app_number": 30,
+    "backend_port": 5269,
+    "frontend_port": 8269
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 1,
+    "backend_port": 5281,
+    "frontend_port": 8281
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 2,
+    "backend_port": 5283,
+    "frontend_port": 8283
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 3,
+    "backend_port": 5285,
+    "frontend_port": 8285
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 4,
+    "backend_port": 5287,
+    "frontend_port": 8287
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 5,
+    "backend_port": 5289,
+    "frontend_port": 8289
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 6,
+    "backend_port": 5291,
+    "frontend_port": 8291
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 7,
+    "backend_port": 5293,
+    "frontend_port": 8293
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 8,
+    "backend_port": 5295,
+    "frontend_port": 8295
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 9,
+    "backend_port": 5297,
+    "frontend_port": 8297
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 10,
+    "backend_port": 5299,
+    "frontend_port": 8299
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 11,
+    "backend_port": 5301,
+    "frontend_port": 8301
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 12,
+    "backend_port": 5303,
+    "frontend_port": 8303
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 13,
+    "backend_port": 5305,
+    "frontend_port": 8305
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 14,
+    "backend_port": 5307,
+    "frontend_port": 8307
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 15,
+    "backend_port": 5309,
+    "frontend_port": 8309
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 16,
+    "backend_port": 5311,
+    "frontend_port": 8311
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 17,
+    "backend_port": 5313,
+    "frontend_port": 8313
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 18,
+    "backend_port": 5315,
+    "frontend_port": 8315
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 19,
+    "backend_port": 5317,
+    "frontend_port": 8317
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 20,
+    "backend_port": 5319,
+    "frontend_port": 8319
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 21,
+    "backend_port": 5321,
+    "frontend_port": 8321
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 22,
+    "backend_port": 5323,
+    "frontend_port": 8323
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 23,
+    "backend_port": 5325,
+    "frontend_port": 8325
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 24,
+    "backend_port": 5327,
+    "frontend_port": 8327
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 25,
+    "backend_port": 5329,
+    "frontend_port": 8329
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 26,
+    "backend_port": 5331,
+    "frontend_port": 8331
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 27,
+    "backend_port": 5333,
+    "frontend_port": 8333
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 28,
+    "backend_port": 5335,
+    "frontend_port": 8335
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 29,
+    "backend_port": 5337,
+    "frontend_port": 8337
+  },
+  {
+    "model_name": "moonshotai_kimi-dev-72b",
+    "app_number": 30,
+    "backend_port": 5339,
+    "frontend_port": 8339
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 1,
+    "backend_port": 5701,
+    "frontend_port": 8701
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 2,
+    "backend_port": 5703,
+    "frontend_port": 8703
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 3,
+    "backend_port": 5705,
+    "frontend_port": 8705
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 4,
+    "backend_port": 5707,
+    "frontend_port": 8707
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 5,
+    "backend_port": 5709,
+    "frontend_port": 8709
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 6,
+    "backend_port": 5711,
+    "frontend_port": 8711
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 7,
+    "backend_port": 5713,
+    "frontend_port": 8713
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 8,
+    "backend_port": 5715,
+    "frontend_port": 8715
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 9,
+    "backend_port": 5717,
+    "frontend_port": 8717
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 10,
+    "backend_port": 5719,
+    "frontend_port": 8719
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 11,
+    "backend_port": 5721,
+    "frontend_port": 8721
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 12,
+    "backend_port": 5723,
+    "frontend_port": 8723
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 13,
+    "backend_port": 5725,
+    "frontend_port": 8725
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 14,
+    "backend_port": 5727,
+    "frontend_port": 8727
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 15,
+    "backend_port": 5729,
+    "frontend_port": 8729
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 16,
+    "backend_port": 5731,
+    "frontend_port": 8731
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 17,
+    "backend_port": 5733,
+    "frontend_port": 8733
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 18,
+    "backend_port": 5735,
+    "frontend_port": 8735
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 19,
+    "backend_port": 5737,
+    "frontend_port": 8737
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 20,
+    "backend_port": 5739,
+    "frontend_port": 8739
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 21,
+    "backend_port": 5741,
+    "frontend_port": 8741
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 22,
+    "backend_port": 5743,
+    "frontend_port": 8743
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 23,
+    "backend_port": 5745,
+    "frontend_port": 8745
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 24,
+    "backend_port": 5747,
+    "frontend_port": 8747
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 25,
+    "backend_port": 5749,
+    "frontend_port": 8749
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 26,
+    "backend_port": 5751,
+    "frontend_port": 8751
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 27,
+    "backend_port": 5753,
+    "frontend_port": 8753
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 28,
+    "backend_port": 5755,
+    "frontend_port": 8755
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 29,
+    "backend_port": 5757,
+    "frontend_port": 8757
+  },
+  {
+    "model_name": "nousresearch_deephermes-3-llama-3-8b-preview",
+    "app_number": 30,
+    "backend_port": 5759,
+    "frontend_port": 8759
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 1,
+    "backend_port": 5421,
+    "frontend_port": 8421
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 2,
+    "backend_port": 5423,
+    "frontend_port": 8423
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 3,
+    "backend_port": 5425,
+    "frontend_port": 8425
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 4,
+    "backend_port": 5427,
+    "frontend_port": 8427
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 5,
+    "backend_port": 5429,
+    "frontend_port": 8429
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 6,
+    "backend_port": 5431,
+    "frontend_port": 8431
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 7,
+    "backend_port": 5433,
+    "frontend_port": 8433
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 8,
+    "backend_port": 5435,
+    "frontend_port": 8435
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 9,
+    "backend_port": 5437,
+    "frontend_port": 8437
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 10,
+    "backend_port": 5439,
+    "frontend_port": 8439
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 11,
+    "backend_port": 5441,
+    "frontend_port": 8441
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 12,
+    "backend_port": 5443,
+    "frontend_port": 8443
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 13,
+    "backend_port": 5445,
+    "frontend_port": 8445
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 14,
+    "backend_port": 5447,
+    "frontend_port": 8447
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 15,
+    "backend_port": 5449,
+    "frontend_port": 8449
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 16,
+    "backend_port": 5451,
+    "frontend_port": 8451
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 17,
+    "backend_port": 5453,
+    "frontend_port": 8453
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 18,
+    "backend_port": 5455,
+    "frontend_port": 8455
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 19,
+    "backend_port": 5457,
+    "frontend_port": 8457
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 20,
+    "backend_port": 5459,
+    "frontend_port": 8459
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 21,
+    "backend_port": 5461,
+    "frontend_port": 8461
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 22,
+    "backend_port": 5463,
+    "frontend_port": 8463
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 23,
+    "backend_port": 5465,
+    "frontend_port": 8465
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 24,
+    "backend_port": 5467,
+    "frontend_port": 8467
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 25,
+    "backend_port": 5469,
+    "frontend_port": 8469
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 26,
+    "backend_port": 5471,
+    "frontend_port": 8471
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 27,
+    "backend_port": 5473,
+    "frontend_port": 8473
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 28,
+    "backend_port": 5475,
+    "frontend_port": 8475
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 29,
+    "backend_port": 5477,
+    "frontend_port": 8477
+  },
+  {
+    "model_name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+    "app_number": 30,
+    "backend_port": 5479,
+    "frontend_port": 8479
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 1,
+    "backend_port": 6121,
+    "frontend_port": 9121
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 2,
+    "backend_port": 6123,
+    "frontend_port": 9123
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 3,
+    "backend_port": 6125,
+    "frontend_port": 9125
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 4,
+    "backend_port": 6127,
+    "frontend_port": 9127
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 5,
+    "backend_port": 6129,
+    "frontend_port": 9129
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 6,
+    "backend_port": 6131,
+    "frontend_port": 9131
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 7,
+    "backend_port": 6133,
+    "frontend_port": 9133
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 8,
+    "backend_port": 6135,
+    "frontend_port": 9135
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 9,
+    "backend_port": 6137,
+    "frontend_port": 9137
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 10,
+    "backend_port": 6139,
+    "frontend_port": 9139
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 11,
+    "backend_port": 6141,
+    "frontend_port": 9141
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 12,
+    "backend_port": 6143,
+    "frontend_port": 9143
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 13,
+    "backend_port": 6145,
+    "frontend_port": 9145
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 14,
+    "backend_port": 6147,
+    "frontend_port": 9147
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 15,
+    "backend_port": 6149,
+    "frontend_port": 9149
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 16,
+    "backend_port": 6151,
+    "frontend_port": 9151
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 17,
+    "backend_port": 6153,
+    "frontend_port": 9153
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 18,
+    "backend_port": 6155,
+    "frontend_port": 9155
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 19,
+    "backend_port": 6157,
+    "frontend_port": 9157
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 20,
+    "backend_port": 6159,
+    "frontend_port": 9159
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 21,
+    "backend_port": 6161,
+    "frontend_port": 9161
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 22,
+    "backend_port": 6163,
+    "frontend_port": 9163
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 23,
+    "backend_port": 6165,
+    "frontend_port": 9165
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 24,
+    "backend_port": 6167,
+    "frontend_port": 9167
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 25,
+    "backend_port": 6169,
+    "frontend_port": 9169
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 26,
+    "backend_port": 6171,
+    "frontend_port": 9171
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 27,
+    "backend_port": 6173,
+    "frontend_port": 9173
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 28,
+    "backend_port": 6175,
+    "frontend_port": 9175
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 29,
+    "backend_port": 6177,
+    "frontend_port": 9177
+  },
+  {
+    "model_name": "openai_gpt-4.1",
+    "app_number": 30,
+    "backend_port": 6179,
+    "frontend_port": 9179
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 1,
+    "backend_port": 6331,
+    "frontend_port": 9331
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 2,
+    "backend_port": 6333,
+    "frontend_port": 9333
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 3,
+    "backend_port": 6335,
+    "frontend_port": 9335
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 4,
+    "backend_port": 6337,
+    "frontend_port": 9337
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 5,
+    "backend_port": 6339,
+    "frontend_port": 9339
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 6,
+    "backend_port": 6341,
+    "frontend_port": 9341
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 7,
+    "backend_port": 6343,
+    "frontend_port": 9343
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 8,
+    "backend_port": 6345,
+    "frontend_port": 9345
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 9,
+    "backend_port": 6347,
+    "frontend_port": 9347
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 10,
+    "backend_port": 6349,
+    "frontend_port": 9349
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 11,
+    "backend_port": 6351,
+    "frontend_port": 9351
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 12,
+    "backend_port": 6353,
+    "frontend_port": 9353
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 13,
+    "backend_port": 6355,
+    "frontend_port": 9355
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 14,
+    "backend_port": 6357,
+    "frontend_port": 9357
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 15,
+    "backend_port": 6359,
+    "frontend_port": 9359
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 16,
+    "backend_port": 6361,
+    "frontend_port": 9361
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 17,
+    "backend_port": 6363,
+    "frontend_port": 9363
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 18,
+    "backend_port": 6365,
+    "frontend_port": 9365
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 19,
+    "backend_port": 6367,
+    "frontend_port": 9367
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 20,
+    "backend_port": 6369,
+    "frontend_port": 9369
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 21,
+    "backend_port": 6371,
+    "frontend_port": 9371
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 22,
+    "backend_port": 6373,
+    "frontend_port": 9373
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 23,
+    "backend_port": 6375,
+    "frontend_port": 9375
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 24,
+    "backend_port": 6377,
+    "frontend_port": 9377
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 25,
+    "backend_port": 6379,
+    "frontend_port": 9379
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 26,
+    "backend_port": 6381,
+    "frontend_port": 9381
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 27,
+    "backend_port": 6383,
+    "frontend_port": 9383
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 28,
+    "backend_port": 6385,
+    "frontend_port": 9385
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 29,
+    "backend_port": 6387,
+    "frontend_port": 9387
+  },
+  {
+    "model_name": "openai_o3",
+    "app_number": 30,
+    "backend_port": 6389,
+    "frontend_port": 9389
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 1,
+    "backend_port": 5491,
+    "frontend_port": 8491
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 2,
+    "backend_port": 5493,
+    "frontend_port": 8493
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 3,
+    "backend_port": 5495,
+    "frontend_port": 8495
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 4,
+    "backend_port": 5497,
+    "frontend_port": 8497
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 5,
+    "backend_port": 5499,
+    "frontend_port": 8499
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 6,
+    "backend_port": 5501,
+    "frontend_port": 8501
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 7,
+    "backend_port": 5503,
+    "frontend_port": 8503
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 8,
+    "backend_port": 5505,
+    "frontend_port": 8505
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 9,
+    "backend_port": 5507,
+    "frontend_port": 8507
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 10,
+    "backend_port": 5509,
+    "frontend_port": 8509
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 11,
+    "backend_port": 5511,
+    "frontend_port": 8511
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 12,
+    "backend_port": 5513,
+    "frontend_port": 8513
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 13,
+    "backend_port": 5515,
+    "frontend_port": 8515
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 14,
+    "backend_port": 5517,
+    "frontend_port": 8517
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 15,
+    "backend_port": 5519,
+    "frontend_port": 8519
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 16,
+    "backend_port": 5521,
+    "frontend_port": 8521
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 17,
+    "backend_port": 5523,
+    "frontend_port": 8523
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 18,
+    "backend_port": 5525,
+    "frontend_port": 8525
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 19,
+    "backend_port": 5527,
+    "frontend_port": 8527
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 20,
+    "backend_port": 5529,
+    "frontend_port": 8529
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 21,
+    "backend_port": 5531,
+    "frontend_port": 8531
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 22,
+    "backend_port": 5533,
+    "frontend_port": 8533
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 23,
+    "backend_port": 5535,
+    "frontend_port": 8535
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 24,
+    "backend_port": 5537,
+    "frontend_port": 8537
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 25,
+    "backend_port": 5539,
+    "frontend_port": 8539
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 26,
+    "backend_port": 5541,
+    "frontend_port": 8541
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 27,
+    "backend_port": 5543,
+    "frontend_port": 8543
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 28,
+    "backend_port": 5545,
+    "frontend_port": 8545
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 29,
+    "backend_port": 5547,
+    "frontend_port": 8547
+  },
+  {
+    "model_name": "qwen_qwen3-14b",
+    "app_number": 30,
+    "backend_port": 5549,
+    "frontend_port": 8549
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 1,
+    "backend_port": 6611,
+    "frontend_port": 9611
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 2,
+    "backend_port": 6613,
+    "frontend_port": 9613
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 3,
+    "backend_port": 6615,
+    "frontend_port": 9615
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 4,
+    "backend_port": 6617,
+    "frontend_port": 9617
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 5,
+    "backend_port": 6619,
+    "frontend_port": 9619
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 6,
+    "backend_port": 6621,
+    "frontend_port": 9621
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 7,
+    "backend_port": 6623,
+    "frontend_port": 9623
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 8,
+    "backend_port": 6625,
+    "frontend_port": 9625
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 9,
+    "backend_port": 6627,
+    "frontend_port": 9627
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 10,
+    "backend_port": 6629,
+    "frontend_port": 9629
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 11,
+    "backend_port": 6631,
+    "frontend_port": 9631
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 12,
+    "backend_port": 6633,
+    "frontend_port": 9633
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 13,
+    "backend_port": 6635,
+    "frontend_port": 9635
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 14,
+    "backend_port": 6637,
+    "frontend_port": 9637
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 15,
+    "backend_port": 6639,
+    "frontend_port": 9639
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 16,
+    "backend_port": 6641,
+    "frontend_port": 9641
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 17,
+    "backend_port": 6643,
+    "frontend_port": 9643
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 18,
+    "backend_port": 6645,
+    "frontend_port": 9645
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 19,
+    "backend_port": 6647,
+    "frontend_port": 9647
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 20,
+    "backend_port": 6649,
+    "frontend_port": 9649
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 21,
+    "backend_port": 6651,
+    "frontend_port": 9651
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 22,
+    "backend_port": 6653,
+    "frontend_port": 9653
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 23,
+    "backend_port": 6655,
+    "frontend_port": 9655
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 24,
+    "backend_port": 6657,
+    "frontend_port": 9657
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 25,
+    "backend_port": 6659,
+    "frontend_port": 9659
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 26,
+    "backend_port": 6661,
+    "frontend_port": 9661
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 27,
+    "backend_port": 6663,
+    "frontend_port": 9663
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 28,
+    "backend_port": 6665,
+    "frontend_port": 9665
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 29,
+    "backend_port": 6667,
+    "frontend_port": 9667
+  },
+  {
+    "model_name": "qwen_qwen3-235b-a22b-2507",
+    "app_number": 30,
+    "backend_port": 6669,
+    "frontend_port": 9669
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 1,
+    "backend_port": 5561,
+    "frontend_port": 8561
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 2,
+    "backend_port": 5563,
+    "frontend_port": 8563
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 3,
+    "backend_port": 5565,
+    "frontend_port": 8565
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 4,
+    "backend_port": 5567,
+    "frontend_port": 8567
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 5,
+    "backend_port": 5569,
+    "frontend_port": 8569
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 6,
+    "backend_port": 5571,
+    "frontend_port": 8571
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 7,
+    "backend_port": 5573,
+    "frontend_port": 8573
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 8,
+    "backend_port": 5575,
+    "frontend_port": 8575
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 9,
+    "backend_port": 5577,
+    "frontend_port": 8577
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 10,
+    "backend_port": 5579,
+    "frontend_port": 8579
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 11,
+    "backend_port": 5581,
+    "frontend_port": 8581
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 12,
+    "backend_port": 5583,
+    "frontend_port": 8583
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 13,
+    "backend_port": 5585,
+    "frontend_port": 8585
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 14,
+    "backend_port": 5587,
+    "frontend_port": 8587
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 15,
+    "backend_port": 5589,
+    "frontend_port": 8589
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 16,
+    "backend_port": 5591,
+    "frontend_port": 8591
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 17,
+    "backend_port": 5593,
+    "frontend_port": 8593
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 18,
+    "backend_port": 5595,
+    "frontend_port": 8595
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 19,
+    "backend_port": 5597,
+    "frontend_port": 8597
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 20,
+    "backend_port": 5599,
+    "frontend_port": 8599
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 21,
+    "backend_port": 5601,
+    "frontend_port": 8601
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 22,
+    "backend_port": 5603,
+    "frontend_port": 8603
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 23,
+    "backend_port": 5605,
+    "frontend_port": 8605
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 24,
+    "backend_port": 5607,
+    "frontend_port": 8607
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 25,
+    "backend_port": 5609,
+    "frontend_port": 8609
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 26,
+    "backend_port": 5611,
+    "frontend_port": 8611
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 27,
+    "backend_port": 5613,
+    "frontend_port": 8613
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 28,
+    "backend_port": 5615,
+    "frontend_port": 8615
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 29,
+    "backend_port": 5617,
+    "frontend_port": 8617
+  },
+  {
+    "model_name": "qwen_qwen3-8b",
+    "app_number": 30,
+    "backend_port": 5619,
+    "frontend_port": 8619
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 1,
+    "backend_port": 6541,
+    "frontend_port": 9541
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 2,
+    "backend_port": 6543,
+    "frontend_port": 9543
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 3,
+    "backend_port": 6545,
+    "frontend_port": 9545
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 4,
+    "backend_port": 6547,
+    "frontend_port": 9547
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 5,
+    "backend_port": 6549,
+    "frontend_port": 9549
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 6,
+    "backend_port": 6551,
+    "frontend_port": 9551
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 7,
+    "backend_port": 6553,
+    "frontend_port": 9553
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 8,
+    "backend_port": 6555,
+    "frontend_port": 9555
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 9,
+    "backend_port": 6557,
+    "frontend_port": 9557
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 10,
+    "backend_port": 6559,
+    "frontend_port": 9559
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 11,
+    "backend_port": 6561,
+    "frontend_port": 9561
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 12,
+    "backend_port": 6563,
+    "frontend_port": 9563
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 13,
+    "backend_port": 6565,
+    "frontend_port": 9565
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 14,
+    "backend_port": 6567,
+    "frontend_port": 9567
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 15,
+    "backend_port": 6569,
+    "frontend_port": 9569
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 16,
+    "backend_port": 6571,
+    "frontend_port": 9571
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 17,
+    "backend_port": 6573,
+    "frontend_port": 9573
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 18,
+    "backend_port": 6575,
+    "frontend_port": 9575
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 19,
+    "backend_port": 6577,
+    "frontend_port": 9577
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 20,
+    "backend_port": 6579,
+    "frontend_port": 9579
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 21,
+    "backend_port": 6581,
+    "frontend_port": 9581
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 22,
+    "backend_port": 6583,
+    "frontend_port": 9583
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 23,
+    "backend_port": 6585,
+    "frontend_port": 9585
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 24,
+    "backend_port": 6587,
+    "frontend_port": 9587
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 25,
+    "backend_port": 6589,
+    "frontend_port": 9589
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 26,
+    "backend_port": 6591,
+    "frontend_port": 9591
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 27,
+    "backend_port": 6593,
+    "frontend_port": 9593
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 28,
+    "backend_port": 6595,
+    "frontend_port": 9595
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 29,
+    "backend_port": 6597,
+    "frontend_port": 9597
+  },
+  {
+    "model_name": "qwen_qwen3-coder",
+    "app_number": 30,
+    "backend_port": 6599,
+    "frontend_port": 9599
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 1,
+    "backend_port": 5071,
+    "frontend_port": 8071
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 2,
+    "backend_port": 5073,
+    "frontend_port": 8073
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 3,
+    "backend_port": 5075,
+    "frontend_port": 8075
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 4,
+    "backend_port": 5077,
+    "frontend_port": 8077
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 5,
+    "backend_port": 5079,
+    "frontend_port": 8079
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 6,
+    "backend_port": 5081,
+    "frontend_port": 8081
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 7,
+    "backend_port": 5083,
+    "frontend_port": 8083
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 8,
+    "backend_port": 5085,
+    "frontend_port": 8085
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 9,
+    "backend_port": 5087,
+    "frontend_port": 8087
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 10,
+    "backend_port": 5089,
+    "frontend_port": 8089
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 11,
+    "backend_port": 5091,
+    "frontend_port": 8091
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 12,
+    "backend_port": 5093,
+    "frontend_port": 8093
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 13,
+    "backend_port": 5095,
+    "frontend_port": 8095
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 14,
+    "backend_port": 5097,
+    "frontend_port": 8097
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 15,
+    "backend_port": 5099,
+    "frontend_port": 8099
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 16,
+    "backend_port": 5101,
+    "frontend_port": 8101
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 17,
+    "backend_port": 5103,
+    "frontend_port": 8103
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 18,
+    "backend_port": 5105,
+    "frontend_port": 8105
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 19,
+    "backend_port": 5107,
+    "frontend_port": 8107
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 20,
+    "backend_port": 5109,
+    "frontend_port": 8109
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 21,
+    "backend_port": 5111,
+    "frontend_port": 8111
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 22,
+    "backend_port": 5113,
+    "frontend_port": 8113
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 23,
+    "backend_port": 5115,
+    "frontend_port": 8115
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 24,
+    "backend_port": 5117,
+    "frontend_port": 8117
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 25,
+    "backend_port": 5119,
+    "frontend_port": 8119
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 26,
+    "backend_port": 5121,
+    "frontend_port": 8121
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 27,
+    "backend_port": 5123,
+    "frontend_port": 8123
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 28,
+    "backend_port": 5125,
+    "frontend_port": 8125
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 29,
+    "backend_port": 5127,
+    "frontend_port": 8127
+  },
+  {
+    "model_name": "tencent_hunyuan-a13b-instruct",
+    "app_number": 30,
+    "backend_port": 5129,
+    "frontend_port": 8129
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 1,
+    "backend_port": 5631,
+    "frontend_port": 8631
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 2,
+    "backend_port": 5633,
+    "frontend_port": 8633
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 3,
+    "backend_port": 5635,
+    "frontend_port": 8635
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 4,
+    "backend_port": 5637,
+    "frontend_port": 8637
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 5,
+    "backend_port": 5639,
+    "frontend_port": 8639
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 6,
+    "backend_port": 5641,
+    "frontend_port": 8641
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 7,
+    "backend_port": 5643,
+    "frontend_port": 8643
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 8,
+    "backend_port": 5645,
+    "frontend_port": 8645
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 9,
+    "backend_port": 5647,
+    "frontend_port": 8647
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 10,
+    "backend_port": 5649,
+    "frontend_port": 8649
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 11,
+    "backend_port": 5651,
+    "frontend_port": 8651
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 12,
+    "backend_port": 5653,
+    "frontend_port": 8653
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 13,
+    "backend_port": 5655,
+    "frontend_port": 8655
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 14,
+    "backend_port": 5657,
+    "frontend_port": 8657
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 15,
+    "backend_port": 5659,
+    "frontend_port": 8659
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 16,
+    "backend_port": 5661,
+    "frontend_port": 8661
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 17,
+    "backend_port": 5663,
+    "frontend_port": 8663
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 18,
+    "backend_port": 5665,
+    "frontend_port": 8665
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 19,
+    "backend_port": 5667,
+    "frontend_port": 8667
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 20,
+    "backend_port": 5669,
+    "frontend_port": 8669
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 21,
+    "backend_port": 5671,
+    "frontend_port": 8671
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 22,
+    "backend_port": 5673,
+    "frontend_port": 8673
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 23,
+    "backend_port": 5675,
+    "frontend_port": 8675
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 24,
+    "backend_port": 5677,
+    "frontend_port": 8677
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 25,
+    "backend_port": 5679,
+    "frontend_port": 8679
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 26,
+    "backend_port": 5681,
+    "frontend_port": 8681
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 27,
+    "backend_port": 5683,
+    "frontend_port": 8683
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 28,
+    "backend_port": 5685,
+    "frontend_port": 8685
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 29,
+    "backend_port": 5687,
+    "frontend_port": 8687
+  },
+  {
+    "model_name": "thudm_glm-4-32b",
+    "app_number": 30,
+    "backend_port": 5689,
+    "frontend_port": 8689
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 1,
+    "backend_port": 5141,
+    "frontend_port": 8141
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 2,
+    "backend_port": 5143,
+    "frontend_port": 8143
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 3,
+    "backend_port": 5145,
+    "frontend_port": 8145
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 4,
+    "backend_port": 5147,
+    "frontend_port": 8147
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 5,
+    "backend_port": 5149,
+    "frontend_port": 8149
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 6,
+    "backend_port": 5151,
+    "frontend_port": 8151
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 7,
+    "backend_port": 5153,
+    "frontend_port": 8153
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 8,
+    "backend_port": 5155,
+    "frontend_port": 8155
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 9,
+    "backend_port": 5157,
+    "frontend_port": 8157
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 10,
+    "backend_port": 5159,
+    "frontend_port": 8159
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 11,
+    "backend_port": 5161,
+    "frontend_port": 8161
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 12,
+    "backend_port": 5163,
+    "frontend_port": 8163
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 13,
+    "backend_port": 5165,
+    "frontend_port": 8165
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 14,
+    "backend_port": 5167,
+    "frontend_port": 8167
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 15,
+    "backend_port": 5169,
+    "frontend_port": 8169
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 16,
+    "backend_port": 5171,
+    "frontend_port": 8171
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 17,
+    "backend_port": 5173,
+    "frontend_port": 8173
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 18,
+    "backend_port": 5175,
+    "frontend_port": 8175
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 19,
+    "backend_port": 5177,
+    "frontend_port": 8177
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 20,
+    "backend_port": 5179,
+    "frontend_port": 8179
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 21,
+    "backend_port": 5181,
+    "frontend_port": 8181
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 22,
+    "backend_port": 5183,
+    "frontend_port": 8183
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 23,
+    "backend_port": 5185,
+    "frontend_port": 8185
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 24,
+    "backend_port": 5187,
+    "frontend_port": 8187
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 25,
+    "backend_port": 5189,
+    "frontend_port": 8189
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 26,
+    "backend_port": 5191,
+    "frontend_port": 8191
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 27,
+    "backend_port": 5193,
+    "frontend_port": 8193
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 28,
+    "backend_port": 5195,
+    "frontend_port": 8195
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 29,
+    "backend_port": 5197,
+    "frontend_port": 8197
+  },
+  {
+    "model_name": "tngtech_deepseek-r1t2-chimera",
+    "app_number": 30,
+    "backend_port": 5199,
+    "frontend_port": 8199
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 1,
+    "backend_port": 6471,
+    "frontend_port": 9471
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 2,
+    "backend_port": 6473,
+    "frontend_port": 9473
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 3,
+    "backend_port": 6475,
+    "frontend_port": 9475
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 4,
+    "backend_port": 6477,
+    "frontend_port": 9477
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 5,
+    "backend_port": 6479,
+    "frontend_port": 9479
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 6,
+    "backend_port": 6481,
+    "frontend_port": 9481
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 7,
+    "backend_port": 6483,
+    "frontend_port": 9483
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 8,
+    "backend_port": 6485,
+    "frontend_port": 9485
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 9,
+    "backend_port": 6487,
+    "frontend_port": 9487
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 10,
+    "backend_port": 6489,
+    "frontend_port": 9489
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 11,
+    "backend_port": 6491,
+    "frontend_port": 9491
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 12,
+    "backend_port": 6493,
+    "frontend_port": 9493
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 13,
+    "backend_port": 6495,
+    "frontend_port": 9495
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 14,
+    "backend_port": 6497,
+    "frontend_port": 9497
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 15,
+    "backend_port": 6499,
+    "frontend_port": 9499
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 16,
+    "backend_port": 6501,
+    "frontend_port": 9501
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 17,
+    "backend_port": 6503,
+    "frontend_port": 9503
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 18,
+    "backend_port": 6505,
+    "frontend_port": 9505
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 19,
+    "backend_port": 6507,
+    "frontend_port": 9507
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 20,
+    "backend_port": 6509,
+    "frontend_port": 9509
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 21,
+    "backend_port": 6511,
+    "frontend_port": 9511
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 22,
+    "backend_port": 6513,
+    "frontend_port": 9513
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 23,
+    "backend_port": 6515,
+    "frontend_port": 9515
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 24,
+    "backend_port": 6517,
+    "frontend_port": 9517
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 25,
+    "backend_port": 6519,
+    "frontend_port": 9519
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 26,
+    "backend_port": 6521,
+    "frontend_port": 9521
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 27,
+    "backend_port": 6523,
+    "frontend_port": 9523
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 28,
+    "backend_port": 6525,
+    "frontend_port": 9525
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 29,
+    "backend_port": 6527,
+    "frontend_port": 9527
+  },
+  {
+    "model_name": "x-ai_grok-4",
+    "app_number": 30,
+    "backend_port": 6529,
+    "frontend_port": 9529
+  }
+]

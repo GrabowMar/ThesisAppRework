@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: featherless_qwerky_72b_app26_backend_5821
+        ports:
+            - "5821:5821"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: featherless_qwerky_72b_app26_frontend_8821
+        ports:
+            - "8821:8821"
+        environment:
+            - PORT=8821
+            - VITE_BACKEND_API_TARGET=http://backend:5821
+            - VITE_FRONTEND_PORT=8821
+        restart: always
+        depends_on:
+            - backend

@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: moonshotai_kimi_dev_72b_app27_backend_5333
+        ports:
+            - "5333:5333"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: moonshotai_kimi_dev_72b_app27_frontend_8333
+        ports:
+            - "8333:8333"
+        environment:
+            - PORT=8333
+            - VITE_BACKEND_API_TARGET=http://backend:5333
+            - VITE_FRONTEND_PORT=8333
+        restart: always
+        depends_on:
+            - backend

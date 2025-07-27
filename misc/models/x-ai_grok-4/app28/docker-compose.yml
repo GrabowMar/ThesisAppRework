@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: x_ai_grok_4_app28_backend_6525
+        ports:
+            - "6525:6525"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: x_ai_grok_4_app28_frontend_9525
+        ports:
+            - "9525:9525"
+        environment:
+            - PORT=9525
+            - VITE_BACKEND_API_TARGET=http://backend:6525
+            - VITE_FRONTEND_PORT=9525
+        restart: always
+        depends_on:
+            - backend

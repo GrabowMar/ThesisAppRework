@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: nvidia_llama_3_1_nemotron_ultra_253b_v1_app20_backend_5459
+        ports:
+            - "5459:5459"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: nvidia_llama_3_1_nemotron_ultra_253b_v1_app20_frontend_8459
+        ports:
+            - "8459:8459"
+        environment:
+            - PORT=8459
+            - VITE_BACKEND_API_TARGET=http://backend:5459
+            - VITE_FRONTEND_PORT=8459
+        restart: always
+        depends_on:
+            - backend

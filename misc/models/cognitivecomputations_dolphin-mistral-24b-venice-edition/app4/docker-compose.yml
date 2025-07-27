@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: cognitivecomputations_dolphin_mistral_24b_venice_edition_app4_backend_5007
+        ports:
+            - "5007:5007"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: cognitivecomputations_dolphin_mistral_24b_venice_edition_app4_frontend_8007
+        ports:
+            - "8007:8007"
+        environment:
+            - PORT=8007
+            - VITE_BACKEND_API_TARGET=http://backend:5007
+            - VITE_FRONTEND_PORT=8007
+        restart: always
+        depends_on:
+            - backend

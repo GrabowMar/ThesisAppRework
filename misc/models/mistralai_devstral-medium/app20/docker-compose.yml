@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: mistralai_devstral_medium_app20_backend_6439
+        ports:
+            - "6439:6439"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: mistralai_devstral_medium_app20_frontend_9439
+        ports:
+            - "9439:9439"
+        environment:
+            - PORT=9439
+            - VITE_BACKEND_API_TARGET=http://backend:6439
+            - VITE_FRONTEND_PORT=9439
+        restart: always
+        depends_on:
+            - backend

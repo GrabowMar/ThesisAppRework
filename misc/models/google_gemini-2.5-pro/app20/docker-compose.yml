@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: google_gemini_2_5_pro_app20_backend_5879
+        ports:
+            - "5879:5879"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: google_gemini_2_5_pro_app20_frontend_8879
+        ports:
+            - "8879:8879"
+        environment:
+            - PORT=8879
+            - VITE_BACKEND_API_TARGET=http://backend:5879
+            - VITE_FRONTEND_PORT=8879
+        restart: always
+        depends_on:
+            - backend

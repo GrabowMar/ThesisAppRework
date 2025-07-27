@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: openai_gpt_4_1_app29_backend_6177
+        ports:
+            - "6177:6177"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: openai_gpt_4_1_app29_frontend_9177
+        ports:
+            - "9177:9177"
+        environment:
+            - PORT=9177
+            - VITE_BACKEND_API_TARGET=http://backend:6177
+            - VITE_FRONTEND_PORT=9177
+        restart: always
+        depends_on:
+            - backend

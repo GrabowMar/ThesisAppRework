@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: qwen_qwen3_coder_app9_backend_6557
+        ports:
+            - "6557:6557"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: qwen_qwen3_coder_app9_frontend_9557
+        ports:
+            - "9557:9557"
+        environment:
+            - PORT=9557
+            - VITE_BACKEND_API_TARGET=http://backend:6557
+            - VITE_FRONTEND_PORT=9557
+        restart: always
+        depends_on:
+            - backend

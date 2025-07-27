@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: deepseek_deepseek_r1_0528_qwen3_8b_app19_backend_5387
+        ports:
+            - "5387:5387"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: deepseek_deepseek_r1_0528_qwen3_8b_app19_frontend_8387
+        ports:
+            - "8387:8387"
+        environment:
+            - PORT=8387
+            - VITE_BACKEND_API_TARGET=http://backend:5387
+            - VITE_FRONTEND_PORT=8387
+        restart: always
+        depends_on:
+            - backend

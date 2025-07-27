@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: tencent_hunyuan_a13b_instruct_app7_backend_5083
+        ports:
+            - "5083:5083"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: tencent_hunyuan_a13b_instruct_app7_frontend_8083
+        ports:
+            - "8083:8083"
+        environment:
+            - PORT=8083
+            - VITE_BACKEND_API_TARGET=http://backend:5083
+            - VITE_FRONTEND_PORT=8083
+        restart: always
+        depends_on:
+            - backend

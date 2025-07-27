@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: deepseek_deepseek_r1_0528_app2_backend_6263
+        ports:
+            - "6263:6263"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: deepseek_deepseek_r1_0528_app2_frontend_9263
+        ports:
+            - "9263:9263"
+        environment:
+            - PORT=9263
+            - VITE_BACKEND_API_TARGET=http://backend:6263
+            - VITE_FRONTEND_PORT=9263
+        restart: always
+        depends_on:
+            - backend

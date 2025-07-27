@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: google_gemini_2_5_flash_app27_backend_5963
+        ports:
+            - "5963:5963"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: google_gemini_2_5_flash_app27_frontend_8963
+        ports:
+            - "8963:8963"
+        environment:
+            - PORT=8963
+            - VITE_BACKEND_API_TARGET=http://backend:5963
+            - VITE_FRONTEND_PORT=8963
+        restart: always
+        depends_on:
+            - backend

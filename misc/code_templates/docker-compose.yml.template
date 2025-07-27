@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: {model_prefix}_backend_{backend_port}
+        ports:
+            - "{backend_port}:{backend_port}"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: {model_prefix}_frontend_{frontend_port}
+        ports:
+            - "{frontend_port}:{frontend_port}"
+        environment:
+            - PORT={frontend_port}
+            - VITE_BACKEND_API_TARGET=http://backend:{backend_port}
+            - VITE_FRONTEND_PORT={frontend_port}
+        restart: always
+        depends_on:
+            - backend

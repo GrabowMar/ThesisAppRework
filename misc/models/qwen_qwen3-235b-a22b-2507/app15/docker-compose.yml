@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: qwen_qwen3_235b_a22b_2507_app15_backend_6639
+        ports:
+            - "6639:6639"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: qwen_qwen3_235b_a22b_2507_app15_frontend_9639
+        ports:
+            - "9639:9639"
+        environment:
+            - PORT=9639
+            - VITE_BACKEND_API_TARGET=http://backend:6639
+            - VITE_FRONTEND_PORT=9639
+        restart: always
+        depends_on:
+            - backend

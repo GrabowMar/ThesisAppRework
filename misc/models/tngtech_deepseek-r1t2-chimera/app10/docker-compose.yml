@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: tngtech_deepseek_r1t2_chimera_app10_backend_5159
+        ports:
+            - "5159:5159"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: tngtech_deepseek_r1t2_chimera_app10_frontend_8159
+        ports:
+            - "8159:8159"
+        environment:
+            - PORT=8159
+            - VITE_BACKEND_API_TARGET=http://backend:5159
+            - VITE_FRONTEND_PORT=8159
+        restart: always
+        depends_on:
+            - backend

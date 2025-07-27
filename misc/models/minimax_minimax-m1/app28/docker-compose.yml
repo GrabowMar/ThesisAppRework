@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: minimax_minimax_m1_app28_backend_6735
+        ports:
+            - "6735:6735"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: minimax_minimax_m1_app28_frontend_9735
+        ports:
+            - "9735:9735"
+        environment:
+            - PORT=9735
+            - VITE_BACKEND_API_TARGET=http://backend:6735
+            - VITE_FRONTEND_PORT=9735
+        restart: always
+        depends_on:
+            - backend

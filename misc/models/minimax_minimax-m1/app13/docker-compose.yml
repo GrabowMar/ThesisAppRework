@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: minimax_minimax_m1_app13_backend_6705
+        ports:
+            - "6705:6705"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: minimax_minimax_m1_app13_frontend_9705
+        ports:
+            - "9705:9705"
+        environment:
+            - PORT=9705
+            - VITE_BACKEND_API_TARGET=http://backend:6705
+            - VITE_FRONTEND_PORT=9705
+        restart: always
+        depends_on:
+            - backend

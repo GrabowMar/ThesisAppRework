@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: mistralai_mistral_small_3_2_24b_instruct_app7_backend_5223
+        ports:
+            - "5223:5223"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: mistralai_mistral_small_3_2_24b_instruct_app7_frontend_8223
+        ports:
+            - "8223:8223"
+        environment:
+            - PORT=8223
+            - VITE_BACKEND_API_TARGET=http://backend:5223
+            - VITE_FRONTEND_PORT=8223
+        restart: always
+        depends_on:
+            - backend

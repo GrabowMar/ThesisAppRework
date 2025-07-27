@@ -1,0 +1,132 @@
+{
+  "extraction_timestamp": "2025-07-27T11:27:59.709118",
+  "total_models": 25,
+  "apps_per_model": 30,
+  "models": [
+    {
+      "name": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+      "color": "#666666",
+      "provider": "cognitivecomputations"
+    },
+    {
+      "name": "tencent_hunyuan-a13b-instruct",
+      "color": "#666666",
+      "provider": "tencent"
+    },
+    {
+      "name": "tngtech_deepseek-r1t2-chimera",
+      "color": "#666666",
+      "provider": "tngtech"
+    },
+    {
+      "name": "mistralai_mistral-small-3.2-24b-instruct",
+      "color": "#8B5CF6",
+      "provider": "mistralai"
+    },
+    {
+      "name": "moonshotai_kimi-dev-72b",
+      "color": "#10B981",
+      "provider": "moonshotai"
+    },
+    {
+      "name": "deepseek_deepseek-r1-0528-qwen3-8b",
+      "color": "#9333EA",
+      "provider": "deepseek"
+    },
+    {
+      "name": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
+      "color": "#0D9488",
+      "provider": "nvidia"
+    },
+    {
+      "name": "qwen_qwen3-14b",
+      "color": "#F43F5E",
+      "provider": "qwen"
+    },
+    {
+      "name": "qwen_qwen3-8b",
+      "color": "#F43F5E",
+      "provider": "qwen"
+    },
+    {
+      "name": "thudm_glm-4-32b",
+      "color": "#666666",
+      "provider": "thudm"
+    },
+    {
+      "name": "nousresearch_deephermes-3-llama-3-8b-preview",
+      "color": "#059669",
+      "provider": "nousresearch"
+    },
+    {
+      "name": "featherless_qwerky-72b",
+      "color": "#666666",
+      "provider": "featherless"
+    },
+    {
+      "name": "google_gemini-2.5-pro",
+      "color": "#3B82F6",
+      "provider": "google"
+    },
+    {
+      "name": "google_gemini-2.5-flash",
+      "color": "#3B82F6",
+      "provider": "google"
+    },
+    {
+      "name": "anthropic_claude-sonnet-4",
+      "color": "#D97706",
+      "provider": "anthropic"
+    },
+    {
+      "name": "anthropic_claude-3.7-sonnet",
+      "color": "#D97706",
+      "provider": "anthropic"
+    },
+    {
+      "name": "openai_gpt-4.1",
+      "color": "#14B8A6",
+      "provider": "openai"
+    },
+    {
+      "name": "deepseek_deepseek-chat-v3-0324",
+      "color": "#9333EA",
+      "provider": "deepseek"
+    },
+    {
+      "name": "deepseek_deepseek-r1-0528",
+      "color": "#9333EA",
+      "provider": "deepseek"
+    },
+    {
+      "name": "openai_o3",
+      "color": "#14B8A6",
+      "provider": "openai"
+    },
+    {
+      "name": "mistralai_devstral-medium",
+      "color": "#8B5CF6",
+      "provider": "mistralai"
+    },
+    {
+      "name": "x-ai_grok-4",
+      "color": "#B91C1C",
+      "provider": "x-ai"
+    },
+    {
+      "name": "qwen_qwen3-coder",
+      "color": "#F43F5E",
+      "provider": "qwen"
+    },
+    {
+      "name": "qwen_qwen3-235b-a22b-2507",
+      "color": "#F43F5E",
+      "provider": "qwen"
+    },
+    {
+      "name": "minimax_minimax-m1",
+      "color": "#7E22CE",
+      "provider": "minimax"
+    }
+  ]
+}

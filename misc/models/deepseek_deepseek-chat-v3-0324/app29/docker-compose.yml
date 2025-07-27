@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: deepseek_deepseek_chat_v3_0324_app29_backend_6247
+        ports:
+            - "6247:6247"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: deepseek_deepseek_chat_v3_0324_app29_frontend_9247
+        ports:
+            - "9247:9247"
+        environment:
+            - PORT=9247
+            - VITE_BACKEND_API_TARGET=http://backend:6247
+            - VITE_FRONTEND_PORT=9247
+        restart: always
+        depends_on:
+            - backend

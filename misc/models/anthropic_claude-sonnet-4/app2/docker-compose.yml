@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: anthropic_claude_sonnet_4_app2_backend_5983
+        ports:
+            - "5983:5983"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: anthropic_claude_sonnet_4_app2_frontend_8983
+        ports:
+            - "8983:8983"
+        environment:
+            - PORT=8983
+            - VITE_BACKEND_API_TARGET=http://backend:5983
+            - VITE_FRONTEND_PORT=8983
+        restart: always
+        depends_on:
+            - backend

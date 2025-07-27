@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: nousresearch_deephermes_3_llama_3_8b_preview_app1_backend_5701
+        ports:
+            - "5701:5701"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: nousresearch_deephermes_3_llama_3_8b_preview_app1_frontend_8701
+        ports:
+            - "8701:8701"
+        environment:
+            - PORT=8701
+            - VITE_BACKEND_API_TARGET=http://backend:5701
+            - VITE_FRONTEND_PORT=8701
+        restart: always
+        depends_on:
+            - backend

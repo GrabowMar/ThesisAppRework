@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+    backend:
+        build: ./backend
+        container_name: anthropic_claude_3_7_sonnet_app28_backend_6105
+        ports:
+            - "6105:6105"
+        restart: always
+        environment:
+            - PYTHONUNBUFFERED=1 
+
+    frontend:
+        build: ./frontend
+        container_name: anthropic_claude_3_7_sonnet_app28_frontend_9105
+        ports:
+            - "9105:9105"
+        environment:
+            - PORT=9105
+            - VITE_BACKEND_API_TARGET=http://backend:6105
+            - VITE_FRONTEND_PORT=9105
+        restart: always
+        depends_on:
+            - backend
