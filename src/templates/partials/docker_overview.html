@@ -1,0 +1,259 @@
+<div class="docker-overview">
+    <div class="overview-header">
+        <h2>Docker Management</h2>
+        <div class="status-indicator">
+            {% if docker_available %}
+                <span class="status-badge success">🟢 Connected</span>
+            {% else %}
+                <span class="status-badge error">🔴 Unavailable</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if docker_available %}
+        <div class="docker-info-grid">
+            <div class="info-card">
+                <h3>System Information</h3>
+                <div class="info-details">
+                    <p><strong>Version:</strong> {{ docker_version.get('Version', 'Unknown') }}</p>
+                    <p><strong>API Version:</strong> {{ docker_version.get('ApiVersion', 'Unknown') }}</p>
+                    <p><strong>OS:</strong> {{ docker_info.get('OperatingSystem', 'Unknown') }}</p>
+                    <p><strong>Architecture:</strong> {{ docker_info.get('Architecture', 'Unknown') }}</p>
+                </div>
+            </div>
+
+            <div class="stats-card">
+                <h3>Container Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-value">{{ container_stats.total_apps }}</span>
+                        <span class="stat-label">Total Apps</span>
+                    </div>
+                    <div class="stat-item success">
+                        <span class="stat-value">{{ container_stats.running }}</span>
+                        <span class="stat-label">Running</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">{{ container_stats.stopped }}</span>
+                        <span class="stat-label">Stopped</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">{{ container_stats.models }}</span>
+                        <span class="stat-label">Models</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="recent-containers">
+            <h3>Recent Applications</h3>
+            <div class="containers-list">
+                {% for app in recent_apps %}
+                <div class="container-item">
+                    <div class="container-info">
+                        <span class="container-name">{{ app.model }}/app{{ app.app_number }}</span>
+                        <span class="container-status status-{{ app.status }}">{{ app.status|title }}</span>
+                    </div>
+                    <div class="container-actions">
+                        <a href="{{ url_for('main.app_details', model=app.model, app_number=app.app_number) }}" 
+                           class="btn btn-sm">View</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <div class="error-state">
+            <h3>Docker Not Available</h3>
+            <p>Docker is not accessible. Please ensure Docker is installed and running.</p>
+            <div class="error-actions">
+                <button onclick="location.reload()" class="btn btn-primary">
+                    🔄 Retry Connection
+                </button>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.docker-overview {
+    padding: var(--spacing);
+}
+
+.overview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.status-indicator .status-badge {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.status-badge.success {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.status-badge.error {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.docker-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing);
+    margin-bottom: var(--spacing-lg);
+}
+
+.info-card, .stats-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing);
+}
+
+.info-card h3, .stats-card h3 {
+    margin-bottom: var(--spacing);
+    color: var(--text-color);
+    font-size: 1.125rem;
+}
+
+.info-details p {
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-muted);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing);
+}
+
+.stat-item {
+    text-align: center;
+    padding: var(--spacing-sm);
+    background: var(--background-color);
+    border-radius: var(--border-radius);
+}
+
+.stat-item.success .stat-value {
+    color: #16a34a;
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-top: var(--spacing-xs);
+}
+
+.recent-containers {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing);
+}
+
+.recent-containers h3 {
+    margin-bottom: var(--spacing);
+    color: var(--text-color);
+}
+
+.containers-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.container-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.container-item:last-child {
+    border-bottom: none;
+}
+
+.container-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.container-name {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.container-status {
+    font-size: 0.875rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.status-running {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.status-stopped {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.error-state {
+    text-align: center;
+    padding: var(--spacing-xl);
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.error-state h3 {
+    color: var(--text-color);
+    margin-bottom: var(--spacing);
+}
+
+.error-state p {
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-lg);
+}
+
+.error-actions {
+    display: flex;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .docker-info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .container-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+}
+</style>

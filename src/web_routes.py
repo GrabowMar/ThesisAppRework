@@ -590,6 +590,105 @@ def cache_stats():
         return create_api_response(False, error=str(e))
 
 
+@api_bp.route("/header-stats")
+def get_header_stats():
+    """Get header statistics for the navbar."""
+    try:
+        docker_manager = get_docker_manager()
+        dashboard_data = get_dashboard_data_optimized(docker_manager)
+        all_apps = dashboard_data.get('apps', [])
+        
+        # Calculate stats
+        total_apps = len(all_apps)
+        running_apps = len([app for app in all_apps if app.get('status') == 'running'])
+        
+        stats = {
+            'total_apps': total_apps,
+            'running_apps': running_apps,
+            'stopped_apps': total_apps - running_apps
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/header_stats.html", **stats)
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting header stats: {e}")
+        if is_htmx_request():
+            return render_template("partials/header_stats.html", 
+                                 total_apps=0, running_apps=0, stopped_apps=0)
+        return jsonify({'total_apps': 0, 'running_apps': 0, 'stopped_apps': 0})
+
+
+@api_bp.route("/health-status")
+def health_status():
+    """Get system health status."""
+    try:
+        # Simple health check - check if Docker is accessible
+        docker_manager = get_docker_manager()
+        docker_healthy = True
+        
+        try:
+            # Try to ping Docker
+            docker_manager.client.ping()
+        except Exception:
+            docker_healthy = False
+        
+        health_data = {
+            'status': 'healthy' if docker_healthy else 'degraded',
+            'docker': docker_healthy,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/health_indicator.html", **health_data)
+        return jsonify(health_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting health status: {e}")
+        health_data = {
+            'status': 'error',
+            'docker': False,
+            'timestamp': datetime.now().isoformat()
+        }
+        if is_htmx_request():
+            return render_template("partials/health_indicator.html", **health_data)
+        return jsonify(health_data)
+
+
+@api_bp.route("/notifications")
+def get_notifications():
+    """Get system notifications."""
+    try:
+        # For now, return empty notifications
+        # In a real app, this would fetch from a notifications service
+        notifications = []
+        
+        # You could add sample notifications here for testing:
+        # notifications = [
+        #     {
+        #         'id': 1,
+        #         'type': 'info',
+        #         'title': 'System Status',
+        #         'message': 'All services are running normally',
+        #         'timestamp': datetime.now().isoformat(),
+        #         'read': False
+        #     }
+        # ]
+        
+        if is_htmx_request():
+            return render_template("partials/notifications_list.html", 
+                                 notifications=notifications)
+        return jsonify({'notifications': notifications})
+        
+    except Exception as e:
+        logger.error(f"Error getting notifications: {e}")
+        if is_htmx_request():
+            return render_template("partials/notifications_list.html", 
+                                 notifications=[])
+        return jsonify({'notifications': []})
+
+
 @api_bp.route("/cache/clear", methods=["POST"])
 def clear_cache():
     """Clear application cache."""
@@ -609,9 +708,169 @@ def clear_cache():
         return create_api_response(False, error=str(e))
 
 
+@api_bp.route("/dashboard-stats")
+def dashboard_stats():
+    """Get dashboard statistics."""
+    try:
+        docker_manager = get_docker_manager()
+        dashboard_data = get_dashboard_data_optimized(docker_manager)
+        all_apps = dashboard_data.get('apps', [])
+        
+        stats = {
+            'total_apps': len(all_apps),
+            'running_apps': len([app for app in all_apps if app.get('status') == 'running']),
+            'models_count': len(set(app['model'] for app in all_apps)),
+            'analyzed_apps': len([app for app in all_apps if app.get('has_analysis', False)])
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/dashboard_stats.html", **stats)
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard stats: {e}")
+        if is_htmx_request():
+            return render_template("partials/dashboard_stats.html", 
+                                 total_apps=0, running_apps=0, models_count=0, analyzed_apps=0)
+        return jsonify({'total_apps': 0, 'running_apps': 0, 'models_count': 0, 'analyzed_apps': 0})
+
+
+@api_bp.route("/recent-activity")
+def recent_activity():
+    """Get recent activity feed."""
+    try:
+        # For now, return empty activity
+        # In a real app, this would fetch recent activities from logs or database
+        activities = []
+        
+        if is_htmx_request():
+            return render_template("partials/recent_activity.html", activities=activities)
+        return jsonify({'activities': activities})
+        
+    except Exception as e:
+        logger.error(f"Error getting recent activity: {e}")
+        if is_htmx_request():
+            return render_template("partials/recent_activity.html", activities=[])
+        return jsonify({'activities': []})
+
+
+@api_bp.route("/sidebar-stats")
+def sidebar_stats():
+    """Get sidebar statistics."""
+    try:
+        docker_manager = get_docker_manager()
+        dashboard_data = get_dashboard_data_optimized(docker_manager)
+        all_apps = dashboard_data.get('apps', [])
+        
+        stats = {
+            'active_scans': 0,  # Would get from scan service
+            'queued_jobs': 0,   # Would get from batch service
+            'alerts': 0         # Would get from monitoring service
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/sidebar_stats.html", **stats)
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting sidebar stats: {e}")
+        if is_htmx_request():
+            return render_template("partials/sidebar_stats.html", 
+                                 active_scans=0, queued_jobs=0, alerts=0)
+        return jsonify({'active_scans': 0, 'queued_jobs': 0, 'alerts': 0})
+
+
+@api_bp.route("/system-health")
+def system_health():
+    """Get system health status."""
+    try:
+        # Check Docker health
+        docker_manager = get_docker_manager()
+        docker_healthy = True
+        
+        try:
+            docker_manager.client.ping()
+        except Exception:
+            docker_healthy = False
+        
+        # Overall system health
+        health_status = {
+            'status': 'healthy' if docker_healthy else 'degraded',
+            'docker': docker_healthy,
+            'services': {
+                'docker': docker_healthy,
+                'database': True,  # Would check database connection
+                'cache': True      # Would check cache service
+            },
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/system_health.html", **health_status)
+        return jsonify(health_status)
+        
+    except Exception as e:
+        logger.error(f"Error getting system health: {e}")
+        health_status = {
+            'status': 'error',
+            'docker': False,
+            'services': {'docker': False, 'database': False, 'cache': False},
+            'timestamp': datetime.now().isoformat()
+        }
+        if is_htmx_request():
+            return render_template("partials/system_health.html", **health_status)
+        return jsonify(health_status)
+
+
 # ===========================
 # DOCKER MANAGEMENT ROUTES
 # ===========================
+
+@docker_bp.route("/")
+def docker_overview():
+    """Docker management overview page."""
+    try:
+        docker_manager = get_docker_manager()
+        
+        # Get Docker system information
+        try:
+            docker_info = docker_manager.client.info()
+            docker_version = docker_manager.client.version()
+            docker_available = True
+        except Exception as e:
+            logger.warning(f"Docker not available: {e}")
+            docker_info = {}
+            docker_version = {}
+            docker_available = False
+        
+        # Get container statistics
+        dashboard_data = get_dashboard_data_optimized(docker_manager)
+        all_apps = dashboard_data.get('apps', [])
+        
+        container_stats = {
+            'total_apps': len(all_apps),
+            'running': len([app for app in all_apps if app.get('status') == 'running']),
+            'stopped': len([app for app in all_apps if app.get('status') != 'running']),
+            'models': len(set(app['model'] for app in all_apps))
+        }
+        
+        context = {
+            'docker_available': docker_available,
+            'docker_info': docker_info,
+            'docker_version': docker_version,
+            'container_stats': container_stats,
+            'recent_apps': all_apps[:10]  # Show recent 10 apps
+        }
+        
+        return render_htmx_response("docker_overview.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error loading Docker overview: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error="Failed to load Docker overview")
+        return render_template("pages/error.html", error=str(e))
+
 
 @docker_bp.route("/<action>/<model>/<int:app_num>", methods=["POST"])
 def docker_action(action: str, model: str, app_num: int):
