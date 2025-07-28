@@ -34,6 +34,8 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     CACHE_TYPE = 'simple'
     CACHE_DEFAULT_TIMEOUT = 300
+    APPLICATION_ROOT = '/'  # Fix for Flask test client
+    PREFERRED_URL_SCHEME = 'http'
 
 
 def setup_logging(app):

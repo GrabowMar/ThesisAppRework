@@ -667,7 +667,18 @@ class TestAnalysisStatusEnum:
     
     def test_enum_in_model(self, init_database):
         """Test using enum in model."""
+        # Create required application first
+        app = GeneratedApplication(
+            model_slug="test-model",
+            app_number=1,
+            app_type="login",
+            provider="test-provider"
+        )
+        db.session.add(app)
+        db.session.flush()  # Get the ID
+        
         analysis = SecurityAnalysis(
+            application_id=app.id,
             status=AnalysisStatus.RUNNING
         )
         

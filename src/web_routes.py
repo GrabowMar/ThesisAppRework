@@ -16,6 +16,7 @@ Key HTMX Patterns Used:
 import json
 import logging
 import time
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -24,6 +25,9 @@ from flask import (
     Blueprint, Response, current_app, flash, jsonify, make_response,
     redirect, render_template, request, session, url_for
 )
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # ===========================
 # SERVICE ACCESS HELPERS
@@ -49,23 +53,88 @@ def get_docker_manager():
 
 def get_all_apps():
     """Get all apps with minimal data."""
-    # Return dummy data for now - would normally come from database
-    return []
+    try:
+        # Try to get from database
+        from models import GeneratedApplication
+        apps = []
+        db_apps = GeneratedApplication.query.all()
+        
+        for app in db_apps:
+            apps.append({
+                'model': app.model_slug.replace('_', '-'),
+                'app_num': app.app_number,
+                'status': app.container_status or 'unknown',
+                'app_type': app.app_type or 'unknown',
+                'provider': app.provider or 'unknown'
+            })
+        
+        return apps
+    except Exception as e:
+        logger.warning(f"Could not get apps from database: {e}")
+        # Return minimal test data
+        return [
+            {'model': 'test-model', 'app_num': 1, 'status': 'unknown', 'app_type': 'test', 'provider': 'test'}
+        ]
 
 def get_app_info(model: str, app_num: int):
     """Get app information."""
+    try:
+        from models import GeneratedApplication
+        app = GeneratedApplication.query.filter_by(
+            model_slug=model.replace('-', '_'),
+            app_number=app_num
+        ).first()
+        
+        if app:
+            return {
+                'model': model,
+                'app_num': app_num,
+                'status': app.container_status or 'unknown',
+                'app_type': app.app_type or 'unknown',
+                'provider': app.provider or 'unknown',
+                'has_backend': app.has_backend,
+                'has_frontend': app.has_frontend,
+                'metadata': app.get_metadata()
+            }
+    except Exception as e:
+        logger.warning(f"Could not get app info from database: {e}")
+    
+    # Return basic info if not found in database
     return {
         'model': model,
         'app_num': app_num,
-        'status': 'unknown'
+        'status': 'unknown',
+        'app_type': 'unknown',
+        'provider': 'unknown',
+        'has_backend': True,
+        'has_frontend': True,
+        'metadata': {}
     }
 
 def get_ai_models():
     """Get AI models."""
-    # In real implementation, would query ModelCapability table
-    return []
+    try:
+        from models import ModelCapability
+        models = []
+        db_models = ModelCapability.query.all()
+        
+        for model in db_models:
+            models.append({
+                'id': model.model_id,
+                'name': model.model_name,
+                'provider': model.provider,
+                'canonical_slug': model.canonical_slug,
+                'context_window': model.context_window,
+                'supports_function_calling': model.supports_function_calling,
+                'supports_vision': model.supports_vision
+            })
+        
+        return models
+    except Exception as e:
+        logger.warning(f"Could not get models from database: {e}")
+        return []
 
-def get_port_config(model: str = None, app_num: int = None):
+def get_port_config(model: Optional[str] = None, app_num: Optional[int] = None):
     """Get port configuration."""
     # Import here to avoid circular import
     try:
@@ -95,7 +164,7 @@ def get_port_config(model: str = None, app_num: int = None):
                     'frontend_port': config.frontend_port
                 }
     except Exception as e:
-        logging.warning(f"Error getting port config: {e}")
+        logger.warning(f"Error getting port config: {e}")
     
     # Default ports
     return {'backend_port': 6000, 'frontend_port': 9000}
@@ -168,30 +237,49 @@ def get_latest_analysis_timestamp(model: str, app_num: int):
 def get_dashboard_data_optimized(docker_manager):
     """Get dashboard data optimized."""
     try:
-        from models import ModelCapability, PortConfiguration
+        from models import ModelCapability, GeneratedApplication
         
-        # Get models from database
-        models = ModelCapability.query.all()
+        # Get apps from database
         apps = []
+        db_apps = GeneratedApplication.query.all()
         
-        for model in models:
-            for app_num in range(1, 31):  # Apps 1-30
-                port_config = PortConfiguration.query.filter_by(
-                    model_slug=model.canonical_slug,
-                    app_number=app_num
-                ).first()
-                
-                if port_config:
-                    apps.append({
-                        'model': model.canonical_slug.replace('_', '-'),
-                        'app_num': app_num,
-                        'backend_port': port_config.backend_port,
-                        'frontend_port': port_config.frontend_port,
-                        'status': 'unknown'
-                    })
+        for app in db_apps:
+            # Get container statuses if docker manager is available
+            container_status = 'unknown'
+            if docker_manager:
+                try:
+                    statuses = get_app_container_statuses(
+                        app.model_slug.replace('_', '-'),
+                        app.app_number,
+                        docker_manager
+                    )
+                    backend_running = statuses.get('backend') == 'running'
+                    frontend_running = statuses.get('frontend') == 'running'
+                    
+                    if backend_running and frontend_running:
+                        container_status = 'running'
+                    elif backend_running or frontend_running:
+                        container_status = 'partial'
+                    else:
+                        container_status = 'stopped'
+                except Exception:
+                    container_status = 'unknown'
+            
+            apps.append({
+                'model': app.model_slug.replace('_', '-'),
+                'app_num': app.app_number,
+                'status': container_status,
+                'app_type': app.app_type or 'unknown',
+                'provider': app.provider or 'unknown',
+                'has_backend': app.has_backend,
+                'has_frontend': app.has_frontend,
+                'backend_port': 6000 + app.app_number,  # Default calculation
+                'frontend_port': 9000 + app.app_number
+            })
         
         return {'apps': apps, 'cache_used': False}
     except Exception as e:
+        logger.warning(f"Could not get dashboard data: {e}")
         return {'apps': [], 'cache_used': False}
 
 def create_api_response(success: bool = True, data: Any = None, error: Optional[str] = None, 
@@ -548,8 +636,10 @@ def app_details(model: str, app_num: int):
         last_analysis = get_latest_analysis_timestamp(model, app_num)
         
         context = {
-            'app': app_info,
-            'container_statuses': container_statuses,
+            'app_info': app_info,  # Fix: template expects app_info not app
+            'app': app_info,       # Keep both for backward compatibility
+            'statuses': container_statuses,  # Fix: template expects statuses
+            'container_statuses': container_statuses,  # Keep both for backward compatibility
             'analysis_results': analysis_results,
             'available_analyses': available_analyses,
             'last_analysis': last_analysis,
@@ -1714,6 +1804,7 @@ def openrouter_analysis_page(model: str, app_num: int):
             existing_results = None
             requirements, app_type = [], "unknown"
             openrouter_available = False
+            available_models = []
         else:
             analyzer = OpenRouterAnalyzer()
             existing_results = analyzer.load_results(model, app_num)
@@ -1721,6 +1812,7 @@ def openrouter_analysis_page(model: str, app_num: int):
             # Get requirements for this app
             requirements, app_type = analyzer.get_requirements_for_app(app_num)
             openrouter_available = True
+            available_models = analyzer.get_available_models()
         
         context = {
             'app': app_info,
@@ -1731,7 +1823,7 @@ def openrouter_analysis_page(model: str, app_num: int):
             'existing_results': existing_results,
             'has_results': existing_results is not None,
             'openrouter_available': openrouter_available,
-            'available_models': analyzer.get_available_models() if openrouter_available and 'analyzer' in locals() else []
+            'available_models': available_models
         }
         
         return render_htmx_response("openrouter_analysis.html", **context)

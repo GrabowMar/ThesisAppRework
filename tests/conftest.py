@@ -32,14 +32,90 @@ class TestConfig:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     CACHE_TYPE = 'simple'
     CACHE_DEFAULT_TIMEOUT = 1  # Short timeout for tests
+    APPLICATION_ROOT = '/'  # Fix for Flask test client
     PORT_CONFIG = []  # Will be populated by fixtures
 
 
 @pytest.fixture(scope='session')
 def app():
     """Create and configure a new app instance for each test session."""
-    app = create_app()
+    # Import here to avoid circular imports
+    from app import Config, setup_logging, load_model_integration_data
+    from extensions import init_extensions, db
+    from flask import Flask
+    from pathlib import Path
+    
+    # Create a test config class
+    class TestConfig(Config):
+        TESTING = True
+        SECRET_KEY = 'test-secret-key-that-is-long-enough-to-be-secure'  # Longer secret key
+        WTF_CSRF_ENABLED = False
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+        SQLALCHEMY_TRACK_MODIFICATIONS = False
+        CACHE_TYPE = 'simple'
+        CACHE_DEFAULT_TIMEOUT = 1
+        APPLICATION_ROOT = '/'  # Must be set at class level
+        PREFERRED_URL_SCHEME = 'http'
+        SERVER_NAME = 'localhost'
+        PORT_CONFIG = []
+    
+    # Create Flask app manually to ensure config is properly loaded
+    # Get the absolute path to the src directory where templates are located
+    src_dir = Path(__file__).parent.parent / "src"
+    app = Flask(__name__, 
+                template_folder=str(src_dir / "templates"),
+                static_folder=str(src_dir / "static"))
     app.config.from_object(TestConfig)
+    
+    # Ensure required directories exist
+    from pathlib import Path
+    app_root = Path(__file__).parent.parent
+    (app_root / "logs").mkdir(exist_ok=True)
+    (app_root / "src" / "data").mkdir(exist_ok=True)
+    (app_root / "src" / "templates").mkdir(exist_ok=True)
+    (app_root / "src" / "static").mkdir(exist_ok=True)
+    
+    # Initialize logging
+    setup_logging(app)
+    
+    # Initialize extensions (database, cache, etc.)
+    init_extensions(app)
+    
+    # Load model integration data first (before services need it)
+    with app.app_context():
+        try:
+            load_model_integration_data(app)
+            app.logger.info("Model integration data loaded successfully")
+        except Exception as e:
+            app.logger.error(f"Failed to load model integration data: {e}")
+    
+    # Initialize service manager and core services
+    with app.app_context():
+        try:
+            from core_services import ServiceManager, ServiceInitializer
+            # Create service manager
+            service_manager = ServiceManager(app)
+            app.config['service_manager'] = service_manager
+            
+            # Initialize core services (docker, scan manager, etc.)
+            service_initializer = ServiceInitializer(app, service_manager)
+            service_initializer.initialize_all()
+            
+            app.logger.info("Core services initialized successfully")
+        except Exception as e:
+            app.logger.error(f"Failed to initialize services: {e}")
+    
+    # Register blueprints
+    with app.app_context():
+        try:
+            from web_routes import register_blueprints
+            register_blueprints(app)
+            app.logger.info("All blueprints registered successfully")
+        except Exception as e:
+            app.logger.error(f"Failed to register blueprints: {e}")
+    
+    # Debug print to verify config
+    print(f"DEBUG: APPLICATION_ROOT = {app.config.get('APPLICATION_ROOT')}")
     
     with app.app_context():
         db.create_all()
