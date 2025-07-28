@@ -1,0 +1,41 @@
+{% if notifications %}
+<div class="notifications-list">
+    {% for notification in notifications %}
+    <div class="notification-item notification-{{ notification.type|default('info') }}">
+        <div class="notification-icon">
+            {% if notification.type == 'error' %}❌
+            {% elif notification.type == 'warning' %}⚠️
+            {% elif notification.type == 'success' %}✅
+            {% else %}ℹ️
+            {% endif %}
+        </div>
+        <div class="notification-content">
+            <div class="notification-title">{{ notification.title|default('Notification') }}</div>
+            <div class="notification-message">{{ notification.message|default('') }}</div>
+            <div class="notification-time">{{ notification.timestamp|format_datetime if notification.timestamp else 'Just now' }}</div>
+        </div>
+        {% if notification.id %}
+        <button class="notification-dismiss" 
+                hx-post="{{ url_for('api.dismiss_notification', id=notification.id) }}"
+                hx-target="closest .notification-item"
+                hx-swap="outerHTML">
+            ×
+        </button>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+<div class="notifications-footer">
+    <button class="btn btn-sm btn-secondary"
+            hx-post="{{ url_for('api.clear_all_notifications') }}"
+            hx-target="closest .dropdown-menu"
+            hx-swap="innerHTML">
+        Clear All
+    </button>
+</div>
+{% else %}
+<div class="empty-notifications">
+    <div class="empty-icon">🔔</div>
+    <p>No new notifications</p>
+</div>
+{% endif %}

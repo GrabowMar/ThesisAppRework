@@ -25,6 +25,9 @@ from flask import (
     redirect, render_template, request, session, url_for
 )
 
+# Import core services
+import core_services
+
 # ===========================
 # SERVICE ACCESS HELPERS
 # ===========================
@@ -820,6 +823,68 @@ def system_health():
         if is_htmx_request():
             return render_template("partials/system_health.html", **health_status)
         return jsonify(health_status)
+
+
+@api_bp.route("/settings")
+def get_settings():
+    """Get application settings for the settings modal."""
+    try:
+        # Sample settings - in a real app, these would come from a config service
+        settings = {
+            'auto_refresh_interval': 30,
+            'items_per_page': 20,
+            'enable_notifications': True,
+            'enable_auto_start': False,
+            'default_analysis_tools': ['bandit', 'safety'],
+            'log_level': 'INFO',
+            'theme': 'auto',
+            'cache_enabled': True,
+            'max_concurrent_analyses': 5
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/settings_form.html", settings=settings)
+        return jsonify(settings)
+        
+    except Exception as e:
+        logger.error(f"Error getting settings: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error="Failed to load settings")
+        return create_api_response(False, error=str(e))
+
+
+@api_bp.route("/settings", methods=["POST"])
+def save_settings():
+    """Save application settings."""
+    try:
+        # Get form data
+        settings = {
+            'auto_refresh_interval': int(request.form.get('auto_refresh_interval', 30)),
+            'items_per_page': int(request.form.get('items_per_page', 20)),
+            'enable_notifications': request.form.get('enable_notifications') == 'on',
+            'enable_auto_start': request.form.get('enable_auto_start') == 'on',
+            'default_analysis_tools': request.form.getlist('default_analysis_tools'),
+            'log_level': request.form.get('log_level', 'INFO'),
+            'theme': request.form.get('theme', 'auto'),
+            'cache_enabled': request.form.get('cache_enabled') == 'on',
+            'max_concurrent_analyses': int(request.form.get('max_concurrent_analyses', 5))
+        }
+        
+        # In a real app, you would save these to a config service or database
+        logger.info(f"Settings saved: {settings}")
+        
+        if is_htmx_request():
+            return render_template("partials/success_message.html", 
+                                 message="Settings saved successfully")
+        return create_api_response(True, message="Settings saved", data=settings)
+        
+    except Exception as e:
+        logger.error(f"Error saving settings: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error="Failed to save settings")
+        return create_api_response(False, error=str(e))
 
 
 # ===========================

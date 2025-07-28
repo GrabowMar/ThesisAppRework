@@ -1,51 +1,16 @@
-<!-- Header Stats Partial -->
-<div class="stat-item">
-    <span class="stat-value">{{ running_apps }}</span>
-    <span class="stat-label">Running</span>
+{% if header_stats %}
+<div class="header-stats-container">
+    <div class="stat-item">
+        <span class="stat-value">{{ header_stats.total_apps|default('0') }}</span>
+        <span class="stat-label">Apps</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-value">{{ header_stats.running|default('0') }}</span>
+        <span class="stat-label">Running</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-value">{{ header_stats.issues|default('0') }}</span>
+        <span class="stat-label">Issues</span>
+    </div>
 </div>
-<div class="stat-item">
-    <span class="stat-value">{{ total_apps }}</span>
-    <span class="stat-label">Apps</span>
-</div>
-
-<style>
-.stat-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    background: var(--surface-color);
-    border-radius: var(--border-radius);
-    min-width: 60px;
-}
-
-.stat-value {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: var(--accent-color);
-    line-height: 1;
-}
-
-.stat-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: var(--spacing-xs);
-}
-
-@media (max-width: 768px) {
-    .stat-item {
-        min-width: 50px;
-        padding: var(--spacing-xs);
-    }
-    
-    .stat-value {
-        font-size: 1rem;
-    }
-    
-    .stat-label {
-        font-size: 0.6rem;
-    }
-}
-</style>
+{% endif %}

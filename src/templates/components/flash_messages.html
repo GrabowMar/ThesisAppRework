@@ -1,0 +1,23 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-messages">
+      {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}" 
+             role="alert"
+             style="animation: slideInFromTop 0.3s ease-out;">
+          <div class="flash-content">
+            <span class="flash-icon">
+              {% if category == 'error' %}❌
+              {% elif category == 'warning' %}⚠️
+              {% elif category == 'success' %}✅
+              {% else %}ℹ️
+              {% endif %}
+            </span>
+            <span class="flash-text">{{ message }}</span>
+          </div>
+          <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}

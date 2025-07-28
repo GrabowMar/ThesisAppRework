@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Thesis Research App{% endblock %}</title>
+    
+    <!-- Missing.css - Modern CSS framework -->
+    <link rel="stylesheet" href="https://the.missing.style/v1.0.11/missing.min.css">
+    
+    <!-- HTMX - Modern web interactions -->
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js"></script>
+    
+    <!-- HTMX Extensions -->
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/loading-states.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/response-targets.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    
+    <!-- Page-specific CSS -->
+    {% block styles %}{% endblock %}
+    
+    <!-- HTMX Configuration -->
+    <meta name="htmx-config" content='{"globalViewTransitions": true, "refreshOnHistoryMiss": true}'>
+</head>
+<body hx-ext="loading-states,response-targets" hx-boost="true">
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <!-- Global loading indicator -->
+    <div id="loading-indicator" class="htmx-indicator loading-bar">
+        <div class="loading-progress"></div>
+    </div>
+    
+    <!-- Main application layout -->
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            {% include 'components/navbar.html' %}
+        </header>
+        
+        <!-- Sidebar (if needed) -->
+        {% if show_sidebar|default(true) %}
+        <aside class="app-sidebar" id="sidebar">
+            {% include 'components/sidebar.html' %}
+        </aside>
+        {% endif %}
+        
+        <!-- Main content area -->
+        <main id="main-content" class="app-main" {% if show_sidebar|default(true) %}style="margin-left: 250px;"{% endif %}>
+            <!-- Breadcrumbs -->
+            {% if breadcrumbs %}
+            <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+                {% include 'components/breadcrumbs.html' %}
+            </nav>
+            {% endif %}
+            
+            <!-- Flash messages -->
+            <div id="flash-messages" hx-swap-oob="true">
+                {% include 'components/flash_messages.html' %}
+            </div>
+            
+            <!-- Page content -->
+            <div class="page-content">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+    
+    <!-- Modals container -->
+    <div id="modal-container"></div>
+    
+    <!-- Toast notifications -->
+    <div id="toast-container" class="toast-container"></div>
+    
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    <!-- Page-specific JavaScript -->
+    {% block scripts %}{% endblock %}
+    
+    <!-- HTMX event handlers -->
+    <script>
+        // Global HTMX event handling
+        document.addEventListener('htmx:beforeRequest', function(evt) {
+            document.getElementById('loading-indicator').classList.add('active');
+        });
+        
+        document.addEventListener('htmx:afterRequest', function(evt) {
+            document.getElementById('loading-indicator').classList.remove('active');
+        });
+        
+        // Error handling
+        document.addEventListener('htmx:responseError', function(evt) {
+            showToast('Request failed. Please try again.', 'error');
+        });
+        
+        // Success feedback
+        document.addEventListener('htmx:afterSwap', function(evt) {
+            // Auto-scroll to updated content if needed
+            if (evt.detail.target.hasAttribute('data-auto-scroll')) {
+                evt.detail.target.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    </script>
+</body>
+</html>

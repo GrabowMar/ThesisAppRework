@@ -1,0 +1,290 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Analysis Overview - Thesis Research App{% endblock %}
+
+{% set breadcrumbs = [
+    {'title': 'Dashboard', 'url': url_for('main.dashboard'), 'icon': '📊'},
+    {'title': 'Analysis', 'icon': '🔍'}
+] %}
+
+{% block content %}
+<div class="analysis-overview">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-title">
+            <h1>🔍 Analysis Overview</h1>
+            <p class="page-subtitle">Security analysis, performance testing, and code quality assessment</p>
+        </div>
+        
+        <div class="page-actions">
+            <button class="btn btn-primary"
+                    hx-get="{{ url_for('batch.create_batch_job') }}"
+                    hx-target="#modal-container">
+                🚀 Start Batch Analysis
+            </button>
+        </div>
+    </div>
+    
+    <!-- Analysis Types Grid -->
+    <div class="analysis-types-grid">
+        <!-- Security Analysis -->
+        <div class="analysis-type-card">
+            <div class="analysis-icon">🛡️</div>
+            <h3>Security Analysis</h3>
+            <p>Comprehensive security scanning using CLI tools like bandit, safety, and eslint.</p>
+            
+            <div class="analysis-stats">
+                <div class="stat">
+                    <div class="stat-value">{{ security_stats.total|default('0') }}</div>
+                    <div class="stat-label">Total Scans</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ security_stats.issues|default('0') }}</div>
+                    <div class="stat-label">Issues Found</div>
+                </div>
+            </div>
+            
+            <div class="analysis-actions">
+                <button class="btn btn-primary btn-sm"
+                        hx-get="{{ url_for('analysis.analysis_overview') }}?type=security"
+                        hx-target="#analysis-details">
+                    View Results
+                </button>
+                <button class="btn btn-secondary btn-sm"
+                        hx-get="{{ url_for('batch.create_batch_job') }}?type=security"
+                        hx-target="#modal-container">
+                    Batch Run
+                </button>
+            </div>
+        </div>
+        
+        <!-- Performance Testing -->
+        <div class="analysis-type-card">
+            <div class="analysis-icon">⚡</div>
+            <h3>Performance Testing</h3>
+            <p>Load testing and performance benchmarking using Locust framework.</p>
+            
+            <div class="analysis-stats">
+                <div class="stat">
+                    <div class="stat-value">{{ performance_stats.total|default('0') }}</div>
+                    <div class="stat-label">Tests Run</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ performance_stats.avg_response_time|default('N/A') }}</div>
+                    <div class="stat-label">Avg Response</div>
+                </div>
+            </div>
+            
+            <div class="analysis-actions">
+                <button class="btn btn-primary btn-sm"
+                        hx-get="{{ url_for('performance.performance_overview') }}"
+                        hx-target="#analysis-details">
+                    View Results
+                </button>
+                <button class="btn btn-secondary btn-sm"
+                        hx-get="{{ url_for('batch.create_batch_job') }}?type=performance"
+                        hx-target="#modal-container">
+                    Batch Run
+                </button>
+            </div>
+        </div>
+        
+        <!-- ZAP Security Scanning -->
+        <div class="analysis-type-card">
+            <div class="analysis-icon">🕷️</div>
+            <h3>ZAP Security Scan</h3>
+            <p>OWASP ZAP automated security testing for web application vulnerabilities.</p>
+            
+            <div class="analysis-stats">
+                <div class="stat">
+                    <div class="stat-value">{{ zap_stats.total|default('0') }}</div>
+                    <div class="stat-label">Scans Complete</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ zap_stats.vulnerabilities|default('0') }}</div>
+                    <div class="stat-label">Vulnerabilities</div>
+                </div>
+            </div>
+            
+            <div class="analysis-actions">
+                <button class="btn btn-primary btn-sm"
+                        hx-get="{{ url_for('zap.zap_overview') }}"
+                        hx-target="#analysis-details">
+                    View Results  
+                </button>
+                <button class="btn btn-secondary btn-sm"
+                        hx-get="{{ url_for('batch.create_batch_job') }}?type=zap"
+                        hx-target="#modal-container">
+                    Batch Run
+                </button>
+            </div>
+        </div>
+        
+        <!-- AI Code Analysis -->
+        <div class="analysis-type-card">
+            <div class="analysis-icon">🤖</div>
+            <h3>AI Code Analysis</h3>
+            <p>OpenRouter AI-powered code quality and requirements analysis.</p>
+            
+            <div class="analysis-stats">
+                <div class="stat">
+                    <div class="stat-value">{{ ai_stats.total|default('0') }}</div>
+                    <div class="stat-label">Analyses</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ ai_stats.quality_score|default('N/A') }}</div>
+                    <div class="stat-label">Avg Quality</div>
+                </div>
+            </div>
+            
+            <div class="analysis-actions">
+                <button class="btn btn-primary btn-sm"
+                        hx-get="{{ url_for('openrouter.openrouter_overview') }}"
+                        hx-target="#analysis-details">
+                    View Results
+                </button>
+                <button class="btn btn-secondary btn-sm"
+                        hx-get="{{ url_for('batch.create_batch_job') }}?type=openrouter"
+                        hx-target="#modal-container">
+                    Batch Run
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analysis Details Section -->
+    <div id="analysis-details" class="analysis-details">
+        <!-- Content loaded via HTMX when clicking analysis type buttons -->
+        <div class="analysis-placeholder">
+            <div class="placeholder-icon">🔍</div>
+            <h3>Select an Analysis Type</h3>
+            <p>Choose an analysis type above to view detailed results and statistics.</p>
+        </div>
+    </div>
+    
+    <!-- Recent Analysis Activity -->
+    <div class="recent-analysis" 
+         hx-get="{{ url_for('api.recent_activity') }}?type=analysis"
+         hx-trigger="load, every 60s"
+         hx-target="#recent-analysis-content">
+        <h2>📋 Recent Analysis Activity</h2>
+        <div id="recent-analysis-content" class="activity-content">
+            <!-- Loaded via HTMX -->
+            <div class="loading-placeholder">Loading recent analysis activity...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.analysis-types-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.analysis-type-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all var(--transition-fast);
+    cursor: pointer;
+}
+
+.analysis-type-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 15px rgba(0, 102, 204, 0.1);
+    transform: translateY(-2px);
+}
+
+.analysis-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.analysis-type-card h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--dark-color);
+}
+
+.analysis-type-card p {
+    color: var(--secondary-color);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.analysis-stats {
+    display: flex;
+    justify-content: space-around;
+    margin: 1rem 0;
+    padding: 1rem 0;
+    border-top: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.analysis-stats .stat {
+    text-align: center;
+}
+
+.analysis-stats .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.analysis-stats .stat-label {
+    font-size: 0.75rem;
+    color: var(--secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.analysis-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.analysis-details {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    min-height: 200px;
+}
+
+.analysis-placeholder {
+    text-align: center;
+    color: var(--secondary-color);
+}
+
+.placeholder-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.recent-analysis {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+}
+
+.recent-analysis h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+}
+
+.loading-placeholder {
+    text-align: center;
+    color: var(--secondary-color);
+    padding: 2rem;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Performance Testing - Thesis Research App{% endblock %}
+
+{% set breadcrumbs = [
+    {'title': 'Dashboard', 'url': url_for('main.dashboard'), 'icon': '📊'},
+    {'title': 'Performance Testing', 'icon': '⚡'}
+] %}
+
+{% block content %}
+<div class="performance-overview">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-title">
+            <h1>⚡ Performance Testing</h1>
+            <p class="page-subtitle">Load testing and performance benchmarking with Locust</p>
+        </div>
+        
+        <div class="page-actions">
+            <button class="btn btn-primary"
+                    hx-get="{{ url_for('batch.create_batch_job') }}?type=performance"
+                    hx-target="#modal-container">
+                🚀 Batch Performance Test
+            </button>
+        </div>
+    </div>
+    
+    <!-- Performance Stats -->
+    <div class="performance-stats" 
+         hx-get="{{ url_for('api.dashboard_stats') }}?type=performance"
+         hx-trigger="load, every 30s"
+         hx-target="#performance-stats-content">
+        <div id="performance-stats-content" class="stats-grid">
+            <!-- Performance stats loaded via HTMX -->
+            <div class="stat-card">
+                <div class="stat-value">{{ total_tests|default('Loading...') }}</div>
+                <div class="stat-label">Total Tests</div>
+                <div class="stat-icon">⚡</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ avg_response_time|default('Loading...') }}</div>
+                <div class="stat-label">Avg Response Time</div>
+                <div class="stat-icon">⏱️</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ success_rate|default('Loading...') }}</div>
+                <div class="stat-label">Success Rate</div>
+                <div class="stat-icon">✅</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ max_rps|default('Loading...') }}</div>
+                <div class="stat-label">Max RPS</div>
+                <div class="stat-icon">🚀</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Test Configuration -->
+    <div class="test-config-section">
+        <h2>🔧 Test Configuration</h2>
+        <div class="config-cards">
+            <div class="config-card">
+                <h3>Quick Test</h3>
+                <p>Fast performance check with minimal load</p>
+                <div class="config-params">
+                    <span class="param">Users: 10</span>
+                    <span class="param">Duration: 30s</span>
+                    <span class="param">Ramp-up: 5s</span>
+                </div>
+                <button class="btn btn-primary btn-sm"
+                        hx-post="{{ url_for('performance.run_performance_test', model='all', app_num=0) }}"
+                        hx-vals='{"test_type": "quick"}'
+                        hx-target="#test-results">
+                    Run Quick Test
+                </button>
+            </div>
+            
+            <div class="config-card">
+                <h3>Standard Test</h3>
+                <p>Comprehensive performance evaluation</p>
+                <div class="config-params">
+                    <span class="param">Users: 50</span>
+                    <span class="param">Duration: 5m</span>
+                    <span class="param">Ramp-up: 30s</span>
+                </div>
+                <button class="btn btn-primary btn-sm"
+                        hx-post="{{ url_for('performance.run_performance_test', model='all', app_num=0) }}"
+                        hx-vals='{"test_type": "standard"}'
+                        hx-target="#test-results">
+                    Run Standard Test
+                </button>
+            </div>
+            
+            <div class="config-card">
+                <h3>Stress Test</h3>
+                <p>High-load testing to find breaking points</p>
+                <div class="config-params">
+                    <span class="param">Users: 200</span>
+                    <span class="param">Duration: 10m</span>
+                    <span class="param">Ramp-up: 2m</span>
+                </div>
+                <button class="btn btn-warning btn-sm"
+                        hx-post="{{ url_for('performance.run_performance_test', model='all', app_num=0) }}"
+                        hx-vals='{"test_type": "stress"}'
+                        hx-target="#test-results"
+                        hx-confirm="This will put high load on the system. Continue?">
+                    Run Stress Test
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Test Results -->
+    <div id="test-results" class="test-results-section">
+        <h2>📊 Recent Test Results</h2>
+        <div class="results-placeholder">
+            <div class="placeholder-icon">⚡</div>
+            <h3>No Tests Running</h3>
+            <p>Select a test configuration above to start performance testing.</p>
+        </div>
+    </div>
+    
+    <!-- Historical Results -->
+    <div class="historical-results" 
+         hx-get="{{ url_for('api.recent_activity') }}?type=performance"
+         hx-trigger="load, every 60s"
+         hx-target="#historical-results-content">
+        <h2>📈 Historical Results</h2>
+        <div id="historical-results-content" class="results-content">
+            <!-- Loaded via HTMX -->
+            <div class="loading-placeholder">Loading historical performance data...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.test-config-section {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin: 2rem 0;
+}
+
+.test-config-section h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+}
+
+.config-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.config-card {
+    border: 1px solid #e9ecef;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    text-align: center;
+    transition: all var(--transition-fast);
+}
+
+.config-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
+}
+
+.config-card h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--dark-color);
+}
+
+.config-card p {
+    color: var(--secondary-color);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.config-params {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.param {
+    font-size: 0.75rem;
+    color: var(--secondary-color);
+    font-weight: 500;
+}
+
+.test-results-section,
+.historical-results {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin: 2rem 0;
+}
+
+.test-results-section h2,
+.historical-results h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+}
+
+.results-placeholder {
+    text-align: center;
+    color: var(--secondary-color);
+    padding: 2rem;
+}
+
+.placeholder-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.loading-placeholder {
+    text-align: center;
+    color: var(--secondary-color);
+    padding: 2rem;
+}
+</style>
+{% endblock %}

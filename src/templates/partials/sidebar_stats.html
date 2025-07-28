@@ -1,80 +1,14 @@
-<div class="sidebar-stats">
-    <div class="stats-list">
-        <div class="stat-item">
-            <span class="stat-icon">🔍</span>
-            <div class="stat-info">
-                <span class="stat-value">{{ active_scans }}</span>
-                <span class="stat-label">Active Scans</span>
-            </div>
-        </div>
-        
-        <div class="stat-item">
-            <span class="stat-icon">⏳</span>
-            <div class="stat-info">
-                <span class="stat-value">{{ queued_jobs }}</span>
-                <span class="stat-label">Queued Jobs</span>
-            </div>
-        </div>
-        
-        <div class="stat-item">
-            <span class="stat-icon">⚠️</span>
-            <div class="stat-info">
-                <span class="stat-value">{{ alerts }}</span>
-                <span class="stat-label">Alerts</span>
-            </div>
-        </div>
+<div class="stats-grid">
+    <div class="stat-item">
+        <div class="stat-value">{{ total_apps|default('0') }}</div>
+        <div class="stat-label">Total Apps</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">{{ running_containers|default('0') }}</div>
+        <div class="stat-label">Running</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">{{ analyses_today|default('0') }}</div>
+        <div class="stat-label">Analyses Today</div>
     </div>
 </div>
-
-<style>
-.sidebar-stats {
-    background: var(--surface-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: var(--spacing-sm);
-    margin-top: var(--spacing);
-}
-
-.stats-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-}
-
-.stat-item {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-xs);
-    border-radius: calc(var(--border-radius) / 2);
-    transition: background-color var(--transition-fast);
-}
-
-.stat-item:hover {
-    background: var(--background-color);
-}
-
-.stat-icon {
-    font-size: 1rem;
-    opacity: 0.7;
-}
-
-.stat-info {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-}
-
-.stat-value {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-color);
-    line-height: 1;
-}
-
-.stat-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    line-height: 1;
-}
-</style>

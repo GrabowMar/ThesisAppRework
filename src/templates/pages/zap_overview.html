@@ -1,0 +1,268 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}ZAP Security Scanning - Thesis Research App{% endblock %}
+
+{% set breadcrumbs = [
+    {'title': 'Dashboard', 'url': url_for('main.dashboard'), 'icon': '📊'},
+    {'title': 'ZAP Security', 'icon': '🕷️'}
+] %}
+
+{% block content %}
+<div class="zap-overview">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-title">
+            <h1>🕷️ ZAP Security Scanning</h1>
+            <p class="page-subtitle">OWASP ZAP automated security testing for web application vulnerabilities</p>
+        </div>
+        
+        <div class="page-actions">
+            <button class="btn btn-primary"
+                    hx-get="{{ url_for('batch.create_batch_job') }}?type=zap"
+                    hx-target="#modal-container">
+                🚀 Batch ZAP Scan
+            </button>
+        </div>
+    </div>
+    
+    <!-- ZAP Stats -->
+    <div class="zap-stats" 
+         hx-get="{{ url_for('api.dashboard_stats') }}?type=zap"
+         hx-trigger="load, every 30s"
+         hx-target="#zap-stats-content">
+        <div id="zap-stats-content" class="stats-grid">
+            <!-- ZAP stats loaded via HTMX -->
+            <div class="stat-card">
+                <div class="stat-value">{{ total_scans|default('Loading...') }}</div>
+                <div class="stat-label">Total Scans</div>
+                <div class="stat-icon">🕷️</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ vulnerabilities_found|default('Loading...') }}</div>
+                <div class="stat-label">Vulnerabilities</div>
+                <div class="stat-icon">⚠️</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ high_severity|default('Loading...') }}</div>
+                <div class="stat-label">High Severity</div>
+                <div class="stat-icon">🚨</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ running_scans|default('Loading...') }}</div>
+                <div class="stat-label">Running Scans</div>
+                <div class="stat-icon">⚡</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scan Configuration -->
+    <div class="scan-config-section">
+        <h2>🔧 Scan Configuration</h2>
+        <div class="config-cards">
+            <div class="config-card">
+                <h3>Quick Scan</h3>
+                <p>Basic security check with essential tests</p>
+                <div class="config-features">
+                    <span class="feature">✓ Spider scan</span>
+                    <span class="feature">✓ Passive scan</span>
+                    <span class="feature">✓ Basic active scan</span>
+                </div>
+                <button class="btn btn-primary btn-sm"
+                        hx-post="{{ url_for('zap.start_zap_scan', model='all', app_num=0) }}"
+                        hx-vals='{"scan_type": "quick"}'
+                        hx-target="#scan-results">
+                    Start Quick Scan
+                </button>
+            </div>
+            
+            <div class="config-card">
+                <h3>Full Scan</h3>
+                <p>Comprehensive security assessment</p>
+                <div class="config-features">
+                    <span class="feature">✓ Deep spider crawl</span>
+                    <span class="feature">✓ All passive rules</span>
+                    <span class="feature">✓ Full active scan</span>
+                    <span class="feature">✓ Authentication testing</span>
+                </div>
+                <button class="btn btn-primary btn-sm"
+                        hx-post="{{ url_for('zap.start_zap_scan', model='all', app_num=0) }}"
+                        hx-vals='{"scan_type": "full"}'
+                        hx-target="#scan-results">
+                    Start Full Scan
+                </button>
+            </div>
+            
+            <div class="config-card">
+                <h3>Custom Scan</h3>
+                <p>Configurable scan with custom parameters</p>
+                <div class="config-features">
+                    <span class="feature">⚙️ Custom spider depth</span>
+                    <span class="feature">⚙️ Selected scan policies</span>
+                    <span class="feature">⚙️ Custom timeout</span>
+                    <span class="feature">⚙️ Include/exclude URLs</span>
+                </div>
+                <button class="btn btn-secondary btn-sm"
+                        hx-get="{{ url_for('zap.zap_overview') }}?action=configure"
+                        hx-target="#modal-container">
+                    Configure Scan
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scan Results -->
+    <div id="scan-results" class="scan-results-section">
+        <h2>🔍 Recent Scan Results</h2>
+        <div class="results-placeholder">
+            <div class="placeholder-icon">🕷️</div>
+            <h3>No Scans Running</h3>
+            <p>Select a scan configuration above to start security scanning.</p>
+        </div>
+    </div>
+    
+    <!-- Vulnerability Summary -->
+    <div class="vulnerability-summary" 
+         hx-get="{{ url_for('api.recent_activity') }}?type=zap"
+         hx-trigger="load, every 60s"
+         hx-target="#vulnerability-summary-content">
+        <h2>🚨 Vulnerability Summary</h2>
+        <div id="vulnerability-summary-content" class="summary-content">
+            <!-- Loaded via HTMX -->
+            <div class="loading-placeholder">Loading vulnerability summary...</div>
+        </div>
+    </div>
+    
+    <!-- Active Scans Monitor -->
+    <div class="active-scans" 
+         hx-get="{{ url_for('zap.zap_overview') }}?component=active-scans"
+         hx-trigger="load, every 10s"
+         hx-target="#active-scans-content">
+        <h2>⚡ Active Scans</h2>
+        <div id="active-scans-content" class="scans-content">
+            <!-- Loaded via HTMX -->
+            <div class="loading-placeholder">Checking for active scans...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.scan-config-section {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin: 2rem 0;
+}
+
+.scan-config-section h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+}
+
+.config-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.config-card {
+    border: 1px solid #e9ecef;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    text-align: center;
+    transition: all var(--transition-fast);
+}
+
+.config-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
+}
+
+.config-card h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--dark-color);
+}
+
+.config-card p {
+    color: var(--secondary-color);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.config-features {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.feature {
+    font-size: 0.75rem;
+    color: var(--secondary-color);
+    text-align: left;
+}
+
+.scan-results-section,
+.vulnerability-summary,
+.active-scans {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin: 2rem 0;
+}
+
+.scan-results-section h2,
+.vulnerability-summary h2,
+.active-scans h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+}
+
+.results-placeholder {
+    text-align: center;
+    color: var(--secondary-color);
+    padding: 2rem;
+}
+
+.placeholder-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.loading-placeholder {
+    text-align: center;
+    color: var(--secondary-color);
+    padding: 2rem;
+}
+
+/* Severity indicators */
+.severity-high { 
+    color: #dc3545; 
+    font-weight: bold; 
+}
+
+.severity-medium { 
+    color: #ffc107; 
+    font-weight: bold; 
+}
+
+.severity-low { 
+    color: #28a745; 
+    font-weight: bold; 
+}
+
+.severity-info { 
+    color: #17a2b8; 
+    font-weight: bold; 
+}
+</style>
+{% endblock %}

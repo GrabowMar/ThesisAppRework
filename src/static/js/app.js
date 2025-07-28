@@ -1,388 +1,421 @@
 /**
- * Application JavaScript
- * Minimal JavaScript for HTMX-based Thesis Research App
- * Version: 2.0.0
+ * Thesis Research App - JavaScript
+ * HTMX-powered interactions and utilities
  */
 
-// Global app namespace
-window.ThesisApp = {
-    // Configuration
-    config: {
-        refreshInterval: 30000, // 30 seconds
-        debounceDelay: 300,
-        maxRetries: 3
-    },
+// ==========================================
+// INITIALIZATION
+// ==========================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Thesis Research App initialized');
     
-    // State management
-    state: {
-        sidebarOpen: false,
-        currentTab: null,
-        activeRequests: new Set()
-    },
+    // Initialize components
+    initializeDropdowns();
+    initializeToasts();
+    initializeModals();
+    initializeSearch();
     
-    // Utility functions
-    utils: {
-        /**
-         * Debounce function to limit rapid function calls
-         */
-        debounce: function(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        },
+    // Set up periodic updates
+    setupPeriodicUpdates();
+    
+    // Initialize keyboard shortcuts
+    initializeKeyboardShortcuts();
+});
+
+// ==========================================
+// DROPDOWN FUNCTIONALITY
+// ==========================================
+
+function initializeDropdowns() {
+    document.addEventListener('click', function(e) {
+        // Close all dropdowns when clicking outside
+        if (!e.target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown.active').forEach(dropdown => {
+                dropdown.classList.remove('active');
+            });
+        }
         
-        /**
-         * Generate unique ID
-         */
-        generateId: function() {
-            return 'id-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        },
-        
-        /**
-         * Format timestamp for display
-         */
-        formatTimestamp: function(timestamp) {
-            if (!timestamp) return 'Never';
-            const date = new Date(timestamp);
-            return date.toLocaleString();
-        },
-        
-        /**
-         * Show toast notification
-         */
-        showToast: function(message, type = 'info') {
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.textContent = message;
+        // Toggle dropdown when clicking trigger
+        const dropdownToggle = e.target.closest('[data-dropdown-toggle], [data-dropdown]');
+        if (dropdownToggle) {
+            e.preventDefault();
+            const dropdown = dropdownToggle.closest('.dropdown');
+            const isActive = dropdown.classList.contains('active');
             
-            // Add to page
-            let container = document.querySelector('.toast-container');
-            if (!container) {
-                container = document.createElement('div');
-                container.className = 'toast-container';
-                document.body.appendChild(container);
+            // Close all other dropdowns
+            document.querySelectorAll('.dropdown.active').forEach(d => {
+                if (d !== dropdown) d.classList.remove('active');
+            });
+            
+            // Toggle current dropdown
+            dropdown.classList.toggle('active', !isActive);
+        }
+    });
+}
+
+// ==========================================
+// TOAST NOTIFICATIONS
+// ==========================================
+
+function initializeToasts() {
+    // Create toast container if it doesn't exist
+    if (!document.getElementById('toast-container')) {
+        const container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+}
+
+function showToast(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <div class="toast-content">
+            <span class="toast-icon">${icons[type] || icons.info}</span>
+            <span class="toast-message">${message}</span>
+        </div>
+        <button class="toast-close" onclick="removeToast(this.parentElement)">×</button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => removeToast(toast), duration);
+    }
+    
+    return toast;
+}
+
+function removeToast(toast) {
+    toast.classList.add('hiding');
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.parentElement.removeChild(toast);
+        }
+    }, 300);
+}
+
+// ==========================================
+// MODAL FUNCTIONALITY
+// ==========================================
+
+function initializeModals() {
+    // Close modal when clicking backdrop
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal-backdrop')) {
+            closeModal();
+        }
+    });
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
+}
+
+function openModal(content) {
+    const container = document.getElementById('modal-container');
+    container.innerHTML = `
+        <div class="modal-backdrop">
+            <div class="modal-content">
+                ${content}
+            </div>
+        </div>
+    `;
+    container.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+    const container = document.getElementById('modal-container');
+    container.innerHTML = '';
+    container.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+// ==========================================
+// SEARCH FUNCTIONALITY
+// ==========================================
+
+function initializeSearch() {
+    const searchInput = document.querySelector('.search-input');
+    if (searchInput) {
+        // Add search shortcuts
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                this.value = '';
+                this.blur();
+                htmx.trigger('#app-list', 'load');
             }
-            
-            container.appendChild(toast);
-            
-            // Auto remove after 5 seconds
-            setTimeout(() => {
-                toast.remove();
-            }, 5000);
-        },
+        });
         
-        /**
-         * Copy text to clipboard
-         */
-        copyToClipboard: function(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                this.showToast('Copied to clipboard', 'success');
-            }).catch(() => {
-                this.showToast('Failed to copy to clipboard', 'error');
-            });
-        }
-    },
-    
-    // UI components
-    ui: {
-        /**
-         * Toggle sidebar on mobile
-         */
-        toggleSidebar: function() {
-            const sidebar = document.querySelector('.app-sidebar');
-            const isOpen = sidebar.classList.contains('open');
-            
-            if (isOpen) {
-                sidebar.classList.remove('open');
-                ThesisApp.state.sidebarOpen = false;
-            } else {
-                sidebar.classList.add('open');
-                ThesisApp.state.sidebarOpen = true;
+        // Focus search with Ctrl+K or Cmd+K
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                searchInput.focus();
+                searchInput.select();
             }
-        },
-        
-        /**
-         * Close sidebar when clicking outside
-         */
-        setupSidebarClickOutside: function() {
-            document.addEventListener('click', (e) => {
-                const sidebar = document.querySelector('.app-sidebar');
-                const toggleBtn = document.querySelector('.sidebar-toggle');
-                
-                if (ThesisApp.state.sidebarOpen && 
-                    !sidebar.contains(e.target) && 
-                    !toggleBtn.contains(e.target)) {
-                    this.toggleSidebar();
-                }
-            });
-        },
-        
-        /**
-         * Setup search functionality
-         */
-        setupSearch: function() {
-            const searchInput = document.querySelector('#search-input');
-            if (!searchInput) return;
-            
-            const debouncedSearch = ThesisApp.utils.debounce((query) => {
-                // HTMX will handle the actual search
-                console.log('Searching for:', query);
-            }, ThesisApp.config.debounceDelay);
-            
-            searchInput.addEventListener('input', (e) => {
-                debouncedSearch(e.target.value);
-            });
-        },
-        
-        /**
-         * Setup copy buttons
-         */
-        setupCopyButtons: function() {
-            document.addEventListener('click', (e) => {
-                if (e.target.matches('[data-copy]') || e.target.closest('[data-copy]')) {
-                    const btn = e.target.matches('[data-copy]') ? e.target : e.target.closest('[data-copy]');
-                    const textToCopy = btn.getAttribute('data-copy');
-                    ThesisApp.utils.copyToClipboard(textToCopy);
-                }
-            });
-        },
-        
-        /**
-         * Setup modal functionality
-         */
-        setupModals: function() {
-            // Close modals on overlay click
-            document.addEventListener('click', (e) => {
-                if (e.target.classList.contains('modal-overlay')) {
-                    e.target.remove();
-                }
-            });
-            
-            // Close modals on escape key
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    const modal = document.querySelector('.modal-overlay');
-                    if (modal) modal.remove();
-                }
-            });
-        },
-        
-        /**
-         * Setup tab functionality
-         */
-        setupTabs: function() {
-            document.addEventListener('click', (e) => {
-                if (e.target.matches('.tabs-nav a') || e.target.closest('.tabs-nav a')) {
-                    e.preventDefault();
-                    const link = e.target.matches('.tabs-nav a') ? e.target : e.target.closest('.tabs-nav a');
-                    
-                    // Remove active class from all tabs
-                    document.querySelectorAll('.tabs-nav a').forEach(tab => {
-                        tab.classList.remove('active');
-                    });
-                    
-                    // Add active class to clicked tab
-                    link.classList.add('active');
-                    
-                    // Update state
-                    ThesisApp.state.currentTab = link.getAttribute('href');
-                }
-            });
-        }
-    },
-    
-    // HTMX event handlers
-    htmx: {
-        /**
-         * Setup HTMX event listeners
-         */
-        setup: function() {
-            // Before request - show loading state
-            document.body.addEventListener('htmx:beforeRequest', (e) => {
-                const requestId = ThesisApp.utils.generateId();
-                e.detail.requestConfig.headers['X-Request-ID'] = requestId;
-                ThesisApp.state.activeRequests.add(requestId);
-                
-                // Add loading class to trigger element
-                if (e.detail.elt) {
-                    e.detail.elt.classList.add('htmx-loading');
-                }
-            });
-            
-            // After request - hide loading state
-            document.body.addEventListener('htmx:afterRequest', (e) => {
-                const requestId = e.detail.xhr.getResponseHeader('X-Request-ID');
-                if (requestId) {
-                    ThesisApp.state.activeRequests.delete(requestId);
-                }
-                
-                // Remove loading class
-                if (e.detail.elt) {
-                    e.detail.elt.classList.remove('htmx-loading');
-                }
-            });
-            
-            // Handle errors
-            document.body.addEventListener('htmx:responseError', (e) => {
-                console.error('HTMX Error:', e.detail);
-                ThesisApp.utils.showToast('Request failed. Please try again.', 'error');
-            });
-            
-            // Handle successful responses
-            document.body.addEventListener('htmx:afterSwap', (e) => {
-                // Re-initialize components in the new content
-                ThesisApp.ui.setupCopyButtons();
-                
-                // Announce to screen readers
-                const announcement = e.detail.target.getAttribute('data-announce');
-                if (announcement) {
-                    ThesisApp.accessibility.announce(announcement);
-                }
-            });
-            
-            // Handle history navigation
-            document.body.addEventListener('htmx:historyRestore', (e) => {
-                console.log('History restored:', e.detail);
-            });
-        }
-    },
-    
-    // Accessibility helpers
-    accessibility: {
-        /**
-         * Announce content to screen readers
-         */
-        announce: function(message) {
-            const announcer = document.querySelector('#sr-announcer') || this.createAnnouncer();
-            announcer.textContent = message;
-        },
-        
-        /**
-         * Create screen reader announcer element
-         */
-        createAnnouncer: function() {
-            const announcer = document.createElement('div');
-            announcer.id = 'sr-announcer';
-            announcer.setAttribute('aria-live', 'polite');
-            announcer.setAttribute('aria-atomic', 'true');
-            announcer.className = 'sr-only';
-            announcer.style.cssText = `
-                position: absolute !important;
-                left: -10000px !important;
-                width: 1px !important;
-                height: 1px !important;
-                overflow: hidden !important;
-            `;
-            document.body.appendChild(announcer);
-            return announcer;
-        },
-        
-        /**
-         * Setup keyboard navigation
-         */
-        setupKeyboardNav: function() {
-            // Focus trap for modals
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Tab') {
-                    const modal = document.querySelector('.modal-overlay');
-                    if (modal) {
-                        this.trapFocus(e, modal);
-                    }
-                }
-            });
-        },
-        
-        /**
-         * Trap focus within an element
-         */
-        trapFocus: function(e, container) {
-            const focusableElements = container.querySelectorAll(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            );
-            
-            if (focusableElements.length === 0) return;
-            
-            const firstElement = focusableElements[0];
-            const lastElement = focusableElements[focusableElements.length - 1];
-            
-            if (e.shiftKey) {
-                if (document.activeElement === firstElement) {
-                    lastElement.focus();
-                    e.preventDefault();
-                }
-            } else {
-                if (document.activeElement === lastElement) {
-                    firstElement.focus();
-                    e.preventDefault();
-                }
+        });
+    }
+}
+
+// ==========================================
+// PERIODIC UPDATES
+// ==========================================
+
+function setupPeriodicUpdates() {
+    // Update container statuses every 30 seconds
+    setInterval(() => {
+        const statusElements = document.querySelectorAll('[hx-trigger*="every"]');
+        statusElements.forEach(element => {
+            if (element.offsetParent !== null) { // Only if visible
+                htmx.trigger(element, 'load');
             }
-        }
-    },
+        });
+    }, 30000);
     
-    // Performance monitoring
-    performance: {
-        /**
-         * Monitor HTMX request performance
-         */
-        monitor: function() {
-            let requestStart = null;
-            
-            document.body.addEventListener('htmx:beforeRequest', (e) => {
-                requestStart = performance.now();
-            });
-            
-            document.body.addEventListener('htmx:afterRequest', (e) => {
-                if (requestStart) {
-                    const duration = performance.now() - requestStart;
-                    console.log(`HTMX request took ${duration.toFixed(2)}ms`);
-                    
-                    // Log slow requests
-                    if (duration > 1000) {
-                        console.warn(`Slow HTMX request: ${duration.toFixed(2)}ms`);
-                    }
-                }
-            });
+    // Update dashboard stats every 2 minutes
+    setInterval(() => {
+        const dashboardStats = document.getElementById('stats-container');
+        if (dashboardStats) {
+            htmx.trigger(dashboardStats.parentElement, 'load');
         }
-    },
-    
-    // Initialization
-    init: function() {
-        console.log('Initializing Thesis Research App...');
-        
-        // Wait for DOM to be ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.init());
+    }, 120000);
+}
+
+// ==========================================
+// KEYBOARD SHORTCUTS
+// ==========================================
+
+function initializeKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        // Only handle shortcuts when not in input fields
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
             return;
         }
         
-        // Initialize components
-        this.ui.setupSidebarClickOutside();
-        this.ui.setupSearch();
-        this.ui.setupCopyButtons();
-        this.ui.setupModals();
-        this.ui.setupTabs();
-        this.htmx.setup();
-        this.accessibility.setupKeyboardNav();
+        const shortcuts = {
+            // Navigation
+            'd': () => window.location.href = '/dashboard',
+            'a': () => window.location.href = '/analysis',
+            'p': () => window.location.href = '/performance',
+            's': () => window.location.href = '/zap',
+            'b': () => window.location.href = '/batch',
+            
+            // Actions
+            'r': () => window.location.reload(),
+            'h': () => toggleSidebar(),
+            '?': () => showKeyboardShortcuts()
+        };
         
-        // Performance monitoring in development
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            this.performance.monitor();
+        if (shortcuts[e.key.toLowerCase()]) {
+            e.preventDefault();
+            shortcuts[e.key.toLowerCase()]();
         }
-        
-        console.log('Thesis Research App initialized successfully');
+    });
+}
+
+function toggleSidebar() {
+    const sidebar = document.querySelector('.app-sidebar');
+    if (sidebar) {
+        sidebar.classList.toggle('open');
     }
+}
+
+function showKeyboardShortcuts() {
+    const shortcuts = `
+        <div class="keyboard-shortcuts">
+            <h3>🔧 Keyboard Shortcuts</h3>
+            <div class="shortcuts-grid">
+                <div class="shortcut-group">
+                    <h4>Navigation</h4>
+                    <div class="shortcut-item"><kbd>D</kbd> Dashboard</div>
+                    <div class="shortcut-item"><kbd>A</kbd> Analysis</div>
+                    <div class="shortcut-item"><kbd>P</kbd> Performance</div>
+                    <div class="shortcut-item"><kbd>S</kbd> Security</div>
+                    <div class="shortcut-item"><kbd>B</kbd> Batch</div>
+                </div>
+                <div class="shortcut-group">
+                    <h4>Search & Actions</h4>
+                    <div class="shortcut-item"><kbd>Ctrl+K</kbd> Search</div>
+                    <div class="shortcut-item"><kbd>R</kbd> Refresh</div>
+                    <div class="shortcut-item"><kbd>H</kbd> Toggle Sidebar</div>
+                    <div class="shortcut-item"><kbd>Esc</kbd> Close Modal</div>
+                    <div class="shortcut-item"><kbd>?</kbd> Show Shortcuts</div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    `;
+    openModal(shortcuts);
+}
+
+// ==========================================
+// HTMX EVENT HANDLERS
+// ==========================================
+
+// Global HTMX configuration
+document.addEventListener('htmx:configRequest', function(evt) {
+    // Add CSRF token to all requests
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    if (csrfToken) {
+        evt.detail.headers['X-CSRFToken'] = csrfToken.getAttribute('content');
+    }
+});
+
+// Handle successful responses
+document.addEventListener('htmx:afterSwap', function(evt) {
+    // Re-initialize components in new content
+    initializeDropdowns();
+    
+    // Show success message for certain operations
+    const target = evt.detail.target;
+    if (target.hasAttribute('data-success-message')) {
+        showToast(target.getAttribute('data-success-message'), 'success');
+    }
+    
+    // Auto-focus first input in new content
+    const firstInput = target.querySelector('input:not([type="hidden"]), textarea, select');
+    if (firstInput && target.hasAttribute('data-auto-focus')) {
+        setTimeout(() => firstInput.focus(), 100);
+    }
+});
+
+// Handle errors
+document.addEventListener('htmx:responseError', function(evt) {
+    console.error('HTMX Request failed:', evt.detail);
+    showToast('Request failed. Please try again.', 'error');
+});
+
+document.addEventListener('htmx:sendError', function(evt) {
+    console.error('HTMX Send error:', evt.detail);
+    showToast('Network error. Please check your connection.', 'error');
+});
+
+// Handle timeout
+document.addEventListener('htmx:timeout', function(evt) {
+    console.warn('HTMX Request timeout:', evt.detail);
+    showToast('Request timed out. Please try again.', 'warning');
+});
+
+// Handle loading states
+document.addEventListener('htmx:beforeRequest', function(evt) {
+    const trigger = evt.detail.elt;
+    if (trigger.hasAttribute('data-loading-text')) {
+        trigger.setAttribute('data-original-text', trigger.textContent);
+        trigger.textContent = trigger.getAttribute('data-loading-text');
+        trigger.disabled = true;
+    }
+});
+
+document.addEventListener('htmx:afterRequest', function(evt) {
+    const trigger = evt.detail.elt;
+    if (trigger.hasAttribute('data-original-text')) {
+        trigger.textContent = trigger.getAttribute('data-original-text');
+        trigger.disabled = false;
+        trigger.removeAttribute('data-original-text');
+    }
+});
+
+// ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
+
+function formatDateTime(timestamp) {
+    if (!timestamp) return 'Never';
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function formatDuration(seconds) {
+    if (!seconds || seconds < 0) return 'N/A';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+        return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${secs}s`;
+    } else {
+        return `${secs}s`;
+    }
+}
+
+function copyToClipboard(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Copied to clipboard', 'success', 2000);
+        }).catch(() => {
+            fallbackCopyToClipboard(text);
+        });
+    } else {
+        fallbackCopyToClipboard(text);
+    }
+}
+
+function fallbackCopyToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        showToast('Copied to clipboard', 'success', 2000);
+    } catch (err) {
+        showToast('Failed to copy to clipboard', 'error');
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+// ==========================================
+// EXPORT FUNCTIONS FOR GLOBAL USE
+// ==========================================
+
+window.ThesisApp = {
+    showToast,
+    removeToast,
+    openModal,
+    closeModal,
+    toggleSidebar,
+    showKeyboardShortcuts,
+    formatDateTime,
+    formatDuration,
+    copyToClipboard
 };
 
-// Auto-initialize when script loads
-ThesisApp.init();
-
-// Expose utility functions globally for template use
-window.showToast = ThesisApp.utils.showToast;
-window.copyToClipboard = ThesisApp.utils.copyToClipboard;
-window.formatTimestamp = ThesisApp.utils.formatTimestamp;
+// Log successful initialization
+console.log('✅ Thesis Research App JavaScript loaded successfully');

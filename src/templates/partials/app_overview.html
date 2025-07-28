@@ -1,0 +1,115 @@
+<div class="app-overview">
+    <!-- Quick Stats -->
+    <div class="overview-stats">
+        <div class="stat-card">
+            <div class="stat-icon">🔍</div>
+            <div class="stat-content">
+                <div class="stat-value">{{ app.total_analyses|default('0') }}</div>
+                <div class="stat-label">Total Analyses</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-content">
+                <div class="stat-value">{{ app.security_issues|default('0') }}</div>
+                <div class="stat-label">Security Issues</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-content">
+                <div class="stat-value">{{ app.performance_score|default('N/A') }}</div>
+                <div class="stat-label">Performance Score</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-content">
+                <div class="stat-value">{{ app.code_quality|default('N/A') }}</div>
+                <div class="stat-label">Code Quality</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analysis Timeline -->
+    {% if app.analysis_history %}
+    <div class="analysis-timeline">
+        <h3>📈 Analysis History</h3>
+        <div class="timeline">
+            {% for analysis in app.analysis_history %}
+            <div class="timeline-item">
+                <div class="timeline-marker status-{{ analysis.status }}"></div>
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        <h4>{{ analysis.type|title }} Analysis</h4>
+                        <time>{{ analysis.timestamp|format_datetime }}</time>
+                    </div>
+                    <div class="timeline-body">
+                        <p>{{ analysis.summary|default('Analysis completed') }}</p>
+                        {% if analysis.issues_found %}
+                        <div class="analysis-badges">
+                            <span class="badge badge-warning">{{ analysis.issues_found }} issues found</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Recent Activity -->
+    <div class="recent-activity">
+        <h3>📋 Recent Activity</h3>
+        <div class="activity-feed" 
+             hx-get="{{ url_for('api.recent_activity') }}?model={{ app.model }}&app_num={{ app.app_num }}"
+             hx-trigger="load, every 60s"
+             hx-target="this"
+             hx-swap="innerHTML">
+            <!-- Activity items loaded via HTMX -->
+            <div class="activity-placeholder">Loading recent activity...</div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="quick-actions-section">
+        <h3>⚡ Quick Actions</h3>
+        <div class="actions-grid">
+            <button class="action-card"
+                    hx-post="{{ url_for('analysis.run_analysis', analysis_type='security', model=app.model, app_num=app.app_num) }}"
+                    hx-target="#flash-messages">
+                <div class="action-icon">🛡️</div>
+                <div class="action-title">Security Scan</div>
+                <div class="action-description">Run comprehensive security analysis</div>
+            </button>
+            
+            <button class="action-card"
+                    hx-post="{{ url_for('performance.run_performance_test', model=app.model, app_num=app.app_num) }}"
+                    hx-target="#flash-messages">
+                <div class="action-icon">⚡</div>
+                <div class="action-title">Performance Test</div>
+                <div class="action-description">Load test with Locust</div>
+            </button>
+            
+            <button class="action-card"
+                    hx-post="{{ url_for('zap.start_zap_scan', model=app.model, app_num=app.app_num) }}"
+                    hx-target="#flash-messages">
+                <div class="action-icon">🕷️</div>
+                <div class="action-title">ZAP Scan</div>
+                <div class="action-description">OWASP ZAP security scanning</div>
+            </button>
+            
+            <button class="action-card"
+                    hx-get="{{ url_for('docker.view_logs', model=app.model, app_num=app.app_num) }}"
+                    hx-target="#tab-content">
+                <div class="action-icon">📜</div>
+                <div class="action-title">View Logs</div>
+                <div class="action-description">Check container logs</div>
+            </button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,2 @@
+Cache: {{ cache_hits|default('0') }} hits, {{ cache_misses|default('0') }} misses
+{% if cache_size is defined %}({{ cache_size }} items){% endif %}

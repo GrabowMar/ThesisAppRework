@@ -1,126 +1,23 @@
-<div class="system-health">
-    <div class="health-status status-{{ status }}">
-        <div class="health-indicator">
-            {% if status == 'healthy' %}
-                <span class="status-icon">🟢</span>
-                <span class="status-text">System Healthy</span>
-            {% elif status == 'degraded' %}
-                <span class="status-icon">🟡</span>
-                <span class="status-text">Degraded</span>
-            {% else %}
-                <span class="status-icon">🔴</span>
-                <span class="status-text">Error</span>
+<div class="system-health-indicator">
+    <div class="health-status health-{{ status|default('unknown') }}">
+        <div class="health-dot"></div>
+        <span class="health-text">
+            {% if status == 'healthy' %}System Healthy
+            {% elif status == 'warning' %}System Warning
+            {% elif status == 'error' %}System Error
+            {% else %}System Status Unknown
             {% endif %}
-        </div>
-        
-        <div class="health-details">
-            <div class="service-status">
-                <span class="service-name">Docker</span>
-                <span class="service-indicator {{ 'healthy' if services.docker else 'error' }}">
-                    {{ '✓' if services.docker else '✗' }}
-                </span>
-            </div>
-            <div class="service-status">
-                <span class="service-name">Database</span>
-                <span class="service-indicator {{ 'healthy' if services.database else 'error' }}">
-                    {{ '✓' if services.database else '✗' }}
-                </span>
-            </div>
-            <div class="service-status">
-                <span class="service-name">Cache</span>
-                <span class="service-indicator {{ 'healthy' if services.cache else 'error' }}">
-                    {{ '✓' if services.cache else '✗' }}
-                </span>
-            </div>
-        </div>
-        
-        <div class="health-timestamp">
-            Last checked: {{ timestamp|format_datetime }}
-        </div>
+        </span>
     </div>
+    
+    {% if details %}
+    <div class="health-details">
+        {% for service, service_status in details.items() %}
+        <div class="service-status">
+            <span class="service-name">{{ service|title }}:</span>
+            <span class="service-state state-{{ service_status|lower }}">{{ service_status|title }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
-
-<style>
-.system-health {
-    background: var(--surface-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: var(--spacing);
-}
-
-.health-status {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-}
-
-.health-indicator {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-}
-
-.status-icon {
-    font-size: 1.25rem;
-}
-
-.status-text {
-    font-weight: 500;
-    color: var(--text-color);
-}
-
-.health-details {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-sm);
-    background: var(--background-color);
-    border-radius: calc(var(--border-radius) / 2);
-}
-
-.service-status {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.875rem;
-}
-
-.service-name {
-    color: var(--text-muted);
-}
-
-.service-indicator {
-    font-weight: 500;
-    font-size: 0.75rem;
-}
-
-.service-indicator.healthy {
-    color: #16a34a;
-}
-
-.service-indicator.error {
-    color: #dc2626;
-}
-
-.health-timestamp {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-align: center;
-    opacity: 0.8;
-}
-
-.status-healthy {
-    border-color: #22c55e;
-    background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%);
-}
-
-.status-degraded {
-    border-color: #f59e0b;
-    background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
-}
-
-.status-error {
-    border-color: #ef4444;
-    background: linear-gradient(135deg, #fecaca 0%, #fef2f2 100%);
-}
-</style>

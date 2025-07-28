@@ -1,226 +1,54 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error - Thesis Research App</title>
-    <style>
-        :root {
-            --background-color: #ffffff;
-            --surface-color: #f8fafc;
-            --text-color: #1f2937;
-            --text-muted: #6b7280;
-            --border-color: #e5e7eb;
-            --accent-color: #3b82f6;
-            --danger-color: #ef4444;
-            --success-color: #22c55e;
-            --warning-color: #f59e0b;
-            --border-radius: 0.5rem;
-            --spacing: 1rem;
-            --spacing-sm: 0.5rem;
-            --spacing-lg: 1.5rem;
-            --spacing-xl: 2rem;
-            --spacing-xs: 0.25rem;
-            --transition-fast: 150ms ease;
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--background-color);
-            color: var(--text-color);
-            line-height: 1.6;
-        }
-        
-        .error-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: var(--spacing-xl);
-            text-align: center;
-        }
+{% extends "layouts/base.html" %}
 
-        .error-content {
-            max-width: 600px;
-            width: 100%;
-        }
+{% block title %}Error - Thesis Research App{% endblock %}
 
-        .error-illustration {
-            font-size: 4rem;
-            margin-bottom: var(--spacing);
-            opacity: 0.6;
-        }
-
-        .error-title {
-            font-size: 2rem;
-            font-weight: 600;
-            margin: var(--spacing) 0;
-            color: var(--text-color);
-        }
-
-        .error-message {
-            font-size: 1.125rem;
-            color: var(--text-muted);
-            margin-bottom: var(--spacing-xl);
-            line-height: 1.6;
-        }
-
-        .error-actions {
-            display: flex;
-            flex-direction: column;
-            gap: var(--spacing);
-            align-items: center;
-            margin-bottom: var(--spacing-xl);
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: var(--spacing-sm) var(--spacing);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            font-size: 0.875rem;
-            font-weight: 500;
-            text-decoration: none;
-            transition: all var(--transition-fast);
-            cursor: pointer;
-            background: var(--background-color);
-            color: var(--text-color);
-            min-width: 200px;
-        }
-
-        .btn:hover {
-            background: var(--surface-color);
-            border-color: var(--accent-color);
-        }
-
-        .btn-primary {
-            background: var(--accent-color);
-            color: white;
-            border-color: var(--accent-color);
-        }
-
-        .btn-primary:hover {
-            background: #2563eb;
-            border-color: #2563eb;
-        }
-
-        .btn-outline {
-            border: 2px solid var(--accent-color);
-            color: var(--accent-color);
-        }
-
-        .btn-outline:hover {
-            background: var(--accent-color);
-            color: white;
-        }
-
-        .btn-link {
-            border: none;
-            background: none;
-            color: var(--accent-color);
-        }
-
-        .btn-link:hover {
-            color: #2563eb;
-            background: none;
-            border: none;
-        }
-
-        .error-details {
-            background: var(--surface-color);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            padding: var(--spacing);
-            margin-bottom: var(--spacing);
-            text-align: left;
-        }
-
-        .error-details summary {
-            cursor: pointer;
-            font-weight: 500;
-            color: var(--text-color);
-            margin-bottom: var(--spacing-sm);
-            user-select: none;
-        }
-
-        .error-details summary:hover {
-            color: var(--accent-color);
-        }
-
-        .error-details[open] summary {
-            margin-bottom: var(--spacing);
-        }
-
-        .error-info {
-            font-family: 'Courier New', monospace;
-            font-size: 0.875rem;
-            color: var(--text-muted);
-            background: var(--background-color);
-            padding: var(--spacing-sm);
-            border-radius: var(--border-radius);
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-
-        @media (max-width: 768px) {
-            .error-title {
-                font-size: 1.5rem;
-            }
-            
-            .error-message {
-                font-size: 1rem;
-            }
-            
-            .error-actions .btn {
-                width: 100%;
-            }
-        }
-    </style>
-</head>
-<body>
+{% block content %}
+<div class="error-page">
     <div class="error-container">
-        <div class="error-content">
-            <div class="error-illustration">⚠️</div>
-            <h1 class="error-title">Something went wrong</h1>
-            <p class="error-message">
-                {% if error %}
-                    {{ error }}
-                {% else %}
-                    An unexpected error occurred. Please try again.
-                {% endif %}
-            </p>
-            
-            <div class="error-actions">
-                <button onclick="location.reload()" class="btn btn-primary">
-                    🔄 Try Again
-                </button>
-                
-                <a href="/" class="btn btn-outline">
-                    🏠 Go to Dashboard
-                </a>
-                
-                <button onclick="history.back()" class="btn btn-link">
-                    ← Go Back
-                </button>
-            </div>
-            
-            {% if config.DEBUG and error %}
-            <details class="error-details">
-                <summary>🔧 Technical Details (Debug Mode)</summary>
-                <div class="error-info">{{ error }}</div>
-            </details>
+        <div class="error-icon">
+            {% if error_code == 404 %}
+                🔍
+            {% elif error_code == 500 %}
+                💥
+            {% else %}
+                ⚠️
             {% endif %}
         </div>
+        
+        <h1 class="error-title">
+            {% if error_code == 404 %}
+                Page Not Found
+            {% elif error_code == 500 %}
+                Internal Server Error
+            {% else %}
+                Something Went Wrong
+            {% endif %}
+        </h1>
+        
+        <p class="error-message">
+            {{ error|default('An unexpected error occurred.') }}
+        </p>
+        
+        <div class="error-actions">
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+                🏠 Return to Dashboard
+            </a>
+            
+            <button class="btn btn-secondary" onclick="history.back()">
+                ← Go Back
+            </button>
+            
+            <button class="btn btn-secondary" onclick="location.reload()">
+                🔄 Refresh Page
+            </button>
+        </div>
+        
+        {% if debug_mode() and error_details %}
+        <details class="error-debug">
+            <summary>Debug Information</summary>
+            <pre><code>{{ error_details }}</code></pre>
+        </details>
+        {% endif %}
     </div>
-</body>
-</html>
+</div>
+{% endblock %}

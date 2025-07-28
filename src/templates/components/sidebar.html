@@ -1,517 +1,121 @@
-<!-- Application Sidebar -->
-<aside class="app-sidebar" role="navigation" aria-label="Main navigation">
-    <!-- Sidebar Brand -->
-    <div class="sidebar-brand">
-        <h1>Research Hub</h1>
-        <p class="sidebar-subtitle">AI Application Analysis</p>
+<div class="sidebar">
+    <!-- Statistics Section -->
+    <div class="sidebar-section" 
+         hx-get="{{ url_for('api.sidebar_stats') }}"
+         hx-trigger="load, every 10s"
+         hx-target="#sidebar-stats">
+        <h3 class="sidebar-title">📈 Statistics</h3>
+        <div id="sidebar-stats" class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{{ total_apps|default('---') }}</div>
+                <div class="stat-label">Total Apps</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ running_containers|default('---') }}</div>
+                <div class="stat-label">Running</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ analyses_today|default('---') }}</div>
+                <div class="stat-label">Analyses Today</div>
+            </div>
+        </div>
     </div>
     
-    <!-- Navigation Menu -->
-    <nav class="sidebar-nav">
-        <ul>
-            <!-- Dashboard -->
-            <li>
-                <a href="{{ url_for('main.dashboard') }}" 
-                   class="nav-link {{ 'active' if request.endpoint == 'main.dashboard' else '' }}"
-                   hx-get="{{ url_for('main.dashboard') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">📊</span>
-                    <span class="nav-text">Dashboard</span>
-                </a>
-            </li>
+    <!-- Filters Section -->
+    <div class="sidebar-section">
+        <h3 class="sidebar-title">🔍 Filters</h3>
+        
+        <form hx-get="{{ url_for('api.search_apps') }}" 
+              hx-target="#app-list" 
+              hx-trigger="change delay:300ms"
+              class="filter-form">
             
-            <!-- Models Overview -->
-            <li>
-                <a href="{{ url_for('main.models_overview') }}" 
-                   class="nav-link {{ 'active' if request.endpoint == 'main.models_overview' else '' }}"
-                   hx-get="{{ url_for('main.models_overview') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">🤖</span>
-                    <span class="nav-text">AI Models</span>
-                </a>
-            </li>
+            <!-- Model Filter -->
+            <div class="filter-group">
+                <label for="model-filter" class="filter-label">Model</label>
+                <select name="model" id="model-filter" class="filter-select">
+                    <option value="">All Models</option>
+                    {% for model in ai_models|default([]) %}
+                    <option value="{{ model.slug }}" 
+                            {% if request.args.get('model') == model.slug %}selected{% endif %}>
+                        {{ model.display_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
             
-            <!-- Divider -->
-            <li class="nav-divider" role="separator" aria-hidden="true"></li>
-            <li class="nav-category">Analysis Tools</li>
+            <!-- Status Filter -->
+            <div class="filter-group">
+                <label for="status-filter" class="filter-label">Status</label>
+                <select name="status" id="status-filter" class="filter-select">
+                    <option value="">All Statuses</option>
+                    <option value="running" {% if request.args.get('status') == 'running' %}selected{% endif %}>Running</option>
+                    <option value="stopped" {% if request.args.get('status') == 'stopped' %}selected{% endif %}>Stopped</option>
+                    <option value="error" {% if request.args.get('status') == 'error' %}selected{% endif %}>Error</option>
+                </select>
+            </div>
             
-            <!-- Security Analysis -->
-            <li>
-                <a href="{{ url_for('analysis.analysis_overview') }}" 
-                   class="nav-link {{ 'active' if request.blueprint == 'analysis' else '' }}"
-                   hx-get="{{ url_for('analysis.analysis_overview') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">🔒</span>
-                    <span class="nav-text">Security Analysis</span>
-                    <span class="nav-badge" id="security-count">0</span>
-                </a>
-            </li>
+            <!-- Analysis Status Filter -->
+            <div class="filter-group">
+                <label for="analysis-filter" class="filter-label">Analysis</label>
+                <select name="analysis_status" id="analysis-filter" class="filter-select">
+                    <option value="">All</option>
+                    <option value="analyzed" {% if request.args.get('analysis_status') == 'analyzed' %}selected{% endif %}>Analyzed</option>
+                    <option value="pending" {% if request.args.get('analysis_status') == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="failed" {% if request.args.get('analysis_status') == 'failed' %}selected{% endif %}>Failed</option>
+                </select>
+            </div>
             
-            <!-- Performance Testing -->
-            <li>
-                <a href="{{ url_for('performance.performance_overview') }}" 
-                   class="nav-link {{ 'active' if request.blueprint == 'performance' else '' }}"
-                   hx-get="{{ url_for('performance.performance_overview') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">⚡</span>
-                    <span class="nav-text">Performance</span>
-                    <span class="nav-badge" id="performance-count">0</span>
-                </a>
-            </li>
-            
-            <!-- ZAP Security Scanning -->
-            <li>
-                <a href="{{ url_for('zap.zap_overview') }}" 
-                   class="nav-link {{ 'active' if request.blueprint == 'zap' else '' }}"
-                   hx-get="{{ url_for('zap.zap_overview') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">🕷️</span>
-                    <span class="nav-text">ZAP Scanning</span>
-                    <span class="nav-badge" id="zap-count">0</span>
-                </a>
-            </li>
-            
-            <!-- OpenRouter Analysis -->
-            <li>
-                <a href="{{ url_for('openrouter.openrouter_overview') }}" 
-                   class="nav-link {{ 'active' if request.blueprint == 'openrouter' else '' }}"
-                   hx-get="{{ url_for('openrouter.openrouter_overview') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">🧠</span>
-                    <span class="nav-text">AI Analysis</span>
-                    <span class="nav-badge" id="openrouter-count">0</span>
-                </a>
-            </li>
-            
-            <!-- Divider -->
-            <li class="nav-divider" role="separator" aria-hidden="true"></li>
-            <li class="nav-category">Management</li>
-            
-            <!-- Batch Processing -->
-            <li>
-                <a href="{{ url_for('batch.batch_overview') }}" 
-                   class="nav-link {{ 'active' if request.blueprint == 'batch' else '' }}"
-                   hx-get="{{ url_for('batch.batch_overview') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">⚙️</span>
-                    <span class="nav-text">Batch Jobs</span>
-                    <span class="nav-badge active-jobs" id="batch-count">0</span>
-                </a>
-            </li>
-            
-            <!-- Docker Management -->
-            <li>
-                <a href="{{ url_for('docker.docker_overview') }}" 
-                   class="nav-link {{ 'active' if request.blueprint == 'docker' else '' }}"
-                   hx-get="{{ url_for('docker.docker_overview') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">🐳</span>
-                    <span class="nav-text">Docker</span>
-                    <span class="nav-badge running-containers" id="docker-count">0</span>
-                </a>
-            </li>
-            
-            <!-- Generation Overview -->
-            <li>
-                <a href="{{ url_for('generation.generation_overview') }}" 
-                   class="nav-link {{ 'active' if request.blueprint == 'generation' else '' }}"
-                   hx-get="{{ url_for('generation.generation_overview') }}"
-                   hx-target="#main-content"
-                   hx-push-url="true">
-                    <span class="nav-icon">🔧</span>
-                    <span class="nav-text">Generation</span>
-                </a>
-            </li>
-            
-            <!-- Divider -->
-            <li class="nav-divider" role="separator" aria-hidden="true"></li>
-            <li class="nav-category">System</li>
-            
-            <!-- System Health -->
-            <li>
-                <a href="#" class="nav-link" onclick="showSystemHealth(); return false;">
-                    <span class="nav-icon">💊</span>
-                    <span class="nav-text">System Health</span>
-                    <span class="nav-badge health-status" id="health-status">OK</span>
-                </a>
-            </li>
-            
-            <!-- Settings/Configuration -->
-            <li>
-                <a href="#" class="nav-link" onclick="showSettings(); return false;">
-                    <span class="nav-icon">⚙️</span>
-                    <span class="nav-text">Settings</span>
-                </a>
-            </li>
-        </ul>
-    </nav>
+            <!-- Include current search in filter requests -->
+            <input type="hidden" name="search" value="{{ request.args.get('search', '') }}">
+        </form>
+    </div>
     
-    <!-- Sidebar Footer -->
-    <div class="sidebar-footer">
-        <div class="sidebar-stats" 
-             hx-get="{{ url_for('api.sidebar_stats') }}"
+    <!-- Quick Actions Section -->
+    <div class="sidebar-section">
+        <h3 class="sidebar-title">⚡ Quick Actions</h3>
+        <div class="quick-actions">
+            <button class="action-btn action-btn-primary"
+                    hx-get="{{ url_for('batch.create_batch_job') }}"
+                    hx-target="#modal-container">
+                🚀 Start Batch Analysis
+            </button>
+            
+            <button class="action-btn action-btn-secondary"
+                    hx-post="{{ url_for('api.clear_cache') }}"
+                    hx-target="#flash-messages"
+                    hx-confirm="Clear all cached data?">
+                🧹 Clear Cache
+            </button>
+            
+            <button class="action-btn action-btn-secondary"
+                    hx-get="{{ url_for('docker.docker_overview') }}">
+                🐳 Docker Management
+            </button>
+        </div>
+    </div>
+    
+    <!-- Recent Activity Section -->
+    <div class="sidebar-section" 
+         hx-get="{{ url_for('api.recent_activity') }}"
+         hx-trigger="load, every 30s"
+         hx-target="#recent-activity">
+        <h3 class="sidebar-title">📋 Recent Activity</h3>
+        <div id="recent-activity" class="activity-list">
+            <!-- Activity items loaded via HTMX -->
+            <div class="activity-placeholder">Loading recent activity...</div>
+        </div>
+    </div>
+    
+    <!-- System Info Section -->
+    <div class="sidebar-section sidebar-footer">
+        <div class="system-info" 
+             hx-get="{{ url_for('api.cache_stats') }}"
              hx-trigger="load, every 60s"
-             hx-swap="innerHTML">
-            <div class="stat-line">
-                <span class="stat-label">Total Apps:</span>
-                <span class="stat-value">-</span>
+             hx-target="#cache-info">
+            <div id="cache-info" class="info-text">
+                Cache: Loading...
             </div>
-            <div class="stat-line">
-                <span class="stat-label">Running:</span>
-                <span class="stat-value">-</span>
-            </div>
-            <div class="stat-line">
-                <span class="stat-label">Models:</span>
-                <span class="stat-value">-</span>
-            </div>
-        </div>
-        
-        <div class="sidebar-version">
-            <small>Version 2.0.0-HTMX</small>
-        </div>
-    </div>
-</aside>
-
-<!-- System Health Modal -->
-<div id="system-health-modal" class="modal-overlay" style="display: none;">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>System Health</h3>
-            <button onclick="hideSystemHealth()" class="btn btn-secondary btn-sm">×</button>
-        </div>
-        <div class="modal-body" id="system-health-content">
-            <div class="loading">
-                <div class="loading-spinner"></div>
-                <span>Loading system health...</span>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button onclick="refreshSystemHealth()" class="btn btn-primary">Refresh</button>
-            <button onclick="hideSystemHealth()" class="btn btn-secondary">Close</button>
         </div>
     </div>
 </div>
-
-<!-- Settings Modal -->
-<div id="settings-modal" class="modal-overlay" style="display: none;">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>Application Settings</h3>
-            <button onclick="hideSettings()" class="btn btn-secondary btn-sm">×</button>
-        </div>
-        <div class="modal-body" id="settings-content">
-            <div class="loading">
-                <div class="loading-spinner"></div>
-                <span>Loading settings...</span>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button onclick="saveSettings()" class="btn btn-primary">Save Changes</button>
-            <button onclick="hideSettings()" class="btn btn-secondary">Cancel</button>
-        </div>
-    </div>
-</div>
-
-<!-- Sidebar Styles -->
-<style>
-.sidebar-subtitle {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin: var(--spacing-sm) 0 0 0;
-}
-
-.nav-divider {
-    height: 1px;
-    background: var(--border-color);
-    margin: var(--spacing) 0;
-    list-style: none;
-}
-
-.nav-category {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: var(--spacing-sm) var(--spacing);
-    margin-bottom: var(--spacing-sm);
-}
-
-.nav-link {
-    position: relative;
-    display: flex;
-    align-items: center;
-    padding: var(--spacing-sm) var(--spacing);
-    text-decoration: none;
-    color: var(--text-color);
-    border-radius: var(--border-radius);
-    transition: all var(--transition-fast);
-    margin-bottom: 2px;
-}
-
-.nav-link:hover {
-    background: var(--accent-color);
-    color: white;
-    transform: translateX(2px);
-}
-
-.nav-link.active {
-    background: var(--accent-color);
-    color: white;
-    font-weight: 500;
-}
-
-.nav-link.active::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background: white;
-    border-radius: 0 2px 2px 0;
-}
-
-.nav-icon {
-    width: 18px;
-    text-align: center;
-    margin-right: var(--spacing-sm);
-    font-size: 0.9rem;
-}
-
-.nav-text {
-    flex: 1;
-    font-size: 0.875rem;
-}
-
-.nav-badge {
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    background: var(--text-muted);
-    color: white;
-    border-radius: 10px;
-    min-width: 18px;
-    text-align: center;
-    margin-left: auto;
-    opacity: 0.8;
-}
-
-.nav-badge:empty {
-    display: none;
-}
-
-.nav-badge.active-jobs {
-    background: var(--warning-color);
-    animation: pulse 2s infinite;
-}
-
-.nav-badge.running-containers {
-    background: var(--success-color);
-}
-
-.nav-badge.health-status.OK {
-    background: var(--success-color);
-}
-
-.nav-badge.health-status.WARNING {
-    background: var(--warning-color);
-}
-
-.nav-badge.health-status.ERROR {
-    background: var(--error-color);
-}
-
-.nav-link:hover .nav-badge {
-    background: rgba(255, 255, 255, 0.3);
-    color: white;
-}
-
-.sidebar-footer {
-    margin-top: auto;
-    padding: var(--spacing);
-    border-top: 1px solid var(--border-color);
-    background: var(--surface-color);
-}
-
-.sidebar-stats {
-    margin-bottom: var(--spacing);
-}
-
-.stat-line {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.75rem;
-    margin-bottom: 4px;
-}
-
-.stat-label {
-    color: var(--text-muted);
-}
-
-.stat-value {
-    font-weight: 600;
-    color: var(--accent-color);
-}
-
-.sidebar-version {
-    text-align: center;
-    color: var(--text-muted);
-}
-
-.sidebar-version small {
-    font-size: 0.7rem;
-}
-
-/* HTMX loading states for navigation */
-.nav-link.htmx-request {
-    opacity: 0.7;
-    cursor: progress;
-}
-
-.nav-link.htmx-request .nav-icon::after {
-    content: '↻';
-    position: absolute;
-    animation: spin 1s linear infinite;
-}
-
-/* Mobile responsive */
-@media (max-width: 768px) {
-    .app-sidebar {
-        box-shadow: var(--shadow-lg);
-    }
-    
-    .sidebar-footer {
-        padding: var(--spacing-sm);
-    }
-    
-    .nav-text {
-        font-size: 0.8rem;
-    }
-}
-
-/* Focus styles for accessibility */
-.nav-link:focus {
-    outline: 2px solid var(--accent-color);
-    outline-offset: 2px;
-}
-
-/* Smooth transitions */
-.nav-link, .nav-badge {
-    transition: all var(--transition-fast);
-}
-</style>
-
-<!-- Sidebar JavaScript -->
-<script>
-// Update navigation badges with real-time counts
-function updateNavBadges() {
-    // These would be updated by HTMX calls to get current counts
-    // Implementation would depend on your backend API endpoints
-}
-
-// System Health Modal
-function showSystemHealth() {
-    const modal = document.getElementById('system-health-modal');
-    modal.style.display = 'flex';
-    
-    // Load system health data
-    htmx.ajax('GET', '{{ url_for("api.system_health") }}', {
-        target: '#system-health-content',
-        swap: 'innerHTML'
-    });
-}
-
-function hideSystemHealth() {
-    document.getElementById('system-health-modal').style.display = 'none';
-}
-
-function refreshSystemHealth() {
-    htmx.ajax('GET', '{{ url_for("api.system_health") }}', {
-        target: '#system-health-content',
-        swap: 'innerHTML'
-    });
-}
-
-// Settings Modal
-function showSettings() {
-    const modal = document.getElementById('settings-modal');
-    modal.style.display = 'flex';
-    
-    // Load settings data
-    htmx.ajax('GET', '{{ url_for("api.get_settings") }}', {
-        target: '#settings-content',
-        swap: 'innerHTML'
-    });
-}
-
-function hideSettings() {
-    document.getElementById('settings-modal').style.display = 'none';
-}
-
-function saveSettings() {
-    const form = document.querySelector('#settings-content form');
-    if (form) {
-        htmx.trigger(form, 'submit');
-    }
-}
-
-// Update active navigation item based on current URL
-function updateActiveNav() {
-    const currentPath = window.location.pathname;
-    const navLinks = document.querySelectorAll('.nav-link');
-    
-    navLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        if (href && currentPath.startsWith(href) && href !== '/') {
-            link.classList.add('active');
-        } else if (href === '/' && currentPath === '/') {
-            link.classList.add('active');
-        } else {
-            link.classList.remove('active');
-        }
-    });
-}
-
-// Update active nav on page load and navigation
-document.addEventListener('DOMContentLoaded', updateActiveNav);
-document.body.addEventListener('htmx:pushedIntoHistory', updateActiveNav);
-
-// Auto-update badges periodically
-setInterval(updateNavBadges, 30000); // Every 30 seconds
-
-// Close modals on ESC key
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        hideSystemHealth();
-        hideSettings();
-    }
-});
-
-// Keyboard navigation for sidebar
-document.addEventListener('keydown', function(e) {
-    if (e.target.matches('.nav-link')) {
-        const links = Array.from(document.querySelectorAll('.nav-link'));
-        const currentIndex = links.indexOf(e.target);
-        
-        if (e.key === 'ArrowDown' && currentIndex < links.length - 1) {
-            e.preventDefault();
-            links[currentIndex + 1].focus();
-        } else if (e.key === 'ArrowUp' && currentIndex > 0) {
-            e.preventDefault();
-            links[currentIndex - 1].focus();
-        } else if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            e.target.click();
-        }
-    }
-});
-</script>

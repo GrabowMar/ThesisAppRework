@@ -1,0 +1,167 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Batch Processing - Thesis Research App{% endblock %}
+
+{% set breadcrumbs = [
+    {'title': 'Dashboard', 'url': url_for('main.dashboard'), 'icon': '📊'},
+    {'title': 'Batch Processing', 'icon': '📦'}
+] %}
+
+{% block content %}
+<div class="batch-overview">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-title">
+            <h1>📦 Batch Processing</h1>
+            <p class="page-subtitle">Manage batch analysis jobs and queue processing</p>
+        </div>
+        
+        <div class="page-actions">
+            <button class="btn btn-primary"
+                    hx-get="{{ url_for('batch.create_batch_job') }}"
+                    hx-target="#modal-container">
+                🚀 Create New Batch Job
+            </button>
+        </div>
+    </div>
+    
+    <!-- Batch Stats -->
+    <div class="batch-stats" 
+         hx-get="{{ url_for('api.dashboard_stats') }}?type=batch"
+         hx-trigger="load, every 30s"
+         hx-target="#batch-stats-content">
+        <div id="batch-stats-content" class="stats-grid">
+            <!-- Batch stats loaded via HTMX -->
+            <div class="stat-card">
+                <div class="stat-value">{{ total_jobs|default('Loading...') }}</div>
+                <div class="stat-label">Total Jobs</div>
+                <div class="stat-icon">📦</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ running_jobs|default('Loading...') }}</div>
+                <div class="stat-label">Running Jobs</div>
+                <div class="stat-icon">⚡</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ completed_jobs|default('Loading...') }}</div>
+                <div class="stat-label">Completed Jobs</div>
+                <div class="stat-icon">✅</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">{{ queued_tasks|default('Loading...') }}</div>
+                <div class="stat-label">Queued Tasks</div>
+                <div class="stat-icon">⏳</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Job List -->
+    <div class="job-list-container">
+        <div class="content-header">
+            <h2>Recent Batch Jobs</h2>
+            
+            <!-- Job Filters -->
+            <div class="job-filters">
+                <select name="status" class="filter-select"
+                        hx-get="{{ url_for('batch.batch_overview') }}"
+                        hx-target="#job-list"
+                        hx-trigger="change">
+                    <option value="">All Statuses</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+        </div>
+        
+        <div id="job-list" 
+             class="job-list"
+             hx-get="{{ url_for('batch.batch_overview') }}?component=job-list"
+             hx-trigger="load, every 15s"
+             hx-target="this"
+             hx-swap="innerHTML">
+            
+            <!-- Loading state -->
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Loading batch jobs...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal container for job creation -->
+<div id="batch-job-modal" class="modal-container"></div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.job-list-container {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.content-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.content-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.job-filters {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.filter-select {
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    background: white;
+    font-size: 0.875rem;
+}
+
+.job-list {
+    min-height: 300px;
+}
+
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: var(--secondary-color);
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
