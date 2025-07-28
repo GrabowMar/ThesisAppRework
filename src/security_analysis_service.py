@@ -547,10 +547,16 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                 "max_files": 30
             },
             "snyk": {
-                "cmd": ["snyk"],
-                "npx_tool": False,
+                "cmd": ["npx"],
+                "npx_tool": True,
                 "requires_files": False,
                 "timeout": 90
+            },
+            "retire": {
+                "cmd": ["npx"],
+                "npx_tool": True,
+                "requires_files": True,
+                "timeout": 60
             }
         }
         
@@ -659,6 +665,159 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
         
         return issues
         
+    def _parse_retire(self, stdout: str) -> List[AnalysisIssue]:
+        """Parse retire.js output for vulnerable JavaScript libraries."""
+        issues = []
+        lines = stdout.strip().split('\n') if stdout.strip() else []
+        
+        current_file = None
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # File path detection
+            if line.endswith('.js') or line.endswith('.jsx') or line.endswith('.ts') or line.endswith('.tsx'):
+                current_file = line
+                continue
+                
+            # Vulnerability detection patterns
+            if 'vulnerability' in line.lower() or 'cve-' in line.lower():
+                # Parse vulnerability information
+                severity = "HIGH"
+                if 'medium' in line.lower():
+                    severity = "MEDIUM"
+                elif 'low' in line.lower():
+                    severity = "LOW"
+                    
+                # Extract CVE or vulnerability ID
+                cve_match = re.search(r'CVE-\d{4}-\d+', line)
+                vuln_id = cve_match.group(0) if cve_match else "unknown"
+                
+                issues.append(AnalysisIssue(
+                    filename=current_file or "unknown",
+                    line_number=0,
+                    issue_text=line,
+                    severity=severity,
+                    confidence="HIGH",
+                    issue_type=f"retire_{vuln_id}",
+                    category="dependency",
+                    rule_id=vuln_id,
+                    line_range=[0],
+                    code="N/A",
+                    tool="retire",
+                    fix_suggestion="Update vulnerable library to a safe version"
+                ))
+        
+        return issues
+        
+    def _parse_jshint(self, stdout: str) -> List[AnalysisIssue]:
+        """Parse JSHint output for JavaScript issues."""
+        issues = []
+        lines = stdout.strip().split('\n') if stdout.strip() else []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # JSHint format: filename: line x, col y, message (code)
+            match = re.match(r'^([^:]+):\s*line\s+(\d+),\s*col\s+(\d+),\s*(.+?)\s*\(([A-Z]\d+)\).*$', line)
+            if match:
+                filename, line_num, col, message, code = match.groups()
+                
+                # Determine severity based on JSHint error codes
+                severity = "WARNING"
+                if code.startswith('E'):
+                    severity = "ERROR"
+                elif code.startswith('W'):
+                    severity = "WARNING"
+                    
+                # Focus on security-related issues
+                security_patterns = ['eval', 'with', 'document.write', 'innerHTML', 'setTimeout', 'setInterval']
+                is_security = any(pattern in message.lower() for pattern in security_patterns)
+                
+                if is_security:
+                    issues.append(AnalysisIssue(
+                        filename=filename,
+                        line_number=int(line_num),
+                        issue_text=f"[{code}] {message}",
+                        severity=severity,
+                        confidence="MEDIUM",
+                        issue_type=f"jshint_{code}",
+                        category="security",
+                        rule_id=code,
+                        line_range=[int(line_num)],
+                        code="N/A",
+                        tool="jshint"
+                    ))
+        
+        return issues
+        
+    def _parse_snyk(self, stdout: str) -> List[AnalysisIssue]:
+        """Parse Snyk output for security vulnerabilities."""
+        issues = []
+        
+        # Try to parse as JSON first
+        data = safe_json_loads(stdout.strip())
+        if data and isinstance(data, dict):
+            vulnerabilities = data.get("vulnerabilities", [])
+            for vuln in vulnerabilities:
+                if not isinstance(vuln, dict):
+                    continue
+                    
+                severity_map = {"critical": "HIGH", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
+                severity = severity_map.get(vuln.get("severity", "").lower(), "MEDIUM")
+                
+                issues.append(AnalysisIssue(
+                    filename=vuln.get("from", ["unknown"])[0] if vuln.get("from") else "package.json",
+                    line_number=0,
+                    issue_text=vuln.get("title", "Unknown vulnerability"),
+                    severity=severity,
+                    confidence="HIGH",
+                    issue_type=f"snyk_{vuln.get('id', 'unknown')}",
+                    category="dependency",
+                    rule_id=vuln.get("id", "unknown"),
+                    line_range=[0],
+                    code=vuln.get("packageName", "N/A"),
+                    tool="snyk",
+                    fix_suggestion=vuln.get("fixedIn", ["Update to latest version"])[0] if vuln.get("fixedIn") else None
+                ))
+        else:
+            # Parse text output
+            lines = stdout.strip().split('\n') if stdout.strip() else []
+            current_issue = {}
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # Look for vulnerability markers
+                if line.startswith('✗') and ('High' in line or 'Medium' in line or 'Low' in line):
+                    severity = "HIGH" if "High" in line else "MEDIUM" if "Medium" in line else "LOW"
+                    
+                    # Extract package name and issue
+                    package_match = re.search(r'in (.+?) \[', line)
+                    package_name = package_match.group(1) if package_match else "unknown"
+                    
+                    issues.append(AnalysisIssue(
+                        filename="package.json",
+                        line_number=0,
+                        issue_text=line,
+                        severity=severity,
+                        confidence="HIGH",
+                        issue_type=f"snyk_{package_name}",
+                        category="dependency",
+                        rule_id=f"snyk_{package_name}",
+                        line_range=[0],
+                        code=package_name,
+                        tool="snyk",
+                        fix_suggestion="Update to a secure version"
+                    ))
+        
+        return issues
+        
     def _run_npm_audit(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
         """Run npm audit."""
         if not (app_path / "package.json").exists():
@@ -708,6 +867,64 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
         else:
             return self._run_tool("eslint", args, self._parse_eslint, working_dir=app_path)
             
+    def _run_retire(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run retire.js to detect vulnerable JavaScript libraries."""
+        command = ["npx", "retire", "--outputformat", "text", "--path", "."]
+        return self._run_tool("retire", command, self._parse_retire, working_dir=app_path)
+        
+    def _run_jshint(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run JSHint for JavaScript code quality and security issues."""
+        # Find JavaScript files to analyze
+        scan_patterns = ["src/**/*.js", "src/**/*.jsx", "*.js", "*.jsx"]
+        
+        # Use a basic JSHint config focused on security
+        jshint_config = {
+            "esversion": 6,
+            "node": True,
+            "browser": True,
+            "strict": True,
+            "evil": False,  # Disallow eval
+            "forin": True,  # Require for-in loops to filter
+            "noarg": True,  # Prohibit use of arguments.caller and arguments.callee
+            "noempty": True,  # Prohibit empty blocks
+            "eqeqeq": True,  # Require triple equals
+            "boss": False,  # Prohibit assignments in weird places
+            "loopfunc": False,  # Prohibit functions in loops
+            "expr": False,  # Prohibit expression statements
+            "curly": True,  # Require curly braces for blocks
+            "supernew": False,  # Prohibit weird constructors
+            "undef": True,  # Require all variables to be declared
+            "unused": True,  # Prohibit unused variables
+        }
+        
+        scan_dir = "src" if (app_path / "src").is_dir() else "."
+        
+        with self._temp_config(jshint_config, ".jshintrc", is_js=False) as temp_config:
+            command = ["npx", "jshint", "--config", str(temp_config), "--reporter", "unix", scan_dir]
+            return self._run_tool("jshint", command, self._parse_jshint, working_dir=app_path)
+            
+    def _run_snyk(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run Snyk to test for vulnerabilities."""
+        if not (app_path / "package.json").exists():
+            return [], ToolStatus.NO_FILES.value, "No package.json found"
+            
+        # Install dependencies if node_modules doesn't exist
+        if not (app_path / "node_modules").exists():
+            logger.info("Installing dependencies for Snyk analysis...")
+            install_result = subprocess.run(
+                ["npm", "install"], 
+                cwd=app_path, 
+                capture_output=True, 
+                text=True, 
+                timeout=120
+            )
+            if install_result.returncode != 0:
+                return [], ToolStatus.ERROR.value, f"npm install failed: {install_result.stderr}"
+        
+        # Run Snyk test
+        command = ["npx", "snyk", "test", "--json"]
+        return self._run_tool("snyk", command, self._parse_snyk, working_dir=app_path)
+            
     def run_analysis(self, model: str, app_num: int, use_all_tools: bool = False,
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run frontend security analysis."""
@@ -735,7 +952,7 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
             tool_status = {}
             tool_outputs = {}
             
-            tools_to_run = ["npm-audit", "eslint"] if use_all_tools else ["eslint"]
+            tools_to_run = ["npm-audit", "eslint", "retire", "jshint", "snyk"] if use_all_tools else ["eslint", "retire"]
             
             for tool_name in tools_to_run:
                 if not self.available_tools.get(tool_name):
@@ -746,6 +963,12 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                     issues, status, output = self._run_npm_audit(app_path)
                 elif tool_name == "eslint":
                     issues, status, output = self._run_eslint(app_path)
+                elif tool_name == "retire":
+                    issues, status, output = self._run_retire(app_path)
+                elif tool_name == "jshint":
+                    issues, status, output = self._run_jshint(app_path)
+                elif tool_name == "snyk":
+                    issues, status, output = self._run_snyk(app_path)
                 else:
                     continue
                     
@@ -1086,16 +1309,30 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
     
     def __init__(self, base_path: Union[str, Path]):
         super().__init__(base_path, ToolCategory.FRONTEND_QUALITY)
-        # For now, we'll use a simplified implementation
         self.tools = self.get_tool_definitions()
-        self.available_tools = {"file_check": True}  # Basic file checking always available
+        self.available_tools = {name: self._check_tool_availability(name, config)
+                               for name, config in self.tools.items()}
+        logger.info(f"Available frontend quality tools: {[k for k, v in self.available_tools.items() if v]}")
         
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         return {
-            "file_check": {
-                "cmd": [],
+            "eslint": {
+                "cmd": ["npx"],
+                "npx_tool": True,
                 "requires_files": True,
-                "timeout": 10
+                "timeout": 60
+            },
+            "prettier": {
+                "cmd": ["npx"],
+                "npx_tool": True,
+                "requires_files": True,
+                "timeout": 30
+            },
+            "jshint": {
+                "cmd": ["npx"],
+                "npx_tool": True,
+                "requires_files": True,
+                "timeout": 45
             }
         }
         
@@ -1137,6 +1374,205 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
         
         return len(filtered_files) > 0, filtered_files
         
+    def _parse_eslint_quality(self, stdout: str) -> List[AnalysisIssue]:
+        """Parse ESLint JSON output for quality issues (not security)."""
+        issues = []
+        data = safe_json_loads(stdout.strip())
+        if not isinstance(data, list):
+            return issues
+
+        # Quality-focused patterns (exclude security patterns)
+        quality_patterns = {"no-unused-vars", "no-console", "no-debugger", "complexity", "max-len", 
+                           "indent", "semi", "quotes", "brace-style", "comma-spacing", "eol-last"}
+        
+        for file_result in data:
+            if not isinstance(file_result, dict):
+                continue
+                
+            file_path = Path(file_result.get("filePath", "unknown"))
+            for msg in file_result.get("messages", []):
+                if not isinstance(msg, dict):
+                    continue
+                    
+                rule_id = msg.get("ruleId", "unknown")
+                message = msg.get("message", "Unknown issue")
+                
+                # Only include quality-related issues (not security)
+                if any(pattern in rule_id for pattern in quality_patterns) or "style" in rule_id.lower():
+                    severity = "WARNING" if msg.get("severity", 1) >= 2 else "INFO"
+                    
+                    # Determine category
+                    category = "style"
+                    if "complexity" in rule_id:
+                        category = "complexity"
+                    elif "unused" in rule_id:
+                        category = "duplication"
+                    elif any(fmt in rule_id for fmt in ["indent", "semi", "quotes", "spacing"]):
+                        category = "formatting"
+                    
+                    issues.append(AnalysisIssue(
+                        filename=str(file_path),
+                        line_number=msg.get("line", 0),
+                        issue_text=f"[{rule_id}] {message}",
+                        severity=severity,
+                        confidence="HIGH" if msg.get("fatal") else "MEDIUM",
+                        issue_type=rule_id,
+                        category=category,
+                        rule_id=rule_id,
+                        line_range=[msg.get("line", 0)],
+                        code=msg.get("source", "N/A"),
+                        tool="eslint",
+                        fix_suggestion=msg.get("fix", {}).get("text") if msg.get("fix") else None
+                    ))
+        
+        return issues
+        
+    def _parse_prettier(self, stdout: str) -> List[AnalysisIssue]:
+        """Parse Prettier output for formatting issues."""
+        issues = []
+        lines = stdout.strip().split('\n') if stdout.strip() else []
+        
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('['):
+                continue
+                
+            # Prettier typically shows files that need formatting
+            if line.endswith('.js') or line.endswith('.jsx') or line.endswith('.ts') or line.endswith('.tsx'):
+                issues.append(AnalysisIssue(
+                    filename=line,
+                    line_number=1,
+                    issue_text="File needs formatting",
+                    severity="INFO",
+                    confidence="HIGH",
+                    issue_type="prettier_formatting",
+                    category="formatting",
+                    rule_id="prettier",
+                    line_range=[1],
+                    code="N/A",
+                    tool="prettier",
+                    fix_suggestion="Run prettier --write to fix formatting"
+                ))
+        
+        return issues
+        
+    def _parse_jshint_quality(self, stdout: str) -> List[AnalysisIssue]:
+        """Parse JSHint output for quality issues (not security)."""
+        issues = []
+        lines = stdout.strip().split('\n') if stdout.strip() else []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # JSHint format: filename: line x, col y, message (code)
+            match = re.match(r'^([^:]+):\s*line\s+(\d+),\s*col\s+(\d+),\s*(.+?)\s*\(([A-Z]\d+)\).*$', line)
+            if match:
+                filename, line_num, col, message, code = match.groups()
+                
+                # Determine severity based on JSHint error codes
+                severity = "WARNING"
+                if code.startswith('E'):
+                    severity = "ERROR"
+                elif code.startswith('W'):
+                    severity = "WARNING"
+                    
+                # Focus on quality issues (not security)
+                quality_patterns = ['unused', 'undef', 'missing semicolon', 'unexpected', 'expected']
+                is_quality = any(pattern in message.lower() for pattern in quality_patterns)
+                
+                if is_quality:
+                    category = "style"
+                    if "unused" in message.lower():
+                        category = "duplication"
+                    elif "semicolon" in message.lower():
+                        category = "formatting"
+                        
+                    issues.append(AnalysisIssue(
+                        filename=filename,
+                        line_number=int(line_num),
+                        issue_text=f"[{code}] {message}",
+                        severity=severity,
+                        confidence="MEDIUM",
+                        issue_type=f"jshint_{code}",
+                        category=category,
+                        rule_id=code,
+                        line_range=[int(line_num)],
+                        code="N/A",
+                        tool="jshint"
+                    ))
+        
+        return issues
+        
+    def _run_eslint_quality(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run ESLint for quality analysis (not security)."""
+        scan_dir = "src" if (app_path / "src").is_dir() else "."
+        
+        # Quality-focused ESLint config
+        config = [
+            {
+                "languageOptions": {
+                    "ecmaVersion": "latest",
+                    "sourceType": "module",
+                    "globals": {
+                        "window": "readonly",
+                        "document": "readonly",
+                        "console": "readonly"
+                    }
+                },
+                "rules": {
+                    "no-unused-vars": "warn",
+                    "no-console": "warn",
+                    "no-debugger": "error",
+                    "complexity": ["warn", 10],
+                    "max-len": ["warn", {"code": 120}],
+                    "indent": ["warn", 2],
+                    "semi": ["warn", "always"],
+                    "quotes": ["warn", "single"],
+                    "brace-style": "warn",
+                    "comma-spacing": "warn",
+                    "eol-last": "warn"
+                }
+            }
+        ]
+        
+        with self._temp_config(config, "eslint.config.js", is_js=True) as temp_config:
+            args = ["npx", "eslint", "--config", str(temp_config), "--ext", ".js,.jsx,.ts,.tsx,.vue", "--format", "json", scan_dir]
+            return self._run_tool("eslint", args, self._parse_eslint_quality, working_dir=app_path)
+            
+    def _run_prettier_check(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run Prettier to check formatting."""
+        scan_dir = "src" if (app_path / "src").is_dir() else "."
+        command = ["npx", "prettier", "--check", f"{scan_dir}/**/*.{{js,jsx,ts,tsx}}"]
+        return self._run_tool("prettier", command, self._parse_prettier, working_dir=app_path)
+        
+    def _run_jshint_quality(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run JSHint for quality analysis."""
+        # Quality-focused JSHint config
+        jshint_config = {
+            "esversion": 6,
+            "node": True,
+            "browser": True,
+            "strict": True,
+            "undef": True,  # Report undefined variables
+            "unused": True,  # Report unused variables
+            "latedef": True,  # Prohibit use before definition
+            "nonew": True,  # Prohibit constructors for side-effects
+            "trailing": True,  # Prohibit trailing whitespace
+            "maxlen": 120,  # Line length limit
+            "maxcomplexity": 10,  # Cyclomatic complexity limit
+            "maxdepth": 4,  # Maximum nesting depth
+            "maxparams": 5,  # Maximum number of parameters
+            "maxstatements": 20  # Maximum statements per function
+        }
+        
+        scan_dir = "src" if (app_path / "src").is_dir() else "."
+        
+        with self._temp_config(jshint_config, ".jshintrc", is_js=False) as temp_config:
+            command = ["npx", "jshint", "--config", str(temp_config), "--reporter", "unix", scan_dir]
+            return self._run_tool("jshint", command, self._parse_jshint_quality, working_dir=app_path)
+            
     def run_analysis(self, model: str, app_num: int, use_all_tools: bool = False,
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run frontend quality analysis."""
@@ -1158,6 +1594,53 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
             if not app_path:
                 error_msg = f"Frontend path not found for {model}/app{app_num}"
                 return [], {"error": error_msg}, {}
+                
+            # Check for source files
+            has_files, source_files = self._check_source_files(app_path)
+            if not has_files:
+                logger.info("No JavaScript/TypeScript files found")
+                return [], {"info": "No JavaScript/TypeScript files found"}, {}
+                
+            # Run tools
+            all_issues = []
+            tool_status = {}
+            tool_outputs = {}
+            
+            tools_to_run = ["eslint", "prettier", "jshint"] if use_all_tools else ["eslint"]
+            
+            for tool_name in tools_to_run:
+                if not self.available_tools.get(tool_name):
+                    tool_status[tool_name] = ToolStatus.NOT_FOUND.value
+                    continue
+                    
+                if tool_name == "eslint":
+                    issues, status, output = self._run_eslint_quality(app_path)
+                elif tool_name == "prettier":
+                    issues, status, output = self._run_prettier_check(app_path)
+                elif tool_name == "jshint":
+                    issues, status, output = self._run_jshint_quality(app_path)
+                else:
+                    continue
+                    
+                all_issues.extend(issues)
+                tool_status[tool_name] = status
+                tool_outputs[tool_name] = output
+                
+            # Sort and save
+            sorted_issues = self._sort_issues(all_issues)
+            issues_dict = [issue.to_dict() for issue in sorted_issues]
+            
+            results = {
+                "issues": issues_dict,
+                "tool_status": tool_status,
+                "tool_outputs": tool_outputs,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            self.results_manager.save_results(model, app_num, results,
+                                            file_name=".frontend_quality_results.json")
+                                            
+            return issues_dict, tool_status, tool_outputs
                 
             # Check for source files
             has_files, source_files = self._check_source_files(app_path)
