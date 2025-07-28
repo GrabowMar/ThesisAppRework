@@ -1,16 +1,4 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:6261', // Flask backend URL
-        changeOrigin: true,
-        secure: false
-      }
-    },
-    port: 6261 // Frontend port
-  }
-})
+axios.post('http://localhost:6261/api/login', 
+  { username: 'test', password: 'password' },
+  { withCredentials: true }
+)

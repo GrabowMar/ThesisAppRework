@@ -3,149 +3,810 @@
 {% block title %}Dashboard - Thesis Research App{% endblock %}
 
 {% block content %}
-<div class="dashboard">
+<div class="dashboard-overview">
     <!-- Page Header -->
     <header class="page-header">
-        <h1>Research Dashboard</h1>
-        <p>Manage and analyze 900+ generated applications across 30 AI models</p>
+        <h1>🎯 AI Research Dashboard</h1>
+        <p>Comprehensive management of {{ summary_stats.total_models|default(30) }} AI models and {{ summary_stats.total_apps|default(900) }} generated applications</p>
     </header>
 
-    <!-- Dashboard Header Stats -->
-    <div class="dashboard-header" 
-         hx-get="/api/dashboard-stats" 
-         hx-trigger="load, every 30s"
-         hx-target="this">
-        <div class="loading">Loading statistics...</div>
-    </div>
-
-    <!-- Search and Filters -->
-    <div class="search-section">
-        <input type="search" 
-               name="search"
-               hx-get="/api/search" 
-               hx-trigger="keyup changed delay:500ms"
-               hx-target="#app-grid"
-               hx-include="[name='model'], [name='status']"
-               placeholder="Search models or apps...">
+    <!-- Summary Statistics Cards -->
+    <div class="dashboard-summary-grid">
+        <div class="stats-card primary">
+            <div class="stats-icon">🤖</div>
+            <div class="stats-content">
+                <h3 id="total-models">{{ summary_stats.total_models|default(30) }}</h3>
+                <p>AI Models</p>
+            </div>
+        </div>
         
-        <select hx-get="/api/search" 
-                hx-trigger="change"
-                hx-target="#app-grid"
-                hx-include="[name='search'], [name='status']"
-                name="model">
-            <option value="">All Models</option>
-            {% for model in unique_models %}
-            <option value="{{ model }}" {% if filters.model == model %}selected{% endif %}>
-                {{ model|replace('_', ' ')|title }}
-            </option>
-            {% endfor %}
-        </select>
+        <div class="stats-card success">
+            <div class="stats-icon">📱</div>
+            <div class="stats-content">
+                <h3 id="total-apps">{{ summary_stats.total_apps|default(900) }}</h3>
+                <p>Generated Apps</p>
+            </div>
+        </div>
         
-        <select hx-get="/api/search" 
-                hx-trigger="change"
-                hx-target="#app-grid"
-                hx-include="[name='search'], [name='model']"
-                name="status">
-            <option value="">All Statuses</option>
-            <option value="running" {% if filters.status == 'running' %}selected{% endif %}>Running</option>
-            <option value="stopped" {% if filters.status == 'stopped' %}selected{% endif %}>Stopped</option>
-            <option value="error" {% if filters.status == 'error' %}selected{% endif %}>Error</option>
-        </select>
-
-        <button hx-get="/api/advanced-search"
-                hx-target="#modal-container"
-                class="btn-secondary">
-            Advanced Search
-        </button>
-
-        <button hx-post="/api/cache/clear"
-                hx-confirm="Clear all cached data?"
-                hx-target="#cache-status"
-                class="btn-warning">
-            Clear Cache
-        </button>
+        <div class="stats-card info">
+            <div class="stats-icon">🚀</div>
+            <div class="stats-content">
+                <h3 id="running-containers">{{ summary_stats.running_containers|default(0) }}</h3>
+                <p>Running Containers</p>
+            </div>
+        </div>
+        
+        <div class="stats-card warning">
+            <div class="stats-icon">⚠️</div>
+            <div class="stats-content">
+                <h3 id="error-containers">{{ summary_stats.error_containers|default(0) }}</h3>
+                <p>Error State</p>
+            </div>
+        </div>
+        
+        <div class="stats-card secondary">
+            <div class="stats-icon">🏢</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.total_providers|default(13) }}</h3>
+                <p>Providers</p>
+            </div>
+        </div>
+        
+        <div class="stats-card accent">
+            <div class="stats-icon">🔒</div>
+            <div class="stats-content">
+                <h3 id="analyzed-apps">{{ summary_stats.analyzed_apps|default(0) }}</h3>
+                <p>Security Analyzed</p>
+            </div>
+        </div>
+        
+        <div class="stats-card success">
+            <div class="stats-icon">⚡</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.performance_tested|default(0) }}</h3>
+                <p>Performance Tested</p>
+            </div>
+        </div>
+        
+        <div class="stats-card info">
+            <div class="stats-icon">🐳</div>
+            <div class="stats-content">
+                <h3 id="docker-health">{{ summary_stats.docker_health|default('Healthy') }}</h3>
+                <p>Docker Status</p>
+            </div>
+        </div>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="quick-actions">
-        <a href="{{ url_for('batch.create_batch_job') }}" class="btn-primary">
-            Create Batch Job
-        </a>
-        <a href="{{ url_for('docker.docker_overview') }}" class="btn-secondary">
-            Docker Overview
-        </a>
-        <button hx-get="/api/system-health"
-                hx-target="#modal-container"
-                class="btn-info">
-            System Health
-        </button>
+    <!-- Dashboard Controls -->
+    <div class="dashboard-controls">
+        <div class="controls-section">
+            <div class="search-group">
+                <label for="search-input">🔍 Search Models & Apps</label>
+                <input type="search" 
+                       id="search-input"
+                       name="search"
+                       hx-get="/api/dashboard/search"
+                       hx-trigger="keyup changed delay:500ms"
+                       hx-target="#dashboard-content"
+                       hx-include="[name='provider'], [name='status'], [name='app-type']"
+                       placeholder="Search models, apps, or containers...">
+            </div>
+            
+            <div class="filter-group">
+                <label for="provider-filter">🏢 Provider</label>
+                <select id="provider-filter"
+                        name="provider"
+                        hx-get="/api/dashboard/search"
+                        hx-trigger="change"
+                        hx-target="#dashboard-content"
+                        hx-include="[name='search'], [name='status'], [name='app-type']">
+                    <option value="">All Providers</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="google">Google</option>
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="qwen">Qwen</option>
+                    <option value="meta">Meta</option>
+                    <option value="microsoft">Microsoft</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="status-filter">📊 Status</label>
+                <select id="status-filter"
+                        name="status"
+                        hx-get="/api/dashboard/search"
+                        hx-trigger="change"
+                        hx-target="#dashboard-content"
+                        hx-include="[name='search'], [name='provider'], [name='app-type']">
+                    <option value="">All Status</option>
+                    <option value="running">Running</option>
+                    <option value="stopped">Stopped</option>
+                    <option value="error">Error</option>
+                    <option value="starting">Starting</option>
+                    <option value="stopping">Stopping</option>
+                </select>
+            </div>
+            
+            <div class="action-group">
+                <button class="btn-primary" 
+                        hx-get="/api/dashboard/refresh-all"
+                        hx-target="#dashboard-content"
+                        hx-indicator="#refresh-indicator">
+                    🔄 Refresh All
+                </button>
+                
+                <button class="btn-success" 
+                        hx-post="/api/docker/start-all"
+                        hx-confirm="Start all stopped containers? This may take several minutes."
+                        hx-target="#dashboard-content"
+                        hx-indicator="#bulk-indicator">
+                    🚀 Start All
+                </button>
+                
+                <button class="btn-danger" 
+                        hx-post="/api/docker/stop-all"
+                        hx-confirm="Stop all running containers?"
+                        hx-target="#dashboard-content"
+                        hx-indicator="#bulk-indicator">
+                    🛑 Stop All
+                </button>
+                
+                <button class="btn-secondary" onclick="toggleViewMode()">
+                    📱 Toggle View
+                </button>
+            </div>
+        </div>
+        
+        <!-- Loading Indicators -->
+        <div id="refresh-indicator" class="loading-indicator htmx-indicator">
+            <span class="spinner"></span> Refreshing dashboard data...
+        </div>
+        
+        <div id="bulk-indicator" class="loading-indicator htmx-indicator">
+            <span class="spinner"></span> Processing bulk operation...
+        </div>
     </div>
 
-    <!-- App Grid -->
-    <div id="app-grid" class="app-grid">
-        {% include "partials/app_list.html" %}
+    <!-- Dashboard Content -->
+    <div id="dashboard-content" class="dashboard-content"
+         hx-get="/api/dashboard/models"
+         hx-trigger="load"
+         hx-target="this"
+         hx-swap="innerHTML">
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>Loading AI models and applications...</p>
+        </div>
     </div>
-
-    <!-- Load More -->
-    {% if has_more %}
-    <div class="load-more"
-         hx-get="/?page={{ filters.page + 1 }}&component=apps-list" 
-         hx-trigger="revealed"
-         hx-target="#app-grid"
-         hx-swap="beforeend"
-         hx-include="[name='search'], [name='model'], [name='status']">
-        <div class="loading">Loading more applications...</div>
-    </div>
-    {% endif %}
-
-    <!-- Sidebar with Statistics -->
-    <aside class="dashboard-sidebar"
-           hx-get="/api/sidebar-stats"
-           hx-trigger="load, every 60s"
-           hx-target="this">
-        <div class="loading">Loading sidebar...</div>
-    </aside>
 </div>
 
-<!-- Recent Activity Feed -->
-<section class="recent-activity" 
-         hx-get="/api/recent-activity"
-         hx-trigger="load, every 30s"
-         hx-target="this">
-    <h3>Recent Activity</h3>
-        <div class="loading">Loading activity...</div>
-</section>
-</section>
+<!-- Container Logs Modal -->
+<div id="logs-modal" class="modal" style="display: none;">
+    <div class="modal-content logs-modal">
+        <div class="modal-header">
+            <h3>Container Logs</h3>
+            <span class="close" onclick="closeModal('logs-modal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div id="logs-content">
+                <!-- Logs loaded via HTMX -->
+            </div>
+        </div>
+    </div>
+</div>
 
+<!-- Model Details Modal -->
+<div id="model-details-modal" class="modal" style="display: none;">
+    <div class="modal-content large-modal">
+        <!-- Content loaded via HTMX -->
+    </div>
+</div>
+
+<!-- Bulk Operations Modal -->
+<div id="bulk-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Bulk Operations</h3>
+            <span class="close" onclick="closeModal('bulk-modal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="bulk-options">
+                <button class="btn-success" onclick="bulkOperation('start-selected')">
+                    🚀 Start Selected
+                </button>
+                <button class="btn-danger" onclick="bulkOperation('stop-selected')">
+                    🛑 Stop Selected
+                </button>
+                <button class="btn-warning" onclick="bulkOperation('restart-selected')">
+                    🔄 Restart Selected
+                </button>
+                <button class="btn-secondary" onclick="bulkOperation('analyze-selected')">
+                    🔒 Analyze Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.dashboard-overview {
+    padding: 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.page-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.page-header h1 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.page-header p {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+}
+
+.dashboard-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.stats-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid var(--primary-color);
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+.stats-card.primary { border-left-color: var(--primary-color); }
+.stats-card.success { border-left-color: var(--success-color); }
+.stats-card.info { border-left-color: var(--info-color); }
+.stats-card.warning { border-left-color: var(--warning-color); }
+.stats-card.secondary { border-left-color: var(--secondary-color); }
+.stats-card.accent { border-left-color: var(--accent-color); }
+
+.stats-icon {
+    font-size: 2rem;
+    opacity: 0.8;
+}
+
+.stats-content h3 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.stats-content p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dashboard-controls {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.controls-section {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 2fr;
+    gap: 1.5rem;
+    align-items: end;
+}
+
+.search-group, .filter-group, .action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.search-group label, .filter-group label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.search-group input, .filter-group select {
+    padding: 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.search-group input:focus, .filter-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.action-group {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.loading-indicator {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--info-bg);
+    color: var(--info-fg);
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+.loading-indicator.htmx-request {
+    display: flex;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.dashboard-content {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    min-height: 400px;
+}
+
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem;
+    color: var(--text-muted);
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border-color);
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid var(--border-color);
+    border-top: 2px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 1000;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    max-height: 80vh;
+    overflow: hidden;
+}
+
+.logs-modal {
+    max-width: 1000px;
+    width: 95%;
+}
+
+.large-modal {
+    max-width: 1200px;
+    width: 95%;
+    max-height: 90vh;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.close {
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.close:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.bulk-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .controls-section {
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+    
+    .action-group {
+        grid-column: 1 / -1;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-overview {
+        padding: 1rem;
+    }
+    
+    .dashboard-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    
+    .controls-section {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .action-group {
+        flex-direction: column;
+    }
+}
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Auto-refresh functionality
+// Dashboard global state
+let viewMode = 'grid'; // 'grid' or 'list'
+let selectedContainers = new Set();
+
+// Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
-    // Update notification count
-    function updateNotificationCount() {
-        fetch('/api/notifications')
-            .then(response => response.json())
-            .then(data => {
-                const countElement = document.querySelector('.notification-count');
-                if (countElement && data.unread_count) {
-                    countElement.textContent = data.unread_count;
-                    countElement.style.display = data.unread_count > 0 ? 'flex' : 'none';
-                }
-            })
-            .catch(console.error);
+    // Auto-refresh stats every 30 seconds
+    setInterval(updateDashboardStats, 30000);
+    
+    // Handle visibility change to pause/resume updates
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            updateDashboardStats();
+        }
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+R or F5 - Refresh dashboard
+        if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
+            e.preventDefault();
+            refreshDashboard();
+        }
+        
+        // Escape - Close modals
+        if (e.key === 'Escape') {
+            closeAllModals();
+        }
+        
+        // Ctrl+F - Focus search
+        if (e.ctrlKey && e.key === 'f') {
+            e.preventDefault();
+            document.getElementById('search-input').focus();
+        }
+        
+        // Ctrl+A - Select all visible containers
+        if (e.ctrlKey && e.key === 'a' && e.target.tagName !== 'INPUT') {
+            e.preventDefault();
+            toggleSelectAll();
+        }
+    });
+});
+
+// Dashboard functions
+function updateDashboardStats() {
+    htmx.ajax('GET', '/api/dashboard/stats', {
+        target: '.dashboard-summary-grid',
+        swap: 'innerHTML'
+    });
+}
+
+function refreshDashboard() {
+    htmx.trigger('#dashboard-content', 'load');
+    updateDashboardStats();
+}
+
+function toggleViewMode() {
+    viewMode = viewMode === 'grid' ? 'list' : 'grid';
+    const content = document.getElementById('dashboard-content');
+    content.classList.toggle('list-view', viewMode === 'list');
+    content.classList.toggle('grid-view', viewMode === 'grid');
+}
+
+function toggleSelectAll() {
+    const checkboxes = document.querySelectorAll('.container-checkbox');
+    const allSelected = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !allSelected;
+        handleContainerSelection(checkbox);
+    });
+}
+
+function handleContainerSelection(checkbox) {
+    const containerId = checkbox.value;
+    if (checkbox.checked) {
+        selectedContainers.add(containerId);
+    } else {
+        selectedContainers.delete(containerId);
     }
     
-    // Update every 30 seconds
-    updateNotificationCount();
-    setInterval(updateNotificationCount, 30000);
+    updateBulkActionsVisibility();
+}
+
+function updateBulkActionsVisibility() {
+    const bulkActions = document.querySelector('.bulk-actions');
+    if (bulkActions) {
+        bulkActions.style.display = selectedContainers.size > 0 ? 'flex' : 'none';
+    }
+}
+
+function bulkOperation(operation) {
+    if (selectedContainers.size === 0) return;
     
-    // Auto-focus search input
-    const searchInput = document.querySelector('input[name="search"]');
-    if (searchInput) {
-        searchInput.focus();
+    const containers = Array.from(selectedContainers);
+    const action = operation.replace('-selected', '');
+    
+    htmx.ajax('POST', `/api/docker/bulk/${action}`, {
+        values: { containers: containers },
+        target: '#dashboard-content',
+        confirm: `${operation.replace('-', ' ')} ${containers.length} container(s)?`
+    });
+    
+    closeModal('bulk-modal');
+}
+
+function showLogs(model, appNum) {
+    htmx.ajax('GET', `/api/docker/logs/${model}/${appNum}`, {
+        target: '#logs-content'
+    });
+    showModal('logs-modal');
+}
+
+function showModal(modalId) {
+    document.getElementById(modalId).style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+function closeAllModals() {
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.style.display = 'none';
+    });
+}
+
+// Model expansion functions
+function toggleModelApps(modelSlug, element) {
+    const appsContainer = document.getElementById(`apps-${modelSlug}`);
+    const toggleIcon = element.querySelector('.toggle-icon');
+    
+    if (appsContainer.style.display === 'none' || !appsContainer.style.display) {
+        // Load apps via HTMX
+        htmx.ajax('GET', `/api/model/${modelSlug}/apps`, {
+            target: `#apps-${modelSlug}`,
+            swap: 'innerHTML'
+        });
+        
+        appsContainer.style.display = 'block';
+        toggleIcon.textContent = '▼';
+        element.setAttribute('aria-expanded', 'true');
+    } else {
+        appsContainer.style.display = 'none';
+        toggleIcon.textContent = '▶';
+        element.setAttribute('aria-expanded', 'false');
+    }
+}
+
+function expandAllModels() {
+    const modelCards = document.querySelectorAll('.model-card');
+    modelCards.forEach(card => {
+        const toggleBtn = card.querySelector('.model-toggle-btn');
+        const modelSlug = toggleBtn.getAttribute('onclick').match(/toggleModelApps\('([^']+)'/)[1];
+        const appsContainer = document.getElementById(`apps-${modelSlug}`);
+        
+        if (appsContainer.style.display === 'none' || !appsContainer.style.display) {
+            toggleModelApps(modelSlug, toggleBtn);
+        }
+    });
+}
+
+function collapseAllModels() {
+    const modelCards = document.querySelectorAll('.model-card');
+    modelCards.forEach(card => {
+        const toggleBtn = card.querySelector('.model-toggle-btn');
+        const modelSlug = toggleBtn.getAttribute('onclick').match(/toggleModelApps\('([^']+)'/)[1];
+        const appsContainer = document.getElementById(`apps-${modelSlug}`);
+        
+        if (appsContainer.style.display === 'block') {
+            toggleModelApps(modelSlug, toggleBtn);
+        }
+    });
+}
+
+function showModelDetails(modelSlug) {
+    htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
+        target: '#model-details-content'
+    });
+    showModal('model-details-modal');
+}
+
+// Container management functions
+function startContainer(model, appNum) {
+    htmx.ajax('POST', `/api/containers/${model}/${appNum}/start`, {
+        target: `#container-${model}-${appNum}`,
+        confirm: `Start containers for ${model}/app${appNum}?`
+    });
+}
+
+function stopContainer(model, appNum) {
+    htmx.ajax('POST', `/api/containers/${model}/${appNum}/stop`, {
+        target: `#container-${model}-${appNum}`,
+        confirm: `Stop containers for ${model}/app${appNum}?`
+    });
+}
+
+function restartContainer(model, appNum) {
+    htmx.ajax('POST', `/api/containers/${model}/${appNum}/restart`, {
+        target: `#container-${model}-${appNum}`,
+        confirm: `Restart containers for ${model}/app${appNum}?`
+    });
+}
+
+// HTMX event handlers
+document.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.xhr.status >= 400) {
+        showNotification('Operation failed: ' + evt.detail.xhr.statusText, 'error');
+    } else if (evt.detail.xhr.status === 200) {
+        // Update stats after successful operations
+        setTimeout(updateDashboardStats, 1000);
     }
 });
+
+document.addEventListener('htmx:beforeRequest', function(evt) {
+    // Show loading state for the target
+    const target = document.querySelector(evt.detail.target);
+    if (target) {
+        target.classList.add('loading');
+    }
+});
+
+document.addEventListener('htmx:afterSettle', function(evt) {
+    // Remove loading state
+    const target = document.querySelector(evt.detail.target);
+    if (target) {
+        target.classList.remove('loading');
+    }
+});
+
+// Utility functions
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()">&times;</button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('Copied to clipboard', 'success');
+    });
+}
+
+// Modal click outside to close
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
 </script>
 {% endblock %}

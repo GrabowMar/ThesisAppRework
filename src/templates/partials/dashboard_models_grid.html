@@ -1,0 +1,612 @@
+<div class="models-dashboard-grid">
+    {% for model in models %}
+    <div class="model-card" id="model-{{ model.canonical_slug }}">
+        <!-- Model Header -->
+        <div class="model-header">
+            <div class="model-info">
+                <h3 class="model-name">{{ model.model_name }}</h3>
+                <div class="model-meta">
+                    <span class="provider-badge">{{ model.provider }}</span>
+                    <span class="context-window">{{ '{:,}'.format(model.context_window) }} tokens</span>
+                    {% if model.supports_function_calling %}
+                    <span class="feature-badge">🔧 Functions</span>
+                    {% endif %}
+                    {% if model.supports_vision %}
+                    <span class="feature-badge">👁️ Vision</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="model-actions">
+                <button class="toggle-btn model-toggle-btn" 
+                        onclick="toggleModelApps('{{ model.canonical_slug }}', this)"
+                        aria-label="Toggle applications"
+                        aria-expanded="false">
+                    <span class="toggle-icon">▶</span>
+                </button>
+                <button class="info-btn" 
+                        onclick="showModelDetails('{{ model.canonical_slug }}')"
+                        title="Model Details">
+                    ℹ️
+                </button>
+            </div>
+        </div>
+        
+        <!-- Model Stats Summary -->
+        <div class="model-stats">
+            <div class="stat-item">
+                <span class="stat-value">{{ model.total_apps or 30 }}</span>
+                <span class="stat-label">Apps</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value running" id="running-{{ model.canonical_slug }}">{{ model.running_containers or 0 }}</span>
+                <span class="stat-label">Running</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value stopped" id="stopped-{{ model.canonical_slug }}">{{ model.stopped_containers or 30 }}</span>
+                <span class="stat-label">Stopped</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value error" id="error-{{ model.canonical_slug }}">{{ model.error_containers or 0 }}</span>
+                <span class="stat-label">Errors</span>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="model-quick-actions">
+            <button class="btn-success btn-sm" 
+                    onclick="startAllModelContainers('{{ model.canonical_slug }}')"
+                    title="Start all containers for this model">
+                🚀 Start All
+            </button>
+            <button class="btn-danger btn-sm" 
+                    onclick="stopAllModelContainers('{{ model.canonical_slug }}')"
+                    title="Stop all containers for this model">
+                🛑 Stop All
+            </button>
+            <button class="btn-secondary btn-sm" 
+                    onclick="analyzeAllModelApps('{{ model.canonical_slug }}')"
+                    title="Run security analysis on all apps">
+                🔒 Analyze
+            </button>
+        </div>
+        
+        <!-- Applications Grid (Initially Hidden) -->
+        <div class="apps-container" id="apps-{{ model.canonical_slug }}" style="display: none;">
+            <div class="apps-loading">
+                <div class="loading-spinner-sm"></div>
+                <span>Loading applications...</span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Model Details Modal Content Template -->
+<template id="model-details-template">
+    <div class="modal-header">
+        <h3 id="modal-model-name"></h3>
+        <button class="close" onclick="closeModal('model-details-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+        <div class="model-details-grid">
+            <div class="detail-section">
+                <h4>Model Information</h4>
+                <div class="detail-item">
+                    <label>Provider:</label>
+                    <span id="modal-provider"></span>
+                </div>
+                <div class="detail-item">
+                    <label>Model ID:</label>
+                    <span id="modal-id"></span>
+                </div>
+                <div class="detail-item">
+                    <label>Context Window:</label>
+                    <span id="modal-context"></span>
+                </div>
+                <div class="detail-item">
+                    <label>Max Output:</label>
+                    <span id="modal-output"></span>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4>Capabilities</h4>
+                <div class="capabilities-list" id="modal-capabilities">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4>Pricing</h4>
+                <div class="detail-item">
+                    <label>Input:</label>
+                    <span id="modal-input-price"></span>
+                </div>
+                <div class="detail-item">
+                    <label>Output:</label>
+                    <span id="modal-output-price"></span>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4>Container Status</h4>
+                <div class="container-summary" id="modal-container-status">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<style>
+.models-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 1.5rem;
+    padding: 1.5rem;
+}
+
+.model-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-color);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.model-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+.model-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.model-info h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+}
+
+.model-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.provider-badge {
+    background: var(--primary-color);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.context-window {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.feature-badge {
+    background: var(--success-color);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.model-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.toggle-btn, .info-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.toggle-btn:hover, .info-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.toggle-icon {
+    transition: transform 0.2s;
+    display: inline-block;
+}
+
+.toggle-btn.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.model-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.stat-value.running {
+    color: var(--success-color);
+}
+
+.stat-value.stopped {
+    color: var(--text-muted);
+}
+
+.stat-value.error {
+    color: var(--error-color);
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 0.25rem;
+}
+
+.model-quick-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    border-radius: 6px;
+}
+
+.apps-container {
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+
+.apps-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    color: var(--text-muted);
+}
+
+.loading-spinner-sm {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-top: 2px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.app-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.2s;
+}
+
+.app-card:hover {
+    border-color: var(--primary-color);
+    background: white;
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.app-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.app-status {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.app-status.running {
+    background: var(--success-bg);
+    color: var(--success-fg);
+}
+
+.app-status.stopped {
+    background: var(--warning-bg);
+    color: var(--warning-fg);
+}
+
+.app-status.error {
+    background: var(--error-bg);
+    color: var(--error-fg);
+}
+
+.app-ports {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.port-info {
+    background: var(--bg-tertiary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.app-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.app-actions button {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+}
+
+/* Model Details Modal */
+.model-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+}
+
+.detail-section h4 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--bg-secondary);
+}
+
+.detail-item label {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.capabilities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.capability-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+}
+
+.capability-item.enabled {
+    background: var(--success-bg);
+    color: var(--success-fg);
+}
+
+.container-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.container-stat {
+    text-align: center;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+}
+
+.container-stat .value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.container-stat .label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .models-dashboard-grid {
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    }
+    
+    .model-details-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .models-dashboard-grid {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+    
+    .model-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .model-quick-actions {
+        flex-direction: column;
+    }
+    
+    .apps-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+// Model expansion and interaction functions
+function toggleModelApps(modelSlug) {
+    const appsContainer = document.getElementById(`apps-${modelSlug}`);
+    const toggleBtn = document.querySelector(`#model-${modelSlug} .toggle-btn`);
+    
+    if (appsContainer.style.display === 'none') {
+        // Show apps - load them if not already loaded
+        appsContainer.style.display = 'block';
+        toggleBtn.classList.add('expanded');
+        
+        // Load apps via HTMX if not already loaded
+        if (!appsContainer.dataset.loaded) {
+            htmx.ajax('GET', `/api/model/${modelSlug}/apps`, {
+                target: `#apps-${modelSlug}`,
+                swap: 'innerHTML'
+            });
+            appsContainer.dataset.loaded = 'true';
+        }
+    } else {
+        // Hide apps
+        appsContainer.style.display = 'none';
+        toggleBtn.classList.remove('expanded');
+    }
+}
+
+function showModelDetails(modelSlug) {
+    // Load model details into modal
+    htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
+        target: '#model-details-modal .modal-content',
+        swap: 'innerHTML'
+    });
+    
+    // Show modal
+    document.getElementById('model-details-modal').style.display = 'block';
+}
+
+// Bulk operations for models
+function startAllModelContainers(modelSlug) {
+    if (confirm(`Start all containers for ${modelSlug}? This may take several minutes.`)) {
+        htmx.ajax('POST', `/api/model/${modelSlug}/start-all`, {
+            target: `#model-${modelSlug}`,
+            swap: 'outerHTML'
+        });
+    }
+}
+
+function stopAllModelContainers(modelSlug) {
+    if (confirm(`Stop all containers for ${modelSlug}?`)) {
+        htmx.ajax('POST', `/api/model/${modelSlug}/stop-all`, {
+            target: `#model-${modelSlug}`,
+            swap: 'outerHTML'
+        });
+    }
+}
+
+function analyzeAllModelApps(modelSlug) {
+    if (confirm(`Run security analysis on all applications for ${modelSlug}? This will take time.`)) {
+        htmx.ajax('POST', `/api/model/${modelSlug}/analyze-all`, {
+            target: `#model-${modelSlug}`,
+            swap: 'outerHTML'
+        });
+    }
+}
+
+// Container management functions for individual apps
+function startAppContainer(modelSlug, appNum) {
+    htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/start`, {
+        target: `#app-${modelSlug}-${appNum}`,
+        swap: 'outerHTML'
+    });
+}
+
+function stopAppContainer(modelSlug, appNum) {
+    htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/stop`, {
+        target: `#app-${modelSlug}-${appNum}`,
+        swap: 'outerHTML'
+    });
+}
+
+function restartAppContainer(modelSlug, appNum) {
+    htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/restart`, {
+        target: `#app-${modelSlug}-${appNum}`,
+        swap: 'outerHTML'
+    });
+}
+
+function showAppLogs(modelSlug, appNum) {
+    htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
+        target: '#logs-content'
+    });
+    document.getElementById('logs-modal').style.display = 'block';
+}
+
+function openApp(modelSlug, appNum, port) {
+    window.open(`http://localhost:${port}`, '_blank');
+}
+
+// Real-time updates
+function updateModelStats(modelSlug) {
+    htmx.ajax('GET', `/api/model/${modelSlug}/stats`, {
+        target: `#model-${modelSlug} .model-stats`,
+        swap: 'innerHTML'
+    });
+}
+
+// Auto-refresh model stats every 30 seconds
+setInterval(() => {
+    document.querySelectorAll('.model-card').forEach(card => {
+        const modelSlug = card.id.replace('model-', '');
+        updateModelStats(modelSlug);
+    });
+}, 30000);
+</script>

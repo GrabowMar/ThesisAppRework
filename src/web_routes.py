@@ -536,73 +536,52 @@ def get_request_filters() -> Dict[str, Any]:
 
 @main_bp.route("/")
 def dashboard():
-    """
-    Main dashboard showing all applications with HTMX-powered filtering.
-    
-    HTMX Features:
-    - Live search with hx-get and hx-target
-    - Filter dropdowns with automatic updates
-    - Auto-refresh capabilities
-    - Infinite scroll pagination
-    """
-    logger.info("Loading dashboard")
-    
+    """New dashboard with expandable model tabs and Docker integration"""
     try:
-        # Get services
+        from models import ModelCapability
+        from extensions import db
+        
+        # Get basic statistics for the dashboard
+        models = db.session.query(ModelCapability).all()
         docker_manager = get_docker_manager()
         
-        # Load dashboard data with caching
-        dashboard_data = get_dashboard_data_optimized(docker_manager)
-        all_apps = dashboard_data.get('apps', [])
+        total_models = len(models)
+        total_apps = total_models * 30  # 30 apps per model
+        running_containers = 0
+        error_containers = 0
+        total_providers = len(set(model.provider for model in models))
         
-        # Apply filters
-        filters = get_request_filters()
-        filtered_apps = filter_apps(
-            all_apps, 
-            search=filters['search'],
-            model=filters['model'], 
-            status=filters['status']
-        )
+        # Get Docker stats if available
+        if docker_manager:
+            for model in models:
+                for app_num in range(1, 31):
+                    try:
+                        statuses = get_app_container_statuses(model.canonical_slug, app_num, docker_manager)
+                        backend_status = statuses.get('backend', 'not_found')
+                        frontend_status = statuses.get('frontend', 'not_found')
+                        
+                        if backend_status == 'running' and frontend_status == 'running':
+                            running_containers += 1
+                        elif backend_status in ['exited', 'dead'] or frontend_status in ['exited', 'dead']:
+                            error_containers += 1
+                    except Exception:
+                        pass
         
-        # Pagination
-        start_idx = (filters['page'] - 1) * filters['per_page']
-        end_idx = start_idx + filters['per_page']
-        paginated_apps = filtered_apps[start_idx:end_idx]
-        
-        # Calculate statistics
-        stats = {
-            'total_apps': len(all_apps),
-            'filtered_apps': len(filtered_apps),
-            'running_apps': sum(1 for app in all_apps if app.get('status') == 'running'),
-            'models_count': len(set(app['model'] for app in all_apps))
+        summary_stats = {
+            'total_models': total_models,
+            'total_apps': total_apps,
+            'running_containers': running_containers,
+            'error_containers': error_containers,
+            'total_providers': total_providers,
+            'analyzed_apps': 0,  # Placeholder for analysis data
+            'performance_tested': 0,  # Placeholder for performance data
+            'docker_health': 'Healthy' if docker_manager else 'Unavailable'
         }
         
-        # Get unique models for filter dropdown
-        unique_models = sorted(set(app['model'] for app in all_apps))
-        
-        context = {
-            'apps': paginated_apps,
-            'stats': stats,
-            'unique_models': unique_models,
-            'filters': filters,
-            'has_more': end_idx < len(filtered_apps),
-            'cache_used': dashboard_data.get('cache_used', False)
-        }
-        
-        # Return appropriate response based on request type
-        if is_htmx_request():
-            if request.args.get('component') == 'apps-list':
-                return render_template("partials/app_list.html", **context)
-            elif request.args.get('component') == 'stats':
-                return render_template("partials/dashboard_stats.html", **context)
-        
-        return render_template("pages/dashboard.html", **context)
+        return render_template('pages/dashboard.html', summary_stats=summary_stats)
         
     except Exception as e:
         logger.error(f"Error loading dashboard: {e}", exc_info=True)
-        if is_htmx_request():
-            return render_template("partials/error_message.html", 
-                                 error="Failed to load dashboard data")
         return render_template("pages/error.html", error=str(e))
 
 
@@ -665,47 +644,163 @@ def app_details(model: str, app_num: int):
 
 @main_bp.route("/models")
 def models_overview():
-    """Models overview page with filtering and statistics."""
+    """Comprehensive models overview page with detailed model information table."""
     try:
-        # Import the core_services functions
-        from core_services import get_ai_models as get_ai_models_from_db
+        from models import ModelCapability, GeneratedApplication
+        from extensions import db
+        from sqlalchemy import func
         from core_services import get_port_config as get_port_config_from_db
         
-        models = get_ai_models_from_db()
-        port_config = get_port_config_from_db()
+        # Get search and filter parameters
+        search_query = request.args.get('search', '').strip()
+        provider_filter = request.args.get('provider', '').strip()
+        sort_by = request.args.get('sort', 'model_name')
         
-        # Group apps by model
-        model_stats = {}
+        # Build base query
+        query = ModelCapability.query
+        
+        # Apply search filter
+        if search_query:
+            search_pattern = f"%{search_query}%"
+            query = query.filter(
+                ModelCapability.model_name.ilike(search_pattern) |
+                ModelCapability.model_id.ilike(search_pattern) |
+                ModelCapability.provider.ilike(search_pattern)
+            )
+        
+        # Apply provider filter
+        if provider_filter:
+            query = query.filter(ModelCapability.provider == provider_filter)
+        
+        # Apply sorting
+        if sort_by == 'provider':
+            query = query.order_by(ModelCapability.provider, ModelCapability.model_name)
+        elif sort_by == 'context_window':
+            query = query.order_by(ModelCapability.context_window.desc())
+        elif sort_by == 'input_price':
+            query = query.order_by(ModelCapability.input_price_per_token.asc())
+        elif sort_by == 'output_price':
+            query = query.order_by(ModelCapability.output_price_per_token.asc())
+        elif sort_by == 'safety_score':
+            query = query.order_by(ModelCapability.safety_score.desc())
+        elif sort_by == 'cost_efficiency':
+            query = query.order_by(ModelCapability.cost_efficiency.desc())
+        else:  # default to model_name
+            query = query.order_by(ModelCapability.model_name)
+        
+        models = query.all()
+        
+        # Get port configuration for app counts
+        port_config = get_port_config_from_db()
+        app_counts = {}
         for config in port_config:
-            try:
-                # Check if the config has the required model_name key
-                if not isinstance(config, dict):
-                    logger.warning(f"Invalid config format: {config}")
-                    continue
-                    
+            if isinstance(config, dict):
                 model_name = config.get('model_name')
-                if not model_name:
-                    logger.warning(f"Missing model_name in config: {config}")
-                    continue
-                    
-                if model_name not in model_stats:
-                    model_stats[model_name] = {
-                        'name': model_name,
-                        'app_count': 0,
-                        'total_ports': 0
-                    }
-                model_stats[model_name]['app_count'] += 1
-                model_stats[model_name]['total_ports'] += 2  # backend + frontend
-                
-            except Exception as e:
-                logger.error(f"Error processing config: {e}, config: {config}")
-                continue
+                if model_name:
+                    app_counts[model_name] = app_counts.get(model_name, 0) + 1
+        
+        # Get generated applications data for additional metrics
+        app_stats = db.session.query(
+            GeneratedApplication.model_slug,
+            func.count(GeneratedApplication.id).label('total_apps'),
+            func.count(func.nullif(GeneratedApplication.generation_status, 'pending')).label('generated_apps'),
+            func.count(func.nullif(GeneratedApplication.container_status, 'stopped')).label('running_containers')
+        ).group_by(GeneratedApplication.model_slug).all()
+        
+        app_stats_dict = {stat.model_slug: stat for stat in app_stats}
+        
+        # Get unique providers for filter dropdown
+        all_providers = db.session.query(ModelCapability.provider).distinct().order_by(ModelCapability.provider).all()
+        providers = [p.provider for p in all_providers]
+        
+        # Enhance models with additional data
+        enhanced_models = []
+        for model in models:
+            model_data = model.to_dict()
+            
+            # Add application statistics
+            model_slug = model.canonical_slug
+            if model_slug in app_stats_dict:
+                stat = app_stats_dict[model_slug]
+                model_data.update({
+                    'total_apps': stat.total_apps,
+                    'generated_apps': stat.generated_apps,
+                    'running_containers': stat.running_containers
+                })
+            else:
+                model_data.update({
+                    'total_apps': app_counts.get(model.canonical_slug, 0),
+                    'generated_apps': 0,
+                    'running_containers': 0
+                })
+            
+            # Parse capabilities and metadata for display
+            capabilities = model.get_capabilities()
+            metadata = model.get_metadata()
+            
+            # Extract quality metrics
+            quality_metrics = metadata.get('quality_metrics', {})
+            model_data['quality_metrics'] = quality_metrics
+            
+            # Extract performance metrics
+            performance_metrics = metadata.get('performance_metrics', {})
+            model_data['performance_metrics'] = performance_metrics
+            
+            # Extract architecture info
+            architecture = metadata.get('architecture', {})
+            model_data['architecture'] = architecture
+            
+            # Calculate capability flags
+            model_data['capability_flags'] = {
+                'reasoning': capabilities.get('reasoning', False),
+                'coding': capabilities.get('coding', False),
+                'math': capabilities.get('math', False),
+                'creative_writing': capabilities.get('creative_writing', False),
+                'analysis': capabilities.get('analysis', False),
+                'multilingual': capabilities.get('multilingual', False),
+                'long_context': capabilities.get('long_context', False)
+            }
+            
+            enhanced_models.append(model_data)
+        
+        # Calculate summary statistics
+        total_models = len(enhanced_models)
+        total_providers = len(providers)
+        total_apps = sum(m.get('total_apps', 0) for m in enhanced_models)
+        total_running = sum(m.get('running_containers', 0) for m in enhanced_models)
+        
+        vision_models = sum(1 for m in enhanced_models if m.get('supports_vision'))
+        function_calling_models = sum(1 for m in enhanced_models if m.get('supports_function_calling'))
+        free_models = sum(1 for m in enhanced_models if m.get('is_free'))
+        
+        avg_context_window = sum(m.get('context_window', 0) for m in enhanced_models) // max(1, total_models)
+        
+        summary_stats = {
+            'total_models': total_models,
+            'total_providers': total_providers,
+            'total_apps': total_apps,
+            'total_running': total_running,
+            'vision_models': vision_models,
+            'function_calling_models': function_calling_models,
+            'free_models': free_models,
+            'avg_context_window': avg_context_window
+        }
         
         context = {
-            'models': models,
-            'model_stats': list(model_stats.values()),
-            'total_models': len(models)
+            'models': enhanced_models,
+            'providers': providers,
+            'summary_stats': summary_stats,
+            'search_query': search_query,
+            'provider_filter': provider_filter,
+            'sort_by': sort_by
         }
+        
+        # Return partial template for HTMX requests
+        if is_htmx_request():
+            # Check if this is for the models table only
+            if request.args.get('partial') == 'table':
+                return render_template("partials/models_table.html", **context)
+            return render_template("partials/models_content.html", **context)
         
         return render_htmx_response("models_overview.html", **context)
         
@@ -741,6 +836,175 @@ def debug_config(model: str, app_num: int):
         
     except Exception as e:
         return f"<pre>Error: {e}</pre>"
+
+
+# ===========================
+# NEW DASHBOARD ROUTES
+# ===========================
+
+@main_bp.route('/api/dashboard/models')
+def api_dashboard_models():
+    """HTMX endpoint for models grid data"""
+    try:
+        from models import ModelCapability
+        from extensions import db
+        from datetime import datetime
+        
+        # Get all models with their capabilities
+        models = db.session.query(ModelCapability).all()
+        docker_manager = get_docker_manager()
+        
+        # Enhanced models data with Docker stats
+        models_data = []
+        
+        for model in models:
+            # Get container stats for this model
+            running_containers = 0
+            stopped_containers = 0
+            error_containers = 0
+            
+            if docker_manager:
+                for app_num in range(1, 31):  # 30 apps per model
+                    try:
+                        statuses = get_app_container_statuses(model.canonical_slug, app_num, docker_manager)
+                        backend_status = statuses.get('backend', 'not_found')
+                        frontend_status = statuses.get('frontend', 'not_found')
+                        
+                        if backend_status == 'running' and frontend_status == 'running':
+                            running_containers += 1
+                        elif backend_status in ['exited', 'dead'] or frontend_status in ['exited', 'dead']:
+                            error_containers += 1
+                        else:
+                            stopped_containers += 1
+                    except Exception:
+                        stopped_containers += 1
+            else:
+                stopped_containers = 30  # All apps assumed stopped if no Docker
+            
+            model_data = {
+                'id': model.id,
+                'canonical_slug': model.canonical_slug,
+                'display_name': model.model_name,
+                'provider_name': model.provider,
+                'context_window': model.context_window,
+                'max_output_tokens': model.max_output_tokens,
+                'input_price_per_token': model.input_price_per_token,
+                'output_price_per_token': model.output_price_per_token,
+                'supports_function_calling': model.supports_function_calling,
+                'supports_vision': model.supports_vision,
+                'total_apps': 30,
+                'running_containers': running_containers,
+                'stopped_containers': stopped_containers,
+                'error_containers': error_containers,
+                'last_updated': datetime.now()
+            }
+            models_data.append(model_data)
+        
+        return render_template('partials/dashboard_models_grid.html', models=models_data)
+    
+    except Exception as e:
+        logger.error(f"Error fetching dashboard models: {e}")
+        return f"<div class='error-state'>Error loading models: {str(e)}</div>", 500
+
+
+@main_bp.route('/api/dashboard/search')
+def api_dashboard_search():
+    """HTMX endpoint for dashboard search and filtering"""
+    try:
+        from models import ModelCapability
+        from extensions import db
+        from datetime import datetime
+        
+        # Get search parameters
+        search_query = request.args.get('search', '').strip()
+        provider_filter = request.args.get('filter-provider', '').strip()
+        status_filter = request.args.get('filter-status', '').strip()
+        
+        # Build query
+        query = db.session.query(ModelCapability)
+        
+        # Apply search filter
+        if search_query:
+            search_pattern = f"%{search_query}%"
+            query = query.filter(
+                ModelCapability.model_name.ilike(search_pattern) |
+                ModelCapability.canonical_slug.ilike(search_pattern) |
+                ModelCapability.provider.ilike(search_pattern)
+            )
+        
+        # Apply provider filter
+        if provider_filter:
+            query = query.filter(ModelCapability.provider.ilike(f"%{provider_filter}%"))
+        
+        models = query.all()
+        
+        # Process models data
+        models_data = []
+        total_apps = 0
+        running_apps = 0
+        error_apps = 0
+        
+        for model in models:
+            # Count total apps for this model
+            model_total_apps = 30
+            total_apps += model_total_apps
+            
+            # Get running apps count (placeholder)
+            model_running_apps = 0
+            running_apps += model_running_apps
+            
+            # Apply status filter
+            if status_filter:
+                if status_filter == 'running' and model_running_apps == 0:
+                    continue
+                elif status_filter == 'stopped' and model_running_apps > 0:
+                    continue
+                elif status_filter == 'error':
+                    continue  # Implement error detection logic
+            
+            model_data = {
+                'id': model.id,
+                'canonical_slug': model.canonical_slug,
+                'display_name': model.model_name,
+                'provider': model.provider,
+                'context_window_size': model.context_window,
+                'max_output_tokens': model.max_output_tokens,
+                'input_cost_per_mtok': model.input_price_per_token,
+                'output_cost_per_mtok': model.output_price_per_token,
+                'supports_function_calling': model.supports_function_calling,
+                'supports_vision': model.supports_vision,
+                'generated_apps': [f'app{i}' for i in range(1, 31)],
+                'running_apps_count': model_running_apps,
+                'is_available': True,
+                'last_analysis': None,
+                'status': 'active' if model_running_apps > 0 else 'inactive'
+            }
+            models_data.append(model_data)
+        
+        context = {
+            'models': models_data,
+            'total_apps': total_apps,
+            'running_apps': running_apps,
+            'error_apps': error_apps,
+            'current_time': datetime.now()
+        }
+        
+        return render_template('partials/models_grid.html', **context)
+    
+    except Exception as e:
+        current_app.logger.error(f"Error searching dashboard models: {e}")
+        return f"<div class='error-state'>Error searching models: {str(e)}</div>", 500
+
+
+@main_bp.route('/api/dashboard/refresh-all')
+def api_dashboard_refresh_all():
+    """HTMX endpoint to refresh all dashboard data"""
+    try:
+        # This is the same as the models endpoint but could include cache clearing
+        return api_dashboard_models()
+    except Exception as e:
+        current_app.logger.error(f"Error refreshing dashboard: {e}")
+        return f"<div class='error-state'>Error refreshing dashboard: {str(e)}</div>", 500
 
 
 # ===========================
@@ -1401,6 +1665,172 @@ def view_logs(model: str, app_num: int):
             return render_template("partials/error_message.html", 
                                  error="Failed to load logs")
         return render_template("pages/error.html", error=str(e))
+
+
+@api_bp.route("/models/export")
+def export_models_data():
+    """Export models data in various formats."""
+    try:
+        from models import ModelCapability, GeneratedApplication
+        from extensions import db
+        from sqlalchemy import func
+        import csv
+        import io
+        
+        # Get format parameter
+        export_format = request.args.get('format', 'json').lower()
+        
+        # Get search and filter parameters (same as models overview)
+        search_query = request.args.get('search', '').strip()
+        provider_filter = request.args.get('provider', '').strip()
+        sort_by = request.args.get('sort', 'model_name')
+        
+        # Build query (same logic as models overview)
+        query = ModelCapability.query
+        
+        if search_query:
+            search_pattern = f"%{search_query}%"
+            query = query.filter(
+                ModelCapability.model_name.ilike(search_pattern) |
+                ModelCapability.model_id.ilike(search_pattern) |
+                ModelCapability.provider.ilike(search_pattern)
+            )
+        
+        if provider_filter:
+            query = query.filter(ModelCapability.provider == provider_filter)
+        
+        # Apply sorting
+        if sort_by == 'provider':
+            query = query.order_by(ModelCapability.provider, ModelCapability.model_name)
+        elif sort_by == 'context_window':
+            query = query.order_by(ModelCapability.context_window.desc())
+        elif sort_by == 'input_price':
+            query = query.order_by(ModelCapability.input_price_per_token.asc())
+        elif sort_by == 'output_price':
+            query = query.order_by(ModelCapability.output_price_per_token.asc())
+        elif sort_by == 'safety_score':
+            query = query.order_by(ModelCapability.safety_score.desc())
+        elif sort_by == 'cost_efficiency':
+            query = query.order_by(ModelCapability.cost_efficiency.desc())
+        else:  # default to model_name
+            query = query.order_by(ModelCapability.model_name)
+        
+        models = query.all()
+        
+        # Get application statistics
+        app_stats = db.session.query(
+            GeneratedApplication.model_slug,
+            func.count(GeneratedApplication.id).label('total_apps'),
+            func.count(func.nullif(GeneratedApplication.generation_status, 'pending')).label('generated_apps'),
+            func.count(func.nullif(GeneratedApplication.container_status, 'stopped')).label('running_containers')
+        ).group_by(GeneratedApplication.model_slug).all()
+        
+        app_stats_dict = {stat.model_slug: stat for stat in app_stats}
+        
+        # Prepare export data
+        export_data = []
+        for model in models:
+            model_data = model.to_dict()
+            
+            # Add application statistics
+            model_slug = model.canonical_slug
+            if model_slug in app_stats_dict:
+                stat = app_stats_dict[model_slug]
+                model_data.update({
+                    'total_apps': stat.total_apps,
+                    'generated_apps': stat.generated_apps,
+                    'running_containers': stat.running_containers
+                })
+            else:
+                model_data.update({
+                    'total_apps': 0,
+                    'generated_apps': 0,
+                    'running_containers': 0
+                })
+            
+            # Parse capabilities and metadata for flat export
+            capabilities = model.get_capabilities()
+            metadata = model.get_metadata()
+            quality_metrics = metadata.get('quality_metrics', {})
+            architecture = metadata.get('architecture', {})
+            
+            # Flatten for export
+            model_data.update({
+                'supports_reasoning': capabilities.get('reasoning', False),
+                'supports_coding': capabilities.get('coding', False),
+                'supports_math': capabilities.get('math', False),
+                'supports_creative_writing': capabilities.get('creative_writing', False),
+                'supports_analysis': capabilities.get('analysis', False),
+                'supports_multilingual': capabilities.get('multilingual', False),
+                'supports_long_context': capabilities.get('long_context', False),
+                'quality_helpfulness': quality_metrics.get('helpfulness'),
+                'quality_accuracy': quality_metrics.get('accuracy'),
+                'quality_coherence': quality_metrics.get('coherence'),
+                'quality_creativity': quality_metrics.get('creativity'),
+                'quality_instruction_following': quality_metrics.get('instruction_following'),
+                'quality_safety': quality_metrics.get('safety'),
+                'architecture_tokenizer': architecture.get('tokenizer'),
+                'architecture_parameter_count': architecture.get('parameter_count'),
+                'architecture_training_cutoff': architecture.get('training_cutoff')
+            })
+            
+            export_data.append(model_data)
+        
+        # Generate response based on format
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        if export_format == 'csv':
+            # CSV Export
+            output = io.StringIO()
+            if export_data:
+                # Define CSV fields
+                csv_fields = [
+                    'model_id', 'model_name', 'canonical_slug', 'provider',
+                    'is_free', 'context_window', 'max_output_tokens',
+                    'supports_function_calling', 'supports_vision', 'supports_streaming', 'supports_json_mode',
+                    'input_price_per_token', 'output_price_per_token',
+                    'cost_efficiency', 'safety_score',
+                    'total_apps', 'generated_apps', 'running_containers',
+                    'supports_reasoning', 'supports_coding', 'supports_math',
+                    'supports_creative_writing', 'supports_analysis', 'supports_multilingual', 'supports_long_context',
+                    'quality_helpfulness', 'quality_accuracy', 'quality_coherence',
+                    'quality_creativity', 'quality_instruction_following', 'quality_safety',
+                    'architecture_tokenizer', 'architecture_parameter_count', 'architecture_training_cutoff',
+                    'created_at', 'updated_at'
+                ]
+                
+                writer = csv.DictWriter(output, fieldnames=csv_fields, extrasaction='ignore')
+                writer.writeheader()
+                for row in export_data:
+                    writer.writerow(row)
+            
+            response = make_response(output.getvalue())
+            response.headers['Content-Type'] = 'text/csv'
+            response.headers['Content-Disposition'] = f'attachment; filename=models_export_{timestamp}.csv'
+            return response
+            
+        else:  # JSON format (default)
+            export_result = {
+                'metadata': {
+                    'export_date': datetime.now().isoformat(),
+                    'total_models': len(export_data),
+                    'filters_applied': {
+                        'search': search_query,
+                        'provider': provider_filter,
+                        'sort_by': sort_by
+                    }
+                },
+                'models': export_data
+            }
+            
+            response = make_response(json.dumps(export_result, indent=2, default=str))
+            response.headers['Content-Type'] = 'application/json'
+            response.headers['Content-Disposition'] = f'attachment; filename=models_export_{timestamp}.json'
+            return response
+            
+    except Exception as e:
+        logger.error(f"Error exporting models data: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # ===========================
@@ -2119,6 +2549,306 @@ def register_template_helpers(app):
             return None
         except Exception:
             return None
+
+
+# ===========================
+# NEW DASHBOARD API ROUTES
+# ===========================
+
+@main_bp.route('/api/model/<model_slug>/apps')
+def api_model_apps(model_slug):
+    """Get applications for a specific model"""
+    try:
+        from models import ModelCapability
+        from extensions import db
+        
+        # Get model
+        model = db.session.query(ModelCapability).filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+        
+        docker_manager = get_docker_manager()
+        apps_data = []
+        
+        # Generate app data for 30 applications
+        for app_num in range(1, 31):
+            # Get container status
+            status = 'stopped'
+            frontend_status = 'stopped'
+            backend_status = 'stopped'
+            database_status = 'stopped'
+            
+            if docker_manager:
+                try:
+                    statuses = get_app_container_statuses(model_slug, app_num, docker_manager)
+                    backend_status = statuses.get('backend', 'stopped')
+                    frontend_status = statuses.get('frontend', 'stopped')
+                    
+                    if backend_status == 'running' and frontend_status == 'running':
+                        status = 'running'
+                    elif backend_status in ['exited', 'dead'] or frontend_status in ['exited', 'dead']:
+                        status = 'error'
+                    else:
+                        status = 'stopped'
+                except Exception:
+                    status = 'stopped'
+            
+            # Get port configuration
+            port_config = get_port_config(model_slug, app_num)
+            
+            # App type mapping
+            app_types = {
+                1: "Login System", 2: "Chat Application", 3: "Feedback System", 4: "Blog Platform",
+                5: "E-commerce Cart", 6: "Note Taking", 7: "File Upload", 8: "Forum", 9: "CRUD Manager",
+                10: "Microblog", 11: "Polling System", 12: "Reservation System", 13: "Photo Gallery",
+                14: "Cloud Storage", 15: "Kanban Board", 16: "IoT Dashboard", 17: "Fitness Tracker",
+                18: "Wiki", 19: "Crypto Wallet", 20: "Mapping App", 21: "Recipe Manager",
+                22: "Learning Platform", 23: "Finance Tracker", 24: "Networking Tool", 25: "Health Monitor",
+                26: "Environment Tracker", 27: "Team Management", 28: "Art Portfolio", 29: "Event Planner",
+                30: "Research Collaboration"
+            }
+            
+            app_data = {
+                'app_number': app_num,
+                'app_name': f"App {app_num}",
+                'app_type': app_types.get(app_num, 'Unknown'),
+                'description': f"{app_types.get(app_num, 'Unknown')} - Generated by {model.model_name}",
+                'status': status,
+                'frontend_port': port_config.get('frontend_port', 9050 + (app_num * 2)),
+                'backend_port': port_config.get('backend_port', 6050 + (app_num * 2)),
+                'containers': {
+                    'frontend_status': frontend_status,
+                    'backend_status': backend_status,
+                    'database_status': database_status
+                },
+                'created_at': None,  # Could add actual creation dates
+                'last_analyzed': None,  # Could add analysis data
+                'analysis_summary': None,  # Could add analysis summaries
+                'performance_summary': None  # Could add performance data
+            }
+            apps_data.append(app_data)
+        
+        return render_template('partials/dashboard_model_apps.html', 
+                             apps=apps_data, 
+                             model_slug=model_slug)
+        
+    except Exception as e:
+        logger.error(f"Error loading apps for model {model_slug}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/api/model/<model_slug>/details')
+def api_model_details(model_slug):
+    """Get detailed information about a model"""
+    try:
+        from models import ModelCapability
+        from extensions import db
+        
+        model = db.session.query(ModelCapability).filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+        
+        # Get container statistics
+        docker_manager = get_docker_manager()
+        running_count = 0
+        stopped_count = 0
+        error_count = 0
+        
+        if docker_manager:
+            for app_num in range(1, 31):
+                try:
+                    statuses = get_app_container_statuses(model_slug, app_num, docker_manager)
+                    backend_status = statuses.get('backend', 'not_found')
+                    frontend_status = statuses.get('frontend', 'not_found')
+                    
+                    if backend_status == 'running' and frontend_status == 'running':
+                        running_count += 1
+                    elif backend_status in ['exited', 'dead'] or frontend_status in ['exited', 'dead']:
+                        error_count += 1
+                    else:
+                        stopped_count += 1
+                except Exception:
+                    stopped_count += 1
+        else:
+            stopped_count = 30
+        
+        return render_template('partials/model_details_content.html', 
+                             model=model,
+                             running_count=running_count,
+                             stopped_count=stopped_count,
+                             error_count=error_count)
+        
+    except Exception as e:
+        logger.error(f"Error loading model details for {model_slug}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/api/model/<model_slug>/stats')
+def api_model_stats(model_slug):
+    """Get real-time statistics for a model"""
+    try:
+        docker_manager = get_docker_manager()
+        running_count = 0
+        stopped_count = 0
+        error_count = 0
+        
+        if docker_manager:
+            for app_num in range(1, 31):
+                try:
+                    statuses = get_app_container_statuses(model_slug, app_num, docker_manager)
+                    backend_status = statuses.get('backend', 'not_found')
+                    frontend_status = statuses.get('frontend', 'not_found')
+                    
+                    if backend_status == 'running' and frontend_status == 'running':
+                        running_count += 1
+                    elif backend_status in ['exited', 'dead'] or frontend_status in ['exited', 'dead']:
+                        error_count += 1
+                    else:
+                        stopped_count += 1
+                except Exception:
+                    stopped_count += 1
+        else:
+            stopped_count = 30
+        
+        return jsonify({
+            'running': running_count,
+            'stopped': stopped_count,
+            'error': error_count,
+            'total': 30
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/api/dashboard/stats')
+def api_dashboard_stats():
+    """Get dashboard summary statistics"""
+    try:
+        from models import ModelCapability
+        from extensions import db
+        
+        models = db.session.query(ModelCapability).all()
+        docker_manager = get_docker_manager()
+        
+        total_models = len(models)
+        total_apps = total_models * 30
+        running_containers = 0
+        error_containers = 0
+        analyzed_apps = 0
+        
+        if docker_manager:
+            for model in models:
+                for app_num in range(1, 31):
+                    try:
+                        statuses = get_app_container_statuses(model.canonical_slug, app_num, docker_manager)
+                        if statuses.get('backend') == 'running' and statuses.get('frontend') == 'running':
+                            running_containers += 1
+                        elif statuses.get('backend') in ['exited', 'dead'] or statuses.get('frontend') in ['exited', 'dead']:
+                            error_containers += 1
+                    except Exception:
+                        pass
+        
+        stats = {
+            'total_models': total_models,
+            'total_apps': total_apps,
+            'running_containers': running_containers,
+            'error_containers': error_containers,
+            'total_providers': len(set(model.provider for model in models)),
+            'analyzed_apps': analyzed_apps,
+            'performance_tested': 0,
+            'docker_health': 'Healthy' if docker_manager else 'Unavailable'
+        }
+        
+        return jsonify(stats)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Container control routes
+@main_bp.route('/api/containers/<model_slug>/<int:app_num>/start', methods=['POST'])
+def api_start_container(model_slug, app_num):
+    """Start containers for a specific app"""
+    try:
+        result = handle_docker_action('start', model_slug, app_num)
+        if result.get('success'):
+            return render_template('partials/dashboard_model_apps.html', 
+                                 apps=[get_app_data(model_slug, app_num)], 
+                                 model_slug=model_slug)
+        else:
+            return jsonify({'error': result.get('error', 'Failed to start containers')}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/api/containers/<model_slug>/<int:app_num>/stop', methods=['POST'])
+def api_stop_container(model_slug, app_num):
+    """Stop containers for a specific app"""
+    try:
+        result = handle_docker_action('stop', model_slug, app_num)
+        if result.get('success'):
+            return render_template('partials/dashboard_model_apps.html', 
+                                 apps=[get_app_data(model_slug, app_num)], 
+                                 model_slug=model_slug)
+        else:
+            return jsonify({'error': result.get('error', 'Failed to stop containers')}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/api/containers/<model_slug>/<int:app_num>/restart', methods=['POST'])
+def api_restart_container(model_slug, app_num):
+    """Restart containers for a specific app"""
+    try:
+        result = handle_docker_action('restart', model_slug, app_num)
+        if result.get('success'):
+            return render_template('partials/dashboard_model_apps.html', 
+                                 apps=[get_app_data(model_slug, app_num)], 
+                                 model_slug=model_slug)
+        else:
+            return jsonify({'error': result.get('error', 'Failed to restart containers')}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/api/containers/<model_slug>/<int:app_num>/logs')
+def api_container_logs(model_slug, app_num):
+    """Get container logs for a specific app"""
+    try:
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            return "Docker manager not available", 500
+        
+        # Get logs from both containers
+        backend_name = f"{model_slug}_app{app_num}_backend"
+        frontend_name = f"{model_slug}_app{app_num}_frontend"
+        
+        backend_logs = docker_manager.get_container_logs(backend_name) or "No backend logs available"
+        frontend_logs = docker_manager.get_container_logs(frontend_name) or "No frontend logs available"
+        
+        logs_content = f"""
+        <div class="logs-container">
+            <div class="logs-section">
+                <h4>Backend Logs ({backend_name})</h4>
+                <pre class="logs-content">{backend_logs}</pre>
+            </div>
+            <div class="logs-section">
+                <h4>Frontend Logs ({frontend_name})</h4>
+                <pre class="logs-content">{frontend_logs}</pre>
+            </div>
+        </div>
+        """
+        
+        return logs_content
+        
+    except Exception as e:
+        return f"<div class='error'>Error fetching logs: {str(e)}</div>", 500
+
+def get_app_data(model_slug, app_num):
+    """Helper function to get app data"""
+    # This would be implemented with actual app data retrieval
+    # For now, return basic structure
+    return {
+        'app_number': app_num,
+        'app_name': f"App {app_num}",
+        'status': 'unknown',
+        'frontend_port': 9050 + (app_num * 2),
+        'backend_port': 6050 + (app_num * 2)
+    }
 
 
 # ===========================

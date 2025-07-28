@@ -1,0 +1,15 @@
+{
+  "call_id": "Login_backend_20250728_221057_14401c95",
+  "model": "deepseek/deepseek-chat-v3-0324:free",
+  "app_name": "Login",
+  "call_type": "backend",
+  "timestamp": "2025-07-28T22:10:57.813622",
+  "success": true,
+  "attempts": 1,
+  "total_duration": 145.469,
+  "timeout_used": 300,
+  "content_generated": true,
+  "content_length": 10906,
+  "errors_count": 0,
+  "first_error": null
+}

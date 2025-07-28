@@ -6,246 +6,413 @@
 <div class="models-overview">
     <!-- Page Header -->
     <header class="page-header">
-        <h1>AI Models Overview</h1>
-        <p>Explore the 30 AI models used in this research study</p>
+        <h1>🤖 AI Models Overview</h1>
+        <p>Comprehensive analysis of {{ summary_stats.total_models }} AI models across {{ summary_stats.total_providers }} providers</p>
     </header>
 
-    <!-- Models Statistics -->
-    <div class="models-stats"
-         hx-get="/api/models-stats"
-         hx-trigger="load, every 60s"
-         hx-target="this">
-        <div class="loading">Loading model statistics...</div>
+    <!-- Summary Statistics Cards -->
+    <div class="models-summary-grid">
+        <div class="stats-card primary">
+            <div class="stats-icon">🎯</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.total_models }}</h3>
+                <p>Total Models</p>
+            </div>
+        </div>
+        
+        <div class="stats-card success">
+            <div class="stats-icon">🏢</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.total_providers }}</h3>
+                <p>Providers</p>
+            </div>
+        </div>
+        
+        <div class="stats-card info">
+            <div class="stats-icon">📱</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.total_apps }}</h3>
+                <p>Generated Apps</p>
+            </div>
+        </div>
+        
+        <div class="stats-card warning">
+            <div class="stats-icon">🚀</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.total_running }}</h3>
+                <p>Running Containers</p>
+            </div>
+        </div>
+        
+        <div class="stats-card secondary">
+            <div class="stats-icon">👁️</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.vision_models }}</h3>
+                <p>Vision Models</p>
+            </div>
+        </div>
+        
+        <div class="stats-card accent">
+            <div class="stats-icon">⚡</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.function_calling_models }}</h3>
+                <p>Function Calling</p>
+            </div>
+        </div>
+        
+        <div class="stats-card success">
+            <div class="stats-icon">🆓</div>
+            <div class="stats-content">
+                <h3>{{ summary_stats.free_models }}</h3>
+                <p>Free Models</p>
+            </div>
+        </div>
+        
+        <div class="stats-card info">
+            <div class="stats-icon">📊</div>
+            <div class="stats-content">
+                <h3>{{ "{:,}".format(summary_stats.avg_context_window) }}</h3>
+                <p>Avg Context Window</p>
+            </div>
+        </div>
     </div>
 
-    <!-- Filter and Search -->
+    <!-- Filter and Search Controls -->
     <div class="models-controls">
-        <div class="search-section">
-            <input type="search" 
-                   name="search"
-                   hx-get="/models"
-                   hx-trigger="keyup changed delay:500ms"
-                   hx-target="#models-grid"
-                   hx-include="[name='provider'], [name='sort']"
-                   placeholder="Search models...">
-            
-            <select name="provider"
-                    hx-get="/models"
-                    hx-trigger="change"
-                    hx-target="#models-grid"
-                    hx-include="[name='search'], [name='sort']">
-                <option value="">All Providers</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="openai">OpenAI</option>
-                <option value="google">Google</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="qwen">Qwen</option>
-                <option value="microsoft">Microsoft</option>
-                <option value="meta">Meta</option>
-                <option value="mistral">Mistral</option>
-            </select>
-            
-            <select name="sort"
-                    hx-get="/models"
-                    hx-trigger="change"
-                    hx-target="#models-grid"
-                    hx-include="[name='search'], [name='provider']">
-                <option value="name">Sort by Name</option>
-                <option value="provider">Sort by Provider</option>
-                <option value="apps_count">Sort by Apps Count</option>
-                <option value="performance">Sort by Performance</option>
-                <option value="running_containers">Sort by Active Containers</option>
-            </select>
-        </div>
-    </div>
-
-    <!-- Models Grid -->
-    <div id="models-grid" class="models-grid">
-        {% if model_stats %}
-        {% for model in model_stats %}
-        <div class="model-card">
-            <div class="model-header">
-                <div class="model-title-section">
-                    <h3 class="model-name">{{ model.name|replace('_', ' ')|title }}</h3>
-                    <span class="model-provider">{{ model.name.split('_')[0]|title }}</span>
-                </div>
-                
-                <div class="model-status">
-                    <span class="status-indicator available">Available</span>
-                </div>
+        <div class="controls-section">
+            <div class="search-group">
+                <label for="search-input">🔍 Search Models</label>
+                <input type="search" 
+                       id="search-input"
+                       name="search"
+                       value="{{ search_query }}"
+                       hx-get="/models"
+                       hx-trigger="keyup changed delay:500ms"
+                       hx-target="#models-content"
+                       hx-include="[name='provider'], [name='sort']"
+                       hx-vals='{"partial": "table"}'
+                       placeholder="Search by name, ID, or provider...">
             </div>
             
-            <div class="model-info">
-                <div class="model-stat">
-                    <span class="stat-label">Apps:</span>
-                    <span class="stat-value">{{ model.app_count }}</span>
-                </div>
-                
-                <div class="model-stat">
-                    <span class="stat-label">Ports:</span>
-                    <span class="stat-value">{{ model.total_ports }}</span>
-                </div>
-            </div>
-            
-            <div class="model-actions">
-                <button hx-get="/models/{{ model.name }}/apps" 
-                        hx-target="#modal-container"
-                        class="btn-secondary btn-sm">
-                    View Apps
-                </button>
-                
-                <button hx-get="/models/{{ model.name }}/performance" 
-                        hx-target="#modal-container"
-                        class="btn-secondary btn-sm">
-                    Performance
-                </button>
-            </div>
-        </div>
-        {% endfor %}
-        {% else %}
-        <div class="empty-state">
-            <h3>No Models Found</h3>
-            <p>No model data is currently available.</p>
-        </div>
-        {% endif %}
-    </div>
-                {% if model.description %}
-                <p class="model-description">{{ model.description|truncate(120) }}</p>
-                {% endif %}
-                
-                <div class="model-specs">
-                    {% if model.context_window %}
-                    <div class="spec-item">
-                        <span class="spec-label">Context:</span>
-                        <span class="spec-value">{{ model.context_window|format_number }}k tokens</span>
-                    </div>
-                    {% endif %}
-                    
-                    {% if model.pricing %}
-                    <div class="spec-item">
-                        <span class="spec-label">Price:</span>
-                        <span class="spec-value">${{ model.pricing.input }}/1K in, ${{ model.pricing.output }}/1K out</span>
-                    </div>
-                    {% endif %}
-                    
-                    <div class="spec-item">
-                        <span class="spec-label">Apps:</span>
-                        <span class="spec-value">{{ model.apps_count or 30 }}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="model-metrics">
-                <div class="metric-item">
-                    <span class="metric-value">{{ model.running_containers or 0 }}</span>
-                    <span class="metric-label">Running</span>
-                </div>
-                <div class="metric-item">
-                    <span class="metric-value">{{ model.completed_analyses or 0 }}</span>
-                    <span class="metric-label">Analyzed</span>
-                </div>
-                <div class="metric-item">
-                    <span class="metric-value">{{ model.avg_performance_score or 'N/A' }}</span>
-                    <span class="metric-label">Avg Score</span>
-                </div>
-            </div>
-            
-            <div class="model-actions">
-                <a href="/model/{{ model.slug }}" class="btn-primary btn-sm">
-                    View Details
-                </a>
-                
-                <button hx-post="/docker/start-all/{{ model.slug }}"
-                        hx-confirm="Start all containers for {{ model.name }}?"
-                        hx-target="closest .model-card .model-status"
-                        class="btn-success btn-sm">
-                    Start All
-                </button>
-                
-                <button hx-post="/docker/stop-all/{{ model.slug }}"
-                        hx-confirm="Stop all containers for {{ model.name }}?"
-                        hx-target="closest .model-card .model-status"
-                        class="btn-danger btn-sm">
-                    Stop All
-                </button>
-            </div>
-            
-            <!-- App Preview -->
-            <div class="app-preview">
-                <div class="preview-header">
-                    <span class="preview-title">Applications</span>
-                    <button class="preview-toggle"
-                            _="on click toggle .expanded on closest .model-card">
-                        <span class="toggle-icon">▼</span>
-                    </button>
-                </div>
-                
-                <div class="app-grid-mini">
-                    {% for app in model.apps[:6] %}
-                    <a href="{{ url_for('main.app_details', model=model.slug, app_num=app.app_num) }}" 
-                       class="app-mini-card">
-                        <span class="app-mini-number">{{ app.app_num }}</span>
-                        <span class="app-mini-type">{{ app.app_type[:10] }}...</span>
-                        <span class="app-mini-status status-{{ app.status }}"></span>
-                    </a>
+            <div class="filter-group">
+                <label for="provider-filter">🏢 Provider</label>
+                <select id="provider-filter"
+                        name="provider"
+                        hx-get="/models"
+                        hx-trigger="change"
+                        hx-target="#models-content"
+                        hx-include="[name='search'], [name='sort']"
+                        hx-vals='{"partial": "table"}'>
+                    <option value="">All Providers ({{ summary_stats.total_providers }})</option>
+                    {% for provider in providers %}
+                    <option value="{{ provider }}" {% if provider == provider_filter %}selected{% endif %}>
+                        {{ provider|title }}
+                    </option>
                     {% endfor %}
-                    
-                    {% if model.apps|length > 6 %}
-                    <div class="app-mini-more">
-                        +{{ model.apps|length - 6 }} more
-                    </div>
-                    {% endif %}
-                </div>
+                </select>
+            </div>
+            
+            <div class="sort-group">
+                <label for="sort-select">📈 Sort By</label>
+                <select id="sort-select"
+                        name="sort"
+                        hx-get="/models"
+                        hx-trigger="change"
+                        hx-target="#models-content"
+                        hx-include="[name='search'], [name='provider']"
+                        hx-vals='{"partial": "table"}'>
+                    <option value="model_name" {% if sort_by == 'model_name' %}selected{% endif %}>Model Name</option>
+                    <option value="provider" {% if sort_by == 'provider' %}selected{% endif %}>Provider</option>
+                    <option value="context_window" {% if sort_by == 'context_window' %}selected{% endif %}>Context Window</option>
+                    <option value="input_price" {% if sort_by == 'input_price' %}selected{% endif %}>Input Price</option>
+                    <option value="output_price" {% if sort_by == 'output_price' %}selected{% endif %}>Output Price</option>
+                    <option value="safety_score" {% if sort_by == 'safety_score' %}selected{% endif %}>Safety Score</option>
+                    <option value="cost_efficiency" {% if sort_by == 'cost_efficiency' %}selected{% endif %}>Cost Efficiency</option>
+                </select>
+            </div>
+            
+            <div class="action-group">
+                <button class="btn-secondary" onclick="clearFilters()">
+                    🗑️ Clear Filters
+                </button>
+                <button class="btn-primary" onclick="exportModelsData()">
+                    💾 Export Data
+                </button>
             </div>
         </div>
-        {% endfor %}
     </div>
 
-    <!-- Comparison Tools -->
-    <div class="comparison-section">
-        <h3>Model Comparison</h3>
-        <div class="comparison-controls">
-            <button hx-get="/models/compare"
-                    hx-target="#modal-container"
-                    class="btn-primary">
-                📊 Compare Models
-            </button>
-            
-            <button hx-get="/models/performance-report"
-                    hx-target="#modal-container"
-                    class="btn-secondary">
-                📈 Performance Report
-            </button>
-            
-            <button hx-get="/models/export"
-                    class="btn-secondary">
-                💾 Export Data
-            </button>
+    <!-- Models Table -->
+    <div id="models-content" class="models-table-container">
+        {% include "partials/models_table.html" %}
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div id="export-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Export Models Data</h3>
+            <span class="close" onclick="closeModal('export-modal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p>Choose export format:</p>
+            <div class="export-options">
+                <button class="btn-primary" onclick="exportFormat('json')">📄 JSON</button>
+                <button class="btn-secondary" onclick="exportFormat('csv')">📊 CSV</button>
+                <button class="btn-accent" onclick="exportFormat('xlsx')">📋 Excel</button>
+            </div>
         </div>
     </div>
 </div>
 
 {% endblock %}
 
+{% block styles %}
+<style>
+.models-overview {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.page-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.page-header h1 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.page-header p {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+}
+
+.models-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.stats-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid var(--primary-color);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+.stats-card.primary { border-left-color: var(--primary-color); }
+.stats-card.success { border-left-color: var(--success-color); }
+.stats-card.info { border-left-color: var(--info-color); }
+.stats-card.warning { border-left-color: var(--warning-color); }
+.stats-card.secondary { border-left-color: var(--secondary-color); }
+.stats-card.accent { border-left-color: var(--accent-color); }
+
+.stats-icon {
+    font-size: 2rem;
+    opacity: 0.8;
+}
+
+.stats-content h3 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.stats-content p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.models-controls {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.controls-section {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 1.5rem;
+    align-items: end;
+}
+
+.search-group, .filter-group, .sort-group, .action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.search-group label, .filter-group label, .sort-group label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.search-group input, .filter-group select, .sort-group select {
+    padding: 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.search-group input:focus, .filter-group select:focus, .sort-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.action-group {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+}
+
+.models-table-container {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 0;
+    border-radius: 12px;
+    width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.close {
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.close:hover {
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.export-options {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .models-overview {
+        padding: 1rem;
+    }
+    
+    .models-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    
+    .controls-section {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .action-group {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}
+
 {% block scripts %}
 <script>
-// Model card expansion functionality
-document.addEventListener('click', function(e) {
-    if (e.target.closest('.preview-header')) {
-        const card = e.target.closest('.model-card');
-        card.classList.toggle('expanded');
-    }
-});
+function clearFilters() {
+    document.getElementById('search-input').value = '';
+    document.getElementById('provider-filter').value = '';
+    document.getElementById('sort-select').value = 'model_name';
+    
+    // Trigger HTMX update
+    htmx.trigger('#search-input', 'keyup');
+}
 
-// Auto-refresh for real-time updates
-document.addEventListener('DOMContentLoaded', function() {
-    // Stagger the initial loads to avoid overwhelming the server
-    const statusElements = document.querySelectorAll('[hx-get*="model-status"]');
-    statusElements.forEach((element, index) => {
-        setTimeout(() => {
-            htmx.trigger(element, 'load');
-        }, index * 100); // 100ms delay between each
+function exportModelsData() {
+    document.getElementById('export-modal').style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+function exportFormat(format) {
+    const searchParams = new URLSearchParams(window.location.search);
+    searchParams.set('format', format);
+    
+    window.open(`/api/models/export?${searchParams.toString()}`, '_blank');
+    closeModal('export-modal');
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
     });
-});
+}
+
+// Real-time updates for running containers
+setInterval(() => {
+    // Update running container counts every 30 seconds
+    htmx.trigger('#models-content', 'refresh');
+}, 30000);
 </script>
 {% endblock %}

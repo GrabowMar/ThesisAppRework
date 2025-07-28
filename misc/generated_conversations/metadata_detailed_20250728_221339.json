@@ -1,0 +1,128 @@
+{
+  "metadata_version": "2.0",
+  "generation_info": {
+    "start_time": "2025-07-28T22:10:58.207160",
+    "end_time": "2025-07-28T22:13:23.302380",
+    "duration_seconds": 145.09522,
+    "generator_version": "Combined OpenRouter Code Generator & Extractor v2.0",
+    "python_version": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+    "platform": "nt"
+  },
+  "configuration": {
+    "temperature": 0.7,
+    "max_tokens": 12000,
+    "system_prompt": "You are an expert full-stack developer. Generate comprehensive markdown documentation with clean, production-ready code. Include detailed explanations, setup instructions, and all necessary files.",
+    "save_raw_markdown": true,
+    "save_json_export": true,
+    "models_selected": [
+      "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+      "deepseek/deepseek-chat-v3-0324:free",
+      "deepseek/deepseek-r1-0528:free"
+    ]
+  },
+  "templates_info": [
+    {
+      "app_num": 1,
+      "name": "Login",
+      "frontend_template_size": 3538,
+      "backend_template_size": 3248,
+      "requirements_count": 5,
+      "requirements": [
+        "use `Flask-Bcrypt` for password hashing",
+        "display a welcome message and a logout button",
+        "contain `Flask`, `Flask-CORS`, and `Flask-Bcrypt`",
+        "be compatible with a Vite setup that uses port **`5505`**",
+        "include `react`, `react-dom`, and `axios`"
+      ],
+      "frontend_file": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\app_templates\\app_1_frontend_login.md",
+      "backend_file": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\app_templates\\app_1_backend_login.md"
+    }
+  ],
+  "generation_summary": {
+    "total_templates": 1,
+    "total_models": 2,
+    "total_generations": 2,
+    "successful_generations": 1,
+    "failed_generations": 1,
+    "partial_success_generations": 0,
+    "overall_success_rate": 0.5,
+    "total_api_requests": 4,
+    "estimated_total_cost": 0,
+    "free_model_requests": 2,
+    "paid_model_requests": 0
+  },
+  "apps_statistics": [
+    {
+      "app_num": 1,
+      "app_name": "Login",
+      "requirements": [
+        "use `Flask-Bcrypt` for password hashing",
+        "display a welcome message and a logout button",
+        "contain `Flask`, `Flask-CORS`, and `Flask-Bcrypt`",
+        "be compatible with a Vite setup that uses port **`5505`**",
+        "include `react`, `react-dom`, and `axios`"
+      ],
+      "models_attempted": [
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+        "deepseek/deepseek-chat-v3-0324:free"
+      ],
+      "successful_models": [
+        "deepseek/deepseek-chat-v3-0324:free"
+      ],
+      "failed_models": [
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"
+      ],
+      "total_content_length": 23151,
+      "avg_content_length": 23151.0,
+      "success_rate": 0.5
+    }
+  ],
+  "models_statistics": [
+    {
+      "model": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+      "provider": "cognitivecomputations",
+      "is_free": true,
+      "display_name": "Dolphin Mistral 24B Venice Edition (Free)",
+      "apps_attempted": [
+        1
+      ],
+      "successful_apps": [],
+      "failed_apps": [
+        1
+      ],
+      "total_tokens_estimated": 0,
+      "avg_response_quality": 0,
+      "success_rate": 0
+    },
+    {
+      "model": "deepseek/deepseek-chat-v3-0324:free",
+      "provider": "deepseek",
+      "is_free": true,
+      "display_name": "Deepseek Chat V3 0324 (Free)",
+      "apps_attempted": [
+        1
+      ],
+      "successful_apps": [
+        1
+      ],
+      "failed_apps": [],
+      "total_tokens_estimated": 2363,
+      "avg_response_quality": 2363.0,
+      "success_rate": 1.0
+    }
+  ],
+  "performance_metrics": {
+    "avg_generation_time_per_request": 36.273805,
+    "fastest_model": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+    "slowest_model": "deepseek/deepseek-chat-v3-0324:free",
+    "most_successful_app": 1,
+    "least_successful_app": 1
+  },
+  "file_outputs": {
+    "markdown_files_generated": 2,
+    "json_export_created": true,
+    "extraction_enabled": true,
+    "files_extracted": 7,
+    "output_directory": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\generated_conversations"
+  }
+}

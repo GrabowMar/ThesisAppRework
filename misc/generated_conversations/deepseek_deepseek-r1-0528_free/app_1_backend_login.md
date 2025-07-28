@@ -1,3 +1,25 @@
+### Secure Flask Authentication API Implementation
+
+I'll create a secure backend authentication system using Flask that meets all your requirements. The solution includes session-based authentication, protected routes, and proper password hashing with Bcrypt.
+
+#### Files:
+1. `requirements.txt`
+2. `app.py`
+
+---
+
+### 1. requirements.txt
+```txt
+Flask==3.0.3
+Flask-CORS==4.0.1
+Flask-Bcrypt==1.0.1
+python-dotenv==1.0.1
+```
+
+---
+
+### 2. app.py
+```python
 # 1. Imports
 import os
 import sqlite3
@@ -20,11 +42,11 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=86400  # 24 hours
 )
 
-# Configure CORS to allow Vite frontend (port 6261)
+# Configure CORS to allow Vite frontend (port 5505)
 CORS(
     app,
     supports_credentials=True,
-    origins=['http://localhost:6261']
+    origins=['http://localhost:5505']
 )
 
 # Initialize Bcrypt
@@ -204,4 +226,174 @@ def dashboard():
 # 6. Main execution
 if __name__ == '__main__':
     init_db()  # Initialize database on startup
-    app.run(host='0.0.0.0', port=6261, debug=True)
+    app.run(host='0.0.0.0', port=5005, debug=True)
+```
+
+---
+
+## Implementation Details
+
+### Security Features
+1. **Password Hashing**: Uses `Flask-Bcrypt` with industry-standard salting and hashing
+2. **Session Security**: 
+   - HttpOnly cookies
+   - Secure cookies (enable HTTPS in production)
+   - SameSite cookie policy
+3. **Input Validation**: 
+   - Username/email uniqueness checks
+   - Password length validation
+   - Email format validation
+4. **Error Handling**:
+   - Proper HTTP status codes
+   - Descriptive error messages
+   - SQL injection prevention with parameterized queries
+
+### Session Management
+- Uses Flask's built-in session management
+- Sessions stored server-side with client-side session ID cookies
+- Automatic session expiration (24 hours)
+
+### CORS Configuration
+- Pre-configured for Vite development server (`http://localhost:5505`)
+- `supports_credentials=True` allows sending cookies cross-origin
+- Strict origin configuration prevents unwanted access
+
+### Database Schema
+```sql
+CREATE TABLE Users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+---
+
+## Setup Instructions
+
+### 1. Create a virtual environment
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate    # Windows
+```
+
+### 2. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Create .env file
+```env
+SECRET_KEY=your_strong_secret_key_here
+```
+
+### 4. Run the application
+```bash
+python app.py
+```
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/register` | POST | Register new user |
+| `/api/login` | POST | Authenticate user |
+| `/api/logout` | POST | Terminate session |
+| `/api/user` | GET | Get current user data |
+| `/api/dashboard` | GET | Protected dashboard |
+
+---
+
+## Usage Examples
+
+### 1. Registration
+```bash
+curl -X POST http://localhost:5005/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "john_doe",
+    "email": "john@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+### 2. Login
+```bash
+curl -X POST http://localhost:5005/api/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "john_doe",
+    "password": "securePassword123"
+  }' \
+  -c cookies.txt
+```
+
+### 3. Access Protected Dashboard
+```bash
+curl -X GET http://localhost:5005/api/dashboard \
+  -H "Content-Type: application/json" \
+  -b cookies.txt
+```
+
+### 4. Get Current User
+```bash
+curl -X GET http://localhost:5005/api/user \
+  -H "Content-Type: application/json" \
+  -b cookies.txt
+```
+
+### 5. Logout
+```bash
+curl -X POST http://localhost:5005/api/logout \
+  -H "Content-Type: application/json" \
+  -b cookies.txt
+```
+
+---
+
+## Frontend Integration Notes
+
+1. **CORS Configuration**: 
+   - The backend is pre-configured for Vite (port 5505)
+   - Ensure frontend makes requests with `credentials: 'include'`
+   
+2. **Axios Example**:
+```javascript
+axios.post('http://localhost:5005/api/login', 
+  { username: 'test', password: 'password' },
+  { withCredentials: true }
+)
+```
+
+3. **Session Management**:
+   - The backend uses session cookies automatically
+   - No need for token storage in frontend
+   - Cookies are HttpOnly for XSS protection
+
+4. **Dashboard Response**:
+```json
+{
+  "message": "Welcome to your dashboard, john_doe!",
+  "logout_button": "<button id=\"logout-btn\">Logout</button>"
+}
+```
+
+---
+
+## Security Best Practices Implemented
+
+1. Password hashing with bcrypt (adaptive hashing algorithm)
+2. HttpOnly and Secure cookies
+3. Input validation and sanitization
+4. Parameterized SQL queries to prevent injection
+5. Session expiration
+6. CORS origin restrictions
+7. Error handling without sensitive data leakage
+8. Secret key management via environment variables
+
+This implementation provides a robust foundation for authentication that can be extended with additional security measures like rate limiting, account lockouts, and two-factor authentication as needed.

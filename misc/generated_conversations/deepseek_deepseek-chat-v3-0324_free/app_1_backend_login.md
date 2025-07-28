@@ -1,3 +1,64 @@
+# Flask Authentication API Documentation
+
+This document provides a complete implementation of a secure Flask backend for user authentication, including registration, login, session management, and protected routes.
+
+## Table of Contents
+1. [System Overview](#system-overview)
+2. [Setup Instructions](#setup-instructions)
+3. [Database Schema](#database-schema)
+4. [API Endpoints](#api-endpoints)
+5. [Implementation Details](#implementation-details)
+6. [Security Considerations](#security-considerations)
+7. [Usage Examples](#usage-examples)
+
+## System Overview
+
+This Flask-based authentication system provides:
+- Secure user registration with password hashing
+- Session-based authentication
+- Protected routes
+- Cross-origin resource sharing (CORS) support
+- SQLite database for user storage
+
+## Setup Instructions
+
+### 1. Install Dependencies
+
+Create a `requirements.txt` file with the following content:
+
+```txt
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-Bcrypt==1.0.1
+python-dotenv==1.0.0
+```
+
+Install them using:
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Database Initialization
+
+The system will automatically create a SQLite database file (`auth.db`) when first run.
+
+## Database Schema
+
+The system uses a single `users` table with the following structure:
+
+| Column        | Type        | Description                     |
+|---------------|-------------|---------------------------------|
+| id            | INTEGER     | Primary key, auto-increment     |
+| username      | TEXT        | Unique username                |
+| email         | TEXT        | Unique email address           |
+| password_hash | TEXT        | BCrypt hashed password         |
+| created_at    | DATETIME    | Timestamp of account creation   |
+
+## Implementation Details
+
+### Complete `app.py` Implementation
+
+```python
 # 1. Imports
 from flask import Flask, request, jsonify, session, make_response
 from flask_cors import CORS, cross_origin
@@ -12,12 +73,12 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'your-secret-key-here'
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = 9191  # 1 hour session lifetime
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour session lifetime
 
-# Configure CORS to work with your Vite frontend (port 6191)
+# Configure CORS to work with your Vite frontend (port 5505)
 CORS(
     app,
-    resources={r"/api/*": {"origins": "http://localhost:6191"}},
+    resources={r"/api/*": {"origins": "http://localhost:5505"}},
     supports_credentials=True
 )
 
@@ -197,4 +258,159 @@ def dashboard():
 # 6. Main execution
 if __name__ == '__main__':
     init_db()
-    app.run(host='0.0.0.0', port=6191, debug=True)
+    app.run(host='0.0.0.0', port=5005, debug=True)
+```
+
+## Security Considerations
+
+1. **Password Hashing**: Uses BCrypt with salt for secure password storage
+2. **Session Security**:
+   - Session cookies are HTTP-only
+   - SameSite=Lax policy to prevent CSRF
+   - 1-hour session expiration
+3. **Input Validation**: All user input is validated
+4. **Error Handling**: Proper error responses without revealing sensitive information
+5. **CORS**: Strictly configured to work only with the Vite frontend (port 5505)
+
+## API Endpoints
+
+### 1. User Registration
+- **Endpoint**: `POST /api/register`
+- **Request Body**:
+  ```json
+  {
+    "username": "example_user",
+    "email": "user@example.com",
+    "password": "securePassword123"
+  }
+  ```
+- **Success Response**:
+  ```json
+  {
+    "message": "User registered successfully",
+    "user": {
+      "id": 1,
+      "username": "example_user",
+      "email": "user@example.com"
+    }
+  }
+  ```
+
+### 2. User Login
+- **Endpoint**: `POST /api/login`
+- **Request Body**:
+  ```json
+  {
+    "email": "user@example.com",
+    "password": "securePassword123"
+  }
+  ```
+- **Success Response**:
+  ```json
+  {
+    "message": "Login successful",
+    "user": {
+      "id": 1,
+      "username": "example_user",
+      "email": "user@example.com"
+    }
+  }
+  ```
+
+### 3. Get Current User
+- **Endpoint**: `GET /api/user`
+- **Success Response**:
+  ```json
+  {
+    "user": {
+      "id": 1,
+      "username": "example_user",
+      "email": "user@example.com",
+      "created_at": "2023-01-01 12:00:00"
+    }
+  }
+  ```
+
+### 4. Logout
+- **Endpoint**: `POST /api/logout`
+- **Success Response**:
+  ```json
+  {
+    "message": "Logout successful"
+  }
+  ```
+
+### 5. Protected Dashboard
+- **Endpoint**: `GET /api/dashboard`
+- **Success Response**:
+  ```json
+  {
+    "message": "Welcome to your dashboard, example_user!",
+    "data": {
+      "stats": {
+        "visits": 42,
+        "notifications": 5,
+        "messages": 3
+      }
+    }
+  }
+  ```
+
+## Usage Examples
+
+### Frontend Integration (React + Axios)
+
+```javascript
+import axios from 'axios';
+
+// Configure axios to send credentials with all requests
+axios.defaults.withCredentials = true;
+
+// Example registration
+async function register(username, email, password) {
+  try {
+    const response = await axios.post('http://localhost:5005/api/register', {
+      username,
+      email,
+      password
+    });
+    return response.data;
+  } catch (error) {
+    throw error.response.data;
+  }
+}
+
+// Example login
+async function login(email, password) {
+  try {
+    const response = await axios.post('http://localhost:5005/api/login', {
+      email,
+      password
+    });
+    return response.data;
+  } catch (error) {
+    throw error.response.data;
+  }
+}
+
+// Example protected request
+async function getDashboardData() {
+  try {
+    const response = await axios.get('http://localhost:5005/api/dashboard');
+    return response.data;
+  } catch (error) {
+    throw error.response.data;
+  }
+}
+```
+
+### Environment Variables
+
+For production, consider using environment variables:
+
+```bash
+# .env file
+SECRET_KEY=your-very-secret-key-here
+```
+
+This completes the comprehensive backend implementation for the Login application with all specified requirements.

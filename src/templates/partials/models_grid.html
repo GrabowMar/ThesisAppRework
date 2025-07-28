@@ -1,0 +1,147 @@
+<!-- Models Grid - Expandable Tabs for Each Model -->
+<div class="models-grid">
+    {% for model in models %}
+    <div class="model-card" 
+         data-model-id="{{ model.id }}"
+         data-model-slug="{{ model.canonical_slug }}"
+         _="init set :expanded to false
+            on click from .model-header
+                if :expanded is false
+                    set :expanded to true
+                    add .expanded to me
+                    trigger expandModel(model: '{{ model.canonical_slug }}') on me
+                else
+                    set :expanded to false
+                    remove .expanded from me
+                end
+            on expandModel(model)
+                if model is '{{ model.canonical_slug }}'
+                    if my *display is 'none'
+                        set my *display to 'block'
+                    end
+                end">
+        
+        <!-- Model Header - Clickable to expand -->
+        <div class="model-header"
+             _="on mouseenter add .hover to me
+                on mouseleave remove .hover from me">
+            
+            <div class="model-info">
+                <div class="model-title">
+                    <h3>{{ model.display_name or model.canonical_slug|replace('_', ' ')|title }}</h3>
+                    <span class="model-provider">{{ model.provider|title }}</span>
+                </div>
+                
+                <div class="model-stats">
+                    <span class="stat-item">
+                        <span class="stat-label">Apps:</span>
+                        <span class="stat-value">{{ model.generated_apps|length }}</span>
+                    </span>
+                    <span class="stat-item">
+                        <span class="stat-label">Running:</span>
+                        <span class="stat-value running">{{ model.running_apps_count or 0 }}</span>
+                    </span>
+                    <span class="stat-item">
+                        <span class="stat-label">Context:</span>
+                        <span class="stat-value">{{ (model.context_window_size or 0)|filesizeformat|replace('B', 'K') }}</span>
+                    </span>
+                </div>
+            </div>
+            
+            <div class="model-controls">
+                <div class="model-status">
+                    {% if model.is_available %}
+                        <span class="status-indicator active" title="Model Available"></span>
+                    {% else %}
+                        <span class="status-indicator inactive" title="Model Unavailable"></span>
+                    {% endif %}
+                </div>
+                
+                <button class="btn-icon model-actions"
+                        hx-get="/api/models/{{ model.id }}/details"
+                        hx-target="#model-modal .modal-content"
+                        _="on click 
+                           halt the event's bubbling
+                           show #model-modal">
+                    <span>⚙️</span>
+                </button>
+                
+                <div class="expand-indicator"
+                     _="init set my textContent to '▶'
+                        on expandModel from closest .model-card
+                            if closest .model-card's :expanded is true
+                                set my textContent to '▼'
+                            else
+                                set my textContent to '▶'
+                            end">▶</div>
+            </div>
+        </div>
+        
+        <!-- Model Content - Applications Grid (Initially Hidden) -->
+        <div class="model-content"
+             hx-get="/api/models/{{ model.canonical_slug }}/apps"
+             hx-trigger="expandModel from:closest .model-card"
+             hx-target="this"
+             hx-swap="innerHTML"
+             style="display: none;"
+             _="on expandModel from closest .model-card
+                if closest .model-card's :expanded is true
+                    show me with *opacity from 0 to 1 over 300ms
+                else
+                    hide me with *opacity from 1 to 0 over 200ms
+                end">
+            
+            <div class="loading-apps">
+                <div class="loading-spinner"></div>
+                <p>Loading applications for {{ model.display_name }}...</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Empty State -->
+{% if not models %}
+<div class="empty-state">
+    <div class="empty-icon">🤖</div>
+    <h3>No Models Found</h3>
+    <p>No AI models match your current search criteria.</p>
+    <button class="btn-primary" 
+            hx-get="/api/dashboard/models"
+            hx-target="#models-grid">
+        Reset Filters
+    </button>
+</div>
+{% endif %}
+
+<!-- Dashboard Statistics Summary -->
+<div class="dashboard-summary">
+    <div class="summary-stats">
+        <div class="stat-card">
+            <span class="stat-number">{{ models|length }}</span>
+            <span class="stat-label">AI Models</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ total_apps or 0 }}</span>
+            <span class="stat-label">Total Apps</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ running_apps or 0 }}</span>
+            <span class="stat-label">Running Apps</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ error_apps or 0 }}</span>
+            <span class="stat-label">Error Apps</span>
+        </div>
+    </div>
+    
+    <div class="last-updated">
+        Last updated: <time>{{ current_time.strftime('%H:%M:%S') }}</time>
+        <button class="btn-link" 
+                hx-get="/api/dashboard/models"
+                hx-target="#models-grid"
+                hx-indicator="#refresh-indicator">
+            🔄 Refresh
+        </button>
+    </div>
+</div>

@@ -1,0 +1,464 @@
+<div class="apps-grid">
+    {% for app in apps %}
+    <div class="app-card" id="app-{{ model_slug }}-{{ app.app_number }}">
+        <div class="app-header">
+            <h4 class="app-name">{{ app.app_name }}</h4>
+            <span class="app-status {{ app.status.lower() }}">{{ app.status|title }}</span>
+        </div>
+        
+        <div class="app-description">
+            <p>{{ app.description[:60] }}{% if app.description|length > 60 %}...{% endif %}</p>
+        </div>
+        
+        <div class="app-ports">
+            <div class="port-info">
+                <span class="port-label">Frontend:</span>
+                <span class="port-number">{{ app.frontend_port }}</span>
+            </div>
+            <div class="port-info">
+                <span class="port-label">Backend:</span>
+                <span class="port-number">{{ app.backend_port }}</span>
+            </div>
+        </div>
+        
+        <div class="app-meta">
+            <div class="meta-item">
+                <span class="meta-label">Type:</span>
+                <span class="meta-value">{{ app.app_type|title }}</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Created:</span>
+                <span class="meta-value">{{ app.created_at.strftime('%m/%d/%y') if app.created_at else 'N/A' }}</span>
+            </div>
+            {% if app.last_analyzed %}
+            <div class="meta-item">
+                <span class="meta-label">Analyzed:</span>
+                <span class="meta-value">{{ app.last_analyzed.strftime('%m/%d/%y') }}</span>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="app-status-indicators">
+            <div class="status-indicator {{ 'active' if app.containers.frontend_status == 'running' else 'inactive' }}"
+                 title="Frontend Container">
+                🌐
+            </div>
+            <div class="status-indicator {{ 'active' if app.containers.backend_status == 'running' else 'inactive' }}"
+                 title="Backend Container">
+                ⚙️
+            </div>
+            <div class="status-indicator {{ 'active' if app.containers.database_status == 'running' else 'inactive' }}"
+                 title="Database Container">
+                🗄️
+            </div>
+        </div>
+        
+        <div class="app-actions">
+            {% if app.status.lower() == 'stopped' %}
+            <button class="btn-success btn-sm" 
+                    onclick="startAppContainer('{{ model_slug }}', {{ app.app_number }})"
+                    title="Start all containers">
+                🚀 Start
+            </button>
+            {% elif app.status.lower() == 'running' %}
+            <button class="btn-warning btn-sm" 
+                    onclick="restartAppContainer('{{ model_slug }}', {{ app.app_number }})"
+                    title="Restart containers">
+                🔄 Restart
+            </button>
+            <button class="btn-danger btn-sm" 
+                    onclick="stopAppContainer('{{ model_slug }}', {{ app.app_number }})"
+                    title="Stop all containers">
+                🛑 Stop
+            </button>
+            {% elif app.status.lower() == 'error' %}
+            <button class="btn-warning btn-sm" 
+                    onclick="restartAppContainer('{{ model_slug }}', {{ app.app_number }})"
+                    title="Restart containers">
+                🔄 Fix
+            </button>
+            {% endif %}
+            
+            {% if app.status.lower() == 'running' %}
+            <button class="btn-primary btn-sm" 
+                    onclick="openApp('{{ model_slug }}', {{ app.app_number }}, {{ app.frontend_port }})"
+                    title="Open frontend">
+                🌐 Open
+            </button>
+            {% endif %}
+            
+            <button class="btn-secondary btn-sm" 
+                    onclick="showAppLogs('{{ model_slug }}', {{ app.app_number }})"
+                    title="View container logs">
+                📋 Logs
+            </button>
+            
+            <button class="btn-info btn-sm" 
+                    onclick="analyzeApp('{{ model_slug }}', {{ app.app_number }})"
+                    title="Run security analysis">
+                🔒 Analyze
+            </button>
+            
+            <button class="btn-accent btn-sm" 
+                    onclick="testApp('{{ model_slug }}', {{ app.app_number }})"
+                    title="Run performance tests">
+                ⚡ Test
+            </button>
+        </div>
+        
+        {% if app.analysis_summary %}
+        <div class="app-analysis-summary">
+            <div class="analysis-metrics">
+                <div class="metric-item {{ 'high' if app.analysis_summary.high_issues > 0 else 'low' if app.analysis_summary.medium_issues > 0 else 'good' }}">
+                    <span class="metric-value">{{ app.analysis_summary.high_issues }}</span>
+                    <span class="metric-label">High Risk</span>
+                </div>
+                <div class="metric-item {{ 'medium' if app.analysis_summary.medium_issues > 0 else 'good' }}">
+                    <span class="metric-value">{{ app.analysis_summary.medium_issues }}</span>
+                    <span class="metric-label">Medium Risk</span>
+                </div>
+                <div class="metric-item good">
+                    <span class="metric-value">{{ app.analysis_summary.low_issues }}</span>
+                    <span class="metric-label">Low Risk</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if app.performance_summary %}
+        <div class="app-performance-summary">
+            <div class="performance-metrics">
+                <div class="perf-metric">
+                    <span class="perf-label">Avg Response:</span>
+                    <span class="perf-value">{{ '%.0f'|format(app.performance_summary.avg_response_time) }}ms</span>
+                </div>
+                <div class="perf-metric">
+                    <span class="perf-label">Success Rate:</span>
+                    <span class="perf-value">{{ '%.1f'|format(app.performance_summary.success_rate) }}%</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+.apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.app-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.app-card:hover {
+    border-color: var(--primary-color);
+    background: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.app-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    font-size: 1rem;
+}
+
+.app-status {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.app-status.running {
+    background: var(--success-bg);
+    color: var(--success-fg);
+}
+
+.app-status.stopped {
+    background: var(--warning-bg);
+    color: var(--warning-fg);
+}
+
+.app-status.error {
+    background: var(--error-bg);
+    color: var(--error-fg);
+}
+
+.app-status.starting, .app-status.stopping {
+    background: var(--info-bg);
+    color: var(--info-fg);
+}
+
+.app-description {
+    margin-bottom: 0.75rem;
+}
+
+.app-description p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.app-ports {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.port-info {
+    background: var(--bg-tertiary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.port-label {
+    color: var(--text-muted);
+}
+
+.port-number {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-family: monospace;
+}
+
+.app-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+}
+
+.meta-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+}
+
+.meta-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.meta-value {
+    color: var(--text-primary);
+}
+
+.app-status-indicators {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    justify-content: center;
+}
+
+.status-indicator {
+    font-size: 1.2rem;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+}
+
+.status-indicator.active {
+    opacity: 1;
+}
+
+.app-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+
+.app-actions button {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    flex: 1;
+    min-width: 60px;
+}
+
+.app-analysis-summary {
+    margin-bottom: 0.5rem;
+}
+
+.analysis-metrics {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: space-between;
+}
+
+.metric-item {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+}
+
+.metric-item.high {
+    background: var(--error-bg);
+    color: var(--error-fg);
+}
+
+.metric-item.medium {
+    background: var(--warning-bg);
+    color: var(--warning-fg);
+}
+
+.metric-item.good {
+    background: var(--success-bg);
+    color: var(--success-fg);
+}
+
+.metric-value {
+    display: block;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.metric-label {
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+}
+
+.app-performance-summary {
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.5rem;
+}
+
+.performance-metrics {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.perf-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.perf-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.perf-value {
+    font-weight: bold;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+/* Loading states */
+.app-card.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.app-card.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-top: 2px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    transform: translate(-50%, -50%);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .apps-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .app-actions {
+        flex-direction: column;
+    }
+    
+    .app-actions button {
+        flex: none;
+    }
+    
+    .analysis-metrics {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .performance-metrics {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+}
+</style>
+
+<script>
+// App-specific functions
+function analyzeApp(modelSlug, appNum) {
+    if (confirm(`Run security analysis on ${modelSlug}/app${appNum}? This may take a few minutes.`)) {
+        htmx.ajax('POST', `/api/analysis/start/${modelSlug}/${appNum}`, {
+            target: `#app-${modelSlug}-${appNum}`,
+            swap: 'outerHTML'
+        });
+    }
+}
+
+function testApp(modelSlug, appNum) {
+    if (confirm(`Run performance tests on ${modelSlug}/app${appNum}? This will generate load on the application.`)) {
+        htmx.ajax('POST', `/api/performance/test/${modelSlug}/${appNum}`, {
+            target: `#app-${modelSlug}-${appNum}`,
+            swap: 'outerHTML'
+        });
+    }
+}
+
+// Container status real-time updates
+function updateAppStatus(modelSlug, appNum) {
+    htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/status`, {
+        target: `#app-${modelSlug}-${appNum} .app-status`,
+        swap: 'innerHTML'
+    });
+}
+
+// Auto-refresh app statuses every 15 seconds
+setInterval(() => {
+    document.querySelectorAll('.app-card').forEach(card => {
+        const [, modelSlug, appNum] = card.id.split('-');
+        if (modelSlug && appNum) {
+            updateAppStatus(modelSlug, appNum);
+        }
+    });
+}, 15000);
+</script>

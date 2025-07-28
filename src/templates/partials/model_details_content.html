@@ -1,0 +1,314 @@
+<div class="modal-header">
+    <h3>{{ model.model_name }}</h3>
+    <button class="close" onclick="closeModal('model-details-modal')">&times;</button>
+</div>
+<div class="modal-body">
+    <div class="model-details-grid">
+        <div class="detail-section">
+            <h4>Model Information</h4>
+            <div class="detail-item">
+                <label>Provider:</label>
+                <span>{{ model.provider }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Model ID:</label>
+                <span>{{ model.model_id }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Context Window:</label>
+                <span>{{ '{:,}'.format(model.context_window) }} tokens</span>
+            </div>
+            <div class="detail-item">
+                <label>Max Output:</label>
+                <span>{{ '{:,}'.format(model.max_output_tokens) if model.max_output_tokens else 'N/A' }} tokens</span>
+            </div>
+            <div class="detail-item">
+                <label>Architecture:</label>
+                <span>{{ model.architecture or 'N/A' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Top Provider:</label>
+                <span>{{ 'Yes' if model.top_provider else 'No' }}</span>
+            </div>
+        </div>
+        
+        <div class="detail-section">
+            <h4>Capabilities</h4>
+            <div class="capabilities-list">
+                <div class="capability-item {{ 'enabled' if model.supports_function_calling else 'disabled' }}">
+                    <span class="capability-icon">{{ '✅' if model.supports_function_calling else '❌' }}</span>
+                    <span>Function Calling</span>
+                </div>
+                <div class="capability-item {{ 'enabled' if model.supports_vision else 'disabled' }}">
+                    <span class="capability-icon">{{ '✅' if model.supports_vision else '❌' }}</span>
+                    <span>Vision Support</span>
+                </div>
+                <div class="capability-item {{ 'enabled' if model.supports_tools else 'disabled' }}">
+                    <span class="capability-icon">{{ '✅' if model.supports_tools else '❌' }}</span>
+                    <span>Tool Usage</span>
+                </div>
+                <div class="capability-item {{ 'enabled' if model.per_request_limits else 'disabled' }}">
+                    <span class="capability-icon">{{ '✅' if model.per_request_limits else '❌' }}</span>
+                    <span>Per-Request Limits</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="detail-section">
+            <h4>Pricing</h4>
+            <div class="detail-item">
+                <label>Input Cost:</label>
+                <span>${{ '%.6f'|format(model.input_price_per_token * 1000000) }}/MTok</span>
+            </div>
+            <div class="detail-item">
+                <label>Output Cost:</label>
+                <span>${{ '%.6f'|format(model.output_price_per_token * 1000000) }}/MTok</span>
+            </div>
+            <div class="detail-item">
+                <label>Image Cost:</label>
+                <span>{{ '$%.6f'|format(model.image_price_per_token * 1000000) if model.image_price_per_token else 'N/A' }}/MTok</span>
+            </div>
+        </div>
+        
+        <div class="detail-section">
+            <h4>Container Status</h4>
+            <div class="container-summary">
+                <div class="container-stat running">
+                    <span class="value">{{ running_count }}</span>
+                    <span class="label">Running</span>
+                </div>
+                <div class="container-stat stopped">
+                    <span class="value">{{ stopped_count }}</span>
+                    <span class="label">Stopped</span>
+                </div>
+                <div class="container-stat error">
+                    <span class="value">{{ error_count }}</span>
+                    <span class="label">Errors</span>
+                </div>
+            </div>
+            
+            <div class="model-actions-detailed">
+                <button class="btn-success" onclick="startAllModelContainers('{{ model.canonical_slug }}')">
+                    🚀 Start All Containers
+                </button>
+                <button class="btn-danger" onclick="stopAllModelContainers('{{ model.canonical_slug }}')">
+                    🛑 Stop All Containers
+                </button>
+                <button class="btn-secondary" onclick="analyzeAllModelApps('{{ model.canonical_slug }}')">
+                    🔒 Analyze All Apps
+                </button>
+            </div>
+        </div>
+        
+        <div class="detail-section">
+            <h4>Performance Metrics</h4>
+            <div class="detail-item">
+                <label>Moderation Score:</label>
+                <span>{{ model.moderation_score or 'N/A' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Quality Score:</label>
+                <span>{{ model.quality_score or 'N/A' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Safety Score:</label>
+                <span>{{ model.safety_score or 'N/A' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Instruct Score:</label>
+                <span>{{ model.instruct_score or 'N/A' }}</span>
+            </div>
+        </div>
+        
+        <div class="detail-section">
+            <h4>Technical Details</h4>
+            <div class="detail-item">
+                <label>Canonical Slug:</label>
+                <span>{{ model.canonical_slug }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Model ID:</label>
+                <span>{{ model.model_id }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Created:</label>
+                <span>{{ model.created_at.strftime('%Y-%m-%d %H:%M') if model.created_at else 'N/A' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Updated:</label>
+                <span>{{ model.updated_at.strftime('%Y-%m-%d %H:%M') if model.updated_at else 'N/A' }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.model-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.detail-section {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.detail-section h4 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.detail-item label {
+    font-weight: 600;
+    color: var(--text-muted);
+    flex: 0 0 40%;
+}
+
+.detail-item span {
+    color: var(--text-primary);
+    text-align: right;
+    font-family: monospace;
+    background: var(--bg-tertiary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.capabilities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.capability-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s;
+}
+
+.capability-item.enabled {
+    background: var(--success-bg);
+    border-color: var(--success-color);
+}
+
+.capability-item.disabled {
+    background: var(--bg-tertiary);
+    opacity: 0.6;
+}
+
+.capability-icon {
+    font-size: 1.2rem;
+}
+
+.container-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.container-stat {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 2px solid transparent;
+}
+
+.container-stat.running {
+    background: var(--success-bg);
+    border-color: var(--success-color);
+}
+
+.container-stat.stopped {
+    background: var(--warning-bg);
+    border-color: var(--warning-color);
+}
+
+.container-stat.error {
+    background: var(--error-bg);
+    border-color: var(--error-color);
+}
+
+.container-stat .value {
+    display: block;
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.container-stat .label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.model-actions-detailed {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.model-actions-detailed button {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    .model-details-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .container-summary {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .model-actions-detailed {
+        flex-direction: column;
+    }
+    
+    .detail-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .detail-item label {
+        flex: none;
+    }
+    
+    .detail-item span {
+        text-align: left;
+        width: 100%;
+    }
+}</style>

@@ -1,0 +1,15 @@
+{
+  "call_id": "Login_frontend_20250728_221045_04d07b76",
+  "model": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+  "app_name": "Login",
+  "call_type": "frontend",
+  "timestamp": "2025-07-28T22:10:45.162116",
+  "success": false,
+  "attempts": 2,
+  "total_duration": 12.643,
+  "timeout_used": 600,
+  "content_generated": false,
+  "content_length": 0,
+  "errors_count": 2,
+  "first_error": "API Error: 402 - Payment Required"
+}
