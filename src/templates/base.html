@@ -92,24 +92,114 @@
     </div>
 
     <!-- Global HTMX Event Handlers -->
+    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
     <script>
-        // Global error handler
+        // Enhanced global error handler with better error messages
         document.body.addEventListener('htmx:responseError', function(evt) {
             const target = evt.detail.target;
-            target.innerHTML = '<div class="alert error">Request failed. Please try again.</div>';
+            const status = evt.detail.xhr.status;
+            const statusText = evt.detail.xhr.statusText;
+            
+            let errorMessage = 'Request failed. Please try again.';
+            
+            // Provide more specific error messages based on status code
+            switch(status) {
+                case 0:
+                    errorMessage = 'Network error. Please check your connection and try again.';
+                    break;
+                case 400:
+                    errorMessage = 'Invalid request. Please check your input and try again.';
+                    break;
+                case 401:
+                    errorMessage = 'Authentication required. Please refresh the page and try again.';
+                    break;
+                case 403:
+                    errorMessage = 'Access denied. You do not have permission for this action.';
+                    break;
+                case 404:
+                    errorMessage = 'Resource not found. The requested item may have been removed.';
+                    break;
+                case 500:
+                    errorMessage = 'Server error. Please try again in a few moments.';
+                    break;
+                case 502:
+                case 503:
+                case 504:
+                    errorMessage = 'Service temporarily unavailable. Please try again later.';
+                    break;
+                default:
+                    if (status >= 400 && status < 500) {
+                        errorMessage = `Client error (${status}): ${statusText}. Please try again.`;
+                    } else if (status >= 500) {
+                        errorMessage = `Server error (${status}): ${statusText}. Please try again later.`;
+                    }
+            }
+            
+            // Add retry button for certain error types
+            const shouldShowRetry = [0, 500, 502, 503, 504].includes(status);
+            const retryButton = shouldShowRetry ? 
+                `<button onclick="htmx.trigger(this.parentElement, 'retry')" class="btn-sm" style="margin-left: 10px;">🔄 Retry</button>` : '';
+            
+            target.innerHTML = `<div class="alert error">${errorMessage}${retryButton}</div>`;
+            
+            // Auto-dismiss after 8 seconds for non-critical errors
+            if (![401, 403].includes(status)) {
+                setTimeout(() => {
+                    const alert = target.querySelector('.alert.error');
+                    if (alert) {
+                        alert.style.opacity = '0';
+                        setTimeout(() => alert.remove(), 300);
+                    }
+                }, 8000);
+            }
         });
 
-        // Global loading states
+        // Handle retry events
+        document.body.addEventListener('retry', function(evt) {
+            const target = evt.target;
+            const originalElement = target.closest('[hx-get], [hx-post], [hx-put], [hx-delete]');
+            if (originalElement) {
+                // Clear error message
+                target.innerHTML = '<div class="loading">Retrying...</div>';
+                // Trigger the original request
+                htmx.trigger(originalElement, 'click');
+            }
+        });
+
+        // Enhanced timeout handler
+        document.body.addEventListener('htmx:timeout', function(evt) {
+            const target = evt.detail.target;
+            target.innerHTML = `
+                <div class="alert error">
+                    Request timed out. The server may be busy.
+                    <button onclick="htmx.trigger(this.parentElement, 'retry')" class="btn-sm" style="margin-left: 10px;">🔄 Retry</button>
+                </div>
+            `;
+        });
+
+        // Global loading states with improved UX
         document.body.addEventListener('htmx:beforeRequest', function(evt) {
-            // Show loading state
             const element = evt.detail.elt;
             element.classList.add('htmx-request');
+            
+            // Add loading indicator for buttons
+            if (element.tagName === 'BUTTON') {
+                element.dataset.originalText = element.innerHTML;
+                element.innerHTML = '<span class="loading-spinner"></span> Processing...';
+                element.disabled = true;
+            }
         });
 
         document.body.addEventListener('htmx:afterRequest', function(evt) {
-            // Hide loading state
             const element = evt.detail.elt;
             element.classList.remove('htmx-request');
+            
+            // Restore button text
+            if (element.tagName === 'BUTTON' && element.dataset.originalText) {
+                element.innerHTML = element.dataset.originalText;
+                element.disabled = false;
+                delete element.dataset.originalText;
+            }
         });
 
         // Auto-close alerts

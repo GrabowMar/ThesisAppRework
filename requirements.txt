@@ -1,0 +1,160 @@
+# Thesis Research App - Main Dependencies
+# Install with: pip install -r requirements.txt
+
+# ===========================
+# Core Flask Application
+# ===========================
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-Caching
+Flask-CORS
+Flask-BasicAuth
+
+# Database & ORM
+SQLAlchemy
+alembic
+
+# Web Server & HTTP
+Werkzeug
+requests
+urllib3
+
+# ===========================
+# Docker Integration
+# ===========================
+docker
+
+# ===========================
+# Security Analysis Tools
+# ===========================
+bandit
+safety
+semgrep
+truffleHog
+truffleHogRegexes
+
+# ===========================
+# Performance Testing
+# ===========================
+locust
+gevent
+geventhttpclient
+pandas
+numpy
+
+# ===========================
+# ZAP Security Scanner
+# ===========================
+python-owasp-zap-v2.4
+lxml
+beautifulsoup4
+
+# ===========================
+# Code Quality Analysis
+# ===========================
+pylint
+flake8
+pycodestyle
+pyflakes
+pydocstyle
+isort
+vulture
+radon
+mypy
+mypy-extensions
+
+# ===========================
+# OpenRouter API Integration
+# ===========================
+# Note: The application uses requests for OpenRouter API calls
+# openai package is optional and not directly used in current codebase
+
+# ===========================
+# Configuration & Environment
+# ===========================
+python-dotenv
+click
+click-option-group
+PyYAML
+toml
+configargparse
+
+# ===========================
+# Logging & Monitoring  
+# ===========================
+coloredlogs
+prometheus-client
+
+# ===========================
+# Utility Libraries
+# ===========================
+psutil
+pathlib2
+jproperties
+arrow
+
+# ===========================
+# Data Processing & Analysis
+# ===========================
+python-dateutil
+pytz
+markdown-it-py
+rich
+
+# ===========================
+# Concurrency & Threading
+# ===========================
+greenlet
+
+# ===========================
+# Optional Dependencies
+# ===========================
+
+# Additional security tools (optional)
+# snyk  # CLI tool - install separately with: npm install -g snyk
+
+# Database drivers (choose based on your database)
+# PostgreSQL: psycopg2-binary
+# MySQL: PyMySQL
+# SQLite: built-in (no additional package needed)
+
+# Production server (optional, for deployment)
+gunicorn
+# uWSGI  # Problematic on Windows - use gunicorn instead
+
+# ===========================
+# Development Tools (optional)
+# ===========================
+# These are included in requirements-test.txt but can be useful for development
+
+pytest
+pytest-flask
+pytest-cov
+black
+pre-commit
+
+# ===========================
+# Version Notes
+# ===========================
+# This requirements.txt is generated based on the analysis of:
+# - src/app.py (Flask application factory)
+# - src/core_services.py (consolidated services)
+# - src/web_routes.py (Flask blueprints and routes)
+# - src/extensions.py (Flask extensions)
+# - src/models.py (SQLAlchemy models)
+# - src/security_analysis_service.py (security analysis tools)
+# - src/performance_service.py (Locust performance testing)
+# - src/zap_service.py (OWASP ZAP integration)
+# - src/openrouter_service.py (OpenRouter API integration)
+# - misc/combined.py (GUI application generator)
+# - misc/generateApps.py (application generation scripts)
+#
+# The application supports:
+# - Security analysis of 900+ generated AI applications
+# - Docker container management
+# - Performance testing with Locust
+# - OWASP ZAP security scanning
+# - OpenRouter API integration for AI model analysis
+# - Batch processing and analysis workflows
+# - Web-based dashboard with HTMX

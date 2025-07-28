@@ -1,0 +1,8 @@
+<!-- Error message partial for HTMX requests -->
+<div class="alert error" role="alert">
+    <div class="alert-icon">⚠️</div>
+    <div class="alert-content">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    <button class="alert-close" onclick="this.parentElement.remove()">×</button>
+</div>

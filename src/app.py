@@ -77,9 +77,12 @@ def load_model_integration_data(app):
         if port_file.exists():
             with open(port_file) as f:
                 port_data = json.load(f)
+                # Store port config in app config for services to use
+                app.config['PORT_CONFIG'] = port_data
                 app.logger.info(f"Loaded {len(port_data)} port configurations")
         else:
             app.logger.warning(f"Port config file not found: {port_file}")
+            app.config['PORT_CONFIG'] = []
         
         # Load models summary
         models_file = misc_dir / "models_summary.json"
@@ -93,6 +96,7 @@ def load_model_integration_data(app):
             
     except Exception as e:
         app.logger.error(f"Failed to load model integration data: {e}")
+        app.config['PORT_CONFIG'] = []
 
 
 def create_app(config_name=None):
@@ -126,6 +130,14 @@ def create_app(config_name=None):
     # Initialize extensions (database, cache, etc.)
     init_extensions(app)
     
+    # Load model integration data first (before services need it)
+    with app.app_context():
+        try:
+            load_model_integration_data(app)
+            app.logger.info("Model integration data loaded successfully")
+        except Exception as e:
+            app.logger.error(f"Failed to initialize services: {e}")
+    
     # Initialize service manager and core services
     with app.app_context():
         try:
@@ -143,14 +155,6 @@ def create_app(config_name=None):
             # Set up minimal fallback services
             app.config['docker_manager'] = None
             app.config['service_manager'] = ServiceManager(app)
-    
-    # Load model integration data
-    with app.app_context():
-        try:
-            load_model_integration_data(app)
-            app.logger.info("Model integration data loaded successfully")
-        except Exception as e:
-            app.logger.error(f"Failed to initialize services: {e}")
     
     # Register blueprints with HTMX routes
     try:
@@ -206,20 +210,28 @@ def create_app(config_name=None):
     def not_found(error):
         from flask import render_template, request
         if request.headers.get('HX-Request'):
-            return render_template('partials/error_message.html', 
-                                 error="Page not found"), 404
+            try:
+                return render_template('partials/error_message.html', 
+                                     error="Page not found"), 404
+            except Exception:
+                return '<div class="alert error">Page not found</div>', 404
         return render_template('pages/error.html', 
-                             error="The requested page could not be found."), 404
+                             error="The requested page could not be found.",
+                             error_code=404), 404
     
     @app.errorhandler(500)
     def internal_error(error):
         from flask import render_template, request
         app.logger.error(f"Internal server error: {error}")
         if request.headers.get('HX-Request'):
-            return render_template('partials/error_message.html', 
-                                 error="Internal server error"), 500
+            try:
+                return render_template('partials/error_message.html', 
+                                     error="Internal server error"), 500
+            except Exception:
+                return '<div class="alert error">Internal server error</div>', 500
         return render_template('pages/error.html', 
-                             error="An internal server error occurred."), 500
+                             error="An internal server error occurred.",
+                             error_code=500), 500
     
     # Health check endpoint
     @app.route('/health')

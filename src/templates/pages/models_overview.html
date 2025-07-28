@@ -61,23 +61,54 @@
 
     <!-- Models Grid -->
     <div id="models-grid" class="models-grid">
-        {% for model in models %}
+        {% if model_stats %}
+        {% for model in model_stats %}
         <div class="model-card">
             <div class="model-header">
                 <div class="model-title-section">
                     <h3 class="model-name">{{ model.name|replace('_', ' ')|title }}</h3>
-                    <span class="model-provider">{{ model.provider|title }}</span>
+                    <span class="model-provider">{{ model.name.split('_')[0]|title }}</span>
                 </div>
                 
-                <div class="model-status"
-                     hx-get="/api/model-status/{{ model.slug }}"
-                     hx-trigger="load, every 30s"
-                     hx-target="this">
-                    <div class="loading-inline">...</div>
+                <div class="model-status">
+                    <span class="status-indicator available">Available</span>
                 </div>
             </div>
             
             <div class="model-info">
+                <div class="model-stat">
+                    <span class="stat-label">Apps:</span>
+                    <span class="stat-value">{{ model.app_count }}</span>
+                </div>
+                
+                <div class="model-stat">
+                    <span class="stat-label">Ports:</span>
+                    <span class="stat-value">{{ model.total_ports }}</span>
+                </div>
+            </div>
+            
+            <div class="model-actions">
+                <button hx-get="/models/{{ model.name }}/apps" 
+                        hx-target="#modal-container"
+                        class="btn-secondary btn-sm">
+                    View Apps
+                </button>
+                
+                <button hx-get="/models/{{ model.name }}/performance" 
+                        hx-target="#modal-container"
+                        class="btn-secondary btn-sm">
+                    Performance
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <h3>No Models Found</h3>
+            <p>No model data is currently available.</p>
+        </div>
+        {% endif %}
+    </div>
                 {% if model.description %}
                 <p class="model-description">{{ model.description|truncate(120) }}</p>
                 {% endif %}

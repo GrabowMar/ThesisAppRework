@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Error {{ error_code }} - Thesis Research App{% endblock %}
+{% block title %}Error {{ error_code or '' }} - Thesis Research App{% endblock %}
 
 {% block content %}
 <div class="error-page">
@@ -24,14 +24,16 @@
                 Internal Server Error
             {% elif error_code == 403 %}
                 Access Forbidden
-            {% else %}
+            {% elif error_code %}
                 Error {{ error_code }}
+            {% else %}
+                Something Went Wrong
             {% endif %}
         </h1>
         
         <p class="error-message">
-            {% if error_message %}
-                {{ error_message }}
+            {% if error %}
+                {{ error }}
             {% elif error_code == 404 %}
                 The page you're looking for doesn't exist or has been moved.
             {% elif error_code == 500 %}
@@ -52,7 +54,17 @@
                 ← Go Back
             </button>
             
-            {% if error_code == 500 %}
+            {% if retry_action %}
+            <button onclick="window.location.href='{{ retry_action }}'" class="btn-info">
+                🔄 Retry
+            </button>
+            {% elif error_code in [500, 502, 503, 504] or not error_code %}
+            <button onclick="location.reload()" class="btn-info">
+                🔄 Retry
+            </button>
+            {% endif %}
+            
+            {% if error_code == 500 or not error_code %}
             <button hx-get="/api/system-health"
                     hx-target="#modal-container"
                     class="btn-warning">
@@ -61,16 +73,18 @@
             {% endif %}
         </div>
         
-        {% if error_code in [500, 503] %}
+        {% if error_code in [500, 503] or not error_code %}
         <div class="error-details">
             <details>
                 <summary>Technical Details</summary>
                 <div class="tech-details">
+                    {% if error_code %}
                     <div class="detail-item">
                         <strong>Error Code:</strong> {{ error_code }}
                     </div>
+                    {% endif %}
                     <div class="detail-item">
-                        <strong>Timestamp:</strong> {{ moment().format('YYYY-MM-DD HH:mm:ss') }}
+                        <strong>Timestamp:</strong> {{ timestamp or 'N/A' }}
                     </div>
                     <div class="detail-item">
                         <strong>Request ID:</strong> {{ request_id or 'N/A' }}
@@ -117,7 +131,7 @@
 {% block scripts %}
 <script>
 // Auto-reload on 5xx errors (in case of temporary issues)
-{% if error_code >= 500 and error_code < 600 %}
+{% if error_code and error_code >= 500 and error_code < 600 %}
 setTimeout(function() {
     const reloadBtn = document.createElement('button');
     reloadBtn.className = 'btn-info';

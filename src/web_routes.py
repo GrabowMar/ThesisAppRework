@@ -69,19 +69,35 @@ def get_port_config(model: str = None, app_num: int = None):
     """Get port configuration."""
     # Import here to avoid circular import
     try:
-        from models import PortConfiguration
+        from models import PortConfiguration, GeneratedApplication
         if model and app_num:
-            config = PortConfiguration.query.filter_by(
+            # First try to find by generated application
+            app = GeneratedApplication.query.filter_by(
                 model_slug=model.replace('-', '_'),
                 app_number=app_num
+            ).first()
+            if app:
+                metadata = app.get_metadata()
+                ports = metadata.get('ports', {})
+                if ports:
+                    return {
+                        'backend_port': ports.get('backend_port', 6000),
+                        'frontend_port': ports.get('frontend_port', 9000)
+                    }
+            
+            # Fallback to port configuration table
+            config = PortConfiguration.query.filter_by(
+                frontend_port=9051 + (app_num - 1) * 2
             ).first()
             if config:
                 return {
                     'backend_port': config.backend_port,
                     'frontend_port': config.frontend_port
                 }
-    except Exception:
-        pass
+    except Exception as e:
+        logging.warning(f"Error getting port config: {e}")
+    
+    # Default ports
     return {'backend_port': 6000, 'frontend_port': 9000}
 
 def get_app_container_statuses(model: str, app_num: int, docker_manager):
@@ -129,8 +145,10 @@ def verify_container_health(docker_manager, model: str, app_num: int, max_retrie
     # Simplified implementation
     if docker_manager:
         statuses = get_app_container_statuses(model, app_num, docker_manager)
-        return statuses.get('backend') == 'running' and statuses.get('frontend') == 'running'
-    return False
+        is_healthy = statuses.get('backend') == 'running' and statuses.get('frontend') == 'running'
+        message = "Containers are running" if is_healthy else "Some containers are not running"
+        return is_healthy, message
+    return False, "Docker manager not available"
 
 def load_json_results_for_template(model: str, app_num: int, analysis_type: Optional[str] = None):
     """Load JSON results for template."""
@@ -176,15 +194,46 @@ def get_dashboard_data_optimized(docker_manager):
     except Exception as e:
         return {'apps': [], 'cache_used': False}
 
-def create_api_response(success: bool = True, data: Any = None, error: Optional[str] = None, message: Optional[str] = None, code: int = 200):
-    """Create API response."""
-    response = {
+def create_api_response(success: bool = True, data: Any = None, error: Optional[str] = None, 
+                       message: Optional[str] = None, code: int = 200, retry_after: Optional[int] = None):
+    """
+    Create standardized API response with enhanced error handling.
+    
+    Args:
+        success: Whether the operation was successful
+        data: Response data
+        error: Error message if applicable
+        message: Success message if applicable
+        code: HTTP status code
+        retry_after: Seconds to wait before retrying (for 429, 503 errors)
+    """
+    response_data = {
         'success': success,
         'data': data,
         'error': error,
-        'message': message
+        'message': message,
+        'timestamp': datetime.now().isoformat()
     }
-    return jsonify(response), code
+    
+    # Add retry information for appropriate error codes
+    if not success and code in [429, 500, 502, 503, 504]:
+        response_data['retryable'] = True
+        if retry_after:
+            response_data['retry_after'] = retry_after
+        else:
+            # Default retry delays based on error type
+            retry_delays = {429: 60, 500: 30, 502: 60, 503: 60, 504: 120}
+            response_data['retry_after'] = retry_delays.get(code, 30)
+    else:
+        response_data['retryable'] = False
+    
+    response = jsonify(response_data)
+    
+    # Add appropriate headers
+    if retry_after:
+        response.headers['Retry-After'] = str(retry_after)
+    
+    return response, code
 
 def filter_apps(apps, search=None, model=None, status=None):
     """Filter apps."""
@@ -284,6 +333,26 @@ class AnalysisType:
 
 # Initialize logger
 logger = create_logger_for_component('routes')
+
+def safe_error_template(error_message: str, error_code: int = 500, retry_action: Optional[str] = None):
+    """
+    Helper function to ensure all error templates include proper error_code and retry functionality.
+    
+    Args:
+        error_message: The error message to display
+        error_code: HTTP status code
+        retry_action: Optional URL or action for retry button
+    """
+    from datetime import datetime
+    
+    context = {
+        'error': error_message,
+        'error_code': error_code,
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'retry_action': retry_action
+    }
+    
+    return render_template("pages/error.html", **context)
 
 # Import analyzers with fallbacks
 try:
@@ -508,21 +577,39 @@ def app_details(model: str, app_num: int):
 def models_overview():
     """Models overview page with filtering and statistics."""
     try:
-        models = get_ai_models()
-        port_config = get_port_config()
+        # Import the core_services functions
+        from core_services import get_ai_models as get_ai_models_from_db
+        from core_services import get_port_config as get_port_config_from_db
+        
+        models = get_ai_models_from_db()
+        port_config = get_port_config_from_db()
         
         # Group apps by model
         model_stats = {}
         for config in port_config:
-            model_name = config['model_name']
-            if model_name not in model_stats:
-                model_stats[model_name] = {
-                    'name': model_name,
-                    'app_count': 0,
-                    'total_ports': 0
-                }
-            model_stats[model_name]['app_count'] += 1
-            model_stats[model_name]['total_ports'] += 2  # backend + frontend
+            try:
+                # Check if the config has the required model_name key
+                if not isinstance(config, dict):
+                    logger.warning(f"Invalid config format: {config}")
+                    continue
+                    
+                model_name = config.get('model_name')
+                if not model_name:
+                    logger.warning(f"Missing model_name in config: {config}")
+                    continue
+                    
+                if model_name not in model_stats:
+                    model_stats[model_name] = {
+                        'name': model_name,
+                        'app_count': 0,
+                        'total_ports': 0
+                    }
+                model_stats[model_name]['app_count'] += 1
+                model_stats[model_name]['total_ports'] += 2  # backend + frontend
+                
+            except Exception as e:
+                logger.error(f"Error processing config: {e}, config: {config}")
+                continue
         
         context = {
             'models': models,
@@ -533,11 +620,11 @@ def models_overview():
         return render_htmx_response("models_overview.html", **context)
         
     except Exception as e:
-        logger.error(f"Error loading models overview: {e}")
+        logger.error(f"Error loading models overview: {e}", exc_info=True)
         if is_htmx_request():
             return render_template("partials/error_message.html", 
                                  error="Failed to load models data")
-        return render_template("pages/error.html", error=str(e))
+        return safe_error_template(str(e), 500)
 
 
 @main_bp.route("/debug/config/<model>/<int:app_num>")
@@ -722,6 +809,55 @@ def advanced_search():
                              error="Advanced search failed")
 
 
+@api_bp.route("/models-stats")
+def get_models_stats():
+    """Get models statistics for the overview page."""
+    try:
+        # Import the core_services functions
+        from core_services import get_ai_models as get_ai_models_from_db
+        from core_services import get_port_config as get_port_config_from_db
+        
+        models = get_ai_models_from_db()
+        port_config = get_port_config_from_db()
+        
+        # Group apps by model
+        model_stats = {}
+        for config in port_config:
+            try:
+                model_name = config.get('model_name')
+                if not model_name:
+                    continue
+                    
+                if model_name not in model_stats:
+                    model_stats[model_name] = {
+                        'name': model_name,
+                        'app_count': 0,
+                        'total_ports': 0
+                    }
+                model_stats[model_name]['app_count'] += 1
+                model_stats[model_name]['total_ports'] += 2  # backend + frontend
+            except Exception:
+                continue
+        
+        stats = {
+            'total_models': len(model_stats),
+            'total_apps': len(port_config),
+            'unique_providers': len(set(model.split('_')[0] for model in model_stats.keys())),
+            'models_with_apps': len([m for m in model_stats.values() if m['app_count'] > 0])
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/models_stats.html", stats=stats)
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting models stats: {e}")
+        if is_htmx_request():
+            return render_template("partials/models_stats.html", 
+                                 stats={'total_models': 0, 'total_apps': 0, 'unique_providers': 0, 'models_with_apps': 0})
+        return jsonify({'total_models': 0, 'total_apps': 0, 'unique_providers': 0, 'models_with_apps': 0})
+
+
 @api_bp.route("/cache/stats")
 def cache_stats():
     """Get cache statistics for monitoring."""
@@ -776,7 +912,10 @@ def health_status():
         
         try:
             # Try to ping Docker
-            docker_manager.client.ping()
+            if docker_manager and hasattr(docker_manager, 'client') and docker_manager.client:
+                docker_manager.client.ping()
+            else:
+                docker_healthy = False
         except Exception:
             docker_healthy = False
         
@@ -939,7 +1078,10 @@ def system_health():
         docker_healthy = True
         
         try:
-            docker_manager.client.ping()
+            if docker_manager and hasattr(docker_manager, 'client') and docker_manager.client:
+                docker_manager.client.ping()
+            else:
+                docker_healthy = False
         except Exception:
             docker_healthy = False
         
@@ -1046,9 +1188,14 @@ def docker_overview():
         
         # Get Docker system information
         try:
-            docker_info = docker_manager.client.info()
-            docker_version = docker_manager.client.version()
-            docker_available = True
+            if docker_manager and hasattr(docker_manager, 'client') and docker_manager.client:
+                docker_info = docker_manager.client.info()
+                docker_version = docker_manager.client.version()
+                docker_available = True
+            else:
+                docker_info = {}
+                docker_version = {}
+                docker_available = False
         except Exception as e:
             logger.warning(f"Docker not available: {e}")
             docker_info = {}
@@ -1142,7 +1289,10 @@ def view_logs(model: str, app_num: int):
         lines = int(request.args.get('lines', 100))
         
         docker_manager = get_docker_manager()
-        logs = docker_manager.get_container_logs(model, app_num, container_type, lines)
+        if docker_manager and hasattr(docker_manager, 'get_container_logs'):
+            logs = docker_manager.get_container_logs(model, app_num, container_type, lines)
+        else:
+            logs = f"Docker manager not available or does not support log retrieval"
         
         context = {
             'logs': logs,
@@ -1471,6 +1621,12 @@ def start_zap_scan(model: str, app_num: int):
     try:
         scan_type = request.form.get('scan_type', 'passive')
         
+        if not create_scanner:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="ZAP scanner not available")
+            return jsonify({'error': 'ZAP scanner not available'}), 503
+        
         zap_scanner = create_scanner(Path.cwd())
         results = zap_scanner.scan_app(model, app_num)
         
@@ -1497,6 +1653,9 @@ def start_zap_scan(model: str, app_num: int):
 def zap_scan_status(model: str, app_num: int):
     """Get ZAP scan status for progress updates."""
     try:
+        if not create_scanner:
+            return jsonify({'error': 'ZAP scanner not available'}), 503
+        
         zap_scanner = create_scanner(Path.cwd())
         status = zap_scanner.get_scan_status(model, app_num)
         
@@ -1518,12 +1677,19 @@ def zap_scan_status(model: str, app_num: int):
 def openrouter_overview():
     """OpenRouter analysis overview."""
     try:
-        analyzer = OpenRouterAnalyzer()
-        
-        context = {
-            'available_models': analyzer.get_available_models(),
-            'api_available': analyzer.is_api_available()
-        }
+        if not OpenRouterAnalyzer:
+            context = {
+                'available_models': [],
+                'api_available': False,
+                'error': 'OpenRouter analyzer not available'
+            }
+        else:
+            analyzer = OpenRouterAnalyzer()
+            
+            context = {
+                'available_models': analyzer.get_available_models(),
+                'api_available': analyzer.is_api_available()
+            }
         
         return render_htmx_response("openrouter_overview.html", **context)
         
@@ -1544,11 +1710,17 @@ def openrouter_analysis_page(model: str, app_num: int):
             return redirect(url_for("main.dashboard"))
         
         # Load existing results
-        analyzer = OpenRouterAnalyzer()
-        existing_results = analyzer.load_results(model, app_num)
-        
-        # Get requirements for this app
-        requirements, app_type = analyzer.get_requirements_for_app(app_num)
+        if not OpenRouterAnalyzer:
+            existing_results = None
+            requirements, app_type = [], "unknown"
+            openrouter_available = False
+        else:
+            analyzer = OpenRouterAnalyzer()
+            existing_results = analyzer.load_results(model, app_num)
+            
+            # Get requirements for this app
+            requirements, app_type = analyzer.get_requirements_for_app(app_num)
+            openrouter_available = True
         
         context = {
             'app': app_info,
@@ -1558,7 +1730,8 @@ def openrouter_analysis_page(model: str, app_num: int):
             'app_type': app_type,
             'existing_results': existing_results,
             'has_results': existing_results is not None,
-            'available_models': analyzer.get_available_models()
+            'openrouter_available': openrouter_available,
+            'available_models': analyzer.get_available_models() if openrouter_available and 'analyzer' in locals() else []
         }
         
         return render_htmx_response("openrouter_analysis.html", **context)
@@ -1576,6 +1749,12 @@ def run_openrouter_analysis(model: str, app_num: int):
     """Run OpenRouter requirements analysis."""
     try:
         selected_model = request.form.get('selected_model')
+        
+        if not OpenRouterAnalyzer:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="OpenRouter analyzer not available")
+            return jsonify({'error': 'OpenRouter analyzer not available'}), 503
         
         analyzer = OpenRouterAnalyzer()
         if selected_model:
