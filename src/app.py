@@ -17,9 +17,6 @@ from flask import Flask
 from extensions import init_extensions, db
 from models import ModelCapability, PortConfiguration, GeneratedApplication
 
-# Import the new HTMX-based routes
-from web_routes import register_blueprints
-
 # Import service management components
 from core_services import ServiceManager, ServiceInitializer
 
@@ -156,8 +153,16 @@ def create_app(config_name=None):
             app.logger.error(f"Failed to initialize services: {e}")
     
     # Register blueprints with HTMX routes
-    register_blueprints(app)
-    app.logger.info("All blueprints registered successfully")
+    try:
+        from web_routes import register_blueprints
+        register_blueprints(app)
+        app.logger.info("All blueprints registered successfully")
+    except ImportError as e:
+        app.logger.error(f"Failed to import blueprints from web_routes: {e}")
+        # Create minimal fallback routes
+        @app.route('/')
+        def index():
+            return "Application is running but blueprints failed to load. Check logs for import errors."
     
     # Add template globals for HTMX integration
     @app.template_global()
@@ -175,7 +180,7 @@ def create_app(config_name=None):
         """Get total number of models in database."""
         try:
             return ModelCapability.query.count()
-        except:
+        except Exception:
             return 0
     
     @app.template_global()
@@ -183,7 +188,7 @@ def create_app(config_name=None):
         """Get total number of generated applications."""
         try:
             return GeneratedApplication.query.count()
-        except:
+        except Exception:
             return 0
     
     # Add context processor for common template variables

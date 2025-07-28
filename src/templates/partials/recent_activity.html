@@ -1,0 +1,44 @@
+<!-- Recent Activity Feed Partial Template -->
+<div id="recent-activity-feed" class="space-y-4">
+    {% if activities %}
+        {% for activity in activities %}
+        <div class="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+            <div class="flex-shrink-0">
+                {% if activity.type == 'container_start' %}
+                    <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                {% elif activity.type == 'container_stop' %}
+                    <div class="w-2 h-2 bg-red-500 rounded-full mt-2"></div>
+                {% elif activity.type == 'analysis' %}
+                    <div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                {% else %}
+                    <div class="w-2 h-2 bg-gray-400 rounded-full mt-2"></div>
+                {% endif %}
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">
+                    {{ activity.title }}
+                </p>
+                <p class="text-sm text-gray-500 truncate">
+                    {{ activity.description }}
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                    {{ activity.timestamp }}
+                </p>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center py-8">
+            <div class="mx-auto h-12 w-12 text-gray-400">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">No recent activity</h3>
+            <p class="mt-1 text-sm text-gray-500">
+                Container activities and system events will appear here.
+            </p>
+        </div>
+    {% endif %}
+</div>

@@ -2500,8 +2500,38 @@ def get_ai_models_from_config(port_config: List[Dict[str, Any]]) -> List[AIModel
 
 
 def get_port_config() -> List[Dict[str, Any]]:
-    """Get port configuration from current app context."""
-    return current_app.config.get('PORT_CONFIG', [])
+    """Get port configuration from database."""
+    try:
+        from models import PortConfiguration
+        import json
+        
+        configs = []
+        port_configs = PortConfiguration.query.all()
+        
+        for port_config in port_configs:
+            metadata = {}
+            if port_config.metadata_json:
+                try:
+                    metadata = json.loads(port_config.metadata_json)
+                except (json.JSONDecodeError, TypeError):
+                    metadata = {}
+            
+            config_dict = {
+                'frontend_port': port_config.frontend_port,
+                'backend_port': port_config.backend_port,
+                'model_name': metadata.get('model_name', ''),
+                'app_number': metadata.get('app_number', 0),
+                'app_type': metadata.get('app_type', ''),
+                'is_available': port_config.is_available
+            }
+            configs.append(config_dict)
+        
+        return configs
+    except Exception as e:
+        logger = create_logger_for_component('core_services')
+        logger.error(f"Error loading port config from database: {e}")
+        # Fallback to app config if database fails
+        return current_app.config.get('PORT_CONFIG', [])
 
 
 def get_ai_models() -> List[AIModel]:

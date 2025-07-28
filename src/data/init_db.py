@@ -169,13 +169,13 @@ def load_port_configurations(app, misc_dir):
                 if existing:
                     continue
                 
-                # Create new port configuration
+                # Create new port configuration - FIXED: use 'model_name' instead of 'model'
                 port_config = PortConfiguration(
                     frontend_port=frontend_port,
                     backend_port=backend_port,
                     is_available=True,
                     metadata_json=json.dumps({
-                        'model': port_entry.get('model', ''),
+                        'model_name': port_entry.get('model_name', ''),  # FIXED: changed from 'model' to 'model_name'
                         'app_number': port_entry.get('app_number', 0),
                         'app_type': port_entry.get('app_type', ''),
                         'source': 'initial_load'
@@ -374,10 +374,9 @@ def create_sample_analyses(app):
                 if existing:
                     continue
                 
-                # Create sample analysis
+                # Create sample analysis - FIXED: removed 'analysis_type' parameter
                 analysis = SecurityAnalysis(
                     application_id=gen_app.id,
-                    analysis_type="comprehensive",
                     status=AnalysisStatus.COMPLETED,
                     tools_used_json=json.dumps({
                         "backend": ["bandit", "safety"],
@@ -448,6 +447,10 @@ def create_sample_performance_tests(app):
                 if existing:
                     continue
                 
+                # Get frontend port from metadata - FIXED
+                metadata = gen_app.get_metadata()
+                frontend_port = metadata.get('frontend_port', 9051)
+                
                 # Create sample performance test
                 perf_test = PerformanceTest(
                     application_id=gen_app.id,
@@ -455,7 +458,7 @@ def create_sample_performance_tests(app):
                     status=AnalysisStatus.COMPLETED,
                     concurrent_users=10,
                     duration_seconds=60,
-                    target_url=f"http://localhost:{gen_app.frontend_port}",
+                    target_url=f"http://localhost:{frontend_port}",
                     results_json=json.dumps({
                         "total_requests": 1000,
                         "successful_requests": 995,
@@ -497,15 +500,15 @@ def create_sample_batch_analyses(app):
                 logger.info("Batch analyses already exist, skipping")
                 return
             
-            # Create sample batch analysis
+            # Create sample batch analysis - FIXED: removed 'batch_name' parameter
             batch_analysis = BatchAnalysis(
-                batch_name="Sample Security Scan",
                 analysis_type="security",
                 status=AnalysisStatus.COMPLETED,
                 total_applications=5,
                 completed_applications=5,
                 failed_applications=0,
                 configuration_json=json.dumps({
+                    "batch_name": "Sample Security Scan",  # Put in configuration instead
                     "tools": ["bandit", "safety", "eslint"],
                     "severity_threshold": "medium",
                     "include_frontend": True,
