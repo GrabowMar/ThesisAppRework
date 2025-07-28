@@ -319,7 +319,7 @@ def dashboard():
         # Return appropriate response based on request type
         if is_htmx_request():
             if request.args.get('component') == 'apps-list':
-                return render_template("partials/apps_list.html", **context)
+                return render_template("partials/app_list.html", **context)
             elif request.args.get('component') == 'stats':
                 return render_template("partials/dashboard_stats.html", **context)
         
@@ -483,7 +483,7 @@ def search_apps():
             'search_term': search_term
         }
         
-        return render_template("partials/apps_list.html", **context)
+        return render_template("partials/app_list.html", **context)
         
     except Exception as e:
         logger.error(f"Error searching apps: {e}")
@@ -586,7 +586,7 @@ def cache_stats():
     try:
         stats = get_cache_stats()
         if is_htmx_request():
-            return render_template("partials/cache_stats.html", stats=stats)
+            return render_template("partials/cache_info.html", stats=stats)
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Error getting cache stats: {e}")

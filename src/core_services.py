@@ -2675,22 +2675,81 @@ def get_app_directory(model: str, app_num: int) -> Path:
 
 
 def get_all_apps() -> List[Dict[str, Any]]:
-    """Get all applications from port configuration."""
-    port_config = get_port_config()
-    
-    all_apps = []
-    for config in port_config:
-        model_name = config.get('model_name')
-        app_num = config.get('app_number')
+    """Get all applications from database."""
+    try:
+        # Import here to avoid circular import and use current_app context
+        from flask import current_app
+        from models import GeneratedApplication
         
-        if not model_name or not app_num:
-            continue
+        # Make sure we're in app context and use the same database connection
+        if not current_app:
+            raise RuntimeError("No Flask app context available")
         
-        app_info = get_app_info(model_name, app_num)
-        if app_info:
+        # Query all applications from database using current app's database session
+        applications = GeneratedApplication.query.all()
+        
+        all_apps = []
+        for app in applications:
+            # Convert database record to app_info format
+            app_info = {
+                'model': app.model_slug,
+                'app_num': app.app_number,
+                'app_type': app.app_type,
+                'provider': app.provider,
+                'generation_status': app.generation_status,
+                'has_backend': app.has_backend,
+                'has_frontend': app.has_frontend,
+                'has_docker_compose': app.has_docker_compose,
+                'backend_framework': app.backend_framework,
+                'frontend_framework': app.frontend_framework,
+                'container_status': app.container_status,
+                'id': app.id
+            }
+            
+            # Add port information from port config if available
+            try:
+                port_info = get_app_info(app.model_slug, app.app_number)
+                if port_info:
+                    # Merge port info but keep database info as primary
+                    for key, value in port_info.items():
+                        if key not in app_info:
+                            app_info[key] = value
+            except Exception as e:
+                # Continue without port info if unavailable
+                pass
+            
             all_apps.append(app_info)
-    
-    return all_apps
+        
+        logger = create_logger_for_component('utils')
+        logger.info(f"Successfully loaded {len(all_apps)} applications from database")
+        return all_apps
+        
+    except Exception as e:
+        logger = create_logger_for_component('utils')
+        logger.error(f"Error getting apps from database: {e}")
+        
+        # Fallback to port configuration if database fails
+        try:
+            port_config = get_port_config()
+            
+            all_apps = []
+            for config in port_config:
+                model_name = config.get('model_name')
+                app_num = config.get('app_number')
+                
+                if not model_name or not app_num:
+                    continue
+                
+                app_info = get_app_info(model_name, app_num)
+                if app_info:
+                    all_apps.append(app_info)
+            
+            logger.info(f"Fallback: loaded {len(all_apps)} applications from port config")
+            return all_apps
+            
+        except Exception as fallback_error:
+            logger.error(f"Both database and port config failed: {fallback_error}")
+            return []
 
 
 def get_docker_manager() -> DockerManager:

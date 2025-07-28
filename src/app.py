@@ -17,25 +17,85 @@ from flask import Flask
 from extensions import init_extensions, db
 from models import ModelCapability, PortConfiguration, GeneratedApplication
 
-# Import core application components (with fallback handling)
-try:
-    from core_services import (
-        initialize_logging, setup_request_middleware, initialize_model_service,
-        ServiceInitializer, ServiceManager, get_model_service, get_docker_manager, Config
-    )
-    LEGACY_SERVICES_AVAILABLE = True
-except ImportError:
-    LEGACY_SERVICES_AVAILABLE = False
-    # Basic configuration class
-    class Config:
-        SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-        SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///data/thesis_app.db'
-        SQLALCHEMY_TRACK_MODIFICATIONS = False
-        CACHE_TYPE = 'simple'
-        CACHE_DEFAULT_TIMEOUT = 300
-
 # Import the new HTMX-based routes
 from web_routes import register_blueprints
+
+# Import service management components
+from core_services import ServiceManager, ServiceInitializer
+
+
+class Config:
+    """Application configuration."""
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
+    # Resolve absolute path for database
+    app_dir = Path(__file__).parent
+    data_dir = app_dir / 'data'
+    data_dir.mkdir(exist_ok=True)
+    db_path = data_dir / 'thesis_app.db'
+    
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{db_path.absolute()}'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    CACHE_TYPE = 'simple'
+    CACHE_DEFAULT_TIMEOUT = 300
+
+
+def setup_logging(app):
+    """Initialize application logging."""
+    log_dir = Path(__file__).parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        handlers=[
+            logging.FileHandler(log_dir / "thesis_app.log"),
+            logging.StreamHandler()
+        ]
+    )
+    
+    app.logger.setLevel(logging.INFO)
+    app.logger.info("Logging initialized")
+
+
+def load_model_integration_data(app):
+    """Load model capabilities and port configurations from JSON files."""
+    project_root = Path(__file__).parent.parent
+    misc_dir = project_root / "misc"
+    
+    try:
+        # Load model capabilities
+        capabilities_file = misc_dir / "model_capabilities.json"
+        if capabilities_file.exists():
+            with open(capabilities_file) as f:
+                capabilities_data = json.load(f)
+                models_count = len(capabilities_data.get('models', {}))
+                app.logger.info(f"Loaded capabilities for {models_count} models")
+        else:
+            app.logger.warning(f"Model capabilities file not found: {capabilities_file}")
+        
+        # Load port configurations
+        port_file = misc_dir / "port_config.json"
+        if port_file.exists():
+            with open(port_file) as f:
+                port_data = json.load(f)
+                app.logger.info(f"Loaded {len(port_data)} port configurations")
+        else:
+            app.logger.warning(f"Port config file not found: {port_file}")
+        
+        # Load models summary
+        models_file = misc_dir / "models_summary.json"
+        if models_file.exists():
+            with open(models_file) as f:
+                models_data = json.load(f)
+                models_count = len(models_data.get('models', []))
+                app.logger.info(f"Loaded models summary with {models_count} models")
+        else:
+            app.logger.warning(f"Models summary file not found: {models_file}")
+            
+    except Exception as e:
+        app.logger.error(f"Failed to load model integration data: {e}")
 
 
 def create_app(config_name=None):
@@ -50,56 +110,56 @@ def create_app(config_name=None):
     """
     app = Flask(__name__)
     
-    # Load configuration - ensure database URI is always set
+    # Load configuration
     if config_name:
         app.config.from_object(config_name)
     else:
-        # Set basic configuration with absolute database path
-        app_root = Path(__file__).parent.parent
-        db_path = app_root / "src" / "data" / "thesis_app.db"
-        
-        app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or f'sqlite:///{db_path}'
-        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-        app.config['CACHE_TYPE'] = 'simple'
-        app.config['CACHE_DEFAULT_TIMEOUT'] = 300
+        app.config.from_object(Config)
     
     # Ensure required directories exist
     app_root = Path(__file__).parent.parent
     (app_root / "logs").mkdir(exist_ok=True)
+    (app_root / "src" / "data").mkdir(exist_ok=True)
     (app_root / "src" / "templates").mkdir(exist_ok=True)
     (app_root / "src" / "static").mkdir(exist_ok=True)
     
     # Initialize logging
-    initialize_logging(app)
+    setup_logging(app)
     
-    # Initialize Flask extensions (database, migrations, cache)
+    # Initialize extensions (database, cache, etc.)
     init_extensions(app)
     
-    # Setup request middleware
-    setup_request_middleware(app)
-    
-    # Initialize services
+    # Initialize service manager and core services
     with app.app_context():
         try:
-            # Initialize the model integration service
-            service = initialize_model_service(app_root)
-            app.logger.info(f"Model service initialized with {len(service.get_all_models())} models")
-            
-            # Initialize additional services (Docker, ZAP, etc.)
+            # Create service manager
             service_manager = ServiceManager(app)
+            app.config['service_manager'] = service_manager
+            
+            # Initialize core services (docker, scan manager, etc.)
             service_initializer = ServiceInitializer(app, service_manager)
             service_initializer.initialize_all()
-            app.logger.info("All application services initialized successfully")
             
+            app.logger.info("Core services initialized successfully")
+        except Exception as e:
+            app.logger.error(f"Failed to initialize core services: {e}")
+            # Set up minimal fallback services
+            app.config['docker_manager'] = None
+            app.config['service_manager'] = ServiceManager(app)
+    
+    # Load model integration data
+    with app.app_context():
+        try:
+            load_model_integration_data(app)
+            app.logger.info("Model integration data loaded successfully")
         except Exception as e:
             app.logger.error(f"Failed to initialize services: {e}")
-            # Continue anyway to allow the app to start
     
     # Register blueprints with HTMX routes
     register_blueprints(app)
+    app.logger.info("All blueprints registered successfully")
     
-    # Add template globals
+    # Add template globals for HTMX integration
     @app.template_global()
     def get_app_config():
         """Make app config available in templates."""
@@ -109,6 +169,32 @@ def create_app(config_name=None):
     def debug_mode():
         """Check if app is in debug mode."""
         return app.debug
+    
+    @app.template_global()
+    def get_model_count():
+        """Get total number of models in database."""
+        try:
+            return ModelCapability.query.count()
+        except:
+            return 0
+    
+    @app.template_global()
+    def get_app_count():
+        """Get total number of generated applications."""
+        try:
+            return GeneratedApplication.query.count()
+        except:
+            return 0
+    
+    # Add context processor for common template variables
+    @app.context_processor
+    def inject_template_vars():
+        """Inject common variables into all templates."""
+        return {
+            'app_name': 'Thesis Research App',
+            'app_version': '2.0.0-htmx',
+            'htmx_enabled': True
+        }
     
     # Add custom error handlers
     @app.errorhandler(404)
@@ -138,7 +224,8 @@ def create_app(config_name=None):
         return jsonify({
             'status': 'healthy',
             'service': 'thesis-research-app',
-            'version': '2.0.0-htmx'
+            'version': '2.0.0-htmx',
+            'database': 'connected' if db else 'disconnected'
         })
     
     app.logger.info("Flask application created successfully with HTMX routes")
