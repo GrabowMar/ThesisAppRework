@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Error {{ error_code }} - Thesis Research App{% endblock %}
+
+{% block content %}
+<div class="error-page">
+    <div class="error-container">
+        <div class="error-icon">
+            {% if error_code == 404 %}
+                🔍
+            {% elif error_code == 500 %}
+                ⚠️
+            {% elif error_code == 403 %}
+                🚫
+            {% else %}
+                ❌
+            {% endif %}
+        </div>
+        
+        <h1 class="error-title">
+            {% if error_code == 404 %}
+                Page Not Found
+            {% elif error_code == 500 %}
+                Internal Server Error
+            {% elif error_code == 403 %}
+                Access Forbidden
+            {% else %}
+                Error {{ error_code }}
+            {% endif %}
+        </h1>
+        
+        <p class="error-message">
+            {% if error_message %}
+                {{ error_message }}
+            {% elif error_code == 404 %}
+                The page you're looking for doesn't exist or has been moved.
+            {% elif error_code == 500 %}
+                Something went wrong on our end. Please try again later.
+            {% elif error_code == 403 %}
+                You don't have permission to access this resource.
+            {% else %}
+                An unexpected error occurred.
+            {% endif %}
+        </p>
+        
+        <div class="error-actions">
+            <a href="{{ url_for('main.dashboard') }}" class="btn-primary">
+                🏠 Go to Dashboard
+            </a>
+            
+            <button onclick="history.back()" class="btn-secondary">
+                ← Go Back
+            </button>
+            
+            {% if error_code == 500 %}
+            <button hx-get="/api/system-health"
+                    hx-target="#modal-container"
+                    class="btn-warning">
+                🔧 Check System Health
+            </button>
+            {% endif %}
+        </div>
+        
+        {% if error_code in [500, 503] %}
+        <div class="error-details">
+            <details>
+                <summary>Technical Details</summary>
+                <div class="tech-details">
+                    <div class="detail-item">
+                        <strong>Error Code:</strong> {{ error_code }}
+                    </div>
+                    <div class="detail-item">
+                        <strong>Timestamp:</strong> {{ moment().format('YYYY-MM-DD HH:mm:ss') }}
+                    </div>
+                    <div class="detail-item">
+                        <strong>Request ID:</strong> {{ request_id or 'N/A' }}
+                    </div>
+                    {% if request.url %}
+                    <div class="detail-item">
+                        <strong>URL:</strong> {{ request.url }}
+                    </div>
+                    {% endif %}
+                </div>
+            </details>
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if error_code == 404 %}
+    <!-- Suggest similar pages -->
+    <div class="suggestions">
+        <h3>Maybe you were looking for:</h3>
+        <div class="suggestion-links">
+            <a href="{{ url_for('main.dashboard') }}" class="suggestion-link">
+                <span class="suggestion-icon">📊</span>
+                <span class="suggestion-text">Dashboard</span>
+            </a>
+            <a href="{{ url_for('main.models_overview') }}" class="suggestion-link">
+                <span class="suggestion-icon">🤖</span>
+                <span class="suggestion-text">AI Models</span>
+            </a>
+            <a href="{{ url_for('docker.docker_overview') }}" class="suggestion-link">
+                <span class="suggestion-icon">🐳</span>
+                <span class="suggestion-text">Docker Management</span>
+            </a>
+            <a href="{{ url_for('analysis.analysis_overview') }}" class="suggestion-link">
+                <span class="suggestion-icon">🔍</span>
+                <span class="suggestion-text">Security Analysis</span>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-reload on 5xx errors (in case of temporary issues)
+{% if error_code >= 500 and error_code < 600 %}
+setTimeout(function() {
+    const reloadBtn = document.createElement('button');
+    reloadBtn.className = 'btn-info';
+    reloadBtn.innerHTML = '🔄 Retry';
+    reloadBtn.onclick = function() { location.reload(); };
+    
+    const actions = document.querySelector('.error-actions');
+    if (actions) {
+        actions.appendChild(reloadBtn);
+    }
+}, 10000); // Show retry button after 10 seconds
+{% endif %}
+</script>
+{% endblock %}

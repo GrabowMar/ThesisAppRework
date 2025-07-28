@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}AI Models Overview - Thesis Research App{% endblock %}
+
+{% block content %}
+<div class="models-overview">
+    <!-- Page Header -->
+    <header class="page-header">
+        <h1>AI Models Overview</h1>
+        <p>Explore the 30 AI models used in this research study</p>
+    </header>
+
+    <!-- Models Statistics -->
+    <div class="models-stats"
+         hx-get="/api/models-stats"
+         hx-trigger="load, every 60s"
+         hx-target="this">
+        <div class="loading">Loading model statistics...</div>
+    </div>
+
+    <!-- Filter and Search -->
+    <div class="models-controls">
+        <div class="search-section">
+            <input type="search" 
+                   name="search"
+                   hx-get="/models"
+                   hx-trigger="keyup changed delay:500ms"
+                   hx-target="#models-grid"
+                   hx-include="[name='provider'], [name='sort']"
+                   placeholder="Search models...">
+            
+            <select name="provider"
+                    hx-get="/models"
+                    hx-trigger="change"
+                    hx-target="#models-grid"
+                    hx-include="[name='search'], [name='sort']">
+                <option value="">All Providers</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="openai">OpenAI</option>
+                <option value="google">Google</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="qwen">Qwen</option>
+                <option value="microsoft">Microsoft</option>
+                <option value="meta">Meta</option>
+                <option value="mistral">Mistral</option>
+            </select>
+            
+            <select name="sort"
+                    hx-get="/models"
+                    hx-trigger="change"
+                    hx-target="#models-grid"
+                    hx-include="[name='search'], [name='provider']">
+                <option value="name">Sort by Name</option>
+                <option value="provider">Sort by Provider</option>
+                <option value="apps_count">Sort by Apps Count</option>
+                <option value="performance">Sort by Performance</option>
+                <option value="running_containers">Sort by Active Containers</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Models Grid -->
+    <div id="models-grid" class="models-grid">
+        {% for model in models %}
+        <div class="model-card">
+            <div class="model-header">
+                <div class="model-title-section">
+                    <h3 class="model-name">{{ model.name|replace('_', ' ')|title }}</h3>
+                    <span class="model-provider">{{ model.provider|title }}</span>
+                </div>
+                
+                <div class="model-status"
+                     hx-get="/api/model-status/{{ model.slug }}"
+                     hx-trigger="load, every 30s"
+                     hx-target="this">
+                    <div class="loading-inline">...</div>
+                </div>
+            </div>
+            
+            <div class="model-info">
+                {% if model.description %}
+                <p class="model-description">{{ model.description|truncate(120) }}</p>
+                {% endif %}
+                
+                <div class="model-specs">
+                    {% if model.context_window %}
+                    <div class="spec-item">
+                        <span class="spec-label">Context:</span>
+                        <span class="spec-value">{{ model.context_window|format_number }}k tokens</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if model.pricing %}
+                    <div class="spec-item">
+                        <span class="spec-label">Price:</span>
+                        <span class="spec-value">${{ model.pricing.input }}/1K in, ${{ model.pricing.output }}/1K out</span>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="spec-item">
+                        <span class="spec-label">Apps:</span>
+                        <span class="spec-value">{{ model.apps_count or 30 }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="model-metrics">
+                <div class="metric-item">
+                    <span class="metric-value">{{ model.running_containers or 0 }}</span>
+                    <span class="metric-label">Running</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-value">{{ model.completed_analyses or 0 }}</span>
+                    <span class="metric-label">Analyzed</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-value">{{ model.avg_performance_score or 'N/A' }}</span>
+                    <span class="metric-label">Avg Score</span>
+                </div>
+            </div>
+            
+            <div class="model-actions">
+                <a href="/model/{{ model.slug }}" class="btn-primary btn-sm">
+                    View Details
+                </a>
+                
+                <button hx-post="/docker/start-all/{{ model.slug }}"
+                        hx-confirm="Start all containers for {{ model.name }}?"
+                        hx-target="closest .model-card .model-status"
+                        class="btn-success btn-sm">
+                    Start All
+                </button>
+                
+                <button hx-post="/docker/stop-all/{{ model.slug }}"
+                        hx-confirm="Stop all containers for {{ model.name }}?"
+                        hx-target="closest .model-card .model-status"
+                        class="btn-danger btn-sm">
+                    Stop All
+                </button>
+            </div>
+            
+            <!-- App Preview -->
+            <div class="app-preview">
+                <div class="preview-header">
+                    <span class="preview-title">Applications</span>
+                    <button class="preview-toggle"
+                            _="on click toggle .expanded on closest .model-card">
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                </div>
+                
+                <div class="app-grid-mini">
+                    {% for app in model.apps[:6] %}
+                    <a href="{{ url_for('main.app_details', model=model.slug, app_num=app.app_num) }}" 
+                       class="app-mini-card">
+                        <span class="app-mini-number">{{ app.app_num }}</span>
+                        <span class="app-mini-type">{{ app.app_type[:10] }}...</span>
+                        <span class="app-mini-status status-{{ app.status }}"></span>
+                    </a>
+                    {% endfor %}
+                    
+                    {% if model.apps|length > 6 %}
+                    <div class="app-mini-more">
+                        +{{ model.apps|length - 6 }} more
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Comparison Tools -->
+    <div class="comparison-section">
+        <h3>Model Comparison</h3>
+        <div class="comparison-controls">
+            <button hx-get="/models/compare"
+                    hx-target="#modal-container"
+                    class="btn-primary">
+                📊 Compare Models
+            </button>
+            
+            <button hx-get="/models/performance-report"
+                    hx-target="#modal-container"
+                    class="btn-secondary">
+                📈 Performance Report
+            </button>
+            
+            <button hx-get="/models/export"
+                    class="btn-secondary">
+                💾 Export Data
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Model card expansion functionality
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.preview-header')) {
+        const card = e.target.closest('.model-card');
+        card.classList.toggle('expanded');
+    }
+});
+
+// Auto-refresh for real-time updates
+document.addEventListener('DOMContentLoaded', function() {
+    // Stagger the initial loads to avoid overwhelming the server
+    const statusElements = document.querySelectorAll('[hx-get*="model-status"]');
+    statusElements.forEach((element, index) => {
+        setTimeout(() => {
+            htmx.trigger(element, 'load');
+        }, index * 100); // 100ms delay between each
+    });
+});
+</script>
+{% endblock %}

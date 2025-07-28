@@ -1,0 +1,186 @@
+{% if analysis_data %}
+<div class="analysis-results-container">
+    <!-- Summary Card -->
+    <div class="analysis-summary-card">
+        <div class="summary-header">
+            <h4>{{ analysis_data.type|title }} Analysis Results</h4>
+            <span class="analysis-status status-{{ analysis_data.status }}">
+                {{ analysis_data.status|title }}
+            </span>
+        </div>
+        
+        <div class="summary-stats">
+            <div class="stat">
+                <span class="stat-value">{{ analysis_data.total_issues or 0 }}</span>
+                <span class="stat-label">Total Issues</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value critical">{{ analysis_data.critical_issues or 0 }}</span>
+                <span class="stat-label">Critical</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value high">{{ analysis_data.high_issues or 0 }}</span>
+                <span class="stat-label">High</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value medium">{{ analysis_data.medium_issues or 0 }}</span>
+                <span class="stat-label">Medium</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value low">{{ analysis_data.low_issues or 0 }}</span>
+                <span class="stat-label">Low</span>
+            </div>
+        </div>
+        
+        <div class="analysis-meta">
+            <div class="meta-item">
+                <span class="meta-label">Duration:</span>
+                <span class="meta-value">{{ analysis_data.duration or 'Unknown' }}</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Completed:</span>
+                <span class="meta-value">{{ analysis_data.completed_at|strftime('%Y-%m-%d %H:%M') if analysis_data.completed_at else 'In Progress' }}</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Tools Used:</span>
+                <span class="meta-value">{{ analysis_data.tools|join(', ') if analysis_data.tools else 'N/A' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Issues List -->
+    {% if analysis_data.issues %}
+    <div class="issues-section">
+        <div class="issues-header">
+            <h4>Security Issues Found</h4>
+            <div class="issues-filters">
+                <select hx-get="/analysis/{{ analysis_data.type }}/{{ model }}/{{ app_num }}"
+                        hx-target=".issues-list"
+                        hx-include="this"
+                        name="severity_filter">
+                    <option value="">All Severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+                
+                <select hx-get="/analysis/{{ analysis_data.type }}/{{ model }}/{{ app_num }}"
+                        hx-target=".issues-list"
+                        hx-include="this"
+                        name="tool_filter">
+                    <option value="">All Tools</option>
+                    {% for tool in analysis_data.tools %}
+                    <option value="{{ tool }}">{{ tool|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="issues-list">
+            {% for issue in analysis_data.issues %}
+            <div class="issue-card severity-{{ issue.severity|lower }}">
+                <div class="issue-header">
+                    <div class="issue-title-section">
+                        <h5 class="issue-title">{{ issue.title or issue.test_name }}</h5>
+                        <div class="issue-meta">
+                            <span class="issue-tool">{{ issue.tool|title }}</span>
+                            <span class="issue-severity severity-{{ issue.severity|lower }}">
+                                {{ issue.severity|title }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <button class="issue-toggle"
+                            _="on click toggle .expanded on closest .issue-card">
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                </div>
+                
+                <div class="issue-description">
+                    {{ issue.description or issue.message }}
+                </div>
+                
+                <div class="issue-details">
+                    {% if issue.filename %}
+                    <div class="detail-item">
+                        <span class="detail-label">File:</span>
+                        <span class="detail-value">{{ issue.filename }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if issue.line_number %}
+                    <div class="detail-item">
+                        <span class="detail-label">Line:</span>
+                        <span class="detail-value">{{ issue.line_number }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if issue.rule_id %}
+                    <div class="detail-item">
+                        <span class="detail-label">Rule:</span>
+                        <span class="detail-value">{{ issue.rule_id }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if issue.code_snippet %}
+                <div class="code-snippet">
+                    <div class="snippet-header">
+                        <span class="snippet-title">Code Snippet</span>
+                        <button class="copy-btn" 
+                                _="on click writeText '{{ issue.code_snippet|e }}' to navigator.clipboard then add .copied to me for 2s">
+                            📋
+                        </button>
+                    </div>
+                    <pre class="code-block"><code>{{ issue.code_snippet }}</code></pre>
+                </div>
+                {% endif %}
+                
+                {% if issue.recommendation %}
+                <div class="recommendation">
+                    <div class="recommendation-header">
+                        <span class="recommendation-title">💡 Recommendation</span>
+                    </div>
+                    <div class="recommendation-content">
+                        {{ issue.recommendation }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tool Output (Raw) -->
+    {% if analysis_data.raw_output %}
+    <div class="raw-output-section">
+        <div class="output-header">
+            <h4>Raw Tool Output</h4>
+            <button class="toggle-raw"
+                    _="on click toggle .show on #raw-output">
+                Toggle Raw Output
+            </button>
+        </div>
+        
+        <div id="raw-output" class="raw-output">
+            <pre class="output-content">{{ analysis_data.raw_output }}</pre>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% else %}
+<div class="no-analysis">
+    <div class="no-analysis-icon">🔍</div>
+    <h3>No Analysis Results Available</h3>
+    <p>Run a security analysis to see results here.</p>
+    <button hx-post="/analysis/{{ analysis_type }}/{{ model }}/{{ app_num }}/run"
+            hx-target="closest .results-section"
+            class="btn-primary">
+        Run Analysis Now
+    </button>
+</div>
+{% endif %}
+

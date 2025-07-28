@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Thesis Research App{% endblock %}</title>
+    
+    <!-- Missing.css - Minimal CSS Framework -->
+    <link rel="stylesheet" href="https://unpkg.com/missing.css@1.1.3">
+    <!-- Optional: Prism theme for code highlighting -->
+    <link rel="stylesheet" href="https://unpkg.com/missing.css@1.1.3/prism">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
+    <!-- HTMX for dynamic interactions -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- _hyperscript for advanced interactions -->
+    <script src="https://unpkg.com/hyperscript.org@0.9.14"></script>
+    
+    <!-- HTMX configuration -->
+    <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","requestTimeout":10000}'>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('main.dashboard') }}" class="brand">
+                <strong>Thesis Research App</strong>
+            </a>
+            
+            <div class="nav-links">
+                <a href="{{ url_for('main.dashboard') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('main.models_overview') }}" class="nav-link">Models</a>
+                <a href="{{ url_for('docker.docker_overview') }}" class="nav-link">Docker</a>
+                <a href="{{ url_for('analysis.analysis_overview') }}" class="nav-link">Analysis</a>
+                <a href="{{ url_for('batch.batch_overview') }}" class="nav-link">Batch</a>
+            </div>
+            
+            <!-- Header Stats -->
+            <div class="nav-stats" 
+                 hx-get="/api/header-stats" 
+                 hx-trigger="load, every 60s">
+                <div class="loading-inline">Loading...</div>
+            </div>
+            
+            <!-- Notifications -->
+            <div class="nav-notifications">
+                <button hx-get="/api/notifications"
+                        hx-target="#notifications-dropdown"
+                        hx-trigger="click"
+                        class="notifications-btn"
+                        _="on click toggle .show on #notifications-dropdown">
+                    🔔
+                    <span class="notification-count">0</span>
+                </button>
+                <div id="notifications-dropdown" class="notifications-dropdown">
+                    <!-- Notifications loaded here -->
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="alert {{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Page Content -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Modal Container -->
+    <div id="modal-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <!-- Global HTMX Event Handlers -->
+    <script>
+        // Global error handler
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            const target = evt.detail.target;
+            target.innerHTML = '<div class="alert error">Request failed. Please try again.</div>';
+        });
+
+        // Global loading states
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            // Show loading state
+            const element = evt.detail.elt;
+            element.classList.add('htmx-request');
+        });
+
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            // Hide loading state
+            const element = evt.detail.elt;
+            element.classList.remove('htmx-request');
+        });
+
+        // Auto-close alerts
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 300);
+            });
+        }, 5000);
+
+        // Close notifications dropdown when clicking outside
+        document.addEventListener('click', function(evt) {
+            const dropdown = document.getElementById('notifications-dropdown');
+            const button = document.querySelector('.notifications-btn');
+            if (dropdown && !dropdown.contains(evt.target) && !button.contains(evt.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

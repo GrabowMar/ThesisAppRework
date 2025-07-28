@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}{{ model|title }} App {{ app_num }} - Thesis Research App{% endblock %}
+
+{% block content %}
+<div class="app-details">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+        <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+        <span>/</span>
+        <a href="{{ url_for('main.models_overview') }}">Models</a>
+        <span>/</span>
+        <span>{{ model|replace('_', ' ')|title }}</span>
+        <span>/</span>
+        <span>App {{ app_num }}</span>
+    </nav>
+
+    <!-- App Header -->
+    <header class="app-header">
+        <div class="app-title-section">
+            <h1>{{ model|replace('_', ' ')|title }} - App {{ app_num }}</h1>
+            <div class="app-info">
+                <span class="app-type">{{ app_info.app_type|title }}</span>
+                <span class="separator">•</span>
+                <span class="app-description">{{ app_info.description }}</span>
+            </div>
+        </div>
+        
+        <div class="app-actions">
+            <button hx-post="/docker/start/{{ model }}/{{ app_num }}"
+                    hx-target=".container-status-section"
+                    hx-confirm="Start containers for {{ model }}/app{{ app_num }}?"
+                    class="btn-success">
+                🚀 Start
+            </button>
+            
+            <button hx-post="/docker/stop/{{ model }}/{{ app_num }}"
+                    hx-target=".container-status-section"
+                    hx-confirm="Stop containers for {{ model }}/app{{ app_num }}?"
+                    class="btn-danger">
+                🛑 Stop
+            </button>
+            
+            <button hx-post="/docker/restart/{{ model }}/{{ app_num }}"
+                    hx-target=".container-status-section"
+                    hx-confirm="Restart containers for {{ model }}/app{{ app_num }}?"
+                    class="btn-warning">
+                🔄 Restart
+            </button>
+            
+            <button hx-get="/docker/logs/{{ model }}/{{ app_num }}"
+                    hx-target="#modal-container"
+                    class="btn-secondary">
+                📋 View Logs
+            </button>
+        </div>
+    </header>
+
+    <!-- Container Status Section -->
+    <div class="container-status-section"
+         hx-get="/api/status/{{ model }}/{{ app_num }}"
+         hx-trigger="load, every 5s"
+         hx-target="this">
+        {% include "partials/container_status.html" %}
+    </div>
+
+    <!-- Quick Links -->
+    <div class="quick-links">
+        {% if app_info.frontend_url %}
+        <a href="{{ app_info.frontend_url }}" target="_blank" class="quick-link frontend">
+            <div class="link-icon">🌐</div>
+            <div class="link-info">
+                <span class="link-title">View Frontend</span>
+                <span class="link-url">{{ app_info.frontend_url }}</span>
+            </div>
+        </a>
+        {% endif %}
+        
+        {% if app_info.backend_url %}
+        <a href="{{ app_info.backend_url }}" target="_blank" class="quick-link backend">
+            <div class="link-icon">⚙️</div>
+            <div class="link-info">
+                <span class="link-title">API Backend</span>
+                <span class="link-url">{{ app_info.backend_url }}</span>
+            </div>
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="tabs" id="main-tabs">
+        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=overview"
+                hx-target="#tab-content"
+                class="tab {{ 'active' if active_tab == 'overview' else '' }}"
+                _="on click remove .active from .tab then add .active to me">
+            📊 Overview
+        </button>
+        
+        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=analysis"
+                hx-target="#tab-content"
+                class="tab {{ 'active' if active_tab == 'analysis' else '' }}"
+                _="on click remove .active from .tab then add .active to me">
+            🔍 Security Analysis
+        </button>
+        
+        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=performance"
+                hx-target="#tab-content"
+                class="tab {{ 'active' if active_tab == 'performance' else '' }}"
+                _="on click remove .active from .tab then add .active to me">
+            ⚡ Performance
+        </button>
+        
+        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=zap"
+                hx-target="#tab-content"
+                class="tab {{ 'active' if active_tab == 'zap' else '' }}"
+                _="on click remove .active from .tab then add .active to me">
+            🛡️ ZAP Security
+        </button>
+        
+        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=code"
+                hx-target="#tab-content"
+                class="tab {{ 'active' if active_tab == 'code' else '' }}"
+                _="on click remove .active from .tab then add .active to me">
+            💻 Code Review
+        </button>
+    </div>
+
+    <!-- Tab Content -->
+    <div id="tab-content" class="tab-content">
+        {% if active_tab == 'overview' or not active_tab %}
+            {% include "partials/app_tab_overview.html" %}
+        {% elif active_tab == 'analysis' %}
+            {% include "partials/app_tab_analysis.html" %}
+        {% elif active_tab == 'performance' %}
+            {% include "partials/app_tab_performance.html" %}
+        {% elif active_tab == 'zap' %}
+            {% include "partials/app_tab_zap.html" %}
+        {% elif active_tab == 'code' %}
+            {% include "partials/app_tab_code.html" %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Tab switching functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle tab switching
+    document.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'tab-content') {
+            // Scroll to top of tab content
+            evt.detail.target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+    
+    // Auto-refresh container status more frequently when containers are starting/stopping
+    let statusRefreshInterval = 5000; // Default 5 seconds
+    
+    function adjustRefreshRate() {
+        const statusElements = document.querySelectorAll('.status-badge');
+        let hasTransitioning = false;
+        
+        statusElements.forEach(badge => {
+            if (badge.textContent.includes('starting') || badge.textContent.includes('stopping')) {
+                hasTransitioning = true;
+            }
+        });
+        
+        // Refresh more frequently during transitions
+        statusRefreshInterval = hasTransitioning ? 2000 : 5000;
+    }
+    
+    // Check every few seconds
+    setInterval(adjustRefreshRate, 3000);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Thesis Research App{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <!-- Page Header -->
+    <header class="page-header">
+        <h1>Research Dashboard</h1>
+        <p>Manage and analyze 900+ generated applications across 30 AI models</p>
+    </header>
+
+    <!-- Dashboard Header Stats -->
+    <div class="dashboard-header" 
+         hx-get="/api/dashboard-stats" 
+         hx-trigger="load, every 30s"
+         hx-target="this">
+        <div class="loading">Loading statistics...</div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="search-section">
+        <input type="search" 
+               name="search"
+               hx-get="/api/search" 
+               hx-trigger="keyup changed delay:500ms"
+               hx-target="#app-grid"
+               hx-include="[name='model'], [name='status']"
+               placeholder="Search models or apps...">
+        
+        <select hx-get="/api/search" 
+                hx-trigger="change"
+                hx-target="#app-grid"
+                hx-include="[name='search'], [name='status']"
+                name="model">
+            <option value="">All Models</option>
+            {% for model in unique_models %}
+            <option value="{{ model }}" {% if filters.model == model %}selected{% endif %}>
+                {{ model|replace('_', ' ')|title }}
+            </option>
+            {% endfor %}
+        </select>
+        
+        <select hx-get="/api/search" 
+                hx-trigger="change"
+                hx-target="#app-grid"
+                hx-include="[name='search'], [name='model']"
+                name="status">
+            <option value="">All Statuses</option>
+            <option value="running" {% if filters.status == 'running' %}selected{% endif %}>Running</option>
+            <option value="stopped" {% if filters.status == 'stopped' %}selected{% endif %}>Stopped</option>
+            <option value="error" {% if filters.status == 'error' %}selected{% endif %}>Error</option>
+        </select>
+
+        <button hx-get="/api/advanced-search"
+                hx-target="#modal-container"
+                class="btn-secondary">
+            Advanced Search
+        </button>
+
+        <button hx-post="/api/cache/clear"
+                hx-confirm="Clear all cached data?"
+                hx-target="#cache-status"
+                class="btn-warning">
+            Clear Cache
+        </button>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <a href="{{ url_for('batch.create_batch_job') }}" class="btn-primary">
+            Create Batch Job
+        </a>
+        <a href="{{ url_for('docker.docker_overview') }}" class="btn-secondary">
+            Docker Overview
+        </a>
+        <button hx-get="/api/system-health"
+                hx-target="#modal-container"
+                class="btn-info">
+            System Health
+        </button>
+    </div>
+
+    <!-- App Grid -->
+    <div id="app-grid" class="app-grid">
+        {% include "partials/app_list.html" %}
+    </div>
+
+    <!-- Load More -->
+    {% if has_more %}
+    <div class="load-more"
+         hx-get="/?page={{ filters.page + 1 }}&component=apps-list" 
+         hx-trigger="revealed"
+         hx-target="#app-grid"
+         hx-swap="beforeend"
+         hx-include="[name='search'], [name='model'], [name='status']">
+        <div class="loading">Loading more applications...</div>
+    </div>
+    {% endif %}
+
+    <!-- Sidebar with Statistics -->
+    <aside class="dashboard-sidebar"
+           hx-get="/api/sidebar-stats"
+           hx-trigger="load, every 60s"
+           hx-target="this">
+        <div class="loading">Loading sidebar...</div>
+    </aside>
+</div>
+
+<!-- Recent Activity Feed -->
+<section class="recent-activity" 
+         hx-get="/api/recent-activity"
+         hx-trigger="load, every 30s"
+         hx-target="this">
+    <h3>Recent Activity</h3>
+        <div class="loading">Loading activity...</div>
+</section>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Update notification count
+    function updateNotificationCount() {
+        fetch('/api/notifications')
+            .then(response => response.json())
+            .then(data => {
+                const countElement = document.querySelector('.notification-count');
+                if (countElement && data.unread_count) {
+                    countElement.textContent = data.unread_count;
+                    countElement.style.display = data.unread_count > 0 ? 'flex' : 'none';
+                }
+            })
+            .catch(console.error);
+    }
+    
+    // Update every 30 seconds
+    updateNotificationCount();
+    setInterval(updateNotificationCount, 30000);
+    
+    // Auto-focus search input
+    const searchInput = document.querySelector('input[name="search"]');
+    if (searchInput) {
+        searchInput.focus();
+    }
+});
+</script>
+{% endblock %}

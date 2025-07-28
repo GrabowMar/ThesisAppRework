@@ -1,0 +1,192 @@
+<div class="modal-overlay" _="on click from outside .modal remove me">
+    <div class="modal logs-modal">
+        <header class="modal-header">
+            <h3>Container Logs - {{ model|replace('_', ' ')|title }} App {{ app_num }}</h3>
+            <div class="header-controls">
+                <button hx-get="/docker/logs/{{ model }}/{{ app_num }}/download"
+                        class="btn-secondary btn-sm">
+                    💾 Download
+                </button>
+                <button _="on click remove closest .modal-overlay" class="close-btn">×</button>
+            </div>
+        </header>
+        
+        <div class="modal-body">
+            <!-- Log Controls -->
+            <div class="log-controls">
+                <div class="control-group">
+                    <label>Service:</label>
+                    <select hx-get="/docker/logs/{{ model }}/{{ app_num }}"
+                            hx-trigger="change"
+                            hx-target=".logs-content"
+                            hx-include="[name='lines'], [name='follow']"
+                            name="service">
+                        <option value="all" selected>All Services</option>
+                        <option value="frontend">Frontend Only</option>
+                        <option value="backend">Backend Only</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>Lines:</label>
+                    <select hx-get="/docker/logs/{{ model }}/{{ app_num }}"
+                            hx-trigger="change"
+                            hx-target=".logs-content"
+                            hx-include="[name='service'], [name='follow']"
+                            name="lines">
+                        <option value="100">Last 100</option>
+                        <option value="500" selected>Last 500</option>
+                        <option value="1000">Last 1000</option>
+                        <option value="all">All Lines</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" 
+                               name="follow"
+                               value="true"
+                               hx-get="/docker/logs/{{ model }}/{{ app_num }}"
+                               hx-trigger="change"
+                               hx-target=".logs-content"
+                               hx-include="[name='service'], [name='lines']">
+                        Follow (Live)
+                    </label>
+                </div>
+                
+                <div class="control-group">
+                    <button hx-get="/docker/logs/{{ model }}/{{ app_num }}/clear"
+                            hx-confirm="Clear all logs for this application?"
+                            hx-target=".logs-content"
+                            class="btn-warning btn-sm">
+                        🗑️ Clear Logs
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Search -->
+            <div class="log-search">
+                <input type="search" 
+                       placeholder="Search logs..."
+                       _="on keyup
+                          set query to my value
+                          if query is not empty
+                            hide all .log-line
+                            show .log-line containing query
+                          else
+                            show all .log-line
+                          end">
+                
+                <div class="search-info">
+                    <span id="search-results"></span>
+                </div>
+            </div>
+            
+            <!-- Logs Content -->
+            <div class="logs-content"
+                 {% if follow_enabled %}
+                 hx-get="/docker/logs/{{ model }}/{{ app_num }}"
+                 hx-trigger="every 2s"
+                 hx-include="[name='service'], [name='lines'], [name='follow']"
+                 {% endif %}>
+                
+                {% if logs %}
+                <div class="logs-container">
+                    {% for log_entry in logs %}
+                    <div class="log-line log-{{ log_entry.level|lower }} log-{{ log_entry.service|lower }}"
+                         data-timestamp="{{ log_entry.timestamp }}"
+                         data-service="{{ log_entry.service }}"
+                         data-level="{{ log_entry.level }}">
+                        
+                        <span class="log-timestamp">{{ log_entry.timestamp }}</span>
+                        <span class="log-service service-{{ log_entry.service|lower }}">{{ log_entry.service|upper }}</span>
+                        <span class="log-level level-{{ log_entry.level|lower }}">{{ log_entry.level|upper }}</span>
+                        <span class="log-message">{{ log_entry.message }}</span>
+                        
+                        {% if log_entry.details %}
+                        <div class="log-details">
+                            <pre>{{ log_entry.details }}</pre>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Auto-scroll indicator -->
+                <div class="scroll-indicator" 
+                     _="init hide me
+                        on scroll from .logs-container
+                          if .logs-container.scrollTop + .logs-container.clientHeight < .logs-container.scrollHeight - 50
+                            show me
+                          else
+                            hide me
+                          end">
+                    <button _="on click
+                               set .logs-container.scrollTop to .logs-container.scrollHeight
+                               hide me"
+                            class="scroll-to-bottom">
+                        ↓ Scroll to bottom
+                    </button>
+                </div>
+                
+                {% else %}
+                <div class="no-logs">
+                    <div class="no-logs-icon">📋</div>
+                    <div class="no-logs-text">No logs available</div>
+                    <div class="no-logs-subtitle">
+                        {% if not container_running %}
+                        Container is not running
+                        {% else %}
+                        Logs may not be generated yet
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-scroll to bottom when new logs arrive (if user is already at bottom)
+document.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.classList.contains('logs-content')) {
+        const container = evt.detail.target.querySelector('.logs-container');
+        if (container) {
+            const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
+            if (wasAtBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+    }
+});
+
+// Update search results count
+document.addEventListener('input', function(evt) {
+    if (evt.target.type === 'search' && evt.target.placeholder.includes('Search logs')) {
+        setTimeout(() => {
+            const visibleLines = document.querySelectorAll('.log-line:not([style*="display: none"])').length;
+            const totalLines = document.querySelectorAll('.log-line').length;
+            const resultsElement = document.getElementById('search-results');
+            
+            if (resultsElement) {
+                if (evt.target.value) {
+                    resultsElement.textContent = `${visibleLines} of ${totalLines} lines match`;
+                } else {
+                    resultsElement.textContent = `${totalLines} total lines`;
+                }
+            }
+        }, 100);
+    }
+});
+
+// Initial scroll to bottom
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        const container = document.querySelector('.logs-container');
+        if (container) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }, 100);
+});
+</script>

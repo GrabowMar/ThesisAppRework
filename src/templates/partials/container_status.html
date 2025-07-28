@@ -1,0 +1,114 @@
+<div class="container-status">
+    <div class="status-card">
+        <h4>Backend Container</h4>
+        <div class="status-info">
+            <span class="status-badge {{ 'running' if statuses.backend == 'running' else 'stopped' if statuses.backend == 'stopped' else 'error' }}">
+                {{ statuses.backend|title }}
+            </span>
+            {% if statuses.backend == 'running' %}
+            <span class="status-indicator running"></span>
+            {% else %}
+            <span class="status-indicator stopped"></span>
+            {% endif %}
+        </div>
+        <div class="port-info">
+            <small>Port: {{ statuses.backend_port }}</small>
+            {% if statuses.backend_url %}
+            <a href="{{ statuses.backend_url }}" target="_blank" class="port-link">
+                Open Backend
+            </a>
+            {% endif %}
+        </div>
+        {% if statuses.backend_uptime %}
+        <div class="uptime-info">
+            <small>Uptime: {{ statuses.backend_uptime }}</small>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="status-card">
+        <h4>Frontend Container</h4>
+        <div class="status-info">
+            <span class="status-badge {{ 'running' if statuses.frontend == 'running' else 'stopped' if statuses.frontend == 'stopped' else 'error' }}">
+                {{ statuses.frontend|title }}
+            </span>
+            {% if statuses.frontend == 'running' %}
+            <span class="status-indicator running"></span>
+            {% else %}
+            <span class="status-indicator stopped"></span>
+            {% endif %}
+        </div>
+        <div class="port-info">
+            <small>Port: {{ statuses.frontend_port }}</small>
+            {% if statuses.frontend_url %}
+            <a href="{{ statuses.frontend_url }}" target="_blank" class="port-link">
+                Open Frontend
+            </a>
+            {% endif %}
+        </div>
+        {% if statuses.frontend_uptime %}
+        <div class="uptime-info">
+            <small>Uptime: {{ statuses.frontend_uptime }}</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Resource Usage -->
+{% if statuses.resource_usage %}
+<div class="resource-usage">
+    <h4>Resource Usage</h4>
+    <div class="usage-grid">
+        <div class="usage-item">
+            <span class="usage-label">CPU</span>
+            <div class="usage-bar">
+                <div class="usage-fill" style="width: {{ statuses.resource_usage.cpu }}%"></div>
+            </div>
+            <span class="usage-value">{{ statuses.resource_usage.cpu }}%</span>
+        </div>
+        
+        <div class="usage-item">
+            <span class="usage-label">Memory</span>
+            <div class="usage-bar">
+                <div class="usage-fill" style="width: {{ statuses.resource_usage.memory }}%"></div>
+            </div>
+            <span class="usage-value">{{ statuses.resource_usage.memory }}%</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Status Messages -->
+{% if success_message %}
+<div class="alert success">
+    <strong>Success:</strong> {{ success_message }}
+</div>
+{% endif %}
+
+{% if error_message %}
+<div class="alert error">
+    <strong>Error:</strong> {{ error_message }}
+</div>
+{% endif %}
+
+<!-- Container Logs Preview -->
+{% if statuses.recent_logs %}
+<div class="logs-preview">
+    <h4>Recent Logs</h4>
+    <div class="logs-container">
+        {% for log_entry in statuses.recent_logs %}
+        <div class="log-entry log-{{ log_entry.level|lower }}">
+            <span class="log-timestamp">{{ log_entry.timestamp }}</span>
+            <span class="log-level">{{ log_entry.level }}</span>
+            <span class="log-message">{{ log_entry.message|truncate(100) }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    <button hx-get="/docker/logs/{{ model }}/{{ app_num }}"
+            hx-target="#modal-container"
+            class="btn-secondary btn-sm">
+        View Full Logs
+    </button>
+</div>
+{% endif %}
+

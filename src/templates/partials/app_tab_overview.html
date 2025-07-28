@@ -1,0 +1,152 @@
+<div class="overview-tab">
+    <!-- App Information Card -->
+    <div class="info-card">
+        <h3>Application Information</h3>
+        
+        <div class="info-grid">
+            <div class="info-item">
+                <label>Model Provider</label>
+                <span>{{ app_info.provider|title }}</span>
+            </div>
+            
+            <div class="info-item">
+                <label>Model Name</label>
+                <span>{{ model|replace('_', ' ')|title }}</span>
+            </div>
+            
+            <div class="info-item">
+                <label>Application Type</label>
+                <span>{{ app_info.app_type|title }}</span>
+            </div>
+            
+            <div class="info-item">
+                <label>Generation Date</label>
+                <span>{{ app_info.created_at|strftime('%Y-%m-%d %H:%M') if app_info.created_at else 'Unknown' }}</span>
+            </div>
+            
+            <div class="info-item">
+                <label>Frontend Port</label>
+                <span>{{ app_info.frontend_port }}</span>
+            </div>
+            
+            <div class="info-item">
+                <label>Backend Port</label>
+                <span>{{ app_info.backend_port }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Overview -->
+    <div class="status-overview">
+        <h3>Current Status</h3>
+        
+        <div class="status-grid"
+             hx-get="/api/status/{{ model }}/{{ app_num }}"
+             hx-trigger="load, every 10s"
+             hx-target="this">
+            <div class="loading">Loading status...</div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="recent-activity-card">
+        <h3>Recent Activity</h3>
+        
+        <div class="activity-list"
+             hx-get="/api/recent-activity?model={{ model }}&app_num={{ app_num }}"
+             hx-trigger="load, every 30s"
+             hx-target="this">
+            <div class="loading">Loading activity...</div>
+        </div>
+    </div>
+
+    <!-- Analysis Summary -->
+    {% if analysis_summary %}
+    <div class="analysis-summary">
+        <h3>Analysis Summary</h3>
+        
+        <div class="summary-grid">
+            {% if analysis_summary.security %}
+            <div class="summary-item">
+                <div class="summary-header">
+                    <span class="summary-title">Security Analysis</span>
+                    <span class="summary-status status-{{ analysis_summary.security.status }}">
+                        {{ analysis_summary.security.status|title }}
+                    </span>
+                </div>
+                <div class="summary-details">
+                    <span>{{ analysis_summary.security.issues_count }} issues found</span>
+                    <span>Last run: {{ analysis_summary.security.last_run|timeago }}</span>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if analysis_summary.performance %}
+            <div class="summary-item">
+                <div class="summary-header">
+                    <span class="summary-title">Performance Test</span>
+                    <span class="summary-score score-{{ analysis_summary.performance.grade }}">
+                        {{ analysis_summary.performance.score }}/100
+                    </span>
+                </div>
+                <div class="summary-details">
+                    <span>Avg Response: {{ analysis_summary.performance.avg_response }}ms</span>
+                    <span>Last run: {{ analysis_summary.performance.last_run|timeago }}</span>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if analysis_summary.zap %}
+            <div class="summary-item">
+                <div class="summary-header">
+                    <span class="summary-title">ZAP Security Scan</span>
+                    <span class="summary-status status-{{ analysis_summary.zap.status }}">
+                        {{ analysis_summary.zap.status|title }}
+                    </span>
+                </div>
+                <div class="summary-details">
+                    <span>{{ analysis_summary.zap.alerts_count }} alerts</span>
+                    <span>Last scan: {{ analysis_summary.zap.last_scan|timeago }}</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="quick-actions-card">
+        <h3>Quick Actions</h3>
+        
+        <div class="actions-grid">
+            <button hx-post="/analysis/backend_security/{{ model }}/{{ app_num }}/run"
+                    hx-target="#modal-container"
+                    class="action-btn security">
+                <span class="action-icon">🔍</span>
+                <span class="action-text">Run Security Analysis</span>
+            </button>
+            
+            <button hx-post="/performance/{{ model }}/{{ app_num }}/run"
+                    hx-target="#modal-container"
+                    class="action-btn performance">
+                <span class="action-icon">⚡</span>
+                <span class="action-text">Run Performance Test</span>
+            </button>
+            
+            <button hx-post="/zap/{{ model }}/{{ app_num }}/scan"
+                    hx-target="#modal-container"
+                    class="action-btn zap">
+                <span class="action-icon">🛡️</span>
+                <span class="action-text">Start ZAP Scan</span>
+            </button>
+            
+            <button hx-get="/generation/{{ model }}/{{ app_num }}/code"
+                    hx-target="#modal-container"
+                    class="action-btn code">
+                <span class="action-icon">💻</span>
+                <span class="action-text">View Generated Code</span>
+            </button>
+        </div>
+    </div>
+</div>
+

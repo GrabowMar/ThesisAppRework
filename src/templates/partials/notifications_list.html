@@ -1,0 +1,141 @@
+<div class="notifications-list">
+    {% if notifications %}
+        {% for notification in notifications %}
+        <div class="notification-item {{ 'unread' if not notification.read else 'read' }}"
+             data-notification-id="{{ notification.id }}">
+            
+            <div class="notification-icon">
+                {% if notification.type == 'success' %}
+                    ✅
+                {% elif notification.type == 'error' %}
+                    ❌
+                {% elif notification.type == 'warning' %}
+                    ⚠️
+                {% elif notification.type == 'info' %}
+                    ℹ️
+                {% elif notification.type == 'analysis_completed' %}
+                    🔍
+                {% elif notification.type == 'container_started' %}
+                    🟢
+                {% elif notification.type == 'container_stopped' %}
+                    🔴
+                {% elif notification.type == 'batch_job' %}
+                    📊
+                {% else %}
+                    🔔
+                {% endif %}
+            </div>
+            
+            <div class="notification-content">
+                <div class="notification-title">
+                    {{ notification.title }}
+                </div>
+                
+                <div class="notification-message">
+                    {{ notification.message|truncate(80) }}
+                </div>
+                
+                <div class="notification-meta">
+                    <span class="notification-time">{{ notification.created_at|timeago }}</span>
+                    {% if notification.model and notification.app_num %}
+                    <span class="notification-source">
+                        {{ notification.model|replace('_', ' ')|title }} - App {{ notification.app_num }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="notification-actions">
+                {% if not notification.read %}
+                <button hx-post="/api/notifications/{{ notification.id }}/mark-read"
+                        hx-target="closest .notification-item"
+                        hx-swap="outerHTML"
+                        class="mark-read-btn"
+                        title="Mark as read">
+                    👁️
+                </button>
+                {% endif %}
+                
+                {% if notification.action_url %}
+                <a href="{{ notification.action_url }}" 
+                   class="notification-action-btn"
+                   title="View details">
+                    👀
+                </a>
+                {% endif %}
+                
+                <button hx-delete="/api/notifications/{{ notification.id }}"
+                        hx-target="closest .notification-item"
+                        hx-swap="outerHTML"
+                        hx-confirm="Delete this notification?"
+                        class="delete-btn"
+                        title="Delete">
+                    🗑️
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- Notification Actions -->
+        <div class="notifications-footer">
+            {% if unread_count > 0 %}
+            <button hx-post="/api/notifications/mark-all-read"
+                    hx-target=".notifications-list"
+                    class="btn-sm btn-primary">
+                Mark All Read ({{ unread_count }})
+            </button>
+            {% endif %}
+            
+            <button hx-delete="/api/notifications/clear-all"
+                    hx-target=".notifications-list"
+                    hx-confirm="Clear all notifications?"
+                    class="btn-sm btn-secondary">
+                Clear All
+            </button>
+            
+            <a href="/notifications" class="btn-sm btn-secondary">
+                View All Notifications
+            </a>
+        </div>
+        
+    {% else %}
+        <div class="no-notifications">
+            <div class="no-notifications-icon">🔔</div>
+            <div class="no-notifications-text">No notifications</div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Auto-refresh notifications every 30 seconds
+setInterval(function() {
+    if (document.querySelector('.notifications-dropdown.show')) {
+        htmx.ajax('GET', '/api/notifications', {
+            target: '.notifications-list'
+        });
+    }
+}, 30000);
+
+// Handle notification deletion animation
+document.addEventListener('htmx:beforeSwap', function(evt) {
+    if (evt.detail.target.classList.contains('notification-item')) {
+        evt.detail.target.classList.add('removing');
+        setTimeout(() => {
+            evt.detail.target.remove();
+        }, 300);
+        evt.preventDefault();
+    }
+});
+
+// Update notification count in header
+document.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.classList.contains('notifications-list')) {
+        const unreadCount = evt.detail.target.querySelectorAll('.notification-item.unread').length;
+        const countElement = document.querySelector('.notification-count');
+        if (countElement) {
+            countElement.textContent = unreadCount;
+            countElement.style.display = unreadCount > 0 ? 'flex' : 'none';
+        }
+    }
+});
+</script>

@@ -1,0 +1,84 @@
+{% for app in apps %}
+<div class="app-card" 
+     hx-get="{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}"
+     _="on click go to url '{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}'">
+    
+    <div class="app-card-header">
+        <div>
+            <div class="app-title">{{ app.model|replace('_', ' ')|title }}</div>
+            <div class="app-subtitle">App {{ app.app_num }} - {{ app.app_type|title }}</div>
+        </div>
+        
+        <div class="app-status"
+             hx-get="/api/status/{{ app.model }}/{{ app.app_num }}"
+             hx-trigger="load, every 10s"
+             hx-target="this">
+            <span class="status-badge loading">Loading...</span>
+        </div>
+    </div>
+    
+    <div class="app-description">
+        {{ app.description|truncate(120) }}
+    </div>
+    
+    <div class="app-footer">
+        <div class="app-ports">
+            <small>
+                Frontend: {{ app.frontend_port }} | Backend: {{ app.backend_port }}
+            </small>
+        </div>
+        
+        <div class="app-actions">
+            <button hx-post="/docker/start/{{ app.model }}/{{ app.app_num }}"
+                    hx-target="closest .app-card .app-status"
+                    hx-confirm="Start containers for {{ app.model }}/app{{ app.app_num }}?"
+                    class="btn-success btn-sm"
+                    onclick="event.stopPropagation()">
+                Start
+            </button>
+            
+            <button hx-post="/docker/stop/{{ app.model }}/{{ app.app_num }}"
+                    hx-target="closest .app-card .app-status"
+                    hx-confirm="Stop containers for {{ app.model }}/app{{ app.app_num }}?"
+                    class="btn-danger btn-sm"
+                    onclick="event.stopPropagation()">
+                Stop
+            </button>
+        </div>
+    </div>
+    
+    <!-- Analysis Status Indicators -->
+    <div class="app-analysis-status">
+        {% if app.last_analysis %}
+        <div class="analysis-indicator">
+            <span class="analysis-badge analysis-{{ app.last_analysis.status }}">
+                {{ app.last_analysis.type|title }}
+            </span>
+            <small>{{ app.last_analysis.timestamp|timeago }}</small>
+        </div>
+        {% endif %}
+        
+        {% if app.performance_score %}
+        <div class="performance-indicator">
+            <span class="performance-score score-{{ app.performance_score.grade }}">
+                {{ app.performance_score.score }}/100
+            </span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+{% if not apps %}
+<div class="no-results">
+    <h3>No applications found</h3>
+    <p>Try adjusting your search criteria or filters.</p>
+    <button hx-get="/api/search"
+            hx-target="#app-grid"
+            hx-vals='{"search": "", "model": "", "status": ""}'
+            class="btn-primary">
+        Clear Filters
+    </button>
+</div>
+{% endif %}
+

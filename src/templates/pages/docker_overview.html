@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Docker Management - Thesis Research App{% endblock %}
+
+{% block content %}
+<div class="docker-overview">
+    <!-- Page Header -->
+    <header class="page-header">
+        <h1>Docker Container Management</h1>
+        <p>Monitor and control all application containers</p>
+    </header>
+
+    <!-- Docker System Stats -->
+    <div class="docker-stats"
+         hx-get="/api/docker-stats"
+         hx-trigger="load, every 15s"
+         hx-target="this">
+        <div class="loading">Loading Docker statistics...</div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <button hx-post="/docker/start-all"
+                hx-confirm="Start all stopped containers? This may take several minutes."
+                hx-target="#docker-grid"
+                class="btn-success">
+            🚀 Start All Containers
+        </button>
+        
+        <button hx-post="/docker/stop-all"
+                hx-confirm="Stop all running containers?"
+                hx-target="#docker-grid"
+                class="btn-danger">
+            🛑 Stop All Containers
+        </button>
+        
+        <button hx-post="/docker/cleanup"
+                hx-confirm="Clean up unused Docker resources?"
+                hx-target="#system-info"
+                class="btn-warning">
+            🧹 Docker Cleanup
+        </button>
+        
+        <button hx-get="/docker/system-info"
+                hx-target="#modal-container"
+                class="btn-secondary">
+            📊 System Info
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="docker-filters">
+        <div class="filter-section">
+            <select name="status_filter"
+                    hx-get="/docker/"
+                    hx-trigger="change"
+                    hx-target="#docker-grid"
+                    hx-include="[name='model_filter'], [name='search']">
+                <option value="">All Statuses</option>
+                <option value="running">Running Only</option>
+                <option value="stopped">Stopped Only</option>
+                <option value="error">Error State</option>
+            </select>
+            
+            <select name="model_filter"
+                    hx-get="/docker/"
+                    hx-trigger="change"
+                    hx-target="#docker-grid"
+                    hx-include="[name='status_filter'], [name='search']">
+                <option value="">All Models</option>
+                {% for model in available_models %}
+                <option value="{{ model }}">{{ model|replace('_', ' ')|title }}</option>
+                {% endfor %}
+            </select>
+            
+            <input type="search"
+                   name="search"
+                   hx-get="/docker/"
+                   hx-trigger="keyup changed delay:500ms"
+                   hx-target="#docker-grid"
+                   hx-include="[name='status_filter'], [name='model_filter']"
+                   placeholder="Search containers...">
+        </div>
+        
+        <div class="view-controls">
+            <button class="view-btn active" data-view="grid"
+                    _="on click remove .active from .view-btn then add .active to me
+                       then remove .list-view from #docker-grid then add .grid-view to #docker-grid">
+                📱 Grid
+            </button>
+            <button class="view-btn" data-view="list"
+                    _="on click remove .active from .view-btn then add .active to me
+                       then remove .grid-view from #docker-grid then add .list-view to #docker-grid">
+                📋 List
+            </button>
+        </div>
+    </div>
+
+    <!-- Docker Containers Grid -->
+    <div id="docker-grid" class="docker-grid grid-view">
+        {% for container in containers %}
+        <div class="container-card">
+            <div class="container-header">
+                <div class="container-title">
+                    <h4>{{ container.model|replace('_', ' ')|title }}</h4>
+                    <span class="container-subtitle">App {{ container.app_num }} - {{ container.app_type }}</span>
+                </div>
+                
+                <div class="container-status-indicator"
+                     hx-get="/api/status/{{ container.model }}/{{ container.app_num }}"
+                     hx-trigger="load, every 10s"
+                     hx-target="this">
+                    <div class="loading-inline">...</div>
+                </div>
+            </div>
+            
+            <div class="container-services">
+                <div class="service-item">
+                    <span class="service-label">Frontend</span>
+                    <span class="service-status status-{{ container.frontend_status }}">
+                        {{ container.frontend_status|title }}
+                    </span>
+                    <span class="service-port">:{{ container.frontend_port }}</span>
+                </div>
+                
+                <div class="service-item">
+                    <span class="service-label">Backend</span>
+                    <span class="service-status status-{{ container.backend_status }}">
+                        {{ container.backend_status|title }}
+                    </span>
+                    <span class="service-port">:{{ container.backend_port }}</span>
+                </div>
+            </div>
+            
+            <div class="container-actions">
+                <button hx-post="/docker/start/{{ container.model }}/{{ container.app_num }}"
+                        hx-target="closest .container-card"
+                        hx-confirm="Start containers for {{ container.model }}/app{{ container.app_num }}?"
+                        class="btn-success btn-sm">
+                    Start
+                </button>
+                
+                <button hx-post="/docker/stop/{{ container.model }}/{{ container.app_num }}"
+                        hx-target="closest .container-card"
+                        hx-confirm="Stop containers for {{ container.model }}/app{{ container.app_num }}?"
+                        class="btn-danger btn-sm">
+                    Stop
+                </button>
+                
+                <button hx-post="/docker/restart/{{ container.model }}/{{ container.app_num }}"
+                        hx-target="closest .container-card"
+                        hx-confirm="Restart containers for {{ container.model }}/app{{ container.app_num }}?"
+                        class="btn-warning btn-sm">
+                    Restart
+                </button>
+                
+                <button hx-get="/docker/logs/{{ container.model }}/{{ container.app_num }}"
+                        hx-target="#modal-container"
+                        class="btn-secondary btn-sm">
+                    Logs
+                </button>
+            </div>
+            
+            <!-- Resource Usage (if available) -->
+            {% if container.resource_usage %}
+            <div class="resource-usage">
+                <div class="usage-item">
+                    <span class="usage-label">CPU</span>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width: {{ container.resource_usage.cpu }}%"></div>
+                    </div>
+                    <span class="usage-value">{{ container.resource_usage.cpu }}%</span>
+                </div>
+                
+                <div class="usage-item">
+                    <span class="usage-label">Memory</span>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width: {{ container.resource_usage.memory }}%"></div>
+                    </div>
+                    <span class="usage-value">{{ container.resource_usage.memory }}%</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- System Information -->
+    <div id="system-info" class="system-info"
+         hx-get="/api/docker-system-info"
+         hx-trigger="load, every 60s"
+         hx-target="this">
+        <div class="loading">Loading system information...</div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh containers with different intervals based on activity
+document.addEventListener('DOMContentLoaded', function() {
+    function adjustRefreshRate() {
+        const containers = document.querySelectorAll('.container-card');
+        let hasActivity = false;
+        
+        containers.forEach(card => {
+            const statusElements = card.querySelectorAll('.service-status');
+            statusElements.forEach(status => {
+                if (status.textContent.includes('starting') || status.textContent.includes('stopping')) {
+                    hasActivity = true;
+                }
+            });
+        });
+        
+        // Adjust refresh rate based on activity
+        const statusElements = document.querySelectorAll('[hx-trigger*="every"]');
+        const newInterval = hasActivity ? '5s' : '10s';
+        
+        statusElements.forEach(element => {
+            const trigger = element.getAttribute('hx-trigger');
+            if (trigger.includes('every')) {
+                element.setAttribute('hx-trigger', trigger.replace(/every \d+s/, `every ${newInterval}`));
+            }
+        });
+    }
+    
+    // Check every 10 seconds
+    setInterval(adjustRefreshRate, 10000);
+    
+    // Initial check
+    adjustRefreshRate();
+});
+
+// Handle bulk operations feedback
+document.addEventListener('htmx:beforeRequest', function(evt) {
+    if (evt.detail.elt.textContent.includes('All')) {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            overlay.classList.add('show');
+        }
+    }
+});
+
+document.addEventListener('htmx:afterRequest', function(evt) {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+        overlay.classList.remove('show');
+    }
+});
+</script>
+{% endblock %}
