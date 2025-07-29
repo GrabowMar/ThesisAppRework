@@ -1,0 +1,22 @@
+<div class="d-flex flex-wrap">
+    <div class="stat-item mr-3 mb-2">
+        <span class="stat-label text-muted small">Models</span>
+        <span class="stat-value font-weight-bold ml-1">{{ stats.total_models }}</span>
+    </div>
+    <div class="stat-item mr-3 mb-2">
+        <span class="stat-label text-muted small">Apps</span>
+        <span class="stat-value font-weight-bold ml-1">{{ stats.total_apps }}</span>
+    </div>
+    <div class="stat-item mr-3 mb-2">
+        <span class="stat-label text-muted small">Running</span>
+        <span class="stat-value font-weight-bold ml-1 text-success">{{ stats.running_containers }}</span>
+    </div>
+    <div class="stat-item mr-3 mb-2">
+        <span class="stat-label text-muted small">Providers</span>
+        <span class="stat-value font-weight-bold ml-1">{{ stats.total_providers }}</span>
+    </div>
+    <div class="stat-item mr-3 mb-2">
+        <span class="stat-label text-muted small">Docker</span>
+        <span class="stat-value font-weight-bold ml-1 {{ 'text-success' if stats.docker_health == 'Healthy' else 'text-warning' }}">{{ stats.docker_health }}</span>
+    </div>
+</div>

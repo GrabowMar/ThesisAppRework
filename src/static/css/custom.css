@@ -91,6 +91,57 @@
 }
 
 /* ===================================================================
+   Dashboard Header Inline Stats
+   =================================================================== */
+
+.dashboard-inline-stats {
+  margin-left: 2rem;
+}
+
+.dashboard-inline-stats .stat-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--border-radius-md);
+  transition: all 0.2s ease;
+  font-size: var(--font-size-xs);
+}
+
+.dashboard-inline-stats .stat-item:hover {
+  background: var(--color-gray-100);
+  border-color: var(--color-gray-300);
+}
+
+.dashboard-inline-stats .stat-label {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--color-gray-600);
+  margin-right: var(--spacing-xs);
+}
+
+.dashboard-inline-stats .stat-value {
+  font-weight: 600;
+  color: var(--color-gray-800);
+}
+
+/* Responsive adjustments for header stats */
+@media (max-width: 768px) {
+  .dashboard-inline-stats {
+    margin-left: 0;
+    margin-top: var(--spacing-lg);
+    width: 100%;
+  }
+  
+  .page-header .d-flex {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+}
+
+/* ===================================================================
    Base Styles & Resets
    =================================================================== */
 *,
@@ -434,27 +485,37 @@ a:hover {
    =================================================================== */
 .badge {
   display: inline-block;
-  padding: 2px var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
   font-size: var(--font-size-xs);
-  font-weight: 500;
-  line-height: 1.5;
+  font-weight: 600;
+  line-height: 1.2;
   color: white;
   text-align: center;
   white-space: nowrap;
   vertical-align: baseline;
-  border-radius: var(--border-radius-sm);
+  border-radius: var(--border-radius-md);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
 }
 
 .badge-primary {
   background-color: var(--color-primary);
+  color: white;
+}
+
+.badge-secondary {
+  background-color: var(--color-gray-500);
+  color: white;
 }
 
 .badge-success {
   background-color: var(--color-success);
+  color: white;
 }
 
 .badge-danger {
   background-color: var(--color-danger);
+  color: white;
 }
 
 .badge-warning {
@@ -464,6 +525,116 @@ a:hover {
 
 .badge-info {
   background-color: var(--color-info);
+  color: white;
+}
+
+/* Model card stats - clean table-like rows */
+.model-card .row.text-center {
+  background-color: white;
+  margin: 0;
+  padding: var(--spacing-xs) 0;
+  border-top: 1px solid var(--color-gray-200);
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.model-card .stat-item {
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.model-card .stat-value {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+
+.model-card .stat-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--color-gray-600);
+}
+
+/* Button groups - minimal styling */
+.model-card .btn-group {
+  width: 100%;
+}
+
+.model-card .btn-group .btn {
+  border-radius: 0;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 11px;
+  font-weight: 500;
+  flex: 1;
+  border-right: 1px solid var(--color-gray-300);
+}
+
+.model-card .btn-group .btn:last-child {
+  border-right: none;
+}
+
+.model-card .btn-group .btn:first-child {
+  border-radius: var(--border-radius-sm) 0 0 var(--border-radius-sm);
+}
+
+.model-card .btn-group .btn:last-child {
+  border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
+}
+
+/* Badges - smaller and more consistent */
+.model-card .badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+/* Header button group - minimal */
+.model-card .card-header .btn-group .btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* Collapsible sections - clean table continuation */
+.model-card .collapse .card-footer {
+  border-top: 1px solid var(--color-gray-200);
+  background-color: white;
+  padding: 0;
+}
+
+/* Remove grid layout - use simple flow */
+.model-card .card-body {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+/* Metadata section - clean spacing */
+.model-card .mb-3 {
+  margin-bottom: var(--spacing-sm) !important;
+}
+
+/* Button styling - minimal and consistent */
+.model-card .btn-outline-secondary {
+  border-color: var(--color-gray-300);
+  color: var(--color-gray-600);
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.model-card .btn-outline-info {
+  border-color: var(--color-info);
+  color: var(--color-info);
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+/* Remove responsive overrides that add complexity */
+@media (max-width: 768px) {
+  .model-card .btn-group .btn {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
 }
 
 /* Status Indicators */
@@ -713,6 +884,50 @@ pre code {
    Dashboard Specific Components
    =================================================================== */
 
+/* Enhanced dashboard grid spacing - more compact */
+.dashboard-models-grid .row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.dashboard-models-grid .col-12 {
+  padding-left: 0;
+  padding-right: 0;
+  margin-bottom: var(--spacing-md);
+}
+
+/* Search and filter card - more compact */
+.search-filter-card {
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--border-radius-sm);
+  margin-bottom: var(--spacing-lg);
+  background-color: white;
+}
+
+.search-filter-card .card-body {
+  padding: var(--spacing-lg);
+}
+
+/* Page header - more compact */
+.page-header {
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-lg) 0;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.page-header h1 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--color-gray-900);
+  margin-bottom: var(--spacing-xs);
+}
+
+.page-header p {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-600);
+  margin-bottom: 0;
+}
+
 /* Stats Cards */
 .stats-card {
   background-color: white;
@@ -779,21 +994,48 @@ pre code {
   line-height: 1;
 }
 
-/* Model Cards */
+/* Model Cards - Minimal, table-like design */
 .model-card {
   background-color: white;
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-md);
-  padding: var(--spacing-md);
-  transition: all 0.2s ease;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+  border-radius: var(--border-radius-sm);
+  margin-bottom: var(--spacing-sm);
 }
 
 .model-card:hover {
   border-color: var(--color-primary);
-  box-shadow: var(--shadow-md);
+}
+
+.model-card .card-header {
+  background-color: var(--color-gray-50);
+  border-bottom: 1px solid var(--border-color);
+  padding: var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.model-card .card-body {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.model-card .card-footer {
+  background-color: var(--color-gray-50);
+  border-top: 1px solid var(--border-color);
+  padding: 0;
+}
+
+/* Model header - clean and minimal */
+.model-card .card-header h6 {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin-bottom: 0;
+  color: var(--color-gray-900);
+}
+
+.model-card .card-header small {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-600);
 }
 
 .model-header {
@@ -1282,7 +1524,6 @@ pre code {
    Main Content Spacing
    =================================================================== */
 main {
-  margin-top: 56px;
   min-height: calc(100vh - 56px);
   background-color: var(--color-gray-100);
 }
@@ -1485,13 +1726,6 @@ main {
 .navbar-toggler:focus {
   outline: none;
   box-shadow: none;
-}
-
-/* Main Content Spacing */
-main {
-  margin-top: 56px;
-  min-height: calc(100vh - 56px);
-  background-color: var(--color-gray-100);
 }
 
 /* Full Width Container Override */
@@ -1711,12 +1945,6 @@ main {
   scrollbar-width: thin;
   scrollbar-color: var(--color-gray-400) var(--color-gray-100);
 }
-main {
-  margin-top: 56px;
-  min-height: calc(100vh - 56px);
-  background-color: var(--color-gray-100);
-}
-
 /* Full Width Container Override */
 .container-fluid.full-width {
   max-width: 100%;

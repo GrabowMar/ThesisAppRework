@@ -1102,17 +1102,46 @@ class DockerManager:
             self.logger.error(f"Error getting container {container_name}: {e}")
             return None
 
-    def get_container_logs(self, container_name: str, tail: int = 100) -> str:
+    def get_container_logs(self, container_name_or_model: str, app_num: int = None, container_type: str = None, tail: int = 100) -> str:
+        """Get container logs. Can be called with container name or model/app_num."""
         if not self.client:
             return "Docker client unavailable"
-        container = self.get_container(container_name)
-        if not container:
-            return f"Container '{container_name}' not found"
+        
         try:
+            # If app_num and container_type are provided, generate container name
+            if app_num is not None and container_type is not None:
+                model = container_name_or_model
+                project_name = get_docker_project_name(model, app_num)
+                
+                # Get port config to build proper container name
+                try:
+                    from core_services import get_app_config_by_model_and_number
+                    app_config = get_app_config_by_model_and_number(model, app_num)
+                    
+                    if container_type == 'backend':
+                        port = app_config.get('backend_port', 6000) if app_config else 6000
+                        container_name = f"{project_name}_backend_{port}"
+                    elif container_type == 'frontend':
+                        port = app_config.get('frontend_port', 9000) if app_config else 9000
+                        container_name = f"{project_name}_frontend_{port}"
+                    else:
+                        container_name = f"{project_name}_{container_type}"
+                except Exception:
+                    # Fallback naming scheme
+                    container_name = f"{project_name}_{container_type}"
+            else:
+                # Use the first parameter as container name directly
+                container_name = container_name_or_model
+            
+            container = self.get_container(container_name)
+            if not container:
+                return f"Container '{container_name}' not found"
+            
             logs = container.logs(tail=tail).decode("utf-8", errors="replace")
             return logs
+            
         except Exception as e:
-            self.logger.error(f"Log retrieval failed for {container_name}: {e}")
+            self.logger.error(f"Log retrieval failed for {container_name_or_model}: {e}")
             return f"Log retrieval error: {e}"
 
     def cleanup_containers(self) -> None:
@@ -1194,6 +1223,405 @@ class DockerManager:
         except Exception as e:
             self.logger.error(f"Error fetching Docker Compose version: {e}")
             return None
+
+    def start_containers(self, compose_path: str, model: str = None, app_num: int = None) -> Dict[str, Any]:
+        """Start containers using docker-compose."""
+        if not compose_path:
+            return {'success': False, 'error': 'No compose path provided'}
+        
+        try:
+            compose_file = Path(compose_path)
+            if not compose_file.exists():
+                return {'success': False, 'error': f'Docker compose file not found: {compose_path}'}
+            
+            # Generate project name from path or model/app_num
+            if model and app_num:
+                project_name = get_docker_project_name(model, app_num)
+            else:
+                # Extract from path
+                path_parts = Path(compose_path).parts
+                model_idx = -1
+                for i, part in enumerate(path_parts):
+                    if part.startswith('app') and part[3:].isdigit():
+                        model_part = path_parts[i-1] if i > 0 else 'unknown'
+                        app_part = part[3:]
+                        project_name = sanitize_docker_project_name(f"{model_part}_app{app_part}")
+                        break
+                else:
+                    project_name = sanitize_docker_project_name(str(compose_file.parent.name))
+            
+            # Change to the directory containing the compose file
+            compose_dir = compose_file.parent
+            
+            # Stop any conflicting containers first
+            cleanup_success, cleanup_output = stop_conflicting_containers(project_name)
+            self.logger.info(f"Pre-start cleanup for {project_name}: {cleanup_output}")
+            
+            # Start containers
+            cmd = [
+                "docker-compose", 
+                "-p", project_name,
+                "-f", str(compose_file),
+                "up", "-d", "--remove-orphans"
+            ]
+            
+            self.logger.info(f"Starting containers with command: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd,
+                cwd=str(compose_dir),
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minutes timeout
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            
+            output = result.stdout
+            if result.stderr:
+                output += "\n--- STDERR ---\n" + result.stderr
+            
+            if result.returncode == 0:
+                self.logger.info(f"Successfully started containers for project: {project_name}")
+                return {
+                    'success': True,
+                    'message': f'Containers started successfully for {project_name}',
+                    'output': output,
+                    'project_name': project_name
+                }
+            else:
+                self.logger.error(f"Failed to start containers for {project_name}: {output}")
+                return {
+                    'success': False,
+                    'error': f'Failed to start containers: {output}',
+                    'project_name': project_name
+                }
+                
+        except subprocess.TimeoutExpired:
+            error_msg = f"Container startup timed out after 5 minutes"
+            self.logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
+        except Exception as e:
+            error_msg = f"Error starting containers: {str(e)}"
+            self.logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
+
+    def stop_containers(self, compose_path: str, model: str = None, app_num: int = None) -> Dict[str, Any]:
+        """Stop containers using docker-compose."""
+        if not compose_path:
+            return {'success': False, 'error': 'No compose path provided'}
+        
+        try:
+            compose_file = Path(compose_path)
+            if not compose_file.exists():
+                return {'success': False, 'error': f'Docker compose file not found: {compose_path}'}
+            
+            # Generate project name from path or model/app_num
+            if model and app_num:
+                project_name = get_docker_project_name(model, app_num)
+            else:
+                # Extract from path
+                path_parts = Path(compose_path).parts
+                model_idx = -1
+                for i, part in enumerate(path_parts):
+                    if part.startswith('app') and part[3:].isdigit():
+                        model_part = path_parts[i-1] if i > 0 else 'unknown'
+                        app_part = part[3:]
+                        project_name = sanitize_docker_project_name(f"{model_part}_app{app_part}")
+                        break
+                else:
+                    project_name = sanitize_docker_project_name(str(compose_file.parent.name))
+            
+            # Change to the directory containing the compose file
+            compose_dir = compose_file.parent
+            
+            # Stop containers
+            cmd = [
+                "docker-compose", 
+                "-p", project_name,
+                "-f", str(compose_file),
+                "down", "--timeout", "30"
+            ]
+            
+            self.logger.info(f"Stopping containers with command: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd,
+                cwd=str(compose_dir),
+                capture_output=True,
+                text=True,
+                timeout=180,  # 3 minutes timeout
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            
+            output = result.stdout
+            if result.stderr:
+                output += "\n--- STDERR ---\n" + result.stderr
+            
+            if result.returncode == 0:
+                self.logger.info(f"Successfully stopped containers for project: {project_name}")
+                return {
+                    'success': True,
+                    'message': f'Containers stopped successfully for {project_name}',
+                    'output': output,
+                    'project_name': project_name
+                }
+            else:
+                self.logger.warning(f"Docker-compose down had issues for {project_name}: {output}")
+                # Try comprehensive cleanup as fallback
+                cleanup_success, cleanup_output = stop_conflicting_containers(project_name)
+                return {
+                    'success': cleanup_success,
+                    'message': f'Containers stopped (with cleanup) for {project_name}',
+                    'output': f"{output}\n--- Fallback Cleanup ---\n{cleanup_output}",
+                    'project_name': project_name
+                }
+                
+        except subprocess.TimeoutExpired:
+            error_msg = f"Container shutdown timed out after 3 minutes"
+            self.logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
+        except Exception as e:
+            error_msg = f"Error stopping containers: {str(e)}"
+            self.logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
+
+    def restart_containers(self, compose_path: str, model: str = None, app_num: int = None) -> Dict[str, Any]:
+        """Restart containers using docker-compose."""
+        if not compose_path:
+            return {'success': False, 'error': 'No compose path provided'}
+        
+        try:
+            compose_file = Path(compose_path)
+            if not compose_file.exists():
+                return {'success': False, 'error': f'Docker compose file not found: {compose_path}'}
+            
+            # Generate project name from path or model/app_num
+            if model and app_num:
+                project_name = get_docker_project_name(model, app_num)
+            else:
+                # Extract from path
+                path_parts = Path(compose_path).parts
+                model_idx = -1
+                for i, part in enumerate(path_parts):
+                    if part.startswith('app') and part[3:].isdigit():
+                        model_part = path_parts[i-1] if i > 0 else 'unknown'
+                        app_part = part[3:]
+                        project_name = sanitize_docker_project_name(f"{model_part}_app{app_part}")
+                        break
+                else:
+                    project_name = sanitize_docker_project_name(str(compose_file.parent.name))
+            
+            # Change to the directory containing the compose file
+            compose_dir = compose_file.parent
+            
+            # First stop containers
+            stop_result = self.stop_containers(compose_path, model, app_num)
+            if not stop_result['success']:
+                return {
+                    'success': False,
+                    'error': f"Failed to stop containers before restart: {stop_result.get('error', 'Unknown error')}",
+                    'project_name': project_name
+                }
+            
+            # Wait a moment for cleanup
+            time.sleep(2)
+            
+            # Then start containers
+            start_result = self.start_containers(compose_path, model, app_num)
+            if start_result['success']:
+                combined_output = f"--- STOP PHASE ---\n{stop_result.get('output', '')}\n\n--- START PHASE ---\n{start_result.get('output', '')}"
+                return {
+                    'success': True,
+                    'message': f'Containers restarted successfully for {project_name}',
+                    'output': combined_output,
+                    'project_name': project_name
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': f"Failed to start containers after stop: {start_result.get('error', 'Unknown error')}",
+                    'project_name': project_name,
+                    'output': f"--- STOP PHASE ---\n{stop_result.get('output', '')}\n\n--- START PHASE (FAILED) ---\n{start_result.get('output', '')}"
+                }
+                
+        except Exception as e:
+            error_msg = f"Error restarting containers: {str(e)}"
+            self.logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
+
+    def build_containers(self, compose_path: str, model: str = None, app_num: int = None, no_cache: bool = True) -> Dict[str, Any]:
+        """Build containers using docker-compose."""
+        if not compose_path:
+            return {'success': False, 'error': 'No compose path provided'}
+        
+        try:
+            compose_file = Path(compose_path)
+            if not compose_file.exists():
+                return {'success': False, 'error': f'Docker compose file not found: {compose_path}'}
+            
+            # Generate project name from path or model/app_num
+            if model and app_num:
+                project_name = get_docker_project_name(model, app_num)
+            else:
+                # Extract from path
+                path_parts = Path(compose_path).parts
+                model_idx = -1
+                for i, part in enumerate(path_parts):
+                    if part.startswith('app') and part[3:].isdigit():
+                        model_part = path_parts[i-1] if i > 0 else 'unknown'
+                        app_part = part[3:]
+                        project_name = sanitize_docker_project_name(f"{model_part}_app{app_part}")
+                        break
+                else:
+                    project_name = sanitize_docker_project_name(str(compose_file.parent.name))
+            
+            # Change to the directory containing the compose file
+            compose_dir = compose_file.parent
+            
+            # Build containers
+            cmd = [
+                "docker-compose", 
+                "-p", project_name,
+                "-f", str(compose_file),
+                "build"
+            ]
+            
+            if no_cache:
+                cmd.append("--no-cache")
+                cmd.extend(["--pull"])
+            
+            self.logger.info(f"Building containers with command: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd,
+                cwd=str(compose_dir),
+                capture_output=True,
+                text=True,
+                timeout=900,  # 15 minutes timeout for builds
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            
+            output = result.stdout
+            if result.stderr:
+                output += "\n--- STDERR ---\n" + result.stderr
+            
+            if result.returncode == 0:
+                self.logger.info(f"Successfully built containers for project: {project_name}")
+                return {
+                    'success': True,
+                    'message': f'Containers built successfully for {project_name}',
+                    'output': output,
+                    'project_name': project_name
+                }
+            else:
+                self.logger.error(f"Failed to build containers for {project_name}: {output}")
+                return {
+                    'success': False,
+                    'error': f'Failed to build containers: {output}',
+                    'project_name': project_name
+                }
+                
+        except subprocess.TimeoutExpired:
+            error_msg = f"Container build timed out after 15 minutes"
+            self.logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
+        except Exception as e:
+            error_msg = f"Error building containers: {str(e)}"
+            self.logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
+
+    def get_container_status_by_project(self, project_name: str) -> Dict[str, Any]:
+        """Get status of all containers in a project."""
+        if not self.client:
+            return {'success': False, 'error': 'Docker client unavailable'}
+        
+        try:
+            # Get all containers for this project
+            containers = self.client.containers.list(
+                all=True,
+                filters={'label': f'com.docker.compose.project={project_name}'}
+            )
+            
+            if not containers:
+                # Fallback: search by name pattern
+                all_containers = self.client.containers.list(all=True)
+                containers = [c for c in all_containers if project_name in c.name]
+            
+            container_statuses = {}
+            
+            for container in containers:
+                service_name = container.labels.get('com.docker.compose.service', 'unknown')
+                
+                # Get detailed status
+                container.reload()
+                status = container.status
+                is_running = status == "running"
+                
+                state = container.attrs.get("State", {})
+                health_info = state.get("Health")
+                
+                if health_info and isinstance(health_info, dict):
+                    health_status = health_info.get("Status", "checking")
+                elif is_running:
+                    health_status = "healthy"
+                else:
+                    health_status = status
+                
+                container_statuses[service_name] = {
+                    'name': container.name,
+                    'status': status,
+                    'running': is_running,
+                    'health': health_status,
+                    'created': container.attrs.get('Created', ''),
+                    'image': container.image.tags[0] if container.image.tags else 'unknown',
+                    'ports': self._extract_ports(container)
+                }
+            
+            return {
+                'success': True,
+                'project_name': project_name,
+                'containers': container_statuses,
+                'total_containers': len(container_statuses),
+                'running_containers': sum(1 for c in container_statuses.values() if c['running'])
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting container status for project {project_name}: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _extract_ports(self, container) -> Dict[str, str]:
+        """Extract port mappings from container."""
+        try:
+            ports = {}
+            port_info = container.attrs.get('NetworkSettings', {}).get('Ports', {})
+            
+            for container_port, host_info in port_info.items():
+                if host_info:
+                    host_port = host_info[0]['HostPort']
+                    ports[container_port] = f"0.0.0.0:{host_port}"
+                else:
+                    ports[container_port] = "Not mapped"
+            
+            return ports
+        except Exception:
+            return {}
+
+    def cleanup_project(self, project_name: str) -> Dict[str, Any]:
+        """Comprehensive cleanup of a Docker project."""
+        try:
+            cleanup_success, cleanup_output = stop_conflicting_containers(project_name)
+            
+            return {
+                'success': cleanup_success,
+                'message': f'Project {project_name} cleaned up',
+                'output': cleanup_output,
+                'project_name': project_name
+            }
+            
+        except Exception as e:
+            error_msg = f"Error cleaning up project {project_name}: {str(e)}"
+            self.logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
 
 
 class SystemHealthMonitor:

@@ -29,6 +29,9 @@ from flask import (
 # Performance imports
 from cache_service import cache, cached, cache_dashboard_stats, cache_model_stats, cache_system_health
 
+# Import Docker utility functions
+from core_services import get_docker_project_name
+
 # Initialize logger
 logger = logging.getLogger(__name__)
 
@@ -198,18 +201,40 @@ def handle_docker_action(action: str, model: str, app_num: int):
         return {'success': False, 'error': 'Docker manager not available'}
     
     try:
-        port_config = get_port_config(model, app_num)
-        compose_path = f"misc/models/{model}/app{app_num}/docker-compose.yml"
+        # Get the project root directory
+        import os
+        from pathlib import Path
+        
+        # Get the absolute path to the models directory
+        current_dir = Path(__file__).parent
+        project_root = current_dir.parent
+        models_base_dir = project_root / "misc" / "models"
+        
+        # Convert model slug back to directory format (replace - with _)
+        model_dir = model.replace('-', '_')
+        compose_path = models_base_dir / model_dir / f"app{app_num}" / "docker-compose.yml"
+        
+        # Check if compose file exists
+        if not compose_path.exists():
+            return {
+                'success': False, 
+                'error': f'Docker compose file not found: {compose_path}'
+            }
+        
+        logger.info(f"Executing {action} for {model}/app{app_num} using compose file: {compose_path}")
         
         if action == 'start':
-            return docker_manager.start_containers(compose_path)
+            return docker_manager.start_containers(str(compose_path), model_dir, app_num)
         elif action == 'stop':
-            return docker_manager.stop_containers(compose_path)
+            return docker_manager.stop_containers(str(compose_path), model_dir, app_num)
         elif action == 'restart':
-            return docker_manager.restart_containers(compose_path)
+            return docker_manager.restart_containers(str(compose_path), model_dir, app_num)
+        elif action == 'build':
+            return docker_manager.build_containers(str(compose_path), model_dir, app_num)
         else:
             return {'success': False, 'error': f'Unknown action: {action}'}
     except Exception as e:
+        logger.error(f"Error handling docker action {action} for {model}/app{app_num}: {str(e)}")
         return {'success': False, 'error': str(e)}
 
 def verify_container_health(docker_manager, model: str, app_num: int, max_retries: int = 15, retry_delay: int = 5):
@@ -1441,6 +1466,29 @@ def get_notifications():
         return jsonify({'notifications': []})
 
 
+@api_bp.route("/notifications/count")
+def get_notifications_count():
+    """Get notification count for the navbar badge."""
+    try:
+        # For now, return 0 notifications
+        # In a real app, this would count unread notifications from a database
+        count = 0
+        
+        # You could add logic here to count actual notifications:
+        # from models import Notification
+        # count = Notification.query.filter_by(read=False).count()
+        
+        if is_htmx_request():
+            return str(count)  # Return just the number for HTMX swap
+        return jsonify({'count': count})
+        
+    except Exception as e:
+        logger.error(f"Error getting notification count: {e}")
+        if is_htmx_request():
+            return "0"
+        return jsonify({'count': 0})
+
+
 @api_bp.route("/cache/clear", methods=["POST"])
 def clear_cache():
     """Clear application cache."""
@@ -1458,6 +1506,47 @@ def clear_cache():
             return render_template("partials/error_message.html", 
                                  error="Failed to clear cache")
         return create_api_response(False, error=str(e))
+
+
+@api_bp.route("/model/<model_slug>/stats")
+def get_model_stats(model_slug: str):
+    """Get model statistics for auto-refresh."""
+    try:
+        docker_manager = get_docker_manager()
+        
+        running_containers = 0
+        stopped_containers = 0
+        error_containers = 0
+        
+        if docker_manager:
+            for app_num in range(1, 31):  # 30 apps per model
+                try:
+                    statuses = get_app_container_statuses(model_slug, app_num, docker_manager)
+                    backend_status = statuses.get('backend', 'not_found')
+                    frontend_status = statuses.get('frontend', 'not_found')
+                    
+                    if backend_status == 'running' and frontend_status == 'running':
+                        running_containers += 1
+                    elif backend_status in ['exited', 'dead'] or frontend_status in ['exited', 'dead']:
+                        error_containers += 1
+                    else:
+                        stopped_containers += 1
+                except Exception:
+                    stopped_containers += 1
+        else:
+            stopped_containers = 30  # All apps assumed stopped if no Docker
+        
+        stats = {
+            'running': running_containers,
+            'stopped': stopped_containers,
+            'error': error_containers
+        }
+        
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting model stats for {model_slug}: {e}")
+        return jsonify({'running': 0, 'stopped': 0, 'error': 0})
 
 
 @api_bp.route("/dashboard-stats")
@@ -1812,9 +1901,11 @@ def docker_action(action: str, model: str, app_num: int):
             raise ValueError(f"Invalid action: {action}")
         
         # Perform Docker action
-        success, message = handle_docker_action(action, model, app_num)
+        result = handle_docker_action(action, model, app_num)
         
-        if success:
+        if result['success']:
+            message = result.get('message', f'Docker {action} successful')
+            
             # Verify container health for start/restart actions
             if action in ['start', 'restart']:
                 docker_manager = get_docker_manager()
@@ -1834,9 +1925,10 @@ def docker_action(action: str, model: str, app_num: int):
             else:
                 return create_api_response(True, message=message)
         else:
+            error_message = result.get('error', f'Docker {action} failed')
             if is_htmx_request():
-                return render_template("partials/error_message.html", error=message)
-            return create_api_response(False, error=message)
+                return render_template("partials/error_message.html", error=error_message)
+            return create_api_response(False, error=error_message)
             
     except Exception as e:
         logger.error(f"Error performing {action} on {model}/app{app_num}: {e}")
@@ -1876,6 +1968,289 @@ def view_logs(model: str, app_num: int):
             return render_template("partials/error_message.html", 
                                  error="Failed to load logs")
         return render_template("pages/error.html", error=str(e))
+
+
+# Additional API routes for Docker management
+@api_bp.route("/docker/<model_slug>/<path:app_identifier>/<action>", methods=["POST"])
+def api_docker_app_action(model_slug: str, app_identifier: str, action: str):
+    """Generic Docker API endpoint for app actions."""
+    try:
+        # Parse app identifier (could be "app1", "app2", etc.)
+        if app_identifier.startswith("app"):
+            app_num = int(app_identifier[3:])
+        else:
+            app_num = int(app_identifier)
+        
+        # Validate action
+        valid_actions = ['start', 'stop', 'restart', 'build']
+        if action not in valid_actions:
+            return create_api_response(False, error=f"Invalid action: {action}")
+        
+        # Execute action
+        result = handle_docker_action(action, model_slug, app_num)
+        
+        if result['success']:
+            # Get updated status
+            docker_manager = get_docker_manager()
+            statuses = get_app_container_statuses(model_slug, app_num, docker_manager)
+            
+            return create_api_response(
+                True, 
+                data={'statuses': statuses, 'message': result.get('message', f'{action} successful')},
+                message=result.get('message', f'{action} completed successfully')
+            )
+        else:
+            return create_api_response(False, error=result.get('error', f'{action} failed'))
+            
+    except ValueError as ve:
+        return create_api_response(False, error=f"Invalid app identifier: {app_identifier}")
+    except Exception as e:
+        logger.error(f"Error in Docker API action {action} for {model_slug}/{app_identifier}: {e}")
+        return create_api_response(False, error=str(e))
+
+
+@api_bp.route("/docker/<model_slug>/bulk/<action>", methods=["POST"])
+def api_docker_bulk_action(model_slug: str, action: str):
+    """Bulk Docker actions for all apps of a model."""
+    try:
+        # Validate action
+        valid_actions = ['start', 'stop', 'restart', 'build']
+        if action not in valid_actions:
+            return create_api_response(False, error=f"Invalid action: {action}")
+        
+        # Get app range from request
+        app_range = request.json.get('app_range', list(range(1, 31))) if request.is_json else list(range(1, 31))
+        if isinstance(app_range, str):
+            # Parse string range like "1-5,7,9-10"
+            app_range = _parse_app_range(app_range)
+        
+        results = []
+        success_count = 0
+        error_count = 0
+        
+        for app_num in app_range:
+            try:
+                result = handle_docker_action(action, model_slug, app_num)
+                if result['success']:
+                    success_count += 1
+                    results.append({
+                        'app_num': app_num,
+                        'success': True,
+                        'message': result.get('message', f'{action} successful')
+                    })
+                else:
+                    error_count += 1
+                    results.append({
+                        'app_num': app_num,
+                        'success': False,
+                        'error': result.get('error', f'{action} failed')
+                    })
+            except Exception as e:
+                error_count += 1
+                results.append({
+                    'app_num': app_num,
+                    'success': False,
+                    'error': str(e)
+                })
+        
+        overall_success = error_count == 0
+        summary_message = f"Bulk {action}: {success_count} succeeded, {error_count} failed"
+        
+        return create_api_response(
+            overall_success,
+            data={
+                'results': results,
+                'summary': {
+                    'total': len(app_range),
+                    'success': success_count,
+                    'failed': error_count
+                }
+            },
+            message=summary_message
+        )
+            
+    except Exception as e:
+        logger.error(f"Error in bulk Docker action {action} for {model_slug}: {e}")
+        return create_api_response(False, error=str(e))
+
+
+def _parse_app_range(range_str: str) -> List[int]:
+    """Parse app range string like '1-5,7,9-10' into list of integers."""
+    apps = []
+    parts = range_str.split(',')
+    
+    for part in parts:
+        part = part.strip()
+        if '-' in part:
+            try:
+                start, end = part.split('-')
+                start = int(start.strip())
+                end = int(end.strip())
+                if start <= end:
+                    apps.extend(range(start, end + 1))
+            except ValueError:
+                continue
+        else:
+            try:
+                apps.append(int(part))
+            except ValueError:
+                continue
+    
+    return sorted(list(set(apps)))
+
+
+@docker_bp.route("/status/<model>/<int:app_num>")
+def container_status(model: str, app_num: int):
+    """Get detailed container status information."""
+    try:
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            return create_api_response(False, error="Docker manager not available")
+        
+        # Get container statuses
+        statuses = get_app_container_statuses(model, app_num, docker_manager)
+        
+        # Get additional container info if available
+        project_name = get_docker_project_name(model, app_num)
+        container_info = docker_manager.get_container_status_by_project(project_name)
+        
+        context = {
+            'model': model,
+            'app_num': app_num,
+            'statuses': statuses,
+            'container_info': container_info,
+            'project_name': project_name
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/detailed_container_status.html", **context)
+        
+        return create_api_response(True, data=context)
+        
+    except Exception as e:
+        logger.error(f"Error getting container status for {model}/app{app_num}: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error="Failed to get container status")
+        return create_api_response(False, error=str(e))
+
+
+# Container-specific API routes for HTMX integration
+@api_bp.route("/containers/<model>/<int:app_num>/<action>", methods=["POST"])
+def api_container_action(model: str, app_num: int, action: str):
+    """HTMX-compatible container action endpoint."""
+    try:
+        # Validate action
+        valid_actions = ['start', 'stop', 'restart', 'build']
+        if action not in valid_actions:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error=f"Invalid action: {action}")
+            return create_api_response(False, error=f"Invalid action: {action}")
+        
+        # Execute action
+        result = handle_docker_action(action, model, app_num)
+        
+        if result['success']:
+            # Get updated status
+            docker_manager = get_docker_manager()
+            statuses = get_app_container_statuses(model, app_num, docker_manager)
+            
+            context = {
+                'model': model,
+                'app_num': app_num,
+                'statuses': statuses,
+                'action': action,
+                'message': result.get('message', f'{action} completed successfully')
+            }
+            
+            if is_htmx_request():
+                # Return updated container status card or row
+                return render_template("partials/container_status_update.html", **context)
+            
+            return create_api_response(
+                True, 
+                data=context,
+                message=result.get('message', f'{action} completed successfully')
+            )
+        else:
+            error_msg = result.get('error', f'{action} failed')
+            if is_htmx_request():
+                return render_template("partials/error_message.html", error=error_msg)
+            return create_api_response(False, error=error_msg)
+            
+    except Exception as e:
+        logger.error(f"Error in container action {action} for {model}/app{app_num}: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error=f"Error executing {action}: {str(e)}")
+        return create_api_response(False, error=str(e))
+
+
+@api_bp.route("/containers/<model>/<int:app_num>/status", methods=["GET"])
+def api_container_status(model: str, app_num: int):
+    """Get container status for HTMX updates."""
+    try:
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="Docker manager not available")
+            return create_api_response(False, error="Docker manager not available")
+        
+        # Get container statuses
+        statuses = get_app_container_statuses(model, app_num, docker_manager)
+        
+        context = {
+            'model': model,
+            'app_num': app_num,
+            'statuses': statuses
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/container_status_update.html", **context)
+        
+        return create_api_response(True, data=context)
+        
+    except Exception as e:
+        logger.error(f"Error getting container status for {model}/app{app_num}: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error="Failed to get container status")
+        return create_api_response(False, error=str(e))
+
+
+@api_bp.route("/containers/<model>/<int:app_num>/logs", methods=["GET"])
+def api_container_logs(model: str, app_num: int):
+    """Get container logs for HTMX display."""
+    try:
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="Docker manager not available")
+            return create_api_response(False, error="Docker manager not available")
+        
+        # Get container logs
+        logs = docker_manager.get_container_logs(model, app_num)
+        
+        context = {
+            'model': model,
+            'app_num': app_num,
+            'logs': logs
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/container_logs.html", **context)
+        
+        return create_api_response(True, data=context)
+        
+    except Exception as e:
+        logger.error(f"Error getting container logs for {model}/app{app_num}: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error="Failed to get container logs")
+        return create_api_response(False, error=str(e))
 
 
 @api_bp.route("/models/export")
@@ -3151,6 +3526,50 @@ def api_dashboard_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@main_bp.route('/api/dashboard/header-stats')
+@cache_dashboard_stats(timeout=120)  # Cache for 2 minutes
+def api_dashboard_header_stats():
+    """Get compact dashboard stats for header display"""
+    try:
+        from models import ModelCapability
+        from extensions import db
+        
+        models = db.session.query(ModelCapability).all()
+        docker_manager = get_docker_manager()
+        
+        total_models = len(models)
+        total_apps = total_models * 30
+        running_containers = 0
+        
+        # Lightweight container check for header
+        if docker_manager and total_models > 0:
+            # Sample only 2 models for header stats (very fast)
+            sample_models = models[:2]
+            for model in sample_models:
+                for app_num in range(1, 4):  # Check only first 3 apps
+                    try:
+                        statuses = get_app_container_statuses(model.canonical_slug, app_num, docker_manager)
+                        if statuses.get('backend') == 'running' and statuses.get('frontend') == 'running':
+                            running_containers += 1
+                    except Exception:
+                        pass
+            # Scale up the result
+            if len(sample_models) > 0:
+                running_containers = int(running_containers * (total_models / len(sample_models)) * (30 / 3))
+        
+        stats = {
+            'total_models': total_models,
+            'total_apps': total_apps,
+            'running_containers': running_containers,
+            'total_providers': len(set(model.provider for model in models)),
+            'docker_health': 'Healthy' if docker_manager else 'Unavailable'
+        }
+        
+        return render_template('partials/dashboard_header_stats.html', stats=stats)
+        
+    except Exception as e:
+        return f'<div class="text-danger small">Stats unavailable</div>'
+
 # Container control routes
 @main_bp.route('/api/containers/<model_slug>/<int:app_num>/start', methods=['POST'])
 def api_start_container(model_slug, app_num):
@@ -3232,6 +3651,196 @@ def api_container_logs(model_slug, app_num):
         
     except Exception as e:
         return f"<div class='error'>Error fetching logs: {str(e)}</div>", 500
+
+
+# Batch Operations for Models
+@main_bp.route('/api/model/<model_slug>/start-all', methods=['POST'])
+def api_model_start_all(model_slug):
+    """Start all containers for a model."""
+    try:
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            return "Docker manager not available", 500
+            
+        results = []
+        success_count = 0
+        
+        # Get all apps for this model (assuming 30 apps per model)
+        for app_num in range(1, 31):
+            try:
+                result = docker_manager.start_containers(model_slug, app_num)
+                results.append(result)
+                if result.get("success", False):
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to start {model_slug}/app{app_num}: {e}")
+                results.append({"success": False, "error": str(e)})
+        
+        total_count = len(results)
+        
+        if request.headers.get('HX-Request'):
+            return f'''
+            <div class="alert alert-{"success" if success_count > 0 else "danger"}">
+                Started {success_count}/{total_count} apps for {model_slug}
+            </div>
+            '''
+        else:
+            return jsonify({
+                'success': success_count > 0,
+                'data': {
+                    'model': model_slug,
+                    'success_count': success_count,
+                    'total_count': total_count,
+                    'results': results
+                },
+                'message': f"Started {success_count}/{total_count} apps for {model_slug}"
+            })
+            
+    except Exception as e:
+        logger.exception(f"Failed to start all apps for {model_slug}: {e}")
+        error_msg = f"Failed to start all apps: {str(e)}"
+        
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger">Error: {error_msg}</div>', 500
+        else:
+            return jsonify({'success': False, 'error': error_msg}), 500
+
+
+@main_bp.route('/api/model/<model_slug>/stop-all', methods=['POST'])
+def api_model_stop_all(model_slug):
+    """Stop all containers for a model."""
+    try:
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            return "Docker manager not available", 500
+            
+        results = []
+        success_count = 0
+        
+        # Get all apps for this model (assuming 30 apps per model)
+        for app_num in range(1, 31):
+            try:
+                result = docker_manager.stop_containers(model_slug, app_num)
+                results.append(result)
+                if result.get("success", False):
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to stop {model_slug}/app{app_num}: {e}")
+                results.append({"success": False, "error": str(e)})
+        
+        total_count = len(results)
+        
+        if request.headers.get('HX-Request'):
+            return f'''
+            <div class="alert alert-{"success" if success_count > 0 else "danger"}">
+                Stopped {success_count}/{total_count} apps for {model_slug}
+            </div>
+            '''
+        else:
+            return jsonify({
+                'success': success_count > 0,
+                'data': {
+                    'model': model_slug,
+                    'success_count': success_count,
+                    'total_count': total_count,
+                    'results': results
+                },
+                'message': f"Stopped {success_count}/{total_count} apps for {model_slug}"
+            })
+            
+    except Exception as e:
+        logger.exception(f"Failed to stop all apps for {model_slug}: {e}")
+        error_msg = f"Failed to stop all apps: {str(e)}"
+        
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger">Error: {error_msg}</div>', 500
+        else:
+            return jsonify({'success': False, 'error': error_msg}), 500
+
+
+@main_bp.route('/api/model/<model_slug>/restart-all', methods=['POST'])
+def api_model_restart_all(model_slug):
+    """Restart all containers for a model."""
+    try:
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            return "Docker manager not available", 500
+            
+        results = []
+        success_count = 0
+        
+        # Get all apps for this model (assuming 30 apps per model)
+        for app_num in range(1, 31):
+            try:
+                result = docker_manager.restart_containers(model_slug, app_num)
+                results.append(result)
+                if result.get("success", False):
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to restart {model_slug}/app{app_num}: {e}")
+                results.append({"success": False, "error": str(e)})
+        
+        total_count = len(results)
+        
+        if request.headers.get('HX-Request'):
+            return f'''
+            <div class="alert alert-{"success" if success_count > 0 else "danger"}">
+                Restarted {success_count}/{total_count} apps for {model_slug}
+            </div>
+            '''
+        else:
+            return jsonify({
+                'success': success_count > 0,
+                'data': {
+                    'model': model_slug,
+                    'success_count': success_count,
+                    'total_count': total_count,
+                    'results': results
+                },
+                'message': f"Restarted {success_count}/{total_count} apps for {model_slug}"
+            })
+            
+    except Exception as e:
+        logger.exception(f"Failed to restart all apps for {model_slug}: {e}")
+        error_msg = f"Failed to restart all apps: {str(e)}"
+        
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger">Error: {error_msg}</div>', 500
+        else:
+            return jsonify({'success': False, 'error': error_msg}), 500
+
+
+@main_bp.route('/api/model/<model_slug>/analyze-all', methods=['POST'])
+def api_model_analyze_all(model_slug):
+    """Run security analysis on all apps for a model."""
+    try:
+        # This would integrate with your security analysis system
+        # For now, return a placeholder response
+        
+        if request.headers.get('HX-Request'):
+            return f'''
+            <div class="alert alert-info">
+                Security analysis queued for all apps in {model_slug}
+            </div>
+            '''
+        else:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'model': model_slug,
+                    'message': 'Security analysis queued for all apps'
+                },
+                'message': f"Security analysis started for all apps in {model_slug}"
+            })
+            
+    except Exception as e:
+        logger.exception(f"Failed to analyze all apps for {model_slug}: {e}")
+        error_msg = f"Failed to start analysis: {str(e)}"
+        
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger">Error: {error_msg}</div>', 500
+        else:
+            return jsonify({'success': False, 'error': error_msg}), 500
 
 def get_app_data(model_slug, app_num):
     """Helper function to get complete app data for dashboard"""

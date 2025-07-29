@@ -57,27 +57,40 @@ document.addEventListener('DOMContentLoaded', function() {
     // Enhanced error handling
     document.body.addEventListener('htmx:responseError', function(evt) {
         const target = evt.detail.target;
-        const status = evt.detail.xhr.status;
-        const response = evt.detail.xhr.responseText;
+        const xhr = evt.detail.xhr;
+        const status = xhr ? xhr.status : 0;
+        const response = xhr ? xhr.responseText : '';
         
         let errorMessage = getErrorMessage(status);
         let errorHtml = createErrorHtml(errorMessage, status, target);
         
         // Try to parse error response
         try {
-            const errorData = JSON.parse(response);
-            if (errorData.error) {
-                errorMessage = errorData.error;
-            }
-            if (errorData.retry_after) {
-                errorHtml = createRetryableErrorHtml(errorMessage, errorData.retry_after, target);
+            if (response) {
+                const errorData = JSON.parse(response);
+                if (errorData.error) {
+                    errorMessage = errorData.error;
+                }
+                if (errorData.retry_after) {
+                    errorHtml = createRetryableErrorHtml(errorMessage, errorData.retry_after, target);
+                }
             }
         } catch (e) {
-            // Use default error message
+            // Use default error message if JSON parsing fails
         }
         
-        target.innerHTML = errorHtml;
+        if (target) {
+            target.innerHTML = errorHtml;
+        }
         hideLoading(evt.detail.elt);
+        
+        // Log error details safely
+        console.error('HTMX request failed:', {
+            status: status,
+            error: errorMessage,
+            target: target ? target.id || target.tagName : 'unknown',
+            url: evt.detail.requestConfig ? evt.detail.requestConfig.url : 'unknown'
+        });
     });
     
     // Timeout handling

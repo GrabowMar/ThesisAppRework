@@ -1,8 +1,8 @@
 <!-- Dashboard Models Grid - Bootstrap 4.1 with HTMX -->
 <div class="row">
     {% for model in models %}
-    <div class="col-xl-4 col-lg-6 col-md-12 mb-4">
-        <div class="card model-card h-100" id="model-{{ model.canonical_slug }}">
+    <div class="col-12 mb-4">
+        <div class="card model-card" id="model-{{ model.canonical_slug }}">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
                     <h6 class="mb-1 font-weight-bold text-primary">
@@ -58,19 +58,19 @@
                     </div>
                     <div class="col-3">
                         <div class="stat-item">
-                            <div class="stat-value text-success" id="running-{{ model.canonical_slug }}">{{ model.running_containers or 0 }}</div>
+                            <div class="stat-value text-success" data-stat="running" data-model="{{ model.canonical_slug }}">{{ model.running_containers or 0 }}</div>
                             <div class="stat-label">Running</div>
                         </div>
                     </div>
                     <div class="col-3">
                         <div class="stat-item">
-                            <div class="stat-value text-secondary" id="stopped-{{ model.canonical_slug }}">{{ model.stopped_containers or 30 }}</div>
+                            <div class="stat-value text-secondary" data-stat="stopped" data-model="{{ model.canonical_slug }}">{{ model.stopped_containers or 30 }}</div>
                             <div class="stat-label">Stopped</div>
                         </div>
                     </div>
                     <div class="col-3">
                         <div class="stat-item">
-                            <div class="stat-value text-danger" id="error-{{ model.canonical_slug }}">{{ model.error_containers or 0 }}</div>
+                            <div class="stat-value text-danger" data-stat="error" data-model="{{ model.canonical_slug }}">{{ model.error_containers or 0 }}</div>
                             <div class="stat-label">Errors</div>
                         </div>
                     </div>
@@ -216,14 +216,31 @@ function testLoadApps(modelSlug) {
         });
 }
 
+// Helper function to safely escape CSS selectors
+function escapeSelector(str) {
+    return str.replace(/[.#]/g, '\\$&');
+}
+
 // Auto-refresh model stats every 30 seconds
 setInterval(() => {
     document.querySelectorAll('.model-card').forEach(card => {
         const modelSlug = card.id.replace('model-', '');
-        htmx.ajax('GET', `/api/model/${modelSlug}/stats`, {
-            target: `#running-${modelSlug}, #stopped-${modelSlug}, #error-${modelSlug}`,
-            swap: 'innerHTML'
-        });
+        
+        // Use data attributes instead of IDs with dots
+        const runningElement = card.querySelector('[data-stat="running"][data-model="' + modelSlug + '"]');
+        const stoppedElement = card.querySelector('[data-stat="stopped"][data-model="' + modelSlug + '"]');
+        const errorElement = card.querySelector('[data-stat="error"][data-model="' + modelSlug + '"]');
+        
+        if (runningElement || stoppedElement || errorElement) {
+            fetch(`/api/model/${encodeURIComponent(modelSlug)}/stats`)
+                .then(response => response.json())
+                .then(data => {
+                    if (runningElement) runningElement.textContent = data.running || 0;
+                    if (stoppedElement) stoppedElement.textContent = data.stopped || 0;
+                    if (errorElement) errorElement.textContent = data.error || 0;
+                })
+                .catch(err => console.warn('Failed to update stats for', modelSlug, err));
+        }
     });
 }, 30000);
 

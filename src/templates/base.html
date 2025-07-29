@@ -457,6 +457,40 @@
             }
         }
         
+        // Start auto-refresh for dashboard elements
+        function startAutoRefresh() {
+            const refreshableElements = document.querySelectorAll('[hx-trigger*="every"]');
+            refreshableElements.forEach(function(element) {
+                if (element && element.dispatchEvent) {
+                    try {
+                        htmx.trigger(element, 'load');
+                    } catch (e) {
+                        console.warn('Could not trigger refresh for element:', element, e);
+                    }
+                }
+            });
+        }
+        
+        // Safe element selector helper
+        function safeQuerySelector(selector) {
+            try {
+                return document.querySelector(selector);
+            } catch (e) {
+                console.warn('Invalid selector:', selector, e);
+                return null;
+            }
+        }
+        
+        // Safe element selector all helper
+        function safeQuerySelectorAll(selector) {
+            try {
+                return document.querySelectorAll(selector);
+            } catch (e) {
+                console.warn('Invalid selector:', selector, e);
+                return [];
+            }
+        }
+        
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize tooltips
@@ -475,6 +509,9 @@
             
             // Periodic notification update
             setInterval(updateNotificationCount, 60000);
+            
+            // Start auto-refresh
+            setTimeout(startAutoRefresh, 1000);
         });
         
         // Stop auto-refresh when page is hidden
@@ -496,8 +533,40 @@
         
         // Handle HTMX errors globally
         document.body.addEventListener('htmx:responseError', function(evt) {
-            console.error('HTMX request failed:', evt.detail);
-            // You can show a toast notification here
+            console.error('HTMX request failed:', {
+                error: evt.detail.error || evt.detail.xhr?.statusText || 'Unknown error',
+                status: evt.detail.xhr?.status,
+                target: evt.detail.target?.id || evt.detail.target?.tagName,
+                url: evt.detail.requestConfig?.url || 'unknown'
+            });
+            
+            // Show user-friendly error message
+            const target = evt.detail.target;
+            if (target && target.classList) {
+                target.classList.add('htmx-error');
+                
+                // Show temporary error indicator
+                const originalContent = target.innerHTML;
+                const errorMessage = evt.detail.xhr?.status === 404 ? 'Resource not found' : 'Request failed';
+                target.innerHTML = `<div class="text-muted small"><i class="fas fa-exclamation-triangle"></i> ${errorMessage}</div>`;
+                
+                setTimeout(() => {
+                    if (target.innerHTML.includes('Request failed') || target.innerHTML.includes('Resource not found')) {
+                        target.innerHTML = originalContent;
+                    }
+                    target.classList.remove('htmx-error');
+                }, 3000);
+            }
+        });
+        
+        // Handle HTMX timeout errors
+        document.body.addEventListener('htmx:timeout', function(evt) {
+            console.warn('HTMX request timed out:', evt.detail);
+            const target = evt.detail.target;
+            if (target && target.classList) {
+                target.classList.add('htmx-timeout');
+                setTimeout(() => target.classList.remove('htmx-timeout'), 5000);
+            }
         });
         
         // Handle HTMX loading states
