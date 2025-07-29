@@ -450,7 +450,7 @@ class BatchAnalysis(db.Model):
     """Model for storing batch analysis records."""
     __tablename__ = 'batch_analyses'
     
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True)  # UUID string
     name = db.Column(db.String(200), nullable=False)
     analysis_type = db.Column(db.String(50), nullable=False, index=True)  # security, performance, zap
     status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)

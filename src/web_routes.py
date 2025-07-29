@@ -1533,6 +1533,104 @@ def save_settings():
 
 
 # ===========================
+# BATCH API ROUTES
+# ===========================
+
+@api_bp.route("/batch/jobs", methods=["GET"])
+def api_get_batch_jobs():
+    """API endpoint to get all batch jobs."""
+    try:
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return jsonify({"error": "Batch service not available"}), 500
+        
+        # Get all jobs
+        jobs = batch_service.get_all_jobs()
+        jobs_data = [job.to_dict() for job in jobs]
+        
+        return jsonify(jobs_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting batch jobs via API: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/batch/jobs", methods=["POST"])
+def api_create_batch_job():
+    """API endpoint to create a new batch job."""
+    try:
+        # Get JSON data
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return jsonify({"error": "Batch service not available"}), 500
+        
+        # Extract required fields
+        job_name = data.get('name', '').strip()
+        job_description = data.get('description', '').strip()
+        analysis_types = data.get('analysis_type', ['security'])
+        if isinstance(analysis_types, str):
+            analysis_types = [analysis_types]
+        selected_models = data.get('models', [])
+        apps = data.get('apps', [])
+        
+        # Validate required fields
+        if not job_name:
+            return jsonify({"error": "Job name is required"}), 400
+        if not selected_models:
+            return jsonify({"error": "At least one model must be selected"}), 400
+        if not apps:
+            return jsonify({"error": "At least one app must be selected"}), 400
+        
+        # Convert apps list to range string
+        app_range_str = ','.join(map(str, apps))
+        
+        # Create batch job
+        job = batch_service.create_job(
+            name=job_name,
+            description=job_description,
+            analysis_types=analysis_types,
+            models=selected_models,
+            app_range_str=app_range_str,
+            auto_start=True
+        )
+        
+        logger.info(f"Created batch job via API {job.id}: {job_name}")
+        
+        return jsonify(job.to_dict()), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating batch job via API: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/batch/jobs/<job_id>", methods=["GET"])
+def api_get_batch_job(job_id: str):
+    """API endpoint to get a specific batch job."""
+    try:
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return jsonify({"error": "Batch service not available"}), 500
+        
+        # Get job
+        job = batch_service.get_job(job_id)
+        if not job:
+            return jsonify({"error": "Job not found"}), 404
+        
+        return jsonify(job.to_dict())
+        
+    except Exception as e:
+        logger.error(f"Error getting batch job {job_id} via API: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ===========================
 # DOCKER MANAGEMENT ROUTES
 # ===========================
 
@@ -2354,8 +2452,7 @@ def create_batch_job():
                 'page_title': 'Create Batch Job'
             }
             
-            if is_htmx_request():
-                return render_template("partials/batch_create_form.html", **context)
+            # Always return the full page template
             return render_template("pages/batch_create.html", **context)
             
         except Exception as e:
@@ -2672,6 +2769,16 @@ def register_template_helpers(app):
             except ValueError:
                 return value
         return value.strftime('%Y-%m-%d %H:%M:%S') if value else ''
+    
+    @app.template_filter('to_datetime')
+    def to_datetime(value):
+        """Convert string or datetime to datetime object."""
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError:
+                return None
+        return value
     
     @app.template_filter('format_duration')
     def format_duration(seconds):

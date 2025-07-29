@@ -459,9 +459,9 @@
                 </p>
                 <div class="app-range-input">
                     <input type="text" class="form-control" id="appRange" name="app_range" 
-                           placeholder="e.g., 1-5,10,15-20" value="1-5">
+                           placeholder="e.g., 1-5,10,15-20 or all" value="1-5">
                     <small class="form-text text-muted">
-                        Examples: "1-30" (all apps), "1,5,10" (specific apps), "1-5,20-25" (ranges)
+                        Examples: "all" (all 30 apps), "1,5,10" (specific apps), "1-5,20-25" (ranges)
                     </small>
                     <div class="validation-error" id="appRangeError"></div>
                 </div>
@@ -624,14 +624,20 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
 
+        // Handle "all" keyword
+        if (range.toLowerCase() === 'all') {
+            errorDiv.textContent = '';
+            return true;
+        }
+
         // Validate range format
         const parts = range.split(',');
-        const validPattern = /^\\d+(-\\d+)?$/;
+        const validPattern = /^\d+(-\d+)?$/;
         
         for (let part of parts) {
             part = part.trim();
             if (!validPattern.test(part)) {
-                errorDiv.textContent = 'Invalid range format. Use numbers and ranges like "1-5,10,15-20".';
+                errorDiv.textContent = 'Invalid range format. Use numbers and ranges like "1-5,10,15-20" or "all".';
                 return false;
             }
             
@@ -690,6 +696,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function parseAppRange(rangeStr) {
         if (!rangeStr) return [];
+        
+        // Handle "all" keyword
+        if (rangeStr.trim().toLowerCase() === 'all') {
+            const apps = [];
+            for (let i = 1; i <= 30; i++) {
+                apps.push(i);
+            }
+            return apps;
+        }
         
         const apps = new Set();
         const parts = rangeStr.split(',');
