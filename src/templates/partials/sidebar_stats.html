@@ -1,21 +1,13 @@
-<div class="sidebar-stats">
-    <div class="stat-item">
-        <span class="stat-icon">🔍</span>
-        <span class="stat-text">{{ stats.active_scans or 0 }} Active Scans</span>
-    </div>
-    
-    <div class="stat-item">
-        <span class="stat-icon">⏳</span>
-        <span class="stat-text">{{ stats.queued_jobs or 0 }} Queued Jobs</span>
-    </div>
-    
-    <div class="stat-item">
-        <span class="stat-icon">⚠️</span>
-        <span class="stat-text">{{ stats.alerts or 0 }} Alerts</span>
-    </div>
-    
-    <div class="stat-item">
-        <span class="stat-icon">📈</span>
-        <span class="stat-text">{{ stats.success_rate or 85 }}% Success Rate</span>
-    </div>
+<!-- Sidebar Quick Stats -->
+<div class="stat-item">
+    <span class="stat-value">{{ model_count }}</span>
+    <span class="stat-label">Models</span>
+</div>
+<div class="stat-item">
+    <span class="stat-value">{{ app_count }}</span>
+    <span class="stat-label">Apps</span>
+</div>
+<div class="stat-item">
+    <span class="stat-value">{{ running_count }}</span>
+    <span class="stat-label">Running</span>
 </div>

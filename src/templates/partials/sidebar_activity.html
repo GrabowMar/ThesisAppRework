@@ -1,0 +1,23 @@
+<!-- Sidebar Recent Activity -->
+{% for activity in activities %}
+<div class="activity-item">
+    <div class="activity-icon">
+        <i class="{{ activity.icon }}"></i>
+    </div>
+    <div class="activity-content">
+        <div class="activity-text">{{ activity.content }}</div>
+        <small class="text-muted">{{ activity.time }}</small>
+    </div>
+</div>
+{% endfor %}
+
+{% if not activities %}
+<div class="activity-item">
+    <div class="activity-icon">
+        <i class="fas fa-info-circle text-muted"></i>
+    </div>
+    <div class="activity-content">
+        <small class="text-muted">No recent activity</small>
+    </div>
+</div>
+{% endif %}

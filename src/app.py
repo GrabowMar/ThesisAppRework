@@ -71,6 +71,13 @@ def load_model_integration_data(app):
                 capabilities_data = json.load(f)
                 models_count = len(capabilities_data.get('models', {}))
                 app.logger.info(f"Loaded capabilities for {models_count} models")
+                
+                # Initialize database with model data if empty
+                with app.app_context():
+                    from models import ModelCapability
+                    if ModelCapability.query.count() == 0:
+                        app.logger.info("Database is empty, populating with model data...")
+                        populate_models_from_json(app, capabilities_data)
         else:
             app.logger.warning(f"Model capabilities file not found: {capabilities_file}")
         
@@ -82,6 +89,13 @@ def load_model_integration_data(app):
                 # Store port config in app config for services to use
                 app.config['PORT_CONFIG'] = port_data
                 app.logger.info(f"Loaded {len(port_data)} port configurations")
+                
+                # Initialize database with port data if empty
+                with app.app_context():
+                    from models import PortConfiguration
+                    if PortConfiguration.query.count() == 0:
+                        app.logger.info("Populating port configurations...")
+                        populate_ports_from_json(app, port_data)
         else:
             app.logger.warning(f"Port config file not found: {port_file}")
             app.config['PORT_CONFIG'] = []
@@ -99,6 +113,155 @@ def load_model_integration_data(app):
     except Exception as e:
         app.logger.error(f"Failed to load model integration data: {e}")
         app.config['PORT_CONFIG'] = []
+
+
+def populate_models_from_json(app, capabilities_data):
+    """Populate ModelCapability table from JSON data."""
+    from models import ModelCapability
+    from extensions import db
+    
+    try:
+        # Navigate the nested JSON structure
+        models_data = capabilities_data.get('models', {})
+        
+        # Try different structures - sometimes it's nested
+        actual_models = None
+        if isinstance(models_data, dict):
+            # Check if this level contains model_id keys directly
+            for key, value in models_data.items():
+                if isinstance(value, dict) and value.get('model_id'):
+                    actual_models = models_data
+                    break
+                # Check if it's another nested structure
+                elif key == 'models' or (isinstance(value, dict) and 'models' in value):
+                    continue
+            
+            # If not found at this level, try nested models
+            if not actual_models:
+                nested = models_data.get('models', {})
+                if isinstance(nested, dict):
+                    for key, value in nested.items():
+                        if isinstance(value, dict) and value.get('model_id'):
+                            actual_models = nested
+                            break
+                        elif key == 'models':
+                            deeper_nested = nested.get('models', {})
+                            if isinstance(deeper_nested, dict):
+                                actual_models = deeper_nested
+                                break
+        
+        if not actual_models:
+            app.logger.error("Could not find model data in JSON structure")
+            return
+        
+        models_created = 0
+        for model_id, model_data in actual_models.items():
+            if not isinstance(model_data, dict) or not model_data.get('model_id'):
+                continue
+                
+            try:
+                # Check if model already exists
+                existing = ModelCapability.query.filter_by(
+                    model_id=model_data.get('model_id')
+                ).first()
+                
+                if existing:
+                    continue
+                
+                # Create new model capability record
+                model_capability = ModelCapability(
+                    model_id=model_data.get('model_id'),
+                    canonical_slug=model_data.get('canonical_slug', model_data.get('model_id')),
+                    provider=model_data.get('provider', 'unknown'),
+                    model_name=model_data.get('model_name', model_data.get('model_id')),
+                    is_free=model_data.get('is_free', False),
+                    context_window=model_data.get('context_window', 0),
+                    max_output_tokens=model_data.get('max_output_tokens', 0),
+                    supports_function_calling=model_data.get('supports_function_calling', False),
+                    supports_vision=model_data.get('supports_vision', False),
+                    supports_streaming=model_data.get('supports_streaming', True),
+                    supports_json_mode=model_data.get('supports_json_mode', False),
+                    input_price_per_token=float(model_data.get('pricing', {}).get('prompt_tokens', 0) or 0),
+                    output_price_per_token=float(model_data.get('pricing', {}).get('completion_tokens', 0) or 0),
+                    cost_efficiency=model_data.get('performance_metrics', {}).get('cost_efficiency', 0.0),
+                    safety_score=model_data.get('quality_metrics', {}).get('safety', 0.0),
+                    capabilities_json=json.dumps(model_data.get('capabilities', {})),
+                    metadata_json=json.dumps({
+                        'description': model_data.get('description', ''),
+                        'architecture': model_data.get('architecture', {}),
+                        'quality_metrics': model_data.get('quality_metrics', {}),
+                        'performance_metrics': model_data.get('performance_metrics', {}),
+                        'last_updated': model_data.get('last_updated', '')
+                    })
+                )
+                
+                db.session.add(model_capability)
+                models_created += 1
+                
+            except Exception as e:
+                app.logger.error(f"Error processing model {model_id}: {e}")
+                continue
+        
+        db.session.commit()
+        app.logger.info(f"Successfully populated {models_created} model capabilities")
+        
+    except Exception as e:
+        app.logger.error(f"Error populating models from JSON: {e}")
+        db.session.rollback()
+
+
+def populate_ports_from_json(app, port_data):
+    """Populate PortConfiguration table from JSON data."""
+    from models import PortConfiguration
+    from extensions import db
+    
+    try:
+        ports_created = 0
+        for i, port_entry in enumerate(port_data):
+            try:
+                frontend_port = port_entry.get('frontend_port')
+                backend_port = port_entry.get('backend_port')
+                
+                if not frontend_port or not backend_port:
+                    continue
+                
+                # Check if port configuration already exists
+                existing = PortConfiguration.query.filter_by(
+                    frontend_port=frontend_port
+                ).first()
+                
+                if existing:
+                    continue
+                
+                # Create new port configuration
+                port_config = PortConfiguration(
+                    frontend_port=frontend_port,
+                    backend_port=backend_port,
+                    is_available=True,
+                    metadata_json=json.dumps({
+                        'model_name': port_entry.get('model_name', ''),
+                        'app_number': port_entry.get('app_number', 0),
+                        'app_type': port_entry.get('app_type', ''),
+                        'source': 'initial_load'
+                    })
+                )
+                
+                db.session.add(port_config)
+                ports_created += 1
+                
+                if ports_created % 100 == 0:  # Commit in batches
+                    db.session.commit()
+                
+            except Exception as e:
+                app.logger.error(f"Error processing port entry {i}: {e}")
+                continue
+        
+        db.session.commit()
+        app.logger.info(f"Successfully populated {ports_created} port configurations")
+        
+    except Exception as e:
+        app.logger.error(f"Error populating ports from JSON: {e}")
+        db.session.rollback()
 
 
 def create_app(config_name=None):

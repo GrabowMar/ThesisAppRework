@@ -1038,6 +1038,108 @@ def get_app_status(model: str, app_num: int):
         return create_api_response(False, error=str(e))
 
 
+@api_bp.route("/sidebar/stats")
+def get_sidebar_stats():
+    """Get quick stats for sidebar."""
+    try:
+        from models import ModelCapability, GeneratedApplication
+        from extensions import db
+        
+        model_count = db.session.query(ModelCapability).count()
+        app_count = db.session.query(GeneratedApplication).count() if GeneratedApplication else model_count * 30
+        
+        # Get running containers count
+        running_count = 0
+        docker_manager = get_docker_manager()
+        if docker_manager:
+            try:
+                models = db.session.query(ModelCapability).all()
+                for model in models[:5]:  # Limit to first 5 models for quick stats
+                    for app_num in range(1, 6):  # Check first 5 apps per model
+                        try:
+                            statuses = get_app_container_statuses(model.canonical_slug, app_num, docker_manager)
+                            if statuses.get('backend') == 'running' and statuses.get('frontend') == 'running':
+                                running_count += 1
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        
+        return render_template("partials/sidebar_stats.html", 
+                             model_count=model_count, 
+                             app_count=app_count, 
+                             running_count=running_count)
+        
+    except Exception as e:
+        logger.error(f"Error getting sidebar stats: {e}")
+        return render_template("partials/sidebar_stats.html", 
+                             model_count=0, app_count=0, running_count=0)
+
+
+@api_bp.route("/sidebar/activity")
+def get_sidebar_activity():
+    """Get recent activity for sidebar."""
+    try:
+        # Mock activity data - in real implementation, this would come from a database
+        activities = [
+            {
+                'icon': 'fas fa-play text-success',
+                'content': 'Started claude-sonnet-4/app1',
+                'time': '2 min ago'
+            },
+            {
+                'icon': 'fas fa-shield-alt text-info',
+                'content': 'Security scan completed',
+                'time': '5 min ago'
+            },
+            {
+                'icon': 'fas fa-stop text-warning',
+                'content': 'Stopped gpt-4/app15',
+                'time': '10 min ago'
+            }
+        ]
+        
+        return render_template("partials/sidebar_activity.html", activities=activities)
+        
+    except Exception as e:
+        logger.error(f"Error getting sidebar activity: {e}")
+        return render_template("partials/sidebar_activity.html", activities=[])
+
+
+@api_bp.route("/sidebar/system-status")
+def get_sidebar_system_status():
+    """Get system status for sidebar."""
+    try:
+        # Check database
+        database_status = 'success'
+        try:
+            from extensions import db
+            db.session.execute('SELECT 1')
+        except Exception:
+            database_status = 'danger'
+        
+        # Check Docker
+        docker_status = 'success'
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            docker_status = 'warning'
+        
+        # Check analysis queue (mock)
+        queue_status = 'warning'  # Would check actual queue status
+        
+        statuses = [
+            {'label': 'Database', 'status': database_status},
+            {'label': 'Docker', 'status': docker_status},
+            {'label': 'Analysis Queue', 'status': queue_status}
+        ]
+        
+        return render_template("partials/sidebar_system_status.html", statuses=statuses)
+        
+    except Exception as e:
+        logger.error(f"Error getting sidebar system status: {e}")
+        return render_template("partials/sidebar_system_status.html", statuses=[])
+
+
 @api_bp.route("/search")
 def search_apps():
     """
