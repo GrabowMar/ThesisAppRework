@@ -1,115 +1,186 @@
 <div class="overview-tab">
     <!-- App Information Card -->
-    <div class="info-card">
-        <h3>Application Information</h3>
-        
-        <div class="info-grid">
-            <div class="info-item">
-                <label>Model Provider</label>
-                <span>{{ app_info.provider|title }}</span>
-            </div>
-            
-            <div class="info-item">
-                <label>Model Name</label>
-                <span>{{ model|replace('_', ' ')|title }}</span>
-            </div>
-            
-            <div class="info-item">
-                <label>Application Type</label>
-                <span>{{ app_info.app_type|title }}</span>
-            </div>
-            
-            <div class="info-item">
-                <label>Generation Date</label>
-                <span>{{ app_info.created_at|strftime('%Y-%m-%d %H:%M') if app_info.created_at else 'Unknown' }}</span>
-            </div>
-            
-            <div class="info-item">
-                <label>Frontend Port</label>
-                <span>{{ app_info.frontend_port }}</span>
-            </div>
-            
-            <div class="info-item">
-                <label>Backend Port</label>
-                <span>{{ app_info.backend_port }}</span>
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle text-primary"></i>
+                        Application Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Model Provider:</strong>
+                            <div class="mt-1">
+                                <span class="badge badge-primary">{{ app_info.provider|title }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Model Name:</strong>
+                            <div class="mt-1">{{ model|replace('_', ' ')|title }}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Application Type:</strong>
+                            <div class="mt-1">
+                                <span class="badge badge-success">{{ app_info.app_type|title }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Generation Date:</strong>
+                            <div class="mt-1">{{ app_info.created_at|strftime('%Y-%m-%d %H:%M') if app_info.created_at else 'Unknown' }}</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Frontend Port:</strong>
+                            <div class="mt-1">
+                                <code>{{ app_info.frontend_port }}</code>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Backend Port:</strong>
+                            <div class="mt-1">
+                                <code>{{ app_info.backend_port }}</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Status Overview -->
-    <div class="status-overview">
-        <h3>Current Status</h3>
-        
-        <div class="status-grid"
-             hx-get="/api/status/{{ model }}/{{ app_num }}"
-             hx-trigger="load, every 10s"
-             hx-target="this">
-            <div class="loading">Loading status...</div>
+        <!-- Status Overview -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-heartbeat text-success"></i>
+                        Current Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="status-grid"
+                         hx-get="/api/status/{{ model }}/{{ app_num }}"
+                         hx-trigger="load, every 10s"
+                         hx-target="this">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-success" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Loading status...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Recent Activity -->
-    <div class="recent-activity-card">
-        <h3>Recent Activity</h3>
-        
-        <div class="activity-list"
-             hx-get="/api/recent-activity?model={{ model }}&app_num={{ app_num }}"
-             hx-trigger="load, every 30s"
-             hx-target="this">
-            <div class="loading">Loading activity...</div>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock text-info"></i>
+                        Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="activity-list"
+                         hx-get="/api/recent-activity?model={{ model }}&app_num={{ app_num }}"
+                         hx-trigger="load, every 30s"
+                         hx-target="this">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-info" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Loading activity...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Analysis Summary -->
     {% if analysis_summary %}
-    <div class="analysis-summary">
-        <h3>Analysis Summary</h3>
-        
-        <div class="summary-grid">
-            {% if analysis_summary.security %}
-            <div class="summary-item">
-                <div class="summary-header">
-                    <span class="summary-title">Security Analysis</span>
-                    <span class="summary-status status-{{ analysis_summary.security.status }}">
-                        {{ analysis_summary.security.status|title }}
-                    </span>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line text-warning"></i>
+                        Analysis Summary
+                    </h5>
                 </div>
-                <div class="summary-details">
-                    <span>{{ analysis_summary.security.issues_count }} issues found</span>
-                    <span>Last run: {{ analysis_summary.security.last_run|timeago }}</span>
+                <div class="card-body">
+                    <div class="row">
+                        {% if analysis_summary.security %}
+                        <div class="col-lg-4 mb-3">
+                            <div class="card border-left-primary h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="font-weight-bold text-primary mb-0">Security Analysis</h6>
+                                        {% if analysis_summary.security.status == 'completed' %}
+                                            <span class="badge badge-success">{{ analysis_summary.security.status|title }}</span>
+                                        {% elif analysis_summary.security.status == 'running' %}
+                                            <span class="badge badge-warning">{{ analysis_summary.security.status|title }}</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">{{ analysis_summary.security.status|title }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-muted small">
+                                        <div>{{ analysis_summary.security.issues_count }} issues found</div>
+                                        <div>Last run: {{ analysis_summary.security.last_run|timeago }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if analysis_summary.performance %}
+                        <div class="col-lg-4 mb-3">
+                            <div class="card border-left-success h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="font-weight-bold text-success mb-0">Performance Test</h6>
+                                        <span class="badge badge-{{ 'success' if analysis_summary.performance.score >= 80 else 'warning' if analysis_summary.performance.score >= 60 else 'danger' }}">
+                                            {{ analysis_summary.performance.score }}/100
+                                        </span>
+                                    </div>
+                                    <div class="text-muted small">
+                                        <div>Avg Response: {{ analysis_summary.performance.avg_response }}ms</div>
+                                        <div>Last run: {{ analysis_summary.performance.last_run|timeago }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if analysis_summary.zap %}
+                        <div class="col-lg-4 mb-3">
+                            <div class="card border-left-danger h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="font-weight-bold text-danger mb-0">ZAP Security Scan</h6>
+                                        {% if analysis_summary.zap.status == 'completed' %}
+                                            <span class="badge badge-success">{{ analysis_summary.zap.status|title }}</span>
+                                        {% elif analysis_summary.zap.status == 'running' %}
+                                            <span class="badge badge-warning">{{ analysis_summary.zap.status|title }}</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">{{ analysis_summary.zap.status|title }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-muted small">
+                                        <div>{{ analysis_summary.zap.alerts_count }} alerts</div>
+                                        <div>Last scan: {{ analysis_summary.zap.last_scan|timeago }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
-            {% endif %}
-            
-            {% if analysis_summary.performance %}
-            <div class="summary-item">
-                <div class="summary-header">
-                    <span class="summary-title">Performance Test</span>
-                    <span class="summary-score score-{{ analysis_summary.performance.grade }}">
-                        {{ analysis_summary.performance.score }}/100
-                    </span>
-                </div>
-                <div class="summary-details">
-                    <span>Avg Response: {{ analysis_summary.performance.avg_response }}ms</span>
-                    <span>Last run: {{ analysis_summary.performance.last_run|timeago }}</span>
-                </div>
-            </div>
-            {% endif %}
-            
-            {% if analysis_summary.zap %}
-            <div class="summary-item">
-                <div class="summary-header">
-                    <span class="summary-title">ZAP Security Scan</span>
-                    <span class="summary-status status-{{ analysis_summary.zap.status }}">
-                        {{ analysis_summary.zap.status|title }}
-                    </span>
-                </div>
-                <div class="summary-details">
-                    <span>{{ analysis_summary.zap.alerts_count }} alerts</span>
-                    <span>Last scan: {{ analysis_summary.zap.last_scan|timeago }}</span>
-                </div>
-            </div>
-            {% endif %}
         </div>
     </div>
     {% endif %}

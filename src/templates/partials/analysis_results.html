@@ -1,60 +1,101 @@
 {% if analysis_data %}
 <div class="analysis-results-container">
     <!-- Summary Card -->
-    <div class="analysis-summary-card">
-        <div class="summary-header">
-            <h4>{{ analysis_data.type|title }} Analysis Results</h4>
-            <span class="analysis-status status-{{ analysis_data.status }}">
-                {{ analysis_data.status|title }}
-            </span>
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-shield-alt text-primary"></i>
+                {{ analysis_data.type|title }} Analysis Results
+            </h5>
+            {% if analysis_data.status == 'completed' %}
+                <span class="badge badge-success">
+                    <i class="fas fa-check"></i> {{ analysis_data.status|title }}
+                </span>
+            {% elif analysis_data.status == 'running' %}
+                <span class="badge badge-warning">
+                    <i class="fas fa-cog fa-spin"></i> {{ analysis_data.status|title }}
+                </span>
+            {% elif analysis_data.status == 'failed' %}
+                <span class="badge badge-danger">
+                    <i class="fas fa-times"></i> {{ analysis_data.status|title }}
+                </span>
+            {% else %}
+                <span class="badge badge-secondary">{{ analysis_data.status|title }}</span>
+            {% endif %}
         </div>
         
-        <div class="summary-stats">
-            <div class="stat">
-                <span class="stat-value">{{ analysis_data.total_issues or 0 }}</span>
-                <span class="stat-label">Total Issues</span>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-2">
+                    <div class="border-right">
+                        <h4 class="mb-1 font-weight-bold text-primary">{{ analysis_data.total_issues or 0 }}</h4>
+                        <small class="text-muted">Total Issues</small>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="border-right">
+                        <h4 class="mb-1 font-weight-bold text-danger">{{ analysis_data.critical_issues or 0 }}</h4>
+                        <small class="text-muted">Critical</small>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="border-right">
+                        <h4 class="mb-1 font-weight-bold text-warning">{{ analysis_data.high_issues or 0 }}</h4>
+                        <small class="text-muted">High</small>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="border-right">
+                        <h4 class="mb-1 font-weight-bold text-info">{{ analysis_data.medium_issues or 0 }}</h4>
+                        <small class="text-muted">Medium</small>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="border-right">
+                        <h4 class="mb-1 font-weight-bold text-secondary">{{ analysis_data.low_issues or 0 }}</h4>
+                        <small class="text-muted">Low</small>
+                    </div>
+                </div>
             </div>
-            <div class="stat">
-                <span class="stat-value critical">{{ analysis_data.critical_issues or 0 }}</span>
-                <span class="stat-label">Critical</span>
-            </div>
-            <div class="stat">
-                <span class="stat-value high">{{ analysis_data.high_issues or 0 }}</span>
-                <span class="stat-label">High</span>
-            </div>
-            <div class="stat">
-                <span class="stat-value medium">{{ analysis_data.medium_issues or 0 }}</span>
-                <span class="stat-label">Medium</span>
-            </div>
-            <div class="stat">
-                <span class="stat-value low">{{ analysis_data.low_issues or 0 }}</span>
-                <span class="stat-label">Low</span>
-            </div>
-        </div>
-        
-        <div class="analysis-meta">
-            <div class="meta-item">
-                <span class="meta-label">Duration:</span>
-                <span class="meta-value">{{ analysis_data.duration or 'Unknown' }}</span>
-            </div>
-            <div class="meta-item">
-                <span class="meta-label">Completed:</span>
-                <span class="meta-value">{{ analysis_data.completed_at|strftime('%Y-%m-%d %H:%M') if analysis_data.completed_at else 'In Progress' }}</span>
-            </div>
-            <div class="meta-item">
-                <span class="meta-label">Tools Used:</span>
-                <span class="meta-value">{{ analysis_data.tools|join(', ') if analysis_data.tools else 'N/A' }}</span>
+            
+            <hr class="my-3">
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <strong class="text-muted">Duration:</strong>
+                    <span class="ml-2">{{ analysis_data.duration or 'Unknown' }}</span>
+                </div>
+                <div class="col-md-4">
+                    <strong class="text-muted">Completed:</strong>
+                    <span class="ml-2">{{ analysis_data.completed_at|strftime('%Y-%m-%d %H:%M') if analysis_data.completed_at else 'In Progress' }}</span>
+                </div>
+                <div class="col-md-4">
+                    <strong class="text-muted">Tools Used:</strong>
+                    <span class="ml-2">
+                        {% if analysis_data.tools %}
+                            {% for tool in analysis_data.tools %}
+                                <span class="badge badge-secondary mr-1">{{ tool|title }}</span>
+                            {% endfor %}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </span>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Issues List -->
     {% if analysis_data.issues %}
-    <div class="issues-section">
-        <div class="issues-header">
-            <h4>Security Issues Found</h4>
-            <div class="issues-filters">
-                <select hx-get="/analysis/{{ analysis_data.type }}/{{ model }}/{{ app_num }}"
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-bug text-danger"></i>
+                Security Issues Found
+            </h5>
+            <div class="btn-group btn-group-sm" role="group">
+                <select class="form-control form-control-sm" 
+                        hx-get="/analysis/{{ analysis_data.type }}/{{ model }}/{{ app_num }}"
                         hx-target=".issues-list"
                         hx-include="this"
                         name="severity_filter">
@@ -65,7 +106,8 @@
                     <option value="low">Low</option>
                 </select>
                 
-                <select hx-get="/analysis/{{ analysis_data.type }}/{{ model }}/{{ app_num }}"
+                <select class="form-control form-control-sm ml-2" 
+                        hx-get="/analysis/{{ analysis_data.type }}/{{ model }}/{{ app_num }}"
                         hx-target=".issues-list"
                         hx-include="this"
                         name="tool_filter">
@@ -77,110 +119,142 @@
             </div>
         </div>
         
-        <div class="issues-list">
-            {% for issue in analysis_data.issues %}
-            <div class="issue-card severity-{{ issue.severity|lower }}">
-                <div class="issue-header">
-                    <div class="issue-title-section">
-                        <h5 class="issue-title">{{ issue.title or issue.test_name }}</h5>
-                        <div class="issue-meta">
-                            <span class="issue-tool">{{ issue.tool|title }}</span>
-                            <span class="issue-severity severity-{{ issue.severity|lower }}">
-                                {{ issue.severity|title }}
-                            </span>
+        <div class="card-body p-0">
+            <div class="issues-list">
+                {% for issue in analysis_data.issues %}
+                <div class="card mb-2 mx-3 mt-3 border-left-{{ 'danger' if issue.severity|lower == 'critical' else 'warning' if issue.severity|lower == 'high' else 'info' if issue.severity|lower == 'medium' else 'secondary' }}">
+                    <div class="card-header p-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1 font-weight-bold">{{ issue.title or issue.test_name }}</h6>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge badge-primary mr-2">{{ issue.tool|title }}</span>
+                                    <span class="badge badge-{{ 'danger' if issue.severity|lower == 'critical' else 'warning' if issue.severity|lower == 'high' else 'info' if issue.severity|lower == 'medium' else 'secondary' }}">
+                                        {{ issue.severity|title }}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    type="button"
+                                    data-toggle="collapse"
+                                    data-target="#issue-{{ loop.index }}"
+                                    aria-expanded="false"
+                                    title="Toggle Details">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
                         </div>
                     </div>
                     
-                    <button class="issue-toggle"
-                            _="on click toggle .expanded on closest .issue-card">
-                        <span class="toggle-icon">▼</span>
-                    </button>
-                </div>
-                
-                <div class="issue-description">
-                    {{ issue.description or issue.message }}
-                </div>
-                
-                <div class="issue-details">
-                    {% if issue.filename %}
-                    <div class="detail-item">
-                        <span class="detail-label">File:</span>
-                        <span class="detail-value">{{ issue.filename }}</span>
-                    </div>
-                    {% endif %}
-                    
-                    {% if issue.line_number %}
-                    <div class="detail-item">
-                        <span class="detail-label">Line:</span>
-                        <span class="detail-value">{{ issue.line_number }}</span>
-                    </div>
-                    {% endif %}
-                    
-                    {% if issue.rule_id %}
-                    <div class="detail-item">
-                        <span class="detail-label">Rule:</span>
-                        <span class="detail-value">{{ issue.rule_id }}</span>
-                    </div>
-                    {% endif %}
-                </div>
-                
-                {% if issue.code_snippet %}
-                <div class="code-snippet">
-                    <div class="snippet-header">
-                        <span class="snippet-title">Code Snippet</span>
-                        <button class="copy-btn" 
-                                _="on click writeText '{{ issue.code_snippet|e }}' to navigator.clipboard then add .copied to me for 2s">
-                            📋
-                        </button>
-                    </div>
-                    <pre class="code-block"><code>{{ issue.code_snippet }}</code></pre>
-                </div>
-                {% endif %}
-                
-                {% if issue.recommendation %}
-                <div class="recommendation">
-                    <div class="recommendation-header">
-                        <span class="recommendation-title">💡 Recommendation</span>
-                    </div>
-                    <div class="recommendation-content">
-                        {{ issue.recommendation }}
+                    <div class="collapse" id="issue-{{ loop.index }}">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Description:</strong>
+                                <p class="mt-1">{{ issue.description or issue.message }}</p>
+                            </div>
+                            
+                            {% if issue.filename or issue.line_number or issue.rule_id %}
+                            <div class="mb-3">
+                                <strong>Details:</strong>
+                                <div class="mt-1">
+                                    {% if issue.filename %}
+                                    <div><strong>File:</strong> <code>{{ issue.filename }}</code></div>
+                                    {% endif %}
+                                    {% if issue.line_number %}
+                                    <div><strong>Line:</strong> {{ issue.line_number }}</div>
+                                    {% endif %}
+                                    {% if issue.rule_id %}
+                                    <div><strong>Rule:</strong> <code>{{ issue.rule_id }}</code></div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if issue.code_snippet %}
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>Code Snippet:</strong>
+                                    <button class="btn btn-sm btn-outline-secondary" 
+                                            onclick="copyToClipboard('{{ issue.code_snippet|e }}')"
+                                            title="Copy to clipboard">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <pre class="bg-light p-3 rounded"><code>{{ issue.code_snippet }}</code></pre>
+                            </div>
+                            {% endif %}
+                            
+                            {% if issue.recommendation %}
+                            <div class="alert alert-info">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-lightbulb text-warning mr-2"></i>
+                                    <strong>Recommendation</strong>
+                                </div>
+                                <div>{{ issue.recommendation }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
-                {% endif %}
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
     </div>
     {% endif %}
 
     <!-- Tool Output (Raw) -->
     {% if analysis_data.raw_output %}
-    <div class="raw-output-section">
-        <div class="output-header">
-            <h4>Raw Tool Output</h4>
-            <button class="toggle-raw"
-                    _="on click toggle .show on #raw-output">
-                Toggle Raw Output
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-terminal text-secondary"></i>
+                Raw Tool Output
+            </h5>
+            <button class="btn btn-sm btn-outline-secondary"
+                    type="button"
+                    data-toggle="collapse"
+                    data-target="#raw-output"
+                    aria-expanded="false"
+                    title="Toggle Output">
+                <i class="fas fa-eye"></i> Toggle Output
             </button>
         </div>
         
-        <div id="raw-output" class="raw-output">
-            <pre class="output-content">{{ analysis_data.raw_output }}</pre>
+        <div class="collapse" id="raw-output">
+            <div class="card-body p-0">
+                <pre class="bg-dark text-light p-3 mb-0" style="max-height: 400px; overflow-y: auto;"><code>{{ analysis_data.raw_output }}</code></pre>
+            </div>
         </div>
     </div>
     {% endif %}
 </div>
 
 {% else %}
-<div class="no-analysis">
-    <div class="no-analysis-icon">🔍</div>
-    <h3>No Analysis Results Available</h3>
-    <p>Run a security analysis to see results here.</p>
-    <button hx-post="/analysis/{{ analysis_type }}/{{ model }}/{{ app_num }}/run"
-            hx-target="closest .results-section"
-            class="btn-primary">
-        Run Analysis Now
+<div class="text-center py-5">
+    <div class="mb-4">
+        <i class="fas fa-search fa-4x text-muted"></i>
+    </div>
+    <h4 class="text-muted mb-3">No Analysis Results Available</h4>
+    <p class="text-muted mb-4">Run a security analysis to see results here.</p>
+    <button class="btn btn-primary"
+            hx-post="/analysis/{{ analysis_type }}/{{ model }}/{{ app_num }}/run"
+            hx-target="closest .results-section">
+        <i class="fas fa-play"></i> Run Analysis Now
     </button>
 </div>
 {% endif %}
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show success feedback
+        const button = event.target.closest('button');
+        const originalContent = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check text-success"></i>';
+        setTimeout(() => {
+            button.innerHTML = originalContent;
+        }, 1500);
+    });
+}
+</script>
 

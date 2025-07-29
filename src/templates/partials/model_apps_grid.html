@@ -1,0 +1,129 @@
+<!-- Model Apps Grid - Bootstrap 4.1 with HTMX -->
+<div class="p-3">
+    <div class="row">
+        {% for app in apps %}
+        <div class="col-lg-6 col-md-12 mb-3">
+            <div class="card app-card h-100" id="app-{{ model_slug }}-{{ app.app_number }}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0 font-weight-bold">
+                            App {{ app.app_number }}: {{ app.app_name or app.app_type }}
+                        </h6>
+                        <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }}">
+                            {{ app.status|title }}
+                        </span>
+                    </div>
+                    
+                    <!-- Port Information -->
+                    <div class="mb-2">
+                        <small class="text-muted d-flex flex-wrap">
+                            {% if app.frontend_port %}
+                            <span class="badge badge-light mr-1">
+                                <i class="fas fa-desktop mr-1"></i>Frontend: {{ app.frontend_port }}
+                            </span>
+                            {% endif %}
+                            {% if app.backend_port %}
+                            <span class="badge badge-light mr-1">
+                                <i class="fas fa-server mr-1"></i>Backend: {{ app.backend_port }}
+                            </span>
+                            {% endif %}
+                        </small>
+                    </div>
+                    
+                    <!-- App Actions -->
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <button type="button" class="btn btn-success"
+                                hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/start"
+                                hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                                hx-swap="outerHTML"
+                                data-toggle="tooltip" title="Start Container">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button type="button" class="btn btn-warning"
+                                hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/restart"
+                                hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                                hx-swap="outerHTML"
+                                data-toggle="tooltip" title="Restart Container">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <button type="button" class="btn btn-danger"
+                                hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/stop"
+                                hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                                hx-swap="outerHTML"
+                                data-toggle="tooltip" title="Stop Container">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        {% if app.status == 'running' and app.frontend_port %}
+                        <button type="button" class="btn btn-info"
+                                onclick="window.open('http://localhost:{{ app.frontend_port }}', '_blank')"
+                                data-toggle="tooltip" title="Open Application">
+                            <i class="fas fa-external-link-alt"></i>
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-secondary"
+                                onclick="showAppLogs('{{ model_slug }}', {{ app.app_number }})"
+                                data-toggle="tooltip" title="View Logs">
+                            <i class="fas fa-file-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- No Apps State -->
+    {% if not apps %}
+    <div class="text-center py-4">
+        <i class="fas fa-box-open fa-2x text-muted mb-2"></i>
+        <p class="text-muted mb-0">No applications found for this model</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- App Logs Modal -->
+<div class="modal fade" id="logs-modal" tabindex="-1" role="dialog" aria-labelledby="logs-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="logs-modal-title">Container Logs</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <pre id="logs-content" class="bg-dark text-light p-3" style="max-height: 400px; overflow-y: auto; font-size: 0.85rem;">
+                    <div class="text-center">
+                        <div class="spinner-border text-light" role="status">
+                            <span class="sr-only">Loading logs...</span>
+                        </div>
+                    </div>
+                </pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showAppLogs(modelSlug, appNum) {
+    // Load logs content via HTMX
+    htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
+        target: '#logs-content',
+        swap: 'innerHTML'
+    });
+    
+    // Update modal title
+    document.getElementById('logs-modal-title').textContent = `Logs - ${modelSlug} App ${appNum}`;
+    
+    // Show modal
+    $('#logs-modal').modal('show');
+}
+
+// Initialize tooltips for app cards
+$(document).ready(function() {
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>

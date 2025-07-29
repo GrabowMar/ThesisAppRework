@@ -1,251 +1,209 @@
-<!-- Comprehensive Models Data Table -->
-<div class="models-table-wrapper">
-    {% if models %}
-    <table class="models-table">
-        <thead>
+<!-- Models Table - Bootstrap 4.1 with HTMX -->
+<div class="table-responsive">
+    <table class="table table-hover mb-0">
+        <thead class="thead-dark">
             <tr>
-                <th class="col-model">Model</th>
-                <th class="col-provider">Provider</th>
-                <th class="col-capabilities">Capabilities</th>
-                <th class="col-context">Context</th>
-                <th class="col-pricing">Pricing</th>
-                <th class="col-quality">Quality</th>
-                <th class="col-apps">Apps</th>
-                <th class="col-status">Status</th>
-                <th class="col-actions">Actions</th>
+                <th scope="col">
+                    <i class="fas fa-robot mr-1"></i>Model
+                </th>
+                <th scope="col">
+                    <i class="fas fa-building mr-1"></i>Provider
+                </th>
+                <th scope="col">
+                    <i class="fas fa-memory mr-1"></i>Context
+                </th>
+                <th scope="col">
+                    <i class="fas fa-dollar-sign mr-1"></i>Pricing
+                </th>
+                <th scope="col">
+                    <i class="fas fa-cogs mr-1"></i>Features
+                </th>
+                <th scope="col">
+                    <i class="fas fa-chart-line mr-1"></i>Quality
+                </th>
+                <th scope="col">
+                    <i class="fas fa-rocket mr-1"></i>Status
+                </th>
+                <th scope="col">
+                    <i class="fas fa-tools mr-1"></i>Actions
+                </th>
             </tr>
         </thead>
         <tbody>
             {% for model in models %}
-            <tr class="model-row" data-model-id="{{ model.model_id }}">
-                <!-- Model Information -->
-                <td class="col-model">
-                    <div class="model-info">
-                        <div class="model-name">{{ model.model_name }}</div>
-                        <div class="model-id">{{ model.model_id }}</div>
-                        {% if model.is_free %}
-                        <span class="badge badge-success">FREE</span>
-                        {% endif %}
-                    </div>
-                </td>
-                
-                <!-- Provider -->
-                <td class="col-provider">
-                    <div class="provider-info">
-                        <span class="provider-name">{{ model.provider|title }}</span>
-                        {% if model.architecture.parameter_count and model.architecture.parameter_count != 'unknown' %}
-                        <div class="param-count">{{ model.architecture.parameter_count }}</div>
-                        {% endif %}
-                    </div>
-                </td>
-                
-                <!-- Capabilities -->
-                <td class="col-capabilities">
-                    <div class="capabilities-grid">
-                        <!-- Core Features -->
-                        <div class="feature-group">
+            <tr id="model-row-{{ model.canonical_slug }}">
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="mr-2">
                             {% if model.supports_vision %}
-                            <span class="capability-badge vision" title="Vision Support">👁️</span>
-                            {% endif %}
-                            {% if model.supports_function_calling %}
-                            <span class="capability-badge function" title="Function Calling">⚡</span>
-                            {% endif %}
-                            {% if model.supports_json_mode %}
-                            <span class="capability-badge json" title="JSON Mode">📋</span>
-                            {% endif %}
-                            {% if model.supports_streaming %}
-                            <span class="capability-badge stream" title="Streaming">🔄</span>
+                            <i class="fas fa-eye text-info" data-toggle="tooltip" title="Vision Support"></i>
+                            {% else %}
+                            <i class="fas fa-brain text-muted" data-toggle="tooltip" title="Text Only"></i>
                             {% endif %}
                         </div>
-                        
-                        <!-- AI Capabilities -->
-                        <div class="ai-capabilities">
-                            {% for cap, enabled in model.capability_flags.items() %}
-                            {% if enabled %}
-                            <span class="ai-cap {{ cap }}" title="{{ cap|title|replace('_', ' ') }}">
-                                {% if cap == 'reasoning' %}🧠
-                                {% elif cap == 'coding' %}💻
-                                {% elif cap == 'math' %}🔢
-                                {% elif cap == 'creative_writing' %}✍️
-                                {% elif cap == 'analysis' %}📊
-                                {% elif cap == 'multilingual' %}🌍
-                                {% elif cap == 'long_context' %}📜
-                                {% endif %}
-                            </span>
+                        <div>
+                            <div class="font-weight-bold">{{ model.model_name }}</div>
+                            <small class="text-muted">{{ model.model_id or model.canonical_slug }}</small>
+                            {% if model.is_free %}
+                            <span class="badge badge-success badge-sm ml-1">FREE</span>
                             {% endif %}
-                            {% endfor %}
                         </div>
                     </div>
                 </td>
-                
-                <!-- Context Window -->
-                <td class="col-context">
-                    <div class="context-info">
-                        <div class="context-window">
-                            {{ "{:,}".format(model.context_window) if model.context_window else 'N/A' }}
-                        </div>
+                <td>
+                    <span class="badge badge-primary">{{ model.provider }}</span>
+                    {% if model.architecture and model.architecture.parameter_count and model.architecture.parameter_count != 'unknown' %}
+                    <small class="text-muted d-block">{{ model.architecture.parameter_count }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="text-center">
+                        <span class="font-weight-bold">{{ "{:,}".format(model.context_window) if model.context_window else 'N/A' }}</span>
                         {% if model.context_window %}
-                        <div class="context-label">tokens</div>
+                        <small class="text-muted d-block">tokens</small>
                         {% endif %}
                         {% if model.max_output_tokens %}
-                        <div class="max-output">
-                            Out: {{ "{:,}".format(model.max_output_tokens) }}
-                        </div>
+                        <small class="text-info d-block">Out: {{ "{:,}".format(model.max_output_tokens) }}</small>
                         {% endif %}
                     </div>
                 </td>
-                
-                <!-- Pricing -->
-                <td class="col-pricing">
-                    <div class="pricing-info">
-                        {% if model.is_free %}
-                        <div class="price-free">FREE</div>
-                        {% else %}
-                        <div class="price-input">
-                            {% if model.input_price_per_token > 0 %}
-                            ${{ "%.6f"|format(model.input_price_per_token) }}/1K
+                <td>
+                    {% if model.is_free %}
+                    <div class="text-center">
+                        <span class="badge badge-success">FREE</span>
+                    </div>
+                    {% else %}
+                    <div class="text-center">
+                        <div class="text-success small">
+                            {% if model.input_price_per_token and model.input_price_per_token > 0 %}
+                            In: ${{ "%.6f"|format(model.input_price_per_token) }}
                             {% else %}
-                            N/A
+                            In: N/A
                             {% endif %}
                         </div>
-                        <div class="price-output">
-                            {% if model.output_price_per_token > 0 %}
-                            ${{ "%.6f"|format(model.output_price_per_token) }}/1K
+                        <div class="text-warning small">
+                            {% if model.output_price_per_token and model.output_price_per_token > 0 %}
+                            Out: ${{ "%.6f"|format(model.output_price_per_token) }}
                             {% else %}
-                            N/A
+                            Out: N/A
                             {% endif %}
                         </div>
+                        {% if model.cost_efficiency and model.cost_efficiency > 0 %}
+                        <small class="text-muted">Eff: {{ "%.2f"|format(model.cost_efficiency) }}</small>
                         {% endif %}
-                        
-                        {% if model.cost_efficiency > 0 %}
-                        <div class="cost-efficiency">
-                            Efficiency: {{ "%.2f"|format(model.cost_efficiency) }}
-                        </div>
+                    </div>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="d-flex flex-wrap">
+                        {% if model.supports_function_calling %}
+                        <span class="badge badge-success badge-sm mr-1 mb-1">
+                            <i class="fas fa-cog mr-1"></i>Functions
+                        </span>
+                        {% endif %}
+                        {% if model.supports_vision %}
+                        <span class="badge badge-info badge-sm mr-1 mb-1">
+                            <i class="fas fa-eye mr-1"></i>Vision
+                        </span>
+                        {% endif %}
+                        {% if model.supports_json_mode %}
+                        <span class="badge badge-secondary badge-sm mr-1 mb-1">
+                            <i class="fas fa-code mr-1"></i>JSON
+                        </span>
+                        {% endif %}
+                        {% if model.supports_streaming %}
+                        <span class="badge badge-dark badge-sm mr-1 mb-1">
+                            <i class="fas fa-stream mr-1"></i>Stream
+                        </span>
+                        {% endif %}
+                        {% if model.context_window and model.context_window > 100000 %}
+                        <span class="badge badge-warning badge-sm mr-1 mb-1">
+                            <i class="fas fa-expand-arrows-alt mr-1"></i>Long
+                        </span>
                         {% endif %}
                     </div>
                 </td>
-                
-                <!-- Quality Metrics -->
-                <td class="col-quality">
-                    <div class="quality-metrics">
+                <td>
+                    {% if model.quality_metrics or model.safety_score %}
+                    <div class="text-center">
                         {% if model.quality_metrics %}
-                        <div class="quality-scores">
-                            {% if model.quality_metrics.helpfulness %}
-                            <div class="metric">
-                                <span class="metric-label">Help:</span>
-                                <span class="metric-value">{{ "%.1f"|format(model.quality_metrics.helpfulness) }}</span>
-                            </div>
-                            {% endif %}
-                            {% if model.quality_metrics.accuracy %}
-                            <div class="metric">
-                                <span class="metric-label">Acc:</span>
-                                <span class="metric-value">{{ "%.1f"|format(model.quality_metrics.accuracy) }}</span>
-                            </div>
-                            {% endif %}
-                            {% if model.quality_metrics.safety %}
-                            <div class="metric">
-                                <span class="metric-label">Safe:</span>
-                                <span class="metric-value safety">{{ "%.1f"|format(model.quality_metrics.safety) }}</span>
-                            </div>
-                            {% endif %}
-                        </div>
+                        {% if model.quality_metrics.helpfulness %}
+                        <div class="text-primary small">Help: {{ "%.1f"|format(model.quality_metrics.helpfulness) }}</div>
                         {% endif %}
-                        
-                        {% if model.safety_score > 0 %}
-                        <div class="safety-overall">
-                            Safety: {{ "%.1f"|format(model.safety_score) }}
-                        </div>
+                        {% if model.quality_metrics.accuracy %}
+                        <div class="text-info small">Acc: {{ "%.1f"|format(model.quality_metrics.accuracy) }}</div>
+                        {% endif %}
+                        {% if model.quality_metrics.safety %}
+                        <div class="text-success small">Safe: {{ "%.1f"|format(model.quality_metrics.safety) }}</div>
+                        {% endif %}
+                        {% endif %}
+                        {% if model.safety_score and model.safety_score > 0 %}
+                        <div class="font-weight-bold">{{ "%.1f"|format(model.safety_score) }}</div>
                         {% endif %}
                     </div>
+                    {% else %}
+                    <span class="text-muted">N/A</span>
+                    {% endif %}
                 </td>
-                
-                <!-- Applications -->
-                <td class="col-apps">
-                    <div class="apps-info">
-                        <div class="app-counts">
-                            <div class="total-apps">
-                                <span class="count">{{ model.total_apps or 0 }}</span>
-                                <span class="label">Total</span>
+                <td>
+                    <div class="text-center">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <div class="mr-2">
+                                <span class="badge badge-success">{{ model.running_containers or 0 }}</span>
+                                <small class="text-muted d-block">Running</small>
                             </div>
-                            <div class="generated-apps">
-                                <span class="count">{{ model.generated_apps or 0 }}</span>
-                                <span class="label">Generated</span>
+                            <div>
+                                <span class="badge badge-secondary">{{ model.stopped_containers or (30 - (model.running_containers or 0)) }}</span>
+                                <small class="text-muted d-block">Stopped</small>
                             </div>
                         </div>
-                        
-                        {% if model.total_apps and model.total_apps > 0 %}
-                        <div class="progress-bar">
-                            <div class="progress-fill" 
-                                 style="width: {{ ((model.generated_apps or 0) / model.total_apps * 100)|round }}%">
-                            </div>
-                        </div>
-                        {% endif %}
-                    </div>
-                </td>
-                
-                <!-- Status -->
-                <td class="col-status">
-                    <div class="status-info">
-                        <div class="container-status">
-                            <span class="running-count">{{ model.running_containers or 0 }}</span>
-                            <span class="status-label">Running</span>
-                        </div>
-                        
                         {% if model.running_containers and model.running_containers > 0 %}
-                        <div class="status-indicator active" title="Active containers"></div>
+                        <i class="fas fa-circle text-success" style="font-size: 0.6rem;" data-toggle="tooltip" title="Active containers"></i>
                         {% else %}
-                        <div class="status-indicator inactive" title="No active containers"></div>
+                        <i class="fas fa-circle text-muted" style="font-size: 0.6rem;" data-toggle="tooltip" title="No active containers"></i>
                         {% endif %}
-                        
-                        <div class="last-updated">
-                            {% if model.updated_at %}
-                            <small>Updated: {{ model.updated_at[:10] }}</small>
-                            {% endif %}
-                        </div>
                     </div>
                 </td>
-                
-                <!-- Actions -->
-                <td class="col-actions">
-                    <div class="actions-group">
-                        <button class="btn-sm btn-primary"
-                                hx-get="/model/{{ model.canonical_slug }}/details"
-                                hx-target="#model-details-modal"
-                                title="View Details">
-                            📊
+                <td>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-info"
+                                onclick="showModelDetails('{{ model.canonical_slug }}')"
+                                data-toggle="tooltip" title="View Details">
+                            <i class="fas fa-info-circle"></i>
                         </button>
-                        
-                        <button class="btn-sm btn-success"
-                                hx-post="/docker/start-all/{{ model.canonical_slug }}"
+                        <button type="button" class="btn btn-outline-success"
+                                hx-post="/api/model/{{ model.canonical_slug }}/start-all"
+                                hx-target="#model-row-{{ model.canonical_slug }}"
+                                hx-swap="outerHTML"
                                 hx-confirm="Start all containers for {{ model.model_name }}?"
-                                hx-target="closest .model-row .status-info"
-                                title="Start All Containers">
-                            ▶️
+                                data-toggle="tooltip" title="Start All">
+                            <i class="fas fa-play"></i>
                         </button>
-                        
-                        <button class="btn-sm btn-danger"
-                                hx-post="/docker/stop-all/{{ model.canonical_slug }}"
+                        <button type="button" class="btn btn-outline-danger"
+                                hx-post="/api/model/{{ model.canonical_slug }}/stop-all"
+                                hx-target="#model-row-{{ model.canonical_slug }}"
+                                hx-swap="outerHTML"
                                 hx-confirm="Stop all containers for {{ model.model_name }}?"
-                                hx-target="closest .model-row .status-info"
-                                title="Stop All Containers">
-                            ⏹️
+                                data-toggle="tooltip" title="Stop All">
+                            <i class="fas fa-stop"></i>
                         </button>
-                        
-                        <div class="dropdown">
-                            <button class="btn-sm btn-secondary dropdown-toggle">⋮</button>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
                             <div class="dropdown-menu">
-                                <a href="/analysis/{{ model.canonical_slug }}" class="dropdown-item">
-                                    🔍 Analyze
+                                <a class="dropdown-item" href="/analysis/{{ model.canonical_slug }}">
+                                    <i class="fas fa-shield-alt mr-2"></i>Security Analysis
                                 </a>
-                                <a href="/performance/{{ model.canonical_slug }}" class="dropdown-item">
-                                    📈 Performance
+                                <a class="dropdown-item" href="/performance/{{ model.canonical_slug }}">
+                                    <i class="fas fa-tachometer-alt mr-2"></i>Performance Test
                                 </a>
-                                <a href="/zap/{{ model.canonical_slug }}" class="dropdown-item">
-                                    🛡️ Security Scan
+                                <a class="dropdown-item" href="/models/{{ model.canonical_slug }}/apps">
+                                    <i class="fas fa-th-large mr-2"></i>View Applications
                                 </a>
                                 <div class="dropdown-divider"></div>
-                                <a href="#" class="dropdown-item" onclick="exportModelData('{{ model.canonical_slug }}')">
-                                    💾 Export Data
+                                <a class="dropdown-item" href="#" onclick="exportModelData('{{ model.canonical_slug }}')">
+                                    <i class="fas fa-download mr-2"></i>Export Data
                                 </a>
                             </div>
                         </div>
@@ -255,433 +213,135 @@
             {% endfor %}
         </tbody>
     </table>
-    
-    <!-- Results Summary -->
-    <div class="table-footer">
-        <div class="results-summary">
-            Showing {{ models|length }} models
-            {% if search_query or provider_filter %}
-            (filtered)
-            {% endif %}
-        </div>
-        
-        <div class="table-actions">
-            <button class="btn-secondary" onclick="toggleAllRows()">
-                Expand/Collapse All
-            </button>
-            <button class="btn-primary" onclick="selectModelsForComparison()">
-                Compare Selected
-            </button>
-        </div>
-    </div>
-    
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-icon">🤖</div>
-        <h3>No Models Found</h3>
-        <p>No models match your current search criteria.</p>
-        <button class="btn-primary" onclick="clearFilters()">
-            Clear Filters
-        </button>
-    </div>
-    {% endif %}
 </div>
 
-<style>
-.models-table-wrapper {
-    overflow-x: auto;
-    max-width: 100%;
-}
+<!-- No Results State -->
+{% if not models %}
+<div class="text-center py-5">
+    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+    <h4 class="text-muted">No Models Found</h4>
+    <p class="text-muted">No models match your current search criteria.</p>
+    <button class="btn btn-primary" onclick="clearFilters()">
+        <i class="fas fa-times mr-2"></i>Clear Filters
+    </button>
+</div>
+{% endif %}
 
-.models-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-    background: white;
-}
+<!-- Pagination -->
+{% if pagination %}
+<div class="d-flex justify-content-between align-items-center p-3 border-top">
+    <div class="text-muted">
+        Showing {{ pagination.start }} to {{ pagination.end }} of {{ pagination.total }} models
+    </div>
+    <nav aria-label="Models pagination">
+        <ul class="pagination pagination-sm mb-0">
+            <!-- Previous Page -->
+            <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                <a class="page-link" 
+                   href="#"
+                   hx-get="/models"
+                   hx-target="#models-content"
+                   hx-include="[name='search'], [name='provider'], [name='sort']"
+                   hx-vals='{"partial": "table", "page": {{ pagination.prev_num if pagination.has_prev else 1 }}}'>
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            </li>
+            
+            <!-- Page Numbers -->
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                <li class="page-item {{ 'active' if page_num == pagination.page }}">
+                    <a class="page-link" 
+                       href="#"
+                       hx-get="/models"
+                       hx-target="#models-content"
+                       hx-include="[name='search'], [name='provider'], [name='sort']"
+                       hx-vals='{"partial": "table", "page": {{ page_num }}}'>
+                        {{ page_num }}
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">…</span>
+                </li>
+                {% endif %}
+            {% endfor %}
+            
+            <!-- Next Page -->
+            <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                <a class="page-link" 
+                   href="#"
+                   hx-get="/models"
+                   hx-target="#models-content"
+                   hx-include="[name='search'], [name='provider'], [name='sort']"
+                   hx-vals='{"partial": "table", "page": {{ pagination.next_num if pagination.has_next else pagination.pages }}}'>
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</div>
+{% endif %}
 
-.models-table th {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    padding: 1rem 0.75rem;
-    text-align: left;
-    font-weight: 600;
-    color: var(--text-primary);
-    border-bottom: 2px solid var(--border-color);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.models-table td {
-    padding: 1rem 0.75rem;
-    border-bottom: 1px solid var(--border-light);
-    vertical-align: top;
-}
-
-.model-row:hover {
-    background-color: #f8f9fa;
-}
-
-/* Column Widths */
-.col-model { min-width: 200px; }
-.col-provider { min-width: 120px; }
-.col-capabilities { min-width: 150px; }
-.col-context { min-width: 100px; }
-.col-pricing { min-width: 120px; }
-.col-quality { min-width: 120px; }
-.col-apps { min-width: 100px; }
-.col-status { min-width: 100px; }
-.col-actions { min-width: 120px; }
-
-/* Model Info */
-.model-info .model-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
-}
-
-.model-info .model-id {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    font-family: monospace;
-}
-
-.badge {
-    display: inline-block;
-    padding: 0.2rem 0.4rem;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    margin-top: 0.25rem;
-}
-
-.badge-success {
-    background-color: var(--success-color);
-    color: white;
-}
-
-/* Provider Info */
-.provider-info .provider-name {
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-.provider-info .param-count {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-/* Capabilities */
-.capabilities-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.feature-group, .ai-capabilities {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-}
-
-.capability-badge, .ai-cap {
-    display: inline-block;
-    padding: 0.2rem 0.4rem;
-    border-radius: 12px;
-    font-size: 0.8rem;
-    background-color: var(--primary-light);
-    color: var(--primary-color);
-    cursor: help;
-}
-
-.capability-badge.vision { background-color: #e3f2fd; color: #1976d2; }
-.capability-badge.function { background-color: #fff3e0; color: #f57c00; }
-.capability-badge.json { background-color: #f3e5f5; color: #7b1fa2; }
-.capability-badge.stream { background-color: #e8f5e8; color: #388e3c; }
-
-/* Context Info */
-.context-info {
-    text-align: center;
-}
-
-.context-window {
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.context-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-.max-output {
-    font-size: 0.8rem;
-    color: var(--info-color);
-    margin-top: 0.25rem;
-}
-
-/* Pricing Info */
-.pricing-info {
-    text-align: center;
-}
-
-.price-free {
-    color: var(--success-color);
-    font-weight: 600;
-}
-
-.price-input, .price-output {
-    font-size: 0.8rem;
-    color: var(--text-primary);
-}
-
-.cost-efficiency {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin-top: 0.25rem;
-}
-
-/* Quality Metrics */
-.quality-metrics {
-    font-size: 0.8rem;
-}
-
-.quality-scores {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.metric {
-    display: flex;
-    justify-content: space-between;
-}
-
-.metric-label {
-    color: var(--text-muted);
-}
-
-.metric-value {
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-.metric-value.safety {
-    color: var(--success-color);
-}
-
-/* Apps Info */
-.app-counts {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-}
-
-.total-apps, .generated-apps {
-    text-align: center;
-}
-
-.count {
-    display: block;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-.progress-bar {
-    width: 100%;
-    height: 4px;
-    background-color: var(--border-light);
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--success-color), var(--info-color));
-    transition: width 0.3s ease;
-}
-
-/* Status Info */
-.status-info {
-    text-align: center;
-}
-
-.container-status {
-    margin-bottom: 0.5rem;
-}
-
-.running-count {
-    display: block;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.status-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-.status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    margin: 0.25rem 0;
-}
-
-.status-indicator.active {
-    background-color: var(--success-color);
-    box-shadow: 0 0 4px var(--success-color);
-}
-
-.status-indicator.inactive {
-    background-color: var(--text-muted);
-}
-
-.last-updated {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-}
-
-/* Actions */
-.actions-group {
-    display: flex;
-    gap: 0.25rem;
-    align-items: center;
-}
-
-.btn-sm {
-    padding: 0.3rem 0.5rem;
-    font-size: 0.8rem;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn-primary { background: var(--primary-color); color: white; }
-.btn-success { background: var(--success-color); color: white; }
-.btn-danger { background: var(--danger-color); color: white; }
-.btn-secondary { background: var(--secondary-color); color: white; }
-
-/* Dropdown */
-.dropdown {
-    position: relative;
-}
-
-.dropdown-menu {
-    display: none;
-    position: absolute;
-    right: 0;
-    top: 100%;
-    background: white;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    min-width: 150px;
-}
-
-.dropdown:hover .dropdown-menu {
-    display: block;
-}
-
-.dropdown-item {
-    display: block;
-    padding: 0.5rem 0.75rem;
-    color: var(--text-primary);
-    text-decoration: none;
-    font-size: 0.8rem;
-}
-
-.dropdown-item:hover {
-    background-color: var(--hover-color);
-}
-
-.dropdown-divider {
-    height: 1px;
-    background-color: var(--border-color);
-    margin: 0.25rem 0;
-}
-
-/* Table Footer */
-.table-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-top: 1px solid var(--border-color);
-}
-
-.results-summary {
-    color: var(--text-muted);
-    font-size: 0.9rem;
-}
-
-.table-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
-/* Empty State */
-.empty-state {
-    text-align: center;
-    padding: 4rem 2rem;
-    color: var(--text-muted);
-}
-
-.empty-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-}
-
-.empty-state h3 {
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-}
-
-/* Responsive Design */
-@media (max-width: 1200px) {
-    .models-table {
-        font-size: 0.8rem;
-    }
+<!-- Table Summary Footer -->
+{% if models %}
+<div class="d-flex justify-content-between align-items-center p-3 bg-light border-top">
+    <div class="text-muted">
+        <i class="fas fa-info-circle mr-1"></i>
+        Showing {{ models|length }} models
+        {% if search_query or provider_filter %}
+        <span class="badge badge-secondary ml-1">Filtered</span>
+        {% endif %}
+    </div>
     
-    .col-quality, .col-context {
-        display: none;
-    }
-}
-
-@media (max-width: 768px) {
-    .col-capabilities, .col-pricing {
-        display: none;
-    }
-    
-    .actions-group {
-        flex-direction: column;
-        gap: 0.1rem;
-    }
-}
-</style>
+    <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-secondary" onclick="selectAllModels()">
+            <i class="fas fa-check-square mr-1"></i>Select All
+        </button>
+        <button type="button" class="btn btn-outline-primary" onclick="compareSelectedModels()">
+            <i class="fas fa-balance-scale mr-1"></i>Compare
+        </button>
+        <button type="button" class="btn btn-outline-success" onclick="bulkExportModels()">
+            <i class="fas fa-download mr-1"></i>Export All
+        </button>
+    </div>
+</div>
+{% endif %}
 
 <script>
-function toggleAllRows() {
-    // Implementation for expanding/collapsing detailed views
-    console.log('Toggle all rows');
-}
-
-function selectModelsForComparison() {
-    // Implementation for model comparison
-    console.log('Select models for comparison');
+function showModelDetails(modelSlug) {
+    // Load model details into modal
+    htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
+        target: '#model-details-modal .modal-body',
+        swap: 'innerHTML'
+    });
+    
+    // Show modal
+    $('#model-details-modal').modal('show');
 }
 
 function exportModelData(modelSlug) {
     window.open(`/api/models/${modelSlug}/export`, '_blank');
 }
+
+function selectAllModels() {
+    // Implementation for selecting all models
+    console.log('Select all models');
+}
+
+function compareSelectedModels() {
+    // Implementation for model comparison
+    console.log('Compare selected models');
+}
+
+function bulkExportModels() {
+    // Implementation for bulk export
+    window.open('/api/models/export?format=xlsx', '_blank');
+}
+
+// Initialize tooltips for table
+$(document).ready(function() {
+    $('[data-toggle="tooltip"]').tooltip();
+});
 </script>
+

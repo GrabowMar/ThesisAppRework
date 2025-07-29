@@ -3,61 +3,72 @@
 {% block title %}{{ model|title }} App {{ app_num }} - Thesis Research App{% endblock %}
 
 {% block content %}
-<div class="app-details">
+<div class="container-fluid">
     <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-        <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
-        <span>/</span>
-        <a href="{{ url_for('main.models_overview') }}">Models</a>
-        <span>/</span>
-        <span>{{ model|replace('_', ' ')|title }}</span>
-        <span>/</span>
-        <span>App {{ app_num }}</span>
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('main.dashboard') }}">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('main.models_overview') }}">Models</a>
+            </li>
+            <li class="breadcrumb-item">{{ model|replace('_', ' ')|title }}</li>
+            <li class="breadcrumb-item active" aria-current="page">App {{ app_num }}</li>
+        </ol>
     </nav>
 
     <!-- App Header -->
-    <header class="app-header">
-        <div class="app-title-section">
-            <h1>{{ model|replace('_', ' ')|title }} - App {{ app_num }}</h1>
-            <div class="app-info">
-                <span class="app-type">{{ app_info.app_type|title }}</span>
-                <span class="separator">•</span>
-                <span class="app-description">{{ app_info.description }}</span>
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <h1 class="h3 mb-2">{{ model|replace('_', ' ')|title }} - App {{ app_num }}</h1>
+                    <div class="d-flex align-items-center text-muted">
+                        <span class="badge badge-primary mr-2">{{ app_info.app_type|title }}</span>
+                        <span class="mr-2">•</span>
+                        <span>{{ app_info.description }}</span>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 text-lg-right mt-3 mt-lg-0">
+                    <div class="btn-group" role="group">
+                        <button hx-post="/docker/start/{{ model }}/{{ app_num }}"
+                                hx-target=".container-status-section"
+                                hx-confirm="Start containers for {{ model }}/app{{ app_num }}?"
+                                class="btn btn-success btn-sm">
+                            <i class="fas fa-play"></i> Start
+                        </button>
+                        
+                        <button hx-post="/docker/stop/{{ model }}/{{ app_num }}"
+                                hx-target=".container-status-section"
+                                hx-confirm="Stop containers for {{ model }}/app{{ app_num }}?"
+                                class="btn btn-danger btn-sm">
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                        
+                        <button hx-post="/docker/restart/{{ model }}/{{ app_num }}"
+                                hx-target=".container-status-section"
+                                hx-confirm="Restart containers for {{ model }}/app{{ app_num }}?"
+                                class="btn btn-warning btn-sm">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        
+                        <button hx-get="/docker/logs/{{ model }}/{{ app_num }}"
+                                hx-target="#modal-container"
+                                class="btn btn-secondary btn-sm">
+                            <i class="fas fa-file-alt"></i> Logs
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="app-actions">
-            <button hx-post="/docker/start/{{ model }}/{{ app_num }}"
-                    hx-target=".container-status-section"
-                    hx-confirm="Start containers for {{ model }}/app{{ app_num }}?"
-                    class="btn-success">
-                🚀 Start
-            </button>
-            
-            <button hx-post="/docker/stop/{{ model }}/{{ app_num }}"
-                    hx-target=".container-status-section"
-                    hx-confirm="Stop containers for {{ model }}/app{{ app_num }}?"
-                    class="btn-danger">
-                🛑 Stop
-            </button>
-            
-            <button hx-post="/docker/restart/{{ model }}/{{ app_num }}"
-                    hx-target=".container-status-section"
-                    hx-confirm="Restart containers for {{ model }}/app{{ app_num }}?"
-                    class="btn-warning">
-                🔄 Restart
-            </button>
-            
-            <button hx-get="/docker/logs/{{ model }}/{{ app_num }}"
-                    hx-target="#modal-container"
-                    class="btn-secondary">
-                📋 View Logs
-            </button>
-        </div>
-    </header>
+    </div>
 
     <!-- Container Status Section -->
-    <div class="container-status-section"
+    <div class="container-status-section mb-4"
          hx-get="/api/status/{{ model }}/{{ app_num }}"
          hx-trigger="load, every 5s"
          hx-target="this">
@@ -65,79 +76,111 @@
     </div>
 
     <!-- Quick Links -->
-    <div class="quick-links">
+    <div class="row mb-4">
         {% if app_info.frontend_url %}
-        <a href="{{ app_info.frontend_url }}" target="_blank" class="quick-link frontend">
-            <div class="link-icon">🌐</div>
-            <div class="link-info">
-                <span class="link-title">View Frontend</span>
-                <span class="link-url">{{ app_info.frontend_url }}</span>
-            </div>
-        </a>
+        <div class="col-md-6 mb-3">
+            <a href="{{ app_info.frontend_url }}" target="_blank" class="card text-decoration-none h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fas fa-globe-americas fa-2x text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="card-title mb-1">View Frontend</h6>
+                            <p class="card-text text-muted small mb-0">{{ app_info.frontend_url }}</p>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
         {% endif %}
         
         {% if app_info.backend_url %}
-        <a href="{{ app_info.backend_url }}" target="_blank" class="quick-link backend">
-            <div class="link-icon">⚙️</div>
-            <div class="link-info">
-                <span class="link-title">API Backend</span>
-                <span class="link-url">{{ app_info.backend_url }}</span>
-            </div>
-        </a>
+        <div class="col-md-6 mb-3">
+            <a href="{{ app_info.backend_url }}" target="_blank" class="card text-decoration-none h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fas fa-cogs fa-2x text-success"></i>
+                        </div>
+                        <div>
+                            <h6 class="card-title mb-1">API Backend</h6>
+                            <p class="card-text text-muted small mb-0">{{ app_info.backend_url }}</p>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
         {% endif %}
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="tabs" id="main-tabs">
-        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=overview"
-                hx-target="#tab-content"
-                class="tab {{ 'active' if active_tab == 'overview' else '' }}"
-                _="on click remove .active from .tab then add .active to me">
-            📊 Overview
-        </button>
-        
-        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=analysis"
-                hx-target="#tab-content"
-                class="tab {{ 'active' if active_tab == 'analysis' else '' }}"
-                _="on click remove .active from .tab then add .active to me">
-            🔍 Security Analysis
-        </button>
-        
-        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=performance"
-                hx-target="#tab-content"
-                class="tab {{ 'active' if active_tab == 'performance' else '' }}"
-                _="on click remove .active from .tab then add .active to me">
-            ⚡ Performance
-        </button>
-        
-        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=zap"
-                hx-target="#tab-content"
-                class="tab {{ 'active' if active_tab == 'zap' else '' }}"
-                _="on click remove .active from .tab then add .active to me">
-            🛡️ ZAP Security
-        </button>
-        
-        <button hx-get="/app/{{ model }}/{{ app_num }}?tab=code"
-                hx-target="#tab-content"
-                class="tab {{ 'active' if active_tab == 'code' else '' }}"
-                _="on click remove .active from .tab then add .active to me">
-            💻 Code Review
-        </button>
-    </div>
+    <div class="card">
+        <div class="card-header p-0">
+            <ul class="nav nav-tabs card-header-tabs" id="main-tabs" role="tablist">
+                <li class="nav-item">
+                    <button hx-get="/app/{{ model }}/{{ app_num }}?tab=overview"
+                            hx-target="#tab-content"
+                            class="nav-link {{ 'active' if active_tab == 'overview' else '' }}"
+                            _="on click remove .active from .nav-link then add .active to me">
+                        <i class="fas fa-chart-bar"></i> Overview
+                    </button>
+                </li>
+                
+                <li class="nav-item">
+                    <button hx-get="/app/{{ model }}/{{ app_num }}?tab=analysis"
+                            hx-target="#tab-content"
+                            class="nav-link {{ 'active' if active_tab == 'analysis' else '' }}"
+                            _="on click remove .active from .nav-link then add .active to me">
+                        <i class="fas fa-search"></i> Security Analysis
+                    </button>
+                </li>
+                
+                <li class="nav-item">
+                    <button hx-get="/app/{{ model }}/{{ app_num }}?tab=performance"
+                            hx-target="#tab-content"
+                            class="nav-link {{ 'active' if active_tab == 'performance' else '' }}"
+                            _="on click remove .active from .nav-link then add .active to me">
+                        <i class="fas fa-bolt"></i> Performance
+                    </button>
+                </li>
+                
+                <li class="nav-item">
+                    <button hx-get="/app/{{ model }}/{{ app_num }}?tab=zap"
+                            hx-target="#tab-content"
+                            class="nav-link {{ 'active' if active_tab == 'zap' else '' }}"
+                            _="on click remove .active from .nav-link then add .active to me">
+                        <i class="fas fa-shield-alt"></i> ZAP Security
+                    </button>
+                </li>
+                
+                <li class="nav-item">
+                    <button hx-get="/app/{{ model }}/{{ app_num }}?tab=code"
+                            hx-target="#tab-content"
+                            class="nav-link {{ 'active' if active_tab == 'code' else '' }}"
+                            _="on click remove .active from .nav-link then add .active to me">
+                        <i class="fas fa-code"></i> Code Review
+                    </button>
+                </li>
+            </ul>
+        </div>
 
-    <!-- Tab Content -->
-    <div id="tab-content" class="tab-content">
-        {% if active_tab == 'overview' or not active_tab %}
-            {% include "partials/app_tab_overview.html" %}
-        {% elif active_tab == 'analysis' %}
-            {% include "partials/app_tab_analysis.html" %}
-        {% elif active_tab == 'performance' %}
-            {% include "partials/app_tab_performance.html" %}
-        {% elif active_tab == 'zap' %}
-            {% include "partials/app_tab_zap.html" %}
-        {% elif active_tab == 'code' %}
-            {% include "partials/app_tab_code.html" %}
-        {% endif %}
+        <!-- Tab Content -->
+        <div class="card-body">
+            <div id="tab-content">
+                {% if active_tab == 'overview' or not active_tab %}
+                    {% include "partials/app_tab_overview.html" %}
+                {% elif active_tab == 'analysis' %}
+                    {% include "partials/app_tab_analysis.html" %}
+                {% elif active_tab == 'performance' %}
+                    {% include "partials/app_tab_performance.html" %}
+                {% elif active_tab == 'zap' %}
+                    {% include "partials/app_tab_zap.html" %}
+                {% elif active_tab == 'code' %}
+                    {% include "partials/app_tab_code.html" %}
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

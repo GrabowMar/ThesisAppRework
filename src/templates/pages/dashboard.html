@@ -3,810 +3,408 @@
 {% block title %}Dashboard - Thesis Research App{% endblock %}
 
 {% block content %}
-<div class="dashboard-overview">
+<div class="container-fluid">
     <!-- Page Header -->
-    <header class="page-header">
-        <h1>🎯 AI Research Dashboard</h1>
-        <p>Comprehensive management of {{ summary_stats.total_models|default(30) }} AI models and {{ summary_stats.total_apps|default(900) }} generated applications</p>
-    </header>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-1">
+                        <i class="fas fa-tachometer-alt text-primary mr-2"></i>
+                        AI Research Dashboard
+                    </h1>
+                    <p class="text-muted mb-0">
+                        Manage {{ summary_stats.total_models|default(30) }} AI models and {{ summary_stats.total_apps|default(900) }} generated applications
+                    </p>
+                </div>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary"
+                            hx-get="/api/dashboard/refresh-all"
+                            hx-target="#dashboard-models"
+                            hx-indicator="#refresh-spinner">
+                        <i class="fas fa-sync-alt mr-1"></i>Refresh
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" 
+                            _="on click toggle .d-none on #advanced-filters">
+                        <i class="fas fa-filter mr-1"></i>Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Summary Statistics Cards -->
-    <div class="dashboard-summary-grid">
-        <div class="stats-card primary">
-            <div class="stats-icon">🤖</div>
-            <div class="stats-content">
-                <h3 id="total-models">{{ summary_stats.total_models|default(30) }}</h3>
-                <p>AI Models</p>
+    <div class="row mb-4" 
+         hx-get="/api/dashboard/stats"
+         hx-trigger="load, every 60s"
+         hx-swap="innerHTML"
+         id="summary-stats">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stat-card border-left-primary">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="stat-label font-weight-bold text-primary text-uppercase mb-1">
+                                AI Models
+                            </div>
+                            <div class="stat-value h5 mb-0 font-weight-bold text-gray-800">
+                                {{ summary_stats.total_models|default(30) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-robot fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="stats-card success">
-            <div class="stats-icon">📱</div>
-            <div class="stats-content">
-                <h3 id="total-apps">{{ summary_stats.total_apps|default(900) }}</h3>
-                <p>Generated Apps</p>
+
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stat-card border-left-success">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="stat-label font-weight-bold text-success text-uppercase mb-1">
+                                Generated Apps
+                            </div>
+                            <div class="stat-value h5 mb-0 font-weight-bold text-gray-800">
+                                {{ summary_stats.total_apps|default(900) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-mobile-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="stats-card info">
-            <div class="stats-icon">🚀</div>
-            <div class="stats-content">
-                <h3 id="running-containers">{{ summary_stats.running_containers|default(0) }}</h3>
-                <p>Running Containers</p>
+
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stat-card border-left-info">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="stat-label font-weight-bold text-info text-uppercase mb-1">
+                                Running Containers
+                            </div>
+                            <div class="stat-value h5 mb-0 font-weight-bold text-gray-800">
+                                {{ summary_stats.running_containers|default(0) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-play-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="stats-card warning">
-            <div class="stats-icon">⚠️</div>
-            <div class="stats-content">
-                <h3 id="error-containers">{{ summary_stats.error_containers|default(0) }}</h3>
-                <p>Error State</p>
-            </div>
-        </div>
-        
-        <div class="stats-card secondary">
-            <div class="stats-icon">🏢</div>
-            <div class="stats-content">
-                <h3>{{ summary_stats.total_providers|default(13) }}</h3>
-                <p>Providers</p>
-            </div>
-        </div>
-        
-        <div class="stats-card accent">
-            <div class="stats-icon">🔒</div>
-            <div class="stats-content">
-                <h3 id="analyzed-apps">{{ summary_stats.analyzed_apps|default(0) }}</h3>
-                <p>Security Analyzed</p>
-            </div>
-        </div>
-        
-        <div class="stats-card success">
-            <div class="stats-icon">⚡</div>
-            <div class="stats-content">
-                <h3>{{ summary_stats.performance_tested|default(0) }}</h3>
-                <p>Performance Tested</p>
-            </div>
-        </div>
-        
-        <div class="stats-card info">
-            <div class="stats-icon">🐳</div>
-            <div class="stats-content">
-                <h3 id="docker-health">{{ summary_stats.docker_health|default('Healthy') }}</h3>
-                <p>Docker Status</p>
+
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stat-card border-left-warning">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="stat-label font-weight-bold text-warning text-uppercase mb-1">
+                                Docker Status
+                            </div>
+                            <div class="stat-value h6 mb-0 font-weight-bold text-gray-800">
+                                {{ summary_stats.docker_health|default('Unknown') }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fab fa-docker fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Dashboard Controls -->
-    <div class="dashboard-controls">
-        <div class="controls-section">
-            <div class="search-group">
-                <label for="search-input">🔍 Search Models & Apps</label>
-                <input type="search" 
-                       id="search-input"
-                       name="search"
-                       hx-get="/api/dashboard/search"
-                       hx-trigger="keyup changed delay:500ms"
-                       hx-target="#dashboard-content"
-                       hx-include="[name='provider'], [name='status'], [name='app-type']"
-                       placeholder="Search models, apps, or containers...">
+    <!-- Search and Filter Controls -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-search"></i>
+                                    </span>
+                                </div>
+                                <input type="search" 
+                                       class="form-control" 
+                                       id="search-input"
+                                       name="search"
+                                       placeholder="Search models, apps, or containers..."
+                                       hx-get="/api/dashboard/search"
+                                       hx-trigger="keyup changed delay:500ms"
+                                       hx-target="#dashboard-models"
+                                       hx-include="[name='filter-provider'], [name='filter-status']">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-control" name="filter-provider"
+                                    hx-get="/api/dashboard/search"
+                                    hx-trigger="change"
+                                    hx-target="#dashboard-models"
+                                    hx-include="[name='search'], [name='filter-status']">
+                                <option value="">All Providers</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="google">Google</option>
+                                <option value="deepseek">DeepSeek</option>
+                                <option value="qwen">Qwen</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-control" name="filter-status"
+                                    hx-get="/api/dashboard/search"
+                                    hx-trigger="change"
+                                    hx-target="#dashboard-models"
+                                    hx-include="[name='search'], [name='filter-provider']">
+                                <option value="">All Status</option>
+                                <option value="running">Running</option>
+                                <option value="stopped">Stopped</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced Filters (Initially Hidden) -->
+                    <div id="advanced-filters" class="d-none mt-3 pt-3 border-top">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="small text-muted">Container Type</label>
+                                <div class="form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="frontend" id="filter-frontend">
+                                    <label class="form-check-label small" for="filter-frontend">Frontend</label>
+                                </div>
+                                <div class="form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="backend" id="filter-backend">
+                                    <label class="form-check-label small" for="filter-backend">Backend</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="small text-muted">Analysis Status</label>
+                                <select class="form-control form-control-sm">
+                                    <option value="">Any</option>
+                                    <option value="analyzed">Analyzed</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="failed">Failed</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="small text-muted">Performance</label>
+                                <select class="form-control form-control-sm">
+                                    <option value="">Any</option>
+                                    <option value="tested">Tested</option>
+                                    <option value="pending">Pending</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            
-            <div class="filter-group">
-                <label for="provider-filter">🏢 Provider</label>
-                <select id="provider-filter"
-                        name="provider"
-                        hx-get="/api/dashboard/search"
-                        hx-trigger="change"
-                        hx-target="#dashboard-content"
-                        hx-include="[name='search'], [name='status'], [name='app-type']">
-                    <option value="">All Providers</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="google">Google</option>
-                    <option value="deepseek">DeepSeek</option>
-                    <option value="qwen">Qwen</option>
-                    <option value="meta">Meta</option>
-                    <option value="microsoft">Microsoft</option>
-                </select>
-            </div>
-            
-            <div class="filter-group">
-                <label for="status-filter">📊 Status</label>
-                <select id="status-filter"
-                        name="status"
-                        hx-get="/api/dashboard/search"
-                        hx-trigger="change"
-                        hx-target="#dashboard-content"
-                        hx-include="[name='search'], [name='provider'], [name='app-type']">
-                    <option value="">All Status</option>
-                    <option value="running">Running</option>
-                    <option value="stopped">Stopped</option>
-                    <option value="error">Error</option>
-                    <option value="starting">Starting</option>
-                    <option value="stopping">Stopping</option>
-                </select>
-            </div>
-            
-            <div class="action-group">
-                <button class="btn-primary" 
-                        hx-get="/api/dashboard/refresh-all"
-                        hx-target="#dashboard-content"
-                        hx-indicator="#refresh-indicator">
-                    🔄 Refresh All
-                </button>
-                
-                <button class="btn-success" 
-                        hx-post="/api/docker/start-all"
-                        hx-confirm="Start all stopped containers? This may take several minutes."
-                        hx-target="#dashboard-content"
-                        hx-indicator="#bulk-indicator">
-                    🚀 Start All
-                </button>
-                
-                <button class="btn-danger" 
-                        hx-post="/api/docker/stop-all"
-                        hx-confirm="Stop all running containers?"
-                        hx-target="#dashboard-content"
-                        hx-indicator="#bulk-indicator">
-                    🛑 Stop All
-                </button>
-                
-                <button class="btn-secondary" onclick="toggleViewMode()">
-                    📱 Toggle View
-                </button>
-            </div>
-        </div>
-        
-        <!-- Loading Indicators -->
-        <div id="refresh-indicator" class="loading-indicator htmx-indicator">
-            <span class="spinner"></span> Refreshing dashboard data...
-        </div>
-        
-        <div id="bulk-indicator" class="loading-indicator htmx-indicator">
-            <span class="spinner"></span> Processing bulk operation...
         </div>
     </div>
 
-    <!-- Dashboard Content -->
-    <div id="dashboard-content" class="dashboard-content"
+    <!-- Loading Indicator -->
+    <div id="refresh-spinner" class="htmx-indicator">
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Refreshing dashboard data...</p>
+        </div>
+    </div>
+
+    <!-- Models Grid -->
+    <div id="dashboard-models" 
          hx-get="/api/dashboard/models"
          hx-trigger="load"
-         hx-target="this"
          hx-swap="innerHTML">
-        <div class="loading-state">
-            <div class="loading-spinner"></div>
-            <p>Loading AI models and applications...</p>
-        </div>
-    </div>
-</div>
-
-<!-- Container Logs Modal -->
-<div id="logs-modal" class="modal" style="display: none;">
-    <div class="modal-content logs-modal">
-        <div class="modal-header">
-            <h3>Container Logs</h3>
-            <span class="close" onclick="closeModal('logs-modal')">&times;</span>
-        </div>
-        <div class="modal-body">
-            <div id="logs-content">
-                <!-- Logs loaded via HTMX -->
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
             </div>
+            <p class="mt-3 text-muted">Loading AI models and applications...</p>
         </div>
     </div>
 </div>
 
 <!-- Model Details Modal -->
-<div id="model-details-modal" class="modal" style="display: none;">
-    <div class="modal-content large-modal">
-        <!-- Content loaded via HTMX -->
+<div class="modal fade" id="modelDetailsModal" tabindex="-1" role="dialog" aria-labelledby="modelDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modelDetailsModalLabel">
+                    <i class="fas fa-robot mr-2"></i>Model Details
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="model-details-content">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Bulk Operations Modal -->
-<div id="bulk-modal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Bulk Operations</h3>
-            <span class="close" onclick="closeModal('bulk-modal')">&times;</span>
-        </div>
-        <div class="modal-body">
-            <div class="bulk-options">
-                <button class="btn-success" onclick="bulkOperation('start-selected')">
-                    🚀 Start Selected
+<!-- Container Logs Modal -->
+<div class="modal fade" id="containerLogsModal" tabindex="-1" role="dialog" aria-labelledby="containerLogsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="containerLogsModalLabel">
+                    <i class="fas fa-terminal mr-2"></i>Container Logs
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
                 </button>
-                <button class="btn-danger" onclick="bulkOperation('stop-selected')">
-                    🛑 Stop Selected
-                </button>
-                <button class="btn-warning" onclick="bulkOperation('restart-selected')">
-                    🔄 Restart Selected
-                </button>
-                <button class="btn-secondary" onclick="bulkOperation('analyze-selected')">
-                    🔒 Analyze Selected
-                </button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="container-logs-content" style="height: 500px; overflow-y: auto;">
+                    <div class="text-center p-4">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 {% endblock %}
 
-{% block styles %}
-<style>
-.dashboard-overview {
-    padding: 2rem;
-    max-width: 1600px;
-    margin: 0 auto;
-}
-
-.page-header {
-    text-align: center;
-    margin-bottom: 3rem;
-}
-
-.page-header h1 {
-    font-size: 2.5rem;
-    color: var(--primary-color);
-    margin-bottom: 0.5rem;
-}
-
-.page-header p {
-    font-size: 1.2rem;
-    color: var(--text-muted);
-}
-
-.dashboard-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 3rem;
-}
-
-.stats-card {
-    background: white;
-    border-radius: 12px;
-    padding: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border-left: 4px solid var(--primary-color);
-    transition: transform 0.2s, box-shadow 0.2s;
-    cursor: pointer;
-}
-
-.stats-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
-}
-
-.stats-card.primary { border-left-color: var(--primary-color); }
-.stats-card.success { border-left-color: var(--success-color); }
-.stats-card.info { border-left-color: var(--info-color); }
-.stats-card.warning { border-left-color: var(--warning-color); }
-.stats-card.secondary { border-left-color: var(--secondary-color); }
-.stats-card.accent { border-left-color: var(--accent-color); }
-
-.stats-icon {
-    font-size: 2rem;
-    opacity: 0.8;
-}
-
-.stats-content h3 {
-    font-size: 2rem;
-    font-weight: bold;
-    margin: 0;
-    color: var(--text-primary);
-}
-
-.stats-content p {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.dashboard-controls {
-    background: white;
-    border-radius: 12px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.controls-section {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr 2fr;
-    gap: 1.5rem;
-    align-items: end;
-}
-
-.search-group, .filter-group, .action-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.search-group label, .filter-group label {
-    font-weight: 600;
-    color: var(--text-primary);
-    font-size: 0.9rem;
-}
-
-.search-group input, .filter-group select {
-    padding: 0.75rem;
-    border: 2px solid var(--border-color);
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: border-color 0.2s;
-}
-
-.search-group input:focus, .filter-group select:focus {
-    outline: none;
-    border-color: var(--primary-color);
-}
-
-.action-group {
-    display: flex;
-    flex-direction: row;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.loading-indicator {
-    display: none;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 1rem;
-    background: var(--info-bg);
-    color: var(--info-fg);
-    border-radius: 8px;
-    margin-top: 1rem;
-}
-
-.loading-indicator.htmx-request {
-    display: flex;
-}
-
-.spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid transparent;
-    border-top: 2px solid currentColor;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.dashboard-content {
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    min-height: 400px;
-}
-
-.loading-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 4rem;
-    color: var(--text-muted);
-}
-
-.loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid var(--border-color);
-    border-top: 4px solid var(--primary-color);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 1rem;
-}
-
-.loading {
-    opacity: 0.6;
-    pointer-events: none;
-    position: relative;
-}
-
-.loading::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 20px;
-    height: 20px;
-    margin: -10px 0 0 -10px;
-    border: 2px solid var(--border-color);
-    border-top: 2px solid var(--primary-color);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    z-index: 1000;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-}
-
-.modal-content {
-    background-color: white;
-    margin: 5% auto;
-    padding: 0;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 600px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    max-height: 80vh;
-    overflow: hidden;
-}
-
-.logs-modal {
-    max-width: 1000px;
-    width: 95%;
-}
-
-.large-modal {
-    max-width: 1200px;
-    width: 95%;
-    max-height: 90vh;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-}
-
-.modal-header h3 {
-    margin: 0;
-    color: var(--text-primary);
-}
-
-.close {
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--text-muted);
-    background: none;
-    border: none;
-    padding: 0.5rem;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-}
-
-.close:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-.modal-body {
-    padding: 1.5rem;
-    max-height: 60vh;
-    overflow-y: auto;
-}
-
-.bulk-options {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-}
-
-/* Responsive Design */
-@media (max-width: 1200px) {
-    .controls-section {
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-    }
-    
-    .action-group {
-        grid-column: 1 / -1;
-        justify-content: center;
-    }
-}
-
-@media (max-width: 768px) {
-    .dashboard-overview {
-        padding: 1rem;
-    }
-    
-    .dashboard-summary-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-    }
-    
-    .controls-section {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-    
-    .action-group {
-        flex-direction: column;
-    }
-}
-</style>
-{% endblock %}
-
 {% block scripts %}
 <script>
-// Dashboard global state
-let viewMode = 'grid'; // 'grid' or 'list'
-let selectedContainers = new Set();
+    // Global functions for modals and interactions
+    window.showModelDetails = function(modelSlug) {
+        htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
+            target: '#model-details-content',
+            swap: 'innerHTML'
+        });
+        $('#modelDetailsModal').modal('show');
+    };
 
-// Initialize dashboard
-document.addEventListener('DOMContentLoaded', function() {
-    // Auto-refresh stats every 30 seconds
-    setInterval(updateDashboardStats, 30000);
-    
-    // Handle visibility change to pause/resume updates
-    document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) {
-            updateDashboardStats();
+    window.showContainerLogs = function(modelSlug, appNum) {
+        htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
+            target: '#container-logs-content',
+            swap: 'innerHTML'
+        });
+        $('#containerLogsModal').modal('show');
+    };
+
+    window.startContainer = function(modelSlug, appNum, element) {
+        const originalHtml = element.innerHTML;
+        element.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Starting...';
+        element.disabled = true;
+        
+        htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/start`, {
+            target: `#app-${modelSlug}-${appNum}`,
+            swap: 'outerHTML'
+        }).then(() => {
+            element.innerHTML = originalHtml;
+            element.disabled = false;
+        });
+    };
+
+    window.stopContainer = function(modelSlug, appNum, element) {
+        const originalHtml = element.innerHTML;
+        element.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Stopping...';
+        element.disabled = true;
+        
+        htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/stop`, {
+            target: `#app-${modelSlug}-${appNum}`,
+            swap: 'outerHTML'
+        }).then(() => {
+            element.innerHTML = originalHtml;
+            element.disabled = false;
+        });
+    };
+
+    window.restartContainer = function(modelSlug, appNum, element) {
+        const originalHtml = element.innerHTML;
+        element.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Restarting...';
+        element.disabled = true;
+        
+        htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/restart`, {
+            target: `#app-${modelSlug}-${appNum}`,
+            swap: 'outerHTML'
+        }).then(() => {
+            element.innerHTML = originalHtml;
+            element.disabled = false;
+        });
+    };
+
+    // Enhanced HTMX event handling
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful) {
+            // Auto-refresh stats after successful container operations
+            if (evt.detail.pathInfo.xhr.responseURL.includes('/containers/')) {
+                setTimeout(() => {
+                    htmx.trigger('#summary-stats', 'load');
+                }, 1000);
+            }
         }
     });
-    
+
+    // Initialize tooltips after HTMX content loads
+    document.addEventListener('htmx:afterSwap', function() {
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
-        // Ctrl+R or F5 - Refresh dashboard
-        if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
-            e.preventDefault();
-            refreshDashboard();
-        }
-        
-        // Escape - Close modals
-        if (e.key === 'Escape') {
-            closeAllModals();
-        }
-        
         // Ctrl+F - Focus search
         if (e.ctrlKey && e.key === 'f') {
             e.preventDefault();
             document.getElementById('search-input').focus();
         }
         
-        // Ctrl+A - Select all visible containers
-        if (e.ctrlKey && e.key === 'a' && e.target.tagName !== 'INPUT') {
+        // Ctrl+R - Refresh dashboard
+        if (e.ctrlKey && e.key === 'r') {
             e.preventDefault();
-            toggleSelectAll();
+            htmx.trigger('#dashboard-models', 'load');
+            htmx.trigger('#summary-stats', 'load');
         }
     });
-});
 
-// Dashboard functions
-function updateDashboardStats() {
-    htmx.ajax('GET', '/api/dashboard/stats', {
-        target: '.dashboard-summary-grid',
-        swap: 'innerHTML'
-    });
-}
-
-function refreshDashboard() {
-    htmx.trigger('#dashboard-content', 'load');
-    updateDashboardStats();
-}
-
-function toggleViewMode() {
-    viewMode = viewMode === 'grid' ? 'list' : 'grid';
-    const content = document.getElementById('dashboard-content');
-    content.classList.toggle('list-view', viewMode === 'list');
-    content.classList.toggle('grid-view', viewMode === 'grid');
-}
-
-function toggleSelectAll() {
-    const checkboxes = document.querySelectorAll('.container-checkbox');
-    const allSelected = Array.from(checkboxes).every(cb => cb.checked);
-    
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = !allSelected;
-        handleContainerSelection(checkbox);
-    });
-}
-
-function handleContainerSelection(checkbox) {
-    const containerId = checkbox.value;
-    if (checkbox.checked) {
-        selectedContainers.add(containerId);
-    } else {
-        selectedContainers.delete(containerId);
-    }
-    
-    updateBulkActionsVisibility();
-}
-
-function updateBulkActionsVisibility() {
-    const bulkActions = document.querySelector('.bulk-actions');
-    if (bulkActions) {
-        bulkActions.style.display = selectedContainers.size > 0 ? 'flex' : 'none';
-    }
-}
-
-function bulkOperation(operation) {
-    if (selectedContainers.size === 0) return;
-    
-    const containers = Array.from(selectedContainers);
-    const action = operation.replace('-selected', '');
-    
-    htmx.ajax('POST', `/api/docker/bulk/${action}`, {
-        values: { containers: containers },
-        target: '#dashboard-content',
-        confirm: `${operation.replace('-', ' ')} ${containers.length} container(s)?`
-    });
-    
-    closeModal('bulk-modal');
-}
-
-function showLogs(model, appNum) {
-    htmx.ajax('GET', `/api/docker/logs/${model}/${appNum}`, {
-        target: '#logs-content'
-    });
-    showModal('logs-modal');
-}
-
-function showModal(modalId) {
-    document.getElementById(modalId).style.display = 'block';
-}
-
-function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
-}
-
-function closeAllModals() {
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.style.display = 'none';
-    });
-}
-
-// Model expansion functions
-function toggleModelApps(modelSlug, element) {
-    const appsContainer = document.getElementById(`apps-${modelSlug}`);
-    const toggleIcon = element.querySelector('.toggle-icon');
-    
-    if (appsContainer.style.display === 'none' || !appsContainer.style.display) {
-        // Load apps via HTMX
-        htmx.ajax('GET', `/api/model/${modelSlug}/apps`, {
-            target: `#apps-${modelSlug}`,
-            swap: 'innerHTML'
-        });
+    // Auto-refresh functionality
+    let autoRefreshInterval;
+    const startAutoRefresh = () => {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
         
-        appsContainer.style.display = 'block';
-        toggleIcon.textContent = '▼';
-        element.setAttribute('aria-expanded', 'true');
-    } else {
-        appsContainer.style.display = 'none';
-        toggleIcon.textContent = '▶';
-        element.setAttribute('aria-expanded', 'false');
-    }
-}
+        autoRefreshInterval = setInterval(() => {
+            if (!document.hidden) {
+                htmx.trigger('#summary-stats', 'load');
+                // Optionally refresh the models grid less frequently
+                if (Math.random() < 0.3) { // 30% chance every cycle
+                    htmx.trigger('#dashboard-models', 'load');
+                }
+            }
+        }, 30000); // 30 seconds
+    };
 
-function expandAllModels() {
-    const modelCards = document.querySelectorAll('.model-card');
-    modelCards.forEach(card => {
-        const toggleBtn = card.querySelector('.model-toggle-btn');
-        const modelSlug = toggleBtn.getAttribute('onclick').match(/toggleModelApps\('([^']+)'/)[1];
-        const appsContainer = document.getElementById(`apps-${modelSlug}`);
-        
-        if (appsContainer.style.display === 'none' || !appsContainer.style.display) {
-            toggleModelApps(modelSlug, toggleBtn);
+    // Start auto-refresh on page load
+    document.addEventListener('DOMContentLoaded', startAutoRefresh);
+
+    // Pause/resume auto-refresh based on page visibility
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        } else {
+            startAutoRefresh();
+            // Immediately refresh when page becomes visible
+            htmx.trigger('#summary-stats', 'load');
         }
     });
-}
-
-function collapseAllModels() {
-    const modelCards = document.querySelectorAll('.model-card');
-    modelCards.forEach(card => {
-        const toggleBtn = card.querySelector('.model-toggle-btn');
-        const modelSlug = toggleBtn.getAttribute('onclick').match(/toggleModelApps\('([^']+)'/)[1];
-        const appsContainer = document.getElementById(`apps-${modelSlug}`);
-        
-        if (appsContainer.style.display === 'block') {
-            toggleModelApps(modelSlug, toggleBtn);
-        }
-    });
-}
-
-function showModelDetails(modelSlug) {
-    htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
-        target: '#model-details-content'
-    });
-    showModal('model-details-modal');
-}
-
-// Container management functions
-function startContainer(model, appNum) {
-    htmx.ajax('POST', `/api/containers/${model}/${appNum}/start`, {
-        target: `#container-${model}-${appNum}`,
-        confirm: `Start containers for ${model}/app${appNum}?`
-    });
-}
-
-function stopContainer(model, appNum) {
-    htmx.ajax('POST', `/api/containers/${model}/${appNum}/stop`, {
-        target: `#container-${model}-${appNum}`,
-        confirm: `Stop containers for ${model}/app${appNum}?`
-    });
-}
-
-function restartContainer(model, appNum) {
-    htmx.ajax('POST', `/api/containers/${model}/${appNum}/restart`, {
-        target: `#container-${model}-${appNum}`,
-        confirm: `Restart containers for ${model}/app${appNum}?`
-    });
-}
-
-// HTMX event handlers
-document.addEventListener('htmx:afterRequest', function(evt) {
-    if (evt.detail.xhr.status >= 400) {
-        showNotification('Operation failed: ' + evt.detail.xhr.statusText, 'error');
-    } else if (evt.detail.xhr.status === 200) {
-        // Update stats after successful operations
-        setTimeout(updateDashboardStats, 1000);
-    }
-});
-
-document.addEventListener('htmx:beforeRequest', function(evt) {
-    // Show loading state for the target
-    const target = document.querySelector(evt.detail.target);
-    if (target) {
-        target.classList.add('loading');
-    }
-});
-
-document.addEventListener('htmx:afterSettle', function(evt) {
-    // Remove loading state
-    const target = document.querySelector(evt.detail.target);
-    if (target) {
-        target.classList.remove('loading');
-    }
-});
-
-// Utility functions
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-        <span>${message}</span>
-        <button onclick="this.parentElement.remove()">&times;</button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-        }
-    }, 5000);
-}
-
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        showNotification('Copied to clipboard', 'success');
-    });
-}
-
-// Modal click outside to close
-window.onclick = function(event) {
-    if (event.target.classList.contains('modal')) {
-        event.target.style.display = 'none';
-    }
-}
 </script>
 {% endblock %}

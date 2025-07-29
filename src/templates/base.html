@@ -5,217 +5,333 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Thesis Research App{% endblock %}</title>
     
-    <!-- Missing.css - Minimal CSS Framework -->
-    <link rel="stylesheet" href="https://unpkg.com/missing.css@1.1.3">
-    <!-- Optional: Prism theme for code highlighting -->
-    <link rel="stylesheet" href="https://unpkg.com/missing.css@1.1.3/prism">
+    <!-- Bootstrap 4.1.3 CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" 
+          integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" 
+          crossorigin="anonymous">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+          integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ=="
+          crossorigin="anonymous">
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     
     <!-- HTMX for dynamic interactions -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    
     <!-- _hyperscript for advanced interactions -->
     <script src="https://unpkg.com/hyperscript.org@0.9.14"></script>
     
     <!-- HTMX configuration -->
-    <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","requestTimeout":10000}'>
+    <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","requestTimeout":15000,"historyCacheSize":0}'>
+    
+    {% block head %}{% endblock %}
 </head>
-<body>
-    <!-- Navigation -->
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="{{ url_for('main.dashboard') }}" class="brand">
+<<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <!-- Brand -->
+            <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">
+                <i class="fas fa-microscope mr-2"></i>
                 <strong>Thesis Research App</strong>
             </a>
             
-            <div class="nav-links">
-                <a href="{{ url_for('main.dashboard') }}" class="nav-link">Dashboard</a>
-                <a href="{{ url_for('main.models_overview') }}" class="nav-link">Models</a>
-                <a href="{{ url_for('analysis.analysis_overview') }}" class="nav-link">Analysis</a>
-                <a href="{{ url_for('batch.batch_overview') }}" class="nav-link">Batch</a>
-            </div>
+            <!-- Mobile menu toggle -->
+            <button class="navbar-toggler" type="button" 
+                    _="on click toggle .show on #navbarNav"
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
             
-            <!-- Header Stats -->
-            <div class="nav-stats" 
-                 hx-get="/api/header-stats" 
-                 hx-trigger="load, every 60s">
-                <div class="loading-inline">Loading...</div>
-            </div>
-            
-            <!-- Notifications -->
-            <div class="nav-notifications">
-                <button hx-get="/api/notifications"
-                        hx-target="#notifications-dropdown"
-                        hx-trigger="click"
-                        class="notifications-btn"
-                        _="on click toggle .show on #notifications-dropdown">
-                    🔔
-                    <span class="notification-count">0</span>
-                </button>
-                <div id="notifications-dropdown" class="notifications-dropdown">
-                    <!-- Notifications loaded here -->
+            <!-- Navigation Links -->
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.dashboard') }}">
+                            <i class="fas fa-tachometer-alt mr-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.models_overview') }}">
+                            <i class="fas fa-robot mr-1"></i>Models
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" 
+                           _="on click toggle .show on next .dropdown-menu"
+                           data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-shield-alt mr-1"></i>Analysis
+                        </a>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item" href="{{ url_for('analysis.analysis_overview') }}">
+                                <i class="fas fa-search mr-1"></i>Security Analysis
+                            </a>
+                            <a class="dropdown-item" href="{{ url_for('performance.performance_overview') }}">
+                                <i class="fas fa-chart-line mr-1"></i>Performance Testing
+                            </a>
+                            <a class="dropdown-item" href="{{ url_for('zap.zap_overview') }}">
+                                <i class="fas fa-bug mr-1"></i>ZAP Scanning
+                            </a>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('batch.batch_overview') }}">
+                            <i class="fas fa-tasks mr-1"></i>Batch Jobs
+                        </a>
+                    </li>
+                </ul>
+                
+                <!-- Header Stats -->
+                <div class="navbar-text mr-3" 
+                     hx-get="/api/header-stats" 
+                     hx-trigger="load, every 60s"
+                     hx-swap="innerHTML"
+                     id="header-stats">
+                    <div class="d-inline-block">
+                        <span class="loading-spinner"></span>
+                    </div>
                 </div>
+                
+                <!-- System Health -->
+                <div class="navbar-text mr-3"
+                     hx-get="/api/health-status"
+                     hx-trigger="load, every 30s"
+                     hx-swap="innerHTML"
+                     id="system-health">
+                    <div class="health-indicator">
+                        <span class="health-dot health-warning"></span>
+                        <small>Checking...</small>
+                    </div>
+                </div>
+                
+                <!-- Settings & Actions -->
+                <ul class="navbar-nav">
+                    <!-- Notifications -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link notification-badge" href="#" role="button"
+                           _="on click toggle .show on next .dropdown-menu then trigger notificationOpen"
+                           hx-get="/api/notifications"
+                           hx-target="#notifications-dropdown"
+                           hx-trigger="notificationOpen">
+                            <i class="fas fa-bell"></i>
+                            <span class="badge badge-danger badge-pill" id="notification-count">0</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right" id="notifications-dropdown" style="width: 300px;">
+                            <h6 class="dropdown-header">Notifications</h6>
+                            <div class="text-center p-3">
+                                <span class="loading-spinner"></span>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <!-- Settings -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link" href="#" role="button"
+                           _="on click toggle .show on next .dropdown-menu">
+                            <i class="fas fa-cog"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right">
+                            <a class="dropdown-item" href="#"
+                               _="on click call showSettingsModal()">
+                                <i class="fas fa-sliders-h mr-2"></i>Preferences
+                            </a>
+                            <a class="dropdown-item" href="#"
+                               hx-post="/api/cache/clear"
+                               hx-target="#flash-messages"
+                               hx-swap="afterbegin">
+                                <i class="fas fa-trash mr-2"></i>Clear Cache
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#"
+                               _="on click call showHelpModal()">
+                                <i class="fas fa-question-circle mr-2"></i>Help
+                            </a>
+                        </div>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
 
-    <!-- Main Content -->
-    <main class="main-content">
+    <!-- Main Content Area -->
+    <div class="container-fluid" style="margin-top: 76px;">
         <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
+        <div id="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
                     {% for category, message in messages %}
-                        <div class="alert {{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">
+                        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} alert-dismissible fade show" role="alert">
                             {{ message }}
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
                         </div>
                     {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
+                {% endif %}
+            {% endwith %}
+        </div>
 
         <!-- Page Content -->
         {% block content %}{% endblock %}
-    </main>
+    </div>
 
-    <!-- Modal Container -->
+    <!-- Modals Container -->
     <div id="modal-container"></div>
 
     <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay">
-        <div class="loading-spinner">
-            <div class="spinner"></div>
-            <p>Processing...</p>
+    <div id="loading-overlay" class="position-fixed w-100 h-100" 
+         style="top: 0; left: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none;">
+        <div class="d-flex justify-content-center align-items-center h-100">
+            <div class="text-center text-white">
+                <div class="spinner-border mb-3" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+                <h5>Processing...</h5>
+            </div>
         </div>
     </div>
 
-    <!-- Global HTMX Event Handlers -->
-    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
-    <script>
-        // Enhanced global error handler with better error messages
-        document.body.addEventListener('htmx:responseError', function(evt) {
-            const target = evt.detail.target;
-            const status = evt.detail.xhr.status;
-            const statusText = evt.detail.xhr.statusText;
-            
-            let errorMessage = 'Request failed. Please try again.';
-            
-            // Provide more specific error messages based on status code
-            switch(status) {
-                case 0:
-                    errorMessage = 'Network error. Please check your connection and try again.';
-                    break;
-                case 400:
-                    errorMessage = 'Invalid request. Please check your input and try again.';
-                    break;
-                case 401:
-                    errorMessage = 'Authentication required. Please refresh the page and try again.';
-                    break;
-                case 403:
-                    errorMessage = 'Access denied. You do not have permission for this action.';
-                    break;
-                case 404:
-                    errorMessage = 'Resource not found. The requested item may have been removed.';
-                    break;
-                case 500:
-                    errorMessage = 'Server error. Please try again in a few moments.';
-                    break;
-                case 502:
-                case 503:
-                case 504:
-                    errorMessage = 'Service temporarily unavailable. Please try again later.';
-                    break;
-                default:
-                    if (status >= 400 && status < 500) {
-                        errorMessage = `Client error (${status}): ${statusText}. Please try again.`;
-                    } else if (status >= 500) {
-                        errorMessage = `Server error (${status}): ${statusText}. Please try again later.`;
-                    }
-            }
-            
-            // Add retry button for certain error types
-            const shouldShowRetry = [0, 500, 502, 503, 504].includes(status);
-            const retryButton = shouldShowRetry ? 
-                `<button onclick="htmx.trigger(this.parentElement, 'retry')" class="btn-sm" style="margin-left: 10px;">🔄 Retry</button>` : '';
-            
-            target.innerHTML = `<div class="alert error">${errorMessage}${retryButton}</div>`;
-            
-            // Auto-dismiss after 8 seconds for non-critical errors
-            if (![401, 403].includes(status)) {
-                setTimeout(() => {
-                    const alert = target.querySelector('.alert.error');
-                    if (alert) {
-                        alert.style.opacity = '0';
-                        setTimeout(() => alert.remove(), 300);
-                    }
-                }, 8000);
-            }
-        });
-
-        // Handle retry events
-        document.body.addEventListener('retry', function(evt) {
-            const target = evt.target;
-            const originalElement = target.closest('[hx-get], [hx-post], [hx-put], [hx-delete]');
-            if (originalElement) {
-                // Clear error message
-                target.innerHTML = '<div class="loading">Retrying...</div>';
-                // Trigger the original request
-                htmx.trigger(originalElement, 'click');
-            }
-        });
-
-        // Enhanced timeout handler
-        document.body.addEventListener('htmx:timeout', function(evt) {
-            const target = evt.detail.target;
-            target.innerHTML = `
-                <div class="alert error">
-                    Request timed out. The server may be busy.
-                    <button onclick="htmx.trigger(this.parentElement, 'retry')" class="btn-sm" style="margin-left: 10px;">🔄 Retry</button>
+    <!-- Settings Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" role="dialog" aria-labelledby="settingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="settingsModalLabel">
+                        <i class="fas fa-cog mr-2"></i>Application Settings
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
-            `;
-        });
+                <div class="modal-body"
+                     hx-get="/api/settings"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        // Global loading states with improved UX
-        document.body.addEventListener('htmx:beforeRequest', function(evt) {
-            const element = evt.detail.elt;
-            element.classList.add('htmx-request');
+    <!-- Help Modal -->
+    <div class="modal fade" id="helpModal" tabindex="-1" role="dialog" aria-labelledby="helpModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="helpModalLabel">
+                        <i class="fas fa-question-circle mr-2"></i>Help & Documentation
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-keyboard mr-2"></i>Keyboard Shortcuts</h6>
+                            <ul class="list-unstyled">
+                                <li><kbd>Ctrl + R</kbd> - Refresh current view</li>
+                                <li><kbd>Ctrl + /</kbd> - Open search</li>
+                                <li><kbd>Esc</kbd> - Close modals</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-info-circle mr-2"></i>About</h6>
+                            <p class="small text-muted">
+                                Thesis Research App for analyzing AI-generated applications
+                                across multiple models and frameworks.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" 
+            integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" 
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" 
+            integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" 
+            crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" 
+            integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" 
+            crossorigin="anonymous"></script>
+
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
+    
+    <script>
+        // Global functions for modals
+        function showSettingsModal() {
+            $('#settingsModal').modal('show');
+        }
+        
+        function showHelpModal() {
+            $('#helpModal').modal('show');
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+R - Refresh current view
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                window.location.reload();
+            }
             
-            // Add loading indicator for buttons
-            if (element.tagName === 'BUTTON') {
-                element.dataset.originalText = element.innerHTML;
-                element.innerHTML = '<span class="loading-spinner"></span> Processing...';
-                element.disabled = true;
+            // Escape - Close modals
+            if (e.key === 'Escape') {
+                $('.modal').modal('hide');
+                $('.dropdown-menu.show').removeClass('show');
             }
         });
-
-        document.body.addEventListener('htmx:afterRequest', function(evt) {
-            const element = evt.detail.elt;
-            element.classList.remove('htmx-request');
-            
-            // Restore button text
-            if (element.tagName === 'BUTTON' && element.dataset.originalText) {
-                element.innerHTML = element.dataset.originalText;
-                element.disabled = false;
-                delete element.dataset.originalText;
+        
+        // Global loading overlay functions
+        window.showLoadingOverlay = function() {
+            document.getElementById('loading-overlay').style.display = 'block';
+        };
+        
+        window.hideLoadingOverlay = function() {
+            document.getElementById('loading-overlay').style.display = 'none';
+        };
+        
+        // Auto-refresh for real-time updates
+        let autoRefreshInterval;
+        function startAutoRefresh(interval = 60000) {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(() => {
+                // Trigger refresh of dynamic elements
+                const refreshElements = document.querySelectorAll('[hx-trigger*="every"]');
+                refreshElements.forEach(el => {
+                    htmx.trigger(el, 'load');
+                });
+            }, interval);
+        }
+        
+        // Start auto-refresh on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Only start auto-refresh on dashboard and app pages
+            if (window.location.pathname === '/' || window.location.pathname.includes('/app/')) {
+                startAutoRefresh();
             }
         });
-
-        // Auto-close alerts
-        setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert');
-            alerts.forEach(alert => {
-                alert.style.opacity = '0';
-                setTimeout(() => alert.remove(), 300);
-            });
-        }, 5000);
-
-        // Close notifications dropdown when clicking outside
-        document.addEventListener('click', function(evt) {
-            const dropdown = document.getElementById('notifications-dropdown');
-            const button = document.querySelector('.notifications-btn');
-            if (dropdown && !dropdown.contains(evt.target) && !button.contains(evt.target)) {
-                dropdown.classList.remove('show');
+        
+        // Stop auto-refresh when page is hidden
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            } else {
+                if (window.location.pathname === '/' || window.location.pathname.includes('/app/')) {
+                    startAutoRefresh();
+                }
             }
         });
     </script>

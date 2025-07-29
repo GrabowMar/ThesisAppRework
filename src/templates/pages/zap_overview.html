@@ -1,0 +1,581 @@
+{% extends "layouts/base_layout.html" %}
+
+{% block title %}ZAP Security Scanning Overview{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1 class="h3 mb-1">
+            <i class="fas fa-shield-virus text-danger"></i>
+            ZAP Security Scanning
+        </h1>
+        <p class="text-muted mb-0">OWASP ZAP web application security scanner for AI-generated applications</p>
+    </div>
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-outline-danger" 
+                hx-get="/zap/batch" 
+                hx-target="#main-content"
+                hx-push-url="true">
+            <i class="fas fa-tasks"></i> Batch Scanning
+        </button>
+        <button type="button" class="btn btn-outline-secondary"
+                hx-get="/zap/reports"
+                hx-target="#main-content"
+                hx-push-url="true">
+            <i class="fas fa-file-alt"></i> Scan Reports
+        </button>
+        <button type="button" class="btn btn-outline-info"
+                hx-get="/zap/configuration"
+                hx-target="#main-content"
+                hx-push-url="true">
+            <i class="fas fa-cog"></i> ZAP Config
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- ZAP Scanner Statistics -->
+    <div class="col-12 mb-4">
+        <div class="row">
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card border-left-danger">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                    Total Scans
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" 
+                                     id="total-scans"
+                                     hx-get="/api/zap/stats/total"
+                                     hx-trigger="load, every 30s">
+                                    {{ zap_stats.total_scans or 0 }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-search fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card border-left-warning">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                    Active Scans
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800"
+                                     id="active-scans"
+                                     hx-get="/api/zap/stats/active"
+                                     hx-trigger="load, every 5s">
+                                    {{ zap_stats.active_scans or 0 }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-cog fa-spin fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card border-left-danger">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                    High Risk Issues
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800"
+                                     id="high-risk-issues"
+                                     hx-get="/api/zap/stats/high_risk"
+                                     hx-trigger="load, every 30s">
+                                    {{ zap_stats.high_risk_issues or 0 }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card border-left-success">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                    ZAP Status
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800"
+                                     id="zap-status"
+                                     hx-get="/api/zap/stats/status"
+                                     hx-trigger="load, every 10s">
+                                    {{ zap_stats.zap_status or 'Unknown' }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-server fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick ZAP Scan -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-danger">
+                    <i class="fas fa-rocket"></i> Quick Security Scan
+                </h6>
+            </div>
+            <div class="card-body">
+                <form hx-post="/zap/quick_scan" 
+                      hx-target="#quick-scan-results"
+                      hx-indicator="#quick-scan-loading">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="zap-model-select" class="font-weight-bold">Select Model</label>
+                                <select class="form-control" id="zap-model-select" name="model_slug" required>
+                                    <option value="">Choose a model...</option>
+                                    {% for model in available_models %}
+                                    <option value="{{ model.canonical_slug }}">{{ model.model_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="zap-app-select" class="font-weight-bold">Select Application</label>
+                                <select class="form-control" id="zap-app-select" name="app_number" required>
+                                    <option value="">Choose an application...</option>
+                                    {% for i in range(1, 31) %}
+                                    <option value="{{ i }}">App {{ i }} - {{ app_types[i] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="scan-type" class="font-weight-bold">Scan Type</label>
+                                <select class="form-control" id="scan-type" name="scan_type" required>
+                                    <option value="spider">Spider Scan (Discovery)</option>
+                                    <option value="baseline">Baseline Scan (Passive)</option>
+                                    <option value="full">Full Scan (Active)</option>
+                                    <option value="api">API Scan</option>
+                                </select>
+                                <small class="form-text text-muted">
+                                    Spider: Site crawling, Baseline: Passive checks, Full: Active security tests
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="target-url" class="font-weight-bold">Target URL</label>
+                                <input type="url" class="form-control" id="target-url" name="target_url" 
+                                       placeholder="http://localhost:9051" required>
+                                <small class="form-text text-muted">Will be auto-filled based on selected app</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="scan-policy" class="font-weight-bold">Scan Policy</label>
+                                <select class="form-control" id="scan-policy" name="scan_policy">
+                                    <option value="default">Default Policy</option>
+                                    <option value="light">Light Scan (Faster)</option>
+                                    <option value="comprehensive">Comprehensive Scan</option>
+                                    <option value="custom">Custom Policy</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="max-duration" class="font-weight-bold">Max Duration (minutes)</label>
+                                <input type="number" class="form-control" id="max-duration" name="max_duration" 
+                                       value="30" min="5" max="180">
+                                <small class="form-text text-muted">Scan timeout limit</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="font-weight-bold">Scan Options</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="include-spider" 
+                                           name="options" value="spider" checked>
+                                    <label class="custom-control-label" for="include-spider">
+                                        Include Spider (Site Crawling)
+                                    </label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="include-passive" 
+                                           name="options" value="passive" checked>
+                                    <label class="custom-control-label" for="include-passive">
+                                        Include Passive Scan
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="include-active" 
+                                           name="options" value="active">
+                                    <label class="custom-control-label" for="include-active">
+                                        Include Active Scan
+                                    </label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="generate-report" 
+                                           name="options" value="report" checked>
+                                    <label class="custom-control-label" for="generate-report">
+                                        Generate HTML Report
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-danger btn-block">
+                        <i class="fas fa-play"></i> Start Security Scan
+                        <div id="quick-scan-loading" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                    </button>
+                </form>
+
+                <!-- Quick Scan Results -->
+                <div id="quick-scan-results" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ZAP Server Status & Controls -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-danger">
+                    <i class="fas fa-server"></i> ZAP Server Control
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="zap-status-panel"
+                     hx-get="/zap/status"
+                     hx-trigger="load, every 10s">
+                    <!-- ZAP status will be loaded here -->
+                </div>
+
+                <hr>
+
+                <div class="server-controls">
+                    <div class="btn-group-vertical btn-block" role="group">
+                        <button type="button" class="btn btn-success mb-2"
+                                hx-post="/zap/start"
+                                hx-target="#zap-status-panel"
+                                hx-indicator="#zap-start-loading">
+                            <i class="fas fa-play"></i> Start ZAP Server
+                            <div id="zap-start-loading" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                        </button>
+
+                        <button type="button" class="btn btn-warning mb-2"
+                                hx-post="/zap/restart"
+                                hx-target="#zap-status-panel"
+                                hx-indicator="#zap-restart-loading">
+                            <i class="fas fa-redo"></i> Restart ZAP Server
+                            <div id="zap-restart-loading" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                        </button>
+
+                        <button type="button" class="btn btn-danger mb-2"
+                                hx-post="/zap/stop"
+                                hx-target="#zap-status-panel"
+                                hx-indicator="#zap-stop-loading">
+                            <i class="fas fa-stop"></i> Stop ZAP Server
+                            <div id="zap-stop-loading" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                        </button>
+
+                        <button type="button" class="btn btn-info"
+                                hx-get="/zap/logs"
+                                hx-target="#zap-logs-modal-body"
+                                data-toggle="modal" data-target="#zapLogsModal">
+                            <i class="fas fa-file-alt"></i> View ZAP Logs
+                        </button>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="zap-info">
+                    <h6 class="font-weight-bold text-secondary">Connection Info</h6>
+                    <div class="info-item">
+                        <small class="text-muted">Proxy:</small>
+                        <span class="font-weight-bold">{{ zap_config.proxy_host }}:{{ zap_config.proxy_port }}</span>
+                    </div>
+                    <div class="info-item">
+                        <small class="text-muted">API Key:</small>
+                        <span class="font-weight-bold text-truncate d-inline-block" style="max-width: 120px;">
+                            {{ zap_config.api_key[:8] }}...
+                        </span>
+                        <button class="btn btn-sm btn-outline-secondary ml-1"
+                                onclick="copyToClipboard('{{ zap_config.api_key }}')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent ZAP Scans -->
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-danger">
+                    <i class="fas fa-history"></i> Recent Security Scans
+                </h6>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary active" 
+                            hx-get="/zap/recent?filter=all"
+                            hx-target="#recent-scans-table">
+                        All
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            hx-get="/zap/recent?filter=completed"
+                            hx-target="#recent-scans-table">
+                        Completed
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            hx-get="/zap/recent?filter=running"
+                            hx-target="#recent-scans-table">
+                        Running
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            hx-get="/zap/recent?filter=failed"
+                            hx-target="#recent-scans-table">
+                        Failed
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <div id="recent-scans-table"
+                         hx-get="/zap/recent"
+                         hx-trigger="load, every 30s">
+                        <!-- Results will be loaded here -->
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-danger" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Loading recent security scans...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ZAP Logs Modal -->
+<div class="modal fade" id="zapLogsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-alt"></i> ZAP Server Logs
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="zap-logs-modal-body">
+                    <!-- Logs will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary"
+                        hx-get="/zap/logs"
+                        hx-target="#zap-logs-modal-body">
+                    <i class="fas fa-sync"></i> Refresh Logs
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scan Progress Modal -->
+<div class="modal fade" id="scanProgressModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cog fa-spin"></i> Scan Progress
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="scan-progress-content">
+                    <!-- Progress will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="cancel-scan-btn">
+                    <i class="fas fa-stop"></i> Cancel Scan
+                </button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-populate target URL based on model/app selection
+document.getElementById('zap-model-select').addEventListener('change', updateTargetUrl);
+document.getElementById('zap-app-select').addEventListener('change', updateTargetUrl);
+
+function updateTargetUrl() {
+    const modelSelect = document.getElementById('zap-model-select');
+    const appSelect = document.getElementById('zap-app-select');
+    const targetUrlInput = document.getElementById('target-url');
+    
+    if (modelSelect.value && appSelect.value) {
+        const appNumber = parseInt(appSelect.value);
+        const frontendPort = 9051 + ((appNumber - 1) * 2);
+        targetUrlInput.value = `http://localhost:${frontendPort}`;
+    }
+}
+
+// Model/app selection validation
+document.getElementById('zap-model-select').addEventListener('change', function() {
+    const modelSlug = this.value;
+    const appSelect = document.getElementById('zap-app-select');
+    
+    if (modelSlug) {
+        appSelect.disabled = false;
+    } else {
+        appSelect.disabled = true;
+        appSelect.value = '';
+        document.getElementById('target-url').value = '';
+    }
+});
+
+// Scan type specific options
+document.getElementById('scan-type').addEventListener('change', function() {
+    const scanType = this.value;
+    const activeCheckbox = document.getElementById('include-active');
+    const spiderCheckbox = document.getElementById('include-spider');
+    
+    // Adjust default options based on scan type
+    switch(scanType) {
+        case 'spider':
+            spiderCheckbox.checked = true;
+            activeCheckbox.checked = false;
+            break;
+        case 'baseline':
+            spiderCheckbox.checked = true;
+            activeCheckbox.checked = false;
+            break;
+        case 'full':
+            spiderCheckbox.checked = true;
+            activeCheckbox.checked = true;
+            break;
+        case 'api':
+            spiderCheckbox.checked = false;
+            activeCheckbox.checked = true;
+            break;
+    }
+});
+
+// Copy to clipboard function
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show success feedback
+        const button = event.target.closest('button');
+        const originalIcon = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check text-success"></i>';
+        setTimeout(() => {
+            button.innerHTML = originalIcon;
+        }, 1500);
+    });
+}
+
+// Auto-refresh active scans
+document.addEventListener('htmx:afterRequest', function(event) {
+    if (event.detail.xhr.status === 200 && event.target.id === 'active-scans') {
+        const activeCount = parseInt(event.target.textContent);
+        if (activeCount > 0) {
+            // Refresh recent results more frequently if scans are running
+            htmx.trigger('#recent-scans-table', 'refresh');
+        }
+    }
+});
+
+// Scan progress monitoring
+function startScanMonitoring(scanId) {
+    const modal = document.getElementById('scanProgressModal');
+    const progressContent = document.getElementById('scan-progress-content');
+    
+    $(modal).modal('show');
+    
+    const interval = setInterval(() => {
+        fetch(`/api/zap/scan/${scanId}/progress`)
+            .then(response => response.json())
+            .then(data => {
+                progressContent.innerHTML = `
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" style="width: ${data.progress}%">
+                            ${data.progress}%
+                        </div>
+                    </div>
+                    <div class="scan-details">
+                        <p><strong>Status:</strong> ${data.status}</p>
+                        <p><strong>Current Phase:</strong> ${data.phase || 'N/A'}</p>
+                        <p><strong>URLs Found:</strong> ${data.urls_found || 0}</p>
+                        <p><strong>Alerts:</strong> ${data.alerts_count || 0}</p>
+                    </div>
+                `;
+                
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        $(modal).modal('hide');
+                        htmx.trigger('#recent-scans-table', 'refresh');
+                    }, 2000);
+                }
+            })
+            .catch(() => clearInterval(interval));
+    }, 3000);
+    
+    // Cancel scan functionality
+    document.getElementById('cancel-scan-btn').onclick = function() {
+        fetch(`/api/zap/scan/${scanId}/cancel`, { method: 'POST' })
+            .then(() => {
+                clearInterval(interval);
+                $(modal).modal('hide');
+            });
+    };
+}
+
+// ZAP server status indicators
+function updateZapStatus(status) {
+    const indicators = document.querySelectorAll('.zap-status-indicator');
+    indicators.forEach(indicator => {
+        indicator.className = `zap-status-indicator badge ${status === 'running' ? 'badge-success' : 'badge-danger'}`;
+        indicator.textContent = status.toUpperCase();
+    });
+}
+</script>
+{% endblock %}

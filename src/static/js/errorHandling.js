@@ -1,310 +1,244 @@
-/**
- * Enhanced Error Handling Utilities for React Components and HTMX
- * Provides consistent error messaging and retry mechanisms
- */
+/* HTMX and Hyperscript Error Handling */
+/* Global error handling for the application */
 
-// Enhanced error handling for React components
-export const ErrorHandler = {
-  // Parse and format error responses
-  parseError: (error, defaultMessage = "Request failed. Please try again.") => {
-    // Network error (no response)
-    if (!error.response) {
-      return {
-        type: 'network',
-        message: 'Network error. Please check your connection.',
-        retryable: true,
-        details: error.message
-      };
+// Enhanced error handling for HTMX requests
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // Global HTMX configuration
+    htmx.config.timeout = 10000;
+    htmx.config.defaultSwapStyle = 'innerHTML';
+    htmx.config.historyCacheSize = 0;
+    
+    // Loading state management
+    let loadingElements = new Set();
+    
+    // Show loading state
+    function showLoading(element) {
+        if (element && !loadingElements.has(element)) {
+            loadingElements.add(element);
+            element.classList.add('htmx-request');
+            
+            // Add spinner for buttons
+            if (element.tagName === 'BUTTON') {
+                const spinner = document.createElement('span');
+                spinner.className = 'loading-spinner htmx-indicator';
+                element.insertBefore(spinner, element.firstChild);
+                element.disabled = true;
+            }
+        }
     }
-
-    const status = error.response?.status;
-    const data = error.response?.data;
-
-    // Status-specific error messages
-    switch (status) {
-      case 400:
-        return {
-          type: 'validation',
-          message: data?.message || 'Invalid request. Please check your input.',
-          retryable: false,
-          errors: data?.errors || {},
-          details: `Bad Request (${status})`
-        };
-
-      case 401:
-        return {
-          type: 'auth',
-          message: 'Authentication required. Please log in again.',
-          retryable: false,
-          details: `Unauthorized (${status})`
-        };
-
-      case 403:
-        return {
-          type: 'permission',
-          message: 'Access denied. You don\'t have permission for this action.',
-          retryable: false,
-          details: `Forbidden (${status})`
-        };
-
-      case 404:
-        return {
-          type: 'notfound',
-          message: 'Resource not found.',
-          retryable: false,
-          details: `Not Found (${status})`
-        };
-
-      case 429:
-        return {
-          type: 'ratelimit',
-          message: 'Too many requests. Please wait and try again.',
-          retryable: true,
-          retryAfter: error.response.headers['retry-after'] || 30,
-          details: `Rate Limited (${status})`
-        };
-
-      case 500:
-        return {
-          type: 'server',
-          message: 'Server error. Please try again in a moment.',
-          retryable: true,
-          details: `Internal Server Error (${status})`
-        };
-
-      case 502:
-      case 503:
-      case 504:
-        return {
-          type: 'service',
-          message: 'Service temporarily unavailable. Please try again.',
-          retryable: true,
-          retryAfter: 10,
-          details: `Service Unavailable (${status})`
-        };
-
-      default:
-        return {
-          type: 'unknown',
-          message: data?.message || defaultMessage,
-          retryable: status >= 500,
-          details: `HTTP ${status}`
-        };
+    
+    // Hide loading state
+    function hideLoading(element) {
+        if (element && loadingElements.has(element)) {
+            loadingElements.delete(element);
+            element.classList.remove('htmx-request');
+            
+            // Remove spinner from buttons
+            if (element.tagName === 'BUTTON') {
+                const spinner = element.querySelector('.htmx-indicator');
+                if (spinner) {
+                    spinner.remove();
+                }
+                element.disabled = false;
+            }
+        }
     }
-  },
-
-  // Create retry function with exponential backoff
-  createRetryHandler: (originalFunction, maxRetries = 3, baseDelay = 1000) => {
-    return async (...args) => {
-      let lastError;
-      
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    
+    // HTMX event listeners
+    document.body.addEventListener('htmx:beforeRequest', function(evt) {
+        showLoading(evt.detail.elt);
+    });
+    
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        hideLoading(evt.detail.elt);
+    });
+    
+    // Enhanced error handling
+    document.body.addEventListener('htmx:responseError', function(evt) {
+        const target = evt.detail.target;
+        const status = evt.detail.xhr.status;
+        const response = evt.detail.xhr.responseText;
+        
+        let errorMessage = getErrorMessage(status);
+        let errorHtml = createErrorHtml(errorMessage, status, target);
+        
+        // Try to parse error response
         try {
-          return await originalFunction(...args);
-        } catch (error) {
-          lastError = error;
-          const parsedError = ErrorHandler.parseError(error);
-          
-          // Don't retry if error is not retryable
-          if (!parsedError.retryable || attempt === maxRetries) {
-            throw error;
-          }
-
-          // Calculate delay with exponential backoff
-          const delay = parsedError.retryAfter 
-            ? parsedError.retryAfter * 1000 
-            : baseDelay * Math.pow(2, attempt);
-
-          // Show retry notification
-          ErrorHandler.showRetryNotification(attempt + 1, delay / 1000);
-          
-          await new Promise(resolve => setTimeout(resolve, delay));
+            const errorData = JSON.parse(response);
+            if (errorData.error) {
+                errorMessage = errorData.error;
+            }
+            if (errorData.retry_after) {
+                errorHtml = createRetryableErrorHtml(errorMessage, errorData.retry_after, target);
+            }
+        } catch (e) {
+            // Use default error message
         }
-      }
-      
-      throw lastError;
-    };
-  },
-
-  // Show toast notification for retry attempts
-  showRetryNotification: (attempt, delay) => {
-    const toast = document.createElement('div');
-    toast.className = 'toast info show';
-    toast.innerHTML = `
-      <div>
-        <strong>Retry Attempt ${attempt}</strong><br>
-        Retrying in ${delay} seconds...
-      </div>
-    `;
-
-    const container = document.querySelector('.toast-container') || (() => {
-      const newContainer = document.createElement('div');
-      newContainer.className = 'toast-container';
-      document.body.appendChild(newContainer);
-      return newContainer;
-    })();
-
-    container.appendChild(toast);
-
-    // Remove toast after delay + 1 second
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
-    }, (delay + 1) * 1000);
-  },
-
-  // Enhanced React hook for API calls with error handling
-  useApiCall: (apiFunction) => {
-    const [loading, setLoading] = React.useState(false);
-    const [error, setError] = React.useState(null);
-    const [data, setData] = React.useState(null);
-
-    const execute = React.useCallback(async (...args) => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const result = await apiFunction(...args);
-        setData(result);
-        return result;
-      } catch (err) {
-        const parsedError = ErrorHandler.parseError(err);
-        setError(parsedError);
-        throw parsedError;
-      } finally {
-        setLoading(false);
-      }
-    }, [apiFunction]);
-
-    const retry = React.useCallback(() => {
-      if (error && error.retryable) {
-        execute();
-      }
-    }, [error, execute]);
-
-    return { loading, error, data, execute, retry };
-  }
-};
-
-// Enhanced form handling utilities
-export const FormHandler = {
-  // Create enhanced form submit handler
-  createSubmitHandler: (apiCall, options = {}) => {
-    const {
-      onSuccess = () => {},
-      onError = () => {},
-      validateForm = () => true,
-      clearErrors = () => {},
-      setLoading = () => {},
-      setErrors = () => {}
-    } = options;
-
-    return async (e) => {
-      e.preventDefault();
-      
-      // Clear previous errors
-      clearErrors();
-      setErrors({});
-      
-      // Validate form
-      const validation = validateForm(e.target);
-      if (!validation.valid) {
-        setErrors(validation.errors);
-        return;
-      }
-
-      setLoading(true);
-
-      try {
-        const result = await apiCall(e);
-        onSuccess(result);
-      } catch (error) {
-        const parsedError = ErrorHandler.parseError(error);
         
-        // Set field-specific errors if available
-        if (parsedError.errors) {
-          setErrors(parsedError.errors);
+        target.innerHTML = errorHtml;
+        hideLoading(evt.detail.elt);
+    });
+    
+    // Timeout handling
+    document.body.addEventListener('htmx:timeout', function(evt) {
+        const target = evt.detail.target;
+        const errorHtml = createRetryableErrorHtml(
+            'Request timed out. Please try again.',
+            5,
+            target
+        );
+        target.innerHTML = errorHtml;
+        hideLoading(evt.detail.elt);
+    });
+    
+    // Network error handling
+    document.body.addEventListener('htmx:sendError', function(evt) {
+        const target = evt.detail.target;
+        const errorHtml = createRetryableErrorHtml(
+            'Network error. Please check your connection.',
+            10,
+            target
+        );
+        target.innerHTML = errorHtml;
+        hideLoading(evt.detail.elt);
+    });
+    
+    // Success feedback
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        // Check for success messages and auto-dismiss
+        const successAlerts = evt.detail.target.querySelectorAll('.alert-success');
+        successAlerts.forEach(alert => {
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.style.opacity = '0';
+                    setTimeout(() => alert.remove(), 300);
+                }
+            }, 3000);
+        });
+    });
+    
+    // Helper functions
+    function getErrorMessage(status) {
+        const errorMessages = {
+            0: 'Network error. Please check your connection.',
+            400: 'Invalid request. Please check your input.',
+            401: 'Authentication required. Please refresh the page.',
+            403: 'Access denied. You do not have permission.',
+            404: 'Resource not found.',
+            429: 'Too many requests. Please wait before trying again.',
+            500: 'Server error. Please try again later.',
+            502: 'Service unavailable. Please try again later.',
+            503: 'Service temporarily unavailable.',
+            504: 'Request timeout. Please try again.'
+        };
+        
+        return errorMessages[status] || `Error ${status}. Please try again.`;
+    }
+    
+    function createErrorHtml(message, status, target) {
+        const alertClass = getAlertClass(status);
+        return `
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                <strong>Error:</strong> ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        `;
+    }
+    
+    function createRetryableErrorHtml(message, retryAfter, target) {
+        const retryId = 'retry_' + Date.now();
+        return `
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <strong>Error:</strong> ${message}
+                <button type="button" class="btn btn-sm btn-outline-primary ml-2" 
+                        onclick="retryRequest(this)" 
+                        data-retry-target="${target.id || ''}"
+                        id="${retryId}">
+                    <span class="htmx-indicator loading-spinner"></span>
+                    Retry
+                </button>
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        `;
+    }
+    
+    function getAlertClass(status) {
+        if (status >= 400 && status < 500) {
+            return 'alert-warning';
+        } else if (status >= 500) {
+            return 'alert-danger';
+        }
+        return 'alert-info';
+    }
+    
+    // Global retry function
+    window.retryRequest = function(button) {
+        const targetId = button.dataset.retryTarget;
+        let targetElement;
+        
+        if (targetId) {
+            targetElement = document.getElementById(targetId);
         } else {
-          // Set general error
-          setErrors({ general: parsedError.message });
+            targetElement = button.closest('[hx-get], [hx-post], [hx-put], [hx-delete]');
         }
         
-        onError(parsedError);
-      } finally {
-        setLoading(false);
-      }
+        if (targetElement) {
+            // Find the original HTMX element
+            const htmxElement = targetElement.querySelector('[hx-get], [hx-post], [hx-put], [hx-delete]') || targetElement;
+            
+            if (htmxElement) {
+                showLoading(button);
+                htmx.trigger(htmxElement, 'click');
+            }
+        }
     };
-  },
-
-  // Validate common form fields
-  validateField: (name, value, rules = {}) => {
-    const errors = [];
-
-    if (rules.required && !value.trim()) {
-      errors.push(`${name} is required`);
+    
+    // Auto-dismiss alerts
+    function autoDismissAlerts() {
+        const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
+        alerts.forEach(alert => {
+            if (!alert.dataset.autoDismissed) {
+                alert.dataset.autoDismissed = 'true';
+                setTimeout(() => {
+                    if (alert.parentNode) {
+                        alert.style.opacity = '0';
+                        setTimeout(() => alert.remove(), 300);
+                    }
+                }, 5000);
+            }
+        });
     }
-
-    if (rules.email && value && !/\S+@\S+\.\S+/.test(value)) {
-      errors.push('Please enter a valid email address');
-    }
-
-    if (rules.minLength && value.length < rules.minLength) {
-      errors.push(`${name} must be at least ${rules.minLength} characters`);
-    }
-
-    if (rules.password && value && value.length < 8) {
-      errors.push('Password must be at least 8 characters');
-    }
-
-    return errors;
-  }
-};
-
-// HTMX Error Handling Extensions
-export const HTMXErrorHandler = {
-  // Initialize enhanced HTMX error handling
-  init: () => {
-    // Network status indicator
-    const createNetworkIndicator = () => {
-      const indicator = document.createElement('div');
-      indicator.className = 'network-status';
-      indicator.id = 'network-status';
-      document.body.appendChild(indicator);
-      return indicator;
-    };
-
-    const networkIndicator = createNetworkIndicator();
-
-    // Enhanced error handler for HTMX requests
-    document.body.addEventListener('htmx:responseError', (e) => {
-      const status = e.detail.xhr.status;
-      const errorData = ErrorHandler.parseError({ response: { status, data: {} } });
-      
-      // Show network indicator for service errors
-      if (errorData.type === 'service' || errorData.type === 'network') {
-        networkIndicator.textContent = errorData.message;
-        networkIndicator.className = `network-status ${errorData.type} show`;
-        setTimeout(() => networkIndicator.classList.remove('show'), 5000);
-      }
+    
+    // Run auto-dismiss on page load and after HTMX swaps
+    autoDismissAlerts();
+    document.body.addEventListener('htmx:afterSwap', autoDismissAlerts);
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(evt) {
+        const dropdowns = document.querySelectorAll('.dropdown-menu.show');
+        dropdowns.forEach(dropdown => {
+            const toggle = dropdown.previousElementSibling;
+            if (!dropdown.contains(evt.target) && !toggle.contains(evt.target)) {
+                dropdown.classList.remove('show');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        });
     });
-
-    // Network monitoring
-    window.addEventListener('online', () => {
-      networkIndicator.textContent = 'Connection restored';
-      networkIndicator.className = 'network-status online show';
-      setTimeout(() => networkIndicator.classList.remove('show'), 3000);
-    });
-
-    window.addEventListener('offline', () => {
-      networkIndicator.textContent = 'Connection lost';
-      networkIndicator.className = 'network-status offline show';
-    });
-  }
-};
-
-// Initialize on page load
-if (typeof document !== 'undefined') {
-  document.addEventListener('DOMContentLoaded', () => {
-    HTMXErrorHandler.init();
-  });
-}
+    
+    // Initialize tooltips if Bootstrap is available
+    if (typeof bootstrap !== 'undefined') {
+        document.addEventListener('htmx:afterSwap', function() {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+    }
+    
+    console.log('HTMX error handling initialized');
+});

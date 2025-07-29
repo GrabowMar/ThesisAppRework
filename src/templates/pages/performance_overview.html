@@ -1,0 +1,528 @@
+{% extends "layouts/base_layout.html" %}
+
+{% block title %}Performance Testing Overview{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1 class="h3 mb-1">
+            <i class="fas fa-tachometer-alt text-success"></i>
+            Performance Testing
+        </h1>
+        <p class="text-muted mb-0">Load testing and performance analysis of AI-generated applications</p>
+    </div>
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-outline-success" 
+                hx-get="/performance/batch" 
+                hx-target="#main-content"
+                hx-push-url="true">
+            <i class="fas fa-tasks"></i> Batch Testing
+        </button>
+        <button type="button" class="btn btn-outline-secondary"
+                hx-get="/performance/reports"
+                hx-target="#main-content"
+                hx-push-url="true">
+            <i class="fas fa-chart-line"></i> Performance Reports
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Performance Statistics -->
+    <div class="col-12 mb-4">
+        <div class="row">
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card border-left-success">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                    Total Tests
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" 
+                                     id="total-tests"
+                                     hx-get="/api/performance/stats/total"
+                                     hx-trigger="load, every 30s">
+                                    {{ performance_stats.total_tests or 0 }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-rocket fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card border-left-info">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                    Running Tests
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800"
+                                     id="running-tests"
+                                     hx-get="/api/performance/stats/running"
+                                     hx-trigger="load, every 5s">
+                                    {{ performance_stats.running_tests or 0 }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-cog fa-spin fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card border-left-warning">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                    Avg Response Time
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800"
+                                     id="avg-response-time"
+                                     hx-get="/api/performance/stats/response_time"
+                                     hx-trigger="load, every 30s">
+                                    {{ performance_stats.avg_response_time or 0 }}ms
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-clock fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card border-left-primary">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                    Success Rate
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800"
+                                     id="success-rate"
+                                     hx-get="/api/performance/stats/success_rate"
+                                     hx-trigger="load, every 30s">
+                                    {{ performance_stats.success_rate or 0 }}%
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Performance Test -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-success">
+                    <i class="fas fa-rocket"></i> Quick Performance Test
+                </h6>
+            </div>
+            <div class="card-body">
+                <form hx-post="/performance/quick_test" 
+                      hx-target="#quick-test-results"
+                      hx-indicator="#quick-test-loading">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="perf-model-select" class="font-weight-bold">Select Model</label>
+                                <select class="form-control" id="perf-model-select" name="model_slug" required>
+                                    <option value="">Choose a model...</option>
+                                    {% for model in available_models %}
+                                    <option value="{{ model.canonical_slug }}">{{ model.model_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="perf-app-select" class="font-weight-bold">Select Application</label>
+                                <select class="form-control" id="perf-app-select" name="app_number" required>
+                                    <option value="">Choose an application...</option>
+                                    {% for i in range(1, 31) %}
+                                    <option value="{{ i }}">App {{ i }} - {{ app_types[i] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="test-type" class="font-weight-bold">Test Type</label>
+                                <select class="form-control" id="test-type" name="test_type" required>
+                                    <option value="load">Load Test</option>
+                                    <option value="stress">Stress Test</option>
+                                    <option value="spike">Spike Test</option>
+                                    <option value="volume">Volume Test</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="users" class="font-weight-bold">Number of Users</label>
+                                <input type="number" class="form-control" id="users" name="users" 
+                                       value="10" min="1" max="1000" required>
+                                <small class="form-text text-muted">Concurrent virtual users</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="duration" class="font-weight-bold">Test Duration (seconds)</label>
+                                <input type="number" class="form-control" id="duration" name="duration" 
+                                       value="60" min="10" max="3600" required>
+                                <small class="form-text text-muted">How long to run the test</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="spawn-rate" class="font-weight-bold">Spawn Rate (users/sec)</label>
+                                <input type="number" class="form-control" id="spawn-rate" name="spawn_rate" 
+                                       value="1" min="0.1" max="100" step="0.1" required>
+                                <small class="form-text text-muted">How fast to spawn users</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="font-weight-bold">Test Scenarios</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="scenario-home" 
+                                           name="scenarios" value="home" checked>
+                                    <label class="custom-control-label" for="scenario-home">
+                                        Home Page Load
+                                    </label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="scenario-api" 
+                                           name="scenarios" value="api" checked>
+                                    <label class="custom-control-label" for="scenario-api">
+                                        API Endpoints
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="scenario-static" 
+                                           name="scenarios" value="static">
+                                    <label class="custom-control-label" for="scenario-static">
+                                        Static Resources
+                                    </label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="scenario-user" 
+                                           name="scenarios" value="user_flow">
+                                    <label class="custom-control-label" for="scenario-user">
+                                        User Flow Simulation
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success btn-block">
+                        <i class="fas fa-play"></i> Start Performance Test
+                        <div id="quick-test-loading" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                    </button>
+                </form>
+
+                <!-- Quick Test Results -->
+                <div id="quick-test-results" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Configuration Presets -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-success">
+                    <i class="fas fa-bookmark"></i> Test Presets
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="preset-item mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">Light Load</h6>
+                            <small class="text-muted">5 users, 30s duration</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-success"
+                                onclick="applyPreset('light')">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+
+                <div class="preset-item mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">Medium Load</h6>
+                            <small class="text-muted">25 users, 120s duration</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-success"
+                                onclick="applyPreset('medium')">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+
+                <div class="preset-item mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">Heavy Load</h6>
+                            <small class="text-muted">100 users, 300s duration</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-success"
+                                onclick="applyPreset('heavy')">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+
+                <div class="preset-item mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">Stress Test</h6>
+                            <small class="text-muted">200 users, 180s duration</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-warning"
+                                onclick="applyPreset('stress')">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                            data-toggle="modal" data-target="#customPresetModal">
+                        <i class="fas fa-plus"></i> Create Custom Preset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Performance Tests -->
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-success">
+                    <i class="fas fa-history"></i> Recent Performance Tests
+                </h6>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary active" 
+                            hx-get="/performance/recent?filter=all"
+                            hx-target="#recent-tests-table">
+                        All
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            hx-get="/performance/recent?filter=completed"
+                            hx-target="#recent-tests-table">
+                        Completed
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            hx-get="/performance/recent?filter=running"
+                            hx-target="#recent-tests-table">
+                        Running
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            hx-get="/performance/recent?filter=failed"
+                            hx-target="#recent-tests-table">
+                        Failed
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <div id="recent-tests-table"
+                         hx-get="/performance/recent"
+                         hx-trigger="load, every 30s">
+                        <!-- Results will be loaded here -->
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-success" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Loading recent performance tests...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Preset Modal -->
+<div class="modal fade" id="customPresetModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus"></i> Create Custom Test Preset
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form hx-post="/performance/presets/create" 
+                  hx-target="#preset-result"
+                  hx-indicator="#preset-loading">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="preset-name" class="font-weight-bold">Preset Name</label>
+                        <input type="text" class="form-control" id="preset-name" 
+                               name="preset_name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="preset-description" class="font-weight-bold">Description</label>
+                        <textarea class="form-control" id="preset-description" 
+                                  name="description" rows="2"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="preset-users" class="font-weight-bold">Users</label>
+                                <input type="number" class="form-control" id="preset-users" 
+                                       name="users" value="10" min="1" max="1000" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="preset-duration" class="font-weight-bold">Duration (s)</label>
+                                <input type="number" class="form-control" id="preset-duration" 
+                                       name="duration" value="60" min="10" max="3600" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="preset-spawn-rate" class="font-weight-bold">Spawn Rate</label>
+                        <input type="number" class="form-control" id="preset-spawn-rate" 
+                               name="spawn_rate" value="1" min="0.1" max="100" step="0.1" required>
+                    </div>
+
+                    <div id="preset-result"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Preset
+                        <div id="preset-loading" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Test presets configuration
+const presets = {
+    light: {
+        users: 5,
+        duration: 30,
+        spawn_rate: 1,
+        test_type: 'load'
+    },
+    medium: {
+        users: 25,
+        duration: 120,
+        spawn_rate: 2,
+        test_type: 'load'
+    },
+    heavy: {
+        users: 100,
+        duration: 300,
+        spawn_rate: 5,
+        test_type: 'load'
+    },
+    stress: {
+        users: 200,
+        duration: 180,
+        spawn_rate: 10,
+        test_type: 'stress'
+    }
+};
+
+function applyPreset(presetName) {
+    const preset = presets[presetName];
+    if (preset) {
+        document.getElementById('users').value = preset.users;
+        document.getElementById('duration').value = preset.duration;
+        document.getElementById('spawn-rate').value = preset.spawn_rate;
+        document.getElementById('test-type').value = preset.test_type;
+        
+        // Show visual feedback
+        const buttons = document.querySelectorAll('.preset-item .btn');
+        buttons.forEach(btn => btn.classList.remove('btn-success'));
+        event.target.classList.remove('btn-outline-success');
+        event.target.classList.add('btn-success');
+        
+        setTimeout(() => {
+            event.target.classList.remove('btn-success');
+            event.target.classList.add('btn-outline-success');
+        }, 1000);
+    }
+}
+
+// Auto-refresh running tests
+document.addEventListener('htmx:afterRequest', function(event) {
+    if (event.detail.xhr.status === 200 && event.target.id === 'running-tests') {
+        const runningCount = parseInt(event.target.textContent);
+        if (runningCount > 0) {
+            // Refresh recent results more frequently if tests are running
+            htmx.trigger('#recent-tests-table', 'refresh');
+        }
+    }
+});
+
+// Model/app selection validation
+document.getElementById('perf-model-select').addEventListener('change', function() {
+    const modelSlug = this.value;
+    const appSelect = document.getElementById('perf-app-select');
+    
+    if (modelSlug) {
+        appSelect.disabled = false;
+    } else {
+        appSelect.disabled = true;
+        appSelect.value = '';
+    }
+});
+
+// Real-time test monitoring
+function startTestMonitoring(testId) {
+    const interval = setInterval(() => {
+        fetch(`/api/performance/test/${testId}/status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(interval);
+                    htmx.trigger('#recent-tests-table', 'refresh');
+                }
+            })
+            .catch(() => clearInterval(interval));
+    }, 5000);
+}
+</script>
+{% endblock %}

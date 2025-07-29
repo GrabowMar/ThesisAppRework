@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="page-header">
+                {% block page_header %}
+                <h1 class="h3 mb-1">Page Title</h1>
+                <p class="text-muted mb-0">Page description</p>
+                {% endblock %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="row">
+        <div class="col-12">
+            <div id="main-content">
+                {% block content %}
+                <!-- Page specific content will go here -->
+                {% endblock %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% block extra_js %}{% endblock %}
+{% endblock %}
