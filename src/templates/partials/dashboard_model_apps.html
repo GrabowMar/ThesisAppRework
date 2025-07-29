@@ -31,7 +31,7 @@
                 <!-- Status -->
                 <td class="align-middle">
                     <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }} badge-pill">
-                        <i class="fas fa-circle mr-1" style="font-size: 0.7em;"></i>
+                        <i class="fas fa-circle mr-1 icon-sm"></i>
                         {{ app.status|title }}
                     </span>
                 </td>
@@ -41,15 +41,15 @@
                     <div class="d-flex justify-content-start">
                         <span class="mx-1 {{ 'text-success' if app.containers.frontend_status == 'running' else 'text-muted' }}"
                               title="Frontend: {{ app.containers.frontend_status|title }}">
-                            <i class="fas fa-globe-americas" style="font-size: 0.8em;"></i>
+                            <i class="fas fa-globe-americas icon-md"></i>
                         </span>
                         <span class="mx-1 {{ 'text-success' if app.containers.backend_status == 'running' else 'text-muted' }}"
                               title="Backend: {{ app.containers.backend_status|title }}">
-                            <i class="fas fa-cogs" style="font-size: 0.8em;"></i>
+                            <i class="fas fa-cogs icon-md"></i>
                         </span>
                         <span class="mx-1 {{ 'text-success' if app.containers.database_status == 'running' else 'text-muted' }}"
                               title="Database: {{ app.containers.database_status|title }}">
-                            <i class="fas fa-database" style="font-size: 0.8em;"></i>
+                            <i class="fas fa-database icon-md"></i>
                         </span>
                     </div>
                 </td>
@@ -200,66 +200,4 @@ $(document).ready(function() {
 });
 </script>
 
-<style>
-/* Compact table styling */
-.table-sm td, .table-sm th {
-    padding: 0.4rem;
-    vertical-align: middle;
-}
 
-.app-row:hover {
-    background-color: rgba(0, 123, 255, 0.05);
-}
-
-.badge-outline-primary {
-    color: #007bff;
-    border: 1px solid #007bff;
-    background-color: transparent;
-}
-
-.btn-xs {
-    padding: 0.2rem 0.4rem;
-    font-size: 0.75rem;
-    line-height: 1.2;
-    border-radius: 0.2rem;
-}
-
-.app-info {
-    min-height: 2.5rem;
-}
-
-.port-info small {
-    line-height: 1.1;
-}
-
-.analysis-compact {
-    font-size: 0.8rem;
-}
-
-.analysis-compact span {
-    min-width: 20px;
-    text-align: center;
-}
-
-.dropdown-menu {
-    min-width: 160px;
-}
-
-.dropdown-item {
-    padding: 0.4rem 1rem;
-    font-size: 0.875rem;
-}
-
-.table-responsive {
-    border-radius: 0.375rem;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-}
-
-.thead-light th {
-    border-bottom: 2px solid #dee2e6;
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
-}
-</style>

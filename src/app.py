@@ -32,8 +32,22 @@ class Config:
     
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{db_path.absolute()}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # SQLite performance optimizations
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'connect_args': {
+            'check_same_thread': False,
+            'timeout': 30,
+            'isolation_level': None,
+        }
+    }
+    
+    # Enhanced caching configuration
     CACHE_TYPE = 'simple'
-    CACHE_DEFAULT_TIMEOUT = 300
+    CACHE_DEFAULT_TIMEOUT = 600  # Increased to 10 minutes
+    CACHE_THRESHOLD = 1000  # Maximum cache entries
+    
     APPLICATION_ROOT = '/'  # Fix for Flask test client
     PREFERRED_URL_SCHEME = 'http'
 
@@ -59,60 +73,94 @@ def setup_logging(app):
 
 
 def load_model_integration_data(app):
-    """Load model capabilities and port configurations from JSON files."""
+    """Load model capabilities and port configurations from JSON files with caching."""
     project_root = Path(__file__).parent.parent
     misc_dir = project_root / "misc"
     
+    # Cache the loaded data to avoid repeated file reads
+    cache_key = "model_integration_data"
+    cached_data = getattr(app, '_cached_integration_data', None)
+    
+    if cached_data:
+        app.logger.info("Using cached model integration data")
+        app.config.update(cached_data)
+        return
+    
     try:
-        # Load model capabilities
+        integration_data = {}
+        
+        # Load model capabilities with lazy initialization
         capabilities_file = misc_dir / "model_capabilities.json"
         if capabilities_file.exists():
             with open(capabilities_file) as f:
                 capabilities_data = json.load(f)
                 models_count = len(capabilities_data.get('models', {}))
                 app.logger.info(f"Loaded capabilities for {models_count} models")
+                integration_data['CAPABILITIES_DATA'] = capabilities_data
                 
-                # Initialize database with model data if empty
-                with app.app_context():
-                    from models import ModelCapability
-                    if ModelCapability.query.count() == 0:
-                        app.logger.info("Database is empty, populating with model data...")
-                        populate_models_from_json(app, capabilities_data)
+                # Defer database population to first access
+                integration_data['_capabilities_loaded'] = False
         else:
             app.logger.warning(f"Model capabilities file not found: {capabilities_file}")
         
-        # Load port configurations
+        # Load port configurations with lazy initialization
         port_file = misc_dir / "port_config.json"
         if port_file.exists():
             with open(port_file) as f:
                 port_data = json.load(f)
-                # Store port config in app config for services to use
-                app.config['PORT_CONFIG'] = port_data
+                integration_data['PORT_CONFIG'] = port_data
                 app.logger.info(f"Loaded {len(port_data)} port configurations")
                 
-                # Initialize database with port data if empty
-                with app.app_context():
-                    from models import PortConfiguration
-                    if PortConfiguration.query.count() == 0:
-                        app.logger.info("Populating port configurations...")
-                        populate_ports_from_json(app, port_data)
+                # Defer database population to first access
+                integration_data['_ports_loaded'] = False
         else:
             app.logger.warning(f"Port config file not found: {port_file}")
-            app.config['PORT_CONFIG'] = []
+            integration_data['PORT_CONFIG'] = []
         
-        # Load models summary
+        # Load models summary (lightweight)
         models_file = misc_dir / "models_summary.json"
         if models_file.exists():
             with open(models_file) as f:
                 models_data = json.load(f)
                 models_count = len(models_data.get('models', []))
+                integration_data['MODELS_SUMMARY'] = models_data
                 app.logger.info(f"Loaded models summary with {models_count} models")
         else:
             app.logger.warning(f"Models summary file not found: {models_file}")
             
+        # Cache the integration data
+        app._cached_integration_data = integration_data
+        app.config.update(integration_data)
+        
+        app.logger.info("Model integration data loaded successfully")
+            
     except Exception as e:
         app.logger.error(f"Failed to load model integration data: {e}")
         app.config['PORT_CONFIG'] = []
+
+
+def ensure_database_populated(app):
+    """Ensure database is populated with data on first access."""
+    with app.app_context():
+        from models import ModelCapability, PortConfiguration
+        
+        # Check if we need to populate models
+        if not getattr(app.config, '_capabilities_loaded', True):
+            if ModelCapability.query.count() == 0:
+                capabilities_data = app.config.get('CAPABILITIES_DATA')
+                if capabilities_data:
+                    app.logger.info("Populating database with model data...")
+                    populate_models_from_json(app, capabilities_data)
+            app.config['_capabilities_loaded'] = True
+        
+        # Check if we need to populate ports
+        if not getattr(app.config, '_ports_loaded', True):
+            if PortConfiguration.query.count() == 0:
+                port_data = app.config.get('PORT_CONFIG', [])
+                if port_data:
+                    app.logger.info("Populating database with port configurations...")
+                    populate_ports_from_json(app, port_data)
+            app.config['_ports_loaded'] = True
 
 
 def populate_models_from_json(app, capabilities_data):
@@ -303,23 +351,39 @@ def create_app(config_name=None):
         except Exception as e:
             app.logger.error(f"Failed to initialize services: {e}")
     
-    # Initialize service manager and core services
+    # Initialize service manager and core services with deferred loading
     with app.app_context():
         try:
             # Create service manager
             service_manager = ServiceManager(app)
             app.config['service_manager'] = service_manager
             
-            # Initialize core services (docker, scan manager, etc.)
+            # Initialize core services asynchronously (docker, scan manager, etc.)
             service_initializer = ServiceInitializer(app, service_manager)
-            service_initializer.initialize_all()
             
-            # Initialize batch analysis service
-            from core_services import BatchAnalysisService
-            batch_service = BatchAnalysisService()
-            batch_service.init_app(app)
-            app.batch_service = batch_service
-            app.logger.info("Batch analysis service initialized successfully")
+            # Use background thread for heavy service initialization
+            import threading
+            def initialize_services():
+                try:
+                    service_initializer.initialize_all()
+                    app.logger.info("Background service initialization completed")
+                except Exception as e:
+                    app.logger.error(f"Background service initialization failed: {e}")
+            
+            # Start service initialization in background
+            service_thread = threading.Thread(target=initialize_services, daemon=True)
+            service_thread.start()
+            
+            # Initialize essential services only (batch service can be deferred)
+            try:
+                from core_services import BatchAnalysisService
+                batch_service = BatchAnalysisService()
+                batch_service.init_app(app)
+                app.batch_service = batch_service
+                app.logger.info("Batch analysis service initialized successfully")
+            except Exception as e:
+                app.logger.warning(f"Batch service initialization deferred: {e}")
+                app.batch_service = None
             
             app.logger.info("Core services initialized successfully")
         except Exception as e:

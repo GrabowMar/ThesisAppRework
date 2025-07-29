@@ -18,204 +18,6 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     
-    <!-- Sidebar Layout Styles -->
-    <style>
-        .main-layout {
-            display: flex;
-            min-height: calc(100vh - 76px);
-        }
-
-        .sidebar {
-            width: 280px;
-            background: #f8f9fa;
-            border-right: 1px solid #dee2e6;
-            flex-shrink: 0;
-            position: fixed;
-            top: 76px;
-            left: 0;
-            height: calc(100vh - 76px);
-            overflow-y: auto;
-            z-index: 1020;
-        }
-
-        .sidebar-content {
-            padding: 1rem;
-        }
-
-        .sidebar-section {
-            margin-bottom: 2rem;
-        }
-
-        .sidebar-title {
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: #6c757d;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #e9ecef;
-        }
-
-        .quick-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.75rem;
-        }
-
-        .stat-item {
-            text-align: center;
-            padding: 0.75rem;
-            background: white;
-            border-radius: 0.375rem;
-            border: 1px solid #e9ecef;
-        }
-
-        .stat-value {
-            display: block;
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #495057;
-        }
-
-        .stat-label {
-            display: block;
-            font-size: 0.75rem;
-            color: #6c757d;
-            margin-top: 0.25rem;
-        }
-
-        .activity-feed {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .activity-item {
-            display: flex;
-            align-items: flex-start;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #f1f3f4;
-        }
-
-        .activity-item:last-child {
-            border-bottom: none;
-        }
-
-        .activity-icon {
-            width: 24px;
-            flex-shrink: 0;
-            margin-right: 0.75rem;
-        }
-
-        .activity-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .quick-actions .btn {
-            font-size: 0.8rem;
-        }
-
-        .system-status {
-            space-y: 0.5rem;
-        }
-
-        .status-item {
-            display: flex;
-            align-items: center;
-            padding: 0.375rem 0;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 0.75rem;
-            flex-shrink: 0;
-        }
-
-        .status-dot.status-success {
-            background-color: #28a745;
-        }
-
-        .status-dot.status-warning {
-            background-color: #ffc107;
-        }
-
-        .status-dot.status-danger {
-            background-color: #dc3545;
-        }
-
-        .status-label {
-            font-size: 0.875rem;
-            color: #495057;
-        }
-
-        .main-content {
-            flex: 1;
-            margin-left: 280px;
-            padding: 1rem;
-            min-height: calc(100vh - 76px);
-        }
-
-        /* Responsive design */
-        @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-                transition: transform 0.3s ease;
-            }
-
-            .sidebar.show {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-
-            .navbar .sidebar-toggle {
-                display: block;
-            }
-        }
-
-        @media (min-width: 769px) {
-            .navbar .sidebar-toggle {
-                display: none;
-            }
-        }
-
-        /* Sidebar toggle button */
-        .sidebar-toggle {
-            background: none;
-            border: none;
-            color: #495057;
-            padding: 0.5rem;
-            margin-right: 1rem;
-        }
-
-        .sidebar-toggle:hover {
-            color: #007bff;
-        }
-
-        /* Scrollbar styling for sidebar */
-        .sidebar::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .sidebar::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-
-        .sidebar::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 2px;
-        }
-
-        .sidebar::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-    </style>
-    
     <!-- HTMX for dynamic interactions -->
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     
@@ -227,9 +29,9 @@
     
     {% block head %}{% endblock %}
 </head>
-<<body>
+<body>
     <!-- Clean Modern Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top border-bottom">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top">
         <div class="container-fluid">
             <!-- Sidebar Toggle (Mobile) -->
             <button class="sidebar-toggle" onclick="toggleSidebar()">
@@ -293,7 +95,7 @@
                     <!-- System status -->
                     <li class="nav-item">
                         <a class="nav-link" href="#" data-toggle="tooltip" title="System Status">
-                            <div class="status-dot status-success"></div>
+                            <span class="status-dot status-success"></span>
                         </a>
                     </li>
 
@@ -355,16 +157,16 @@
     </nav>
 
     <!-- Main Layout with Sidebar -->
-    <div class="main-layout" style="padding-top: 76px;">
+    <div class="main-layout">
         <!-- Sidebar -->
-        <div class="sidebar" id="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-content">
                 <!-- Quick Stats -->
                 <div class="sidebar-section">
                     <h6 class="sidebar-title">Quick Stats</h6>
                     <div class="quick-stats" 
                          hx-get="/api/sidebar/stats"
-                         hx-trigger="load, every 30s"
+                         hx-trigger="load, every 60s"
                          hx-swap="innerHTML">
                         <div class="stat-item">
                             <span class="stat-value">{{ get_model_count() }}</span>
@@ -386,11 +188,11 @@
                     <h6 class="sidebar-title">Recent Activity</h6>
                     <div class="activity-feed"
                          hx-get="/api/sidebar/activity"
-                         hx-trigger="load, every 60s"
+                         hx-trigger="load, every 120s"
                          hx-swap="innerHTML">
                         <div class="activity-item">
                             <div class="activity-icon">
-                                <i class="fas fa-play text-success"></i>
+                                <i class="fas fa-info text-muted"></i>
                             </div>
                             <div class="activity-content">
                                 <small class="text-muted">No recent activity</small>
@@ -403,17 +205,17 @@
                 <div class="sidebar-section">
                     <h6 class="sidebar-title">Quick Actions</h6>
                     <div class="quick-actions">
-                        <button class="btn btn-sm btn-outline-primary btn-block mb-2"
+                        <button class="btn btn-sm btn-outline-primary btn-block"
                                 hx-post="/api/bulk/start-all"
                                 hx-confirm="Start all stopped containers?">
                             <i class="fas fa-play mr-1"></i>Start All
                         </button>
-                        <button class="btn btn-sm btn-outline-warning btn-block mb-2"
+                        <button class="btn btn-sm btn-outline-warning btn-block"
                                 hx-post="/api/bulk/stop-all"
                                 hx-confirm="Stop all running containers?">
                             <i class="fas fa-stop mr-1"></i>Stop All
                         </button>
-                        <button class="btn btn-sm btn-outline-info btn-block mb-2"
+                        <button class="btn btn-sm btn-outline-info btn-block"
                                 onclick="window.location.href='/analysis'">
                             <i class="fas fa-shield-alt mr-1"></i>Security Scan
                         </button>
@@ -429,7 +231,7 @@
                     <h6 class="sidebar-title">System Status</h6>
                     <div class="system-status"
                          hx-get="/api/sidebar/system-status"
-                         hx-trigger="load, every 30s"
+                         hx-trigger="load, every 90s"
                          hx-swap="innerHTML">
                         <div class="status-item">
                             <span class="status-dot status-success"></span>
@@ -446,16 +248,16 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </aside>
 
         <!-- Main Content -->
-        <div class="main-content">
+        <main class="main-content">
             <!-- Flash Messages -->
             <div id="flash-messages" class="container-fluid">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
-                            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} alert-dismissible fade show" role="alert">
+                            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} alert-dismissible fade show mb-3" role="alert">
                                 {{ message }}
                                 <button type="button" class="close" data-dismiss="alert" aria-label="Close">
                                     <span aria-hidden="true">&times;</span>
@@ -466,19 +268,17 @@
                 {% endwith %}
             </div>
 
-            <!-- Page Content - Full Width -->
-            <div class="container-fluid">
-                {% block content %}{% endblock %}
-            </div>
-        </div>
+            <!-- Page Content -->
+            {% block content %}{% endblock %}
+        </main>
     </div>
 
     <!-- Modals Container -->
     <div id="modal-container"></div>
 
     <!-- Loading Overlay -->
-    <div id="loading-overlay" class="position-fixed w-100 h-100" 
-         style="top: 0; left: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none;">
+    <div id="loading-overlay" class="position-fixed w-100 h-100 d-none" 
+         class="modal-overlay">
         <div class="d-flex justify-content-center align-items-center h-100">
             <div class="text-center text-white">
                 <div class="spinner-border mb-3" role="status">
@@ -533,7 +333,7 @@
                             <h6><i class="fas fa-keyboard mr-2"></i>Keyboard Shortcuts</h6>
                             <ul class="list-unstyled">
                                 <li><kbd>Ctrl + R</kbd> - Refresh current view</li>
-                                <li><kbd>Ctrl + /</kbd> - Open search</li>
+                                <li><kbd>Ctrl + K</kbd> - Focus search</li>
                                 <li><kbd>Esc</kbd> - Close modals</li>
                             </ul>
                         </div>
@@ -577,7 +377,13 @@
         // Sidebar toggle function
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
+            const mainContent = document.querySelector('.main-content');
             sidebar.classList.toggle('show');
+            
+            // Toggle full width on desktop
+            if (window.innerWidth > 768) {
+                mainContent.classList.toggle('full-width');
+            }
         }
         
         // Close sidebar when clicking outside on mobile
@@ -592,87 +398,6 @@
             }
         });
         
-        // Facebook-style navbar functions
-        function startBulkAnalysis() {
-            if (confirm('Start security analysis on all AI models? This may take several minutes.')) {
-                showLoadingOverlay();
-                // Simulate API call
-                setTimeout(() => {
-                    hideLoadingOverlay();
-                    alert('Bulk analysis started successfully!');
-                }, 1000);
-            }
-        }
-        
-        function exportReports() {
-            showLoadingOverlay();
-            // Simulate export
-            setTimeout(() => {
-                hideLoadingOverlay();
-                alert('Reports exported successfully!');
-            }, 2000);
-        }
-        
-        function showSystemLogs() {
-            alert('System logs feature coming soon!');
-        }
-        
-        // Global search functionality
-        function initializeGlobalSearch() {
-            const searchInput = document.getElementById('global-search');
-            if (searchInput) {
-                searchInput.addEventListener('input', function(e) {
-                    const query = e.target.value.toLowerCase();
-                    if (query.length > 2) {
-                        // Implement global search logic here
-                        console.log('Searching for:', query);
-                    }
-                });
-            }
-        }
-        
-        // Active page highlighting
-        function setActiveNavIcon() {
-            const currentPath = window.location.pathname;
-            const navIcons = document.querySelectorAll('.nav-icon-btn');
-            
-            navIcons.forEach(icon => {
-                icon.classList.remove('active');
-                const href = icon.getAttribute('href');
-                
-                if (href === currentPath || 
-                    (currentPath === '/' && href.includes('dashboard')) ||
-                    (currentPath.includes('/models') && href.includes('models')) ||
-                    (currentPath.includes('/analysis') && href.includes('analysis')) ||
-                    (currentPath.includes('/performance') && href.includes('performance')) ||
-                    (currentPath.includes('/batch') && href.includes('batch'))) {
-                    icon.classList.add('active');
-                }
-            });
-        }
-        
-        // Notification dots simulation
-        function updateNotificationDots() {
-            // Simulate some notification logic
-            const dots = ['dashboard-dot', 'models-dot', 'analysis-dot', 'performance-dot', 'batch-dot'];
-            dots.forEach(dotId => {
-                const dot = document.getElementById(dotId);
-                if (dot && Math.random() > 0.7) {
-                    dot.classList.add('active');
-                }
-            });
-        }
-        
-        // Update notification count
-        function updateNotificationCount() {
-            const count = Math.floor(Math.random() * 10);
-            const badge = document.getElementById('notification-count');
-            if (badge) {
-                badge.textContent = count;
-                badge.style.display = count > 0 ? 'flex' : 'none';
-            }
-        }
-        
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             // Ctrl+R - Refresh current view
@@ -684,7 +409,8 @@
             // Ctrl+K - Focus search
             if (e.ctrlKey && e.key === 'k') {
                 e.preventDefault();
-                document.getElementById('global-search').focus();
+                const searchInput = document.querySelector('#search-input');
+                if (searchInput) searchInput.focus();
             }
             
             // Escape - Close modals
@@ -696,28 +422,39 @@
         
         // Global loading overlay functions
         window.showLoadingOverlay = function() {
-            document.getElementById('loading-overlay').style.display = 'block';
+            document.getElementById('loading-overlay').classList.remove('d-none');
         };
         
         window.hideLoadingOverlay = function() {
-            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('loading-overlay').classList.add('d-none');
         };
         
-        // Auto-refresh for real-time updates
-        let autoRefreshInterval;
-        function startAutoRefresh(interval = 60000) {
-            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-            autoRefreshInterval = setInterval(() => {
-                // Trigger refresh of dynamic elements
-                const refreshElements = document.querySelectorAll('[hx-trigger*="every"]');
-                refreshElements.forEach(el => {
-                    htmx.trigger(el, 'load');
-                });
+        // Set active navigation link
+        function setActiveNavLink() {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
+            
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                const href = link.getAttribute('href');
                 
-                // Update notification indicators
-                updateNotificationDots();
-                updateNotificationCount();
-            }, interval);
+                if (href === currentPath || 
+                    (currentPath === '/' && href.includes('dashboard')) ||
+                    (currentPath.includes(href) && href !== '/')) {
+                    link.classList.add('active');
+                }
+            });
+        }
+        
+        // Update notification count
+        function updateNotificationCount() {
+            const badge = document.getElementById('notification-count');
+            if (badge) {
+                htmx.ajax('GET', '/api/notifications/count', {
+                    target: '#notification-count',
+                    swap: 'innerHTML'
+                });
+            }
         }
         
         // Initialize on page load
@@ -725,61 +462,28 @@
             // Initialize tooltips
             $('[data-toggle="tooltip"]').tooltip();
             
-            // Initialize global search
-            initializeGlobalSearch();
-            initializeMobileSearch();
+            // Set active navigation link
+            setActiveNavLink();
             
-            // Set active navigation icon
-            setActiveNavIcon();
+            // Update notification count
+            updateNotificationCount();
             
             // Auto-close mobile menu on nav item click
             $('.navbar-nav .nav-link').on('click', function() {
                 $('.navbar-collapse').collapse('hide');
             });
             
-            // Initial notification setup
-            updateNotificationDots();
-            updateNotificationCount();
-            
-            // Start auto-refresh on dashboard
-            if (window.location.pathname === '/' || window.location.pathname.includes('/app/')) {
-                startAutoRefresh();
-            }
+            // Periodic notification update
+            setInterval(updateNotificationCount, 60000);
         });
-        
-        // Mobile search functionality
-        function initializeMobileSearch() {
-            const mobileSearchInput = document.getElementById('mobile-global-search');
-            const desktopSearchInput = document.getElementById('global-search');
-            
-            if (mobileSearchInput && desktopSearchInput) {
-                // Sync mobile search with desktop
-                mobileSearchInput.addEventListener('input', function(e) {
-                    const query = e.target.value;
-                    desktopSearchInput.value = query;
-                    
-                    if (query.length > 2) {
-                        console.log('Mobile searching for:', query);
-                        // Implement your search logic here
-                    }
-                });
-                
-                // Sync desktop search with mobile
-                desktopSearchInput.addEventListener('input', function(e) {
-                    const query = e.target.value;
-                    mobileSearchInput.value = query;
-                });
-            }
-        }
         
         // Stop auto-refresh when page is hidden
         document.addEventListener('visibilitychange', function() {
-            if (document.hidden) {
-                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-            } else {
-                if (window.location.pathname === '/' || window.location.pathname.includes('/app/')) {
-                    startAutoRefresh();
-                }
+            if (!document.hidden) {
+                // Refresh dynamic content when page becomes visible
+                document.querySelectorAll('[hx-trigger*="every"]').forEach(el => {
+                    htmx.trigger(el, 'load');
+                });
             }
         });
         
@@ -787,6 +491,25 @@
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.dropdown')) {
                 $('.dropdown-menu.show').removeClass('show');
+            }
+        });
+        
+        // Handle HTMX errors globally
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            console.error('HTMX request failed:', evt.detail);
+            // You can show a toast notification here
+        });
+        
+        // Handle HTMX loading states
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            if (evt.detail.target.id === 'loading-overlay') {
+                showLoadingOverlay();
+            }
+        });
+        
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            if (evt.detail.target.id === 'loading-overlay') {
+                hideLoadingOverlay();
             }
         });
     </script>

@@ -1,83 +1,95 @@
-{% for app in apps %}
-<div class="app-card" 
-     hx-get="{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}"
-     _="on click go to url '{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}'">
-    
-    <div class="app-card-header">
-        <div>
-            <div class="app-title">{{ app.model|replace('_', ' ')|title }}</div>
-            <div class="app-subtitle">App {{ app.app_num }} - {{ app.app_type|title }}</div>
-        </div>
+<div class="apps-grid">
+    {% for app in apps %}
+    <div class="app-card" 
+         id="app-{{ app.model }}-{{ app.app_num }}"
+         hx-get="{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}"
+         _="on click go to url '{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}'">
         
-        <div class="app-status"
-             hx-get="/api/status/{{ app.model }}/{{ app.app_num }}"
-             hx-trigger="load, every 10s"
-             hx-target="this">
-            <span class="status-badge loading">Loading...</span>
-        </div>
-    </div>
-    
-    <div class="app-description">
-        {{ app.description|truncate(120) }}
-    </div>
-    
-    <div class="app-footer">
-        <div class="app-ports">
-            <small>
-                Frontend: {{ app.frontend_port }} | Backend: {{ app.backend_port }}
-            </small>
-        </div>
-        
-        <div class="app-actions">
-            <button hx-post="/docker/start/{{ app.model }}/{{ app.app_num }}"
-                    hx-target="closest .app-card .app-status"
-                    hx-confirm="Start containers for {{ app.model }}/app{{ app.app_num }}?"
-                    class="btn-success btn-sm"
-                    onclick="event.stopPropagation()">
-                Start
-            </button>
+        <div class="app-card-header">
+            <div>
+                <div class="app-title">{{ app.model|replace('_', ' ')|title }}</div>
+                <div class="app-subtitle">App {{ app.app_num }} - {{ app.app_type|title }}</div>
+            </div>
             
-            <button hx-post="/docker/stop/{{ app.model }}/{{ app.app_num }}"
-                    hx-target="closest .app-card .app-status"
-                    hx-confirm="Stop containers for {{ app.model }}/app{{ app.app_num }}?"
-                    class="btn-danger btn-sm"
-                    onclick="event.stopPropagation()">
-                Stop
-            </button>
+            <div class="app-status"
+                 hx-get="/api/status/{{ app.model }}/{{ app.app_num }}"
+                 hx-trigger="load, every 10s"
+                 hx-target="this">
+                <span class="status-badge status-indicator pending">
+                    <span class="status-icon"></span>
+                    Loading...
+                </span>
+            </div>
         </div>
-    </div>
-    
-    <!-- Analysis Status Indicators -->
-    <div class="app-analysis-status">
-        {% if app.last_analysis %}
-        <div class="analysis-indicator">
-            <span class="analysis-badge analysis-{{ app.last_analysis.status }}">
-                {{ app.last_analysis.type|title }}
-            </span>
-            <small>{{ app.last_analysis.timestamp|timeago }}</small>
-        </div>
-        {% endif %}
         
-        {% if app.performance_score %}
-        <div class="performance-indicator">
-            <span class="performance-score score-{{ app.performance_score.grade }}">
-                {{ app.performance_score.score }}/100
-            </span>
+        <div class="app-description">
+            {{ app.description|truncate(120) }}
+        </div>
+        
+        <div class="app-footer">
+            <div class="app-ports">
+                <small class="text-muted">
+                    <i class="fas fa-desktop mr-1"></i>{{ app.frontend_port }} 
+                    <span class="mx-1">|</span>
+                    <i class="fas fa-server mr-1"></i>{{ app.backend_port }}
+                </small>
+            </div>
+            
+            <div class="app-actions">
+                <button hx-post="/docker/start/{{ app.model }}/{{ app.app_num }}"
+                        hx-target="closest .app-card .app-status"
+                        hx-confirm="Start containers for {{ app.model }}/app{{ app.app_num }}?"
+                        class="btn btn-success btn-sm"
+                        onclick="event.stopPropagation()">
+                    <i class="fas fa-play mr-1"></i>Start
+                </button>
+                
+                <button hx-post="/docker/stop/{{ app.model }}/{{ app.app_num }}"
+                        hx-target="closest .app-card .app-status"
+                        hx-confirm="Stop containers for {{ app.model }}/app{{ app.app_num }}?"
+                        class="btn btn-danger btn-sm"
+                        onclick="event.stopPropagation()">
+                    <i class="fas fa-stop mr-1"></i>Stop
+                </button>
+            </div>
+        </div>
+        
+        <!-- Analysis Status Indicators -->
+        {% if app.last_analysis or app.performance_score %}
+        <div class="app-analysis-status">
+            {% if app.last_analysis %}
+            <div class="analysis-indicator">
+                <span class="analysis-badge analysis-{{ app.last_analysis.status|lower }}">
+                    <i class="fas fa-shield-alt mr-1"></i>
+                    {{ app.last_analysis.type|title }}
+                </span>
+                <small class="text-muted">{{ app.last_analysis.timestamp|timeago }}</small>
+            </div>
+            {% endif %}
+            
+            {% if app.performance_score %}
+            <div class="performance-indicator">
+                <span class="badge badge-{{ 'success' if app.performance_score.score >= 80 else 'warning' if app.performance_score.score >= 60 else 'danger' }}">
+                    <i class="fas fa-tachometer-alt mr-1"></i>
+                    {{ app.performance_score.score }}/100
+                </span>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>
+    {% endfor %}
 </div>
-{% endfor %}
 
 {% if not apps %}
 <div class="no-results">
+    <i class="fas fa-search fa-3x text-muted mb-3"></i>
     <h3>No applications found</h3>
     <p>Try adjusting your search criteria or filters.</p>
-    <button hx-get="/api/search"
-            hx-target="#app-grid"
-            hx-vals='{"search": "", "model": "", "status": ""}'
-            class="btn-primary">
-        Clear Filters
+    <button hx-get="/api/dashboard/models"
+            hx-target="#dashboard-models"
+            class="btn btn-primary">
+        <i class="fas fa-redo mr-1"></i>Clear Filters
     </button>
 </div>
 {% endif %}

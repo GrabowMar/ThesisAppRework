@@ -3,21 +3,21 @@
 {% block title %}Dashboard - Thesis Research App{% endblock %}
 
 {% block content %}
-<!-- Dashboard content now uses full width from base.html container-fluid -->
-<!-- Page Header -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1 class="h2 mb-1">
-                    <i class="fas fa-tachometer-alt text-primary mr-2"></i>
-                    AI Research Dashboard
-                </h1>
-                <p class="text-muted mb-0">
-                    Manage {{ summary_stats.total_models|default(30) }} AI models and {{ summary_stats.total_apps|default(900) }} generated applications
-                </p>
-            </div>
-            <div class="btn-group" role="group">
+<div class="container-fluid full-width">
+    <!-- Page Header -->
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-1">
+                        <i class="fas fa-tachometer-alt text-primary mr-2"></i>
+                        AI Research Dashboard
+                    </h1>
+                    <p class="text-muted mb-0">
+                        Manage {{ summary_stats.total_models|default(30) }} AI models and {{ summary_stats.total_apps|default(900) }} generated applications
+                    </p>
+                </div>
+                <div class="btn-group" role="group">
                     <button type="button" class="btn btn-outline-primary"
                             hx-get="/api/dashboard/refresh-all"
                             hx-target="#dashboard-models"
@@ -34,13 +34,13 @@
     </div>
 
     <!-- Summary Statistics Cards -->
-    <div class="row mb-4" 
+    <div class="row" 
          hx-get="/api/dashboard/stats"
-         hx-trigger="load, every 60s"
+         hx-trigger="load, every 120s"
          hx-swap="innerHTML"
          id="summary-stats">
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stat-card border-left-primary">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card stat-card border-left-primary h-100">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
@@ -59,8 +59,8 @@
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stat-card border-left-success">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card stat-card border-left-success h-100">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
@@ -79,8 +79,8 @@
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stat-card border-left-info">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card stat-card border-left-info h-100">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
@@ -99,8 +99,8 @@
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stat-card border-left-warning">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card stat-card border-left-warning h-100">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
@@ -121,12 +121,12 @@
     </div>
 
     <!-- Search and Filter Controls -->
-    <div class="row mb-4">
+    <div class="row">
         <div class="col-12">
-            <div class="card">
+            <div class="card search-filter-card">
                 <div class="card-body">
                     <div class="row align-items-center">
-                        <div class="col-md-6">
+                        <div class="col-md-6 mb-3 mb-md-0">
                             <div class="input-group">
                                 <div class="input-group-prepend">
                                     <span class="input-group-text">
@@ -144,7 +144,7 @@
                                        hx-include="[name='filter-provider'], [name='filter-status']">
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-3 mb-3 mb-md-0">
                             <select class="form-control" name="filter-provider"
                                     hx-get="/api/dashboard/search"
                                     hx-trigger="change"
@@ -221,15 +221,19 @@
     </div>
 
     <!-- Models Grid -->
-    <div id="dashboard-models" 
-         hx-get="/api/dashboard/models"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="sr-only">Loading...</span>
+    <div class="row">
+        <div class="col-12">
+            <div id="dashboard-models" 
+                 hx-get="/api/dashboard/models"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Loading AI models and applications...</p>
+                </div>
             </div>
-            <p class="mt-3 text-muted">Loading AI models and applications...</p>
         </div>
     </div>
 </div>
@@ -270,7 +274,7 @@
                 </button>
             </div>
             <div class="modal-body p-0">
-                <div id="container-logs-content" style="height: 500px; overflow-y: auto;">
+                <div id="container-logs-content" class="logs-container">
                     <div class="text-center p-4">
                         <div class="spinner-border" role="status">
                             <span class="sr-only">Loading...</span>

@@ -3,271 +3,6 @@
 {% block title %}Batch Job: {{ job.name }} - Thesis Research App{% endblock %}
 
 {% block head %}
-<style>
-.job-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 10px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-}
-
-.job-status-badge {
-    font-size: 1rem;
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.status-pending { background-color: #fbbf24; color: #92400e; }
-.status-queued { background-color: #60a5fa; color: #1e40af; }
-.status-initializing { background-color: #34d399; color: #065f46; }
-.status-running { 
-    background-color: #10b981; 
-    color: white;
-    animation: pulse-running 2s ease-in-out infinite alternate;
-}
-.status-completed { background-color: #059669; color: white; }
-.status-failed { background-color: #ef4444; color: white; }
-.status-cancelled { background-color: #6b7280; color: white; }
-.status-archived { background-color: #9ca3af; color: white; }
-
-@keyframes pulse-running {
-    from { background-color: #10b981; }
-    to { background-color: #059669; }
-}
-
-.progress-section {
-    background-color: #f8fafc;
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.progress-bar-custom {
-    height: 20px;
-    background-color: #e5e7eb;
-    border-radius: 10px;
-    overflow: hidden;
-    position: relative;
-}
-
-.progress-fill-custom {
-    height: 100%;
-    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-    transition: width 0.5s ease;
-    border-radius: 10px;
-    position: relative;
-}
-
-.progress-fill-custom::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
-    animation: shimmer 2s infinite;
-}
-
-@keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-}
-
-.task-card {
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    transition: all 0.2s ease;
-}
-
-.task-card:hover {
-    border-color: #3b82f6;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.task-status-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 0.5rem;
-}
-
-.task-pending { background-color: #fbbf24; }
-.task-running { 
-    background-color: #10b981;
-    animation: pulse-dot 1.5s ease-in-out infinite;
-}
-.task-completed { background-color: #059669; }
-.task-failed { background-color: #ef4444; }
-.task-cancelled { background-color: #6b7280; }
-.task-skipped { background-color: #9ca3af; }
-.task-timed_out { background-color: #f59e0b; }
-
-@keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-.analysis-type-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    border-radius: 4px;
-    margin-right: 0.5rem;
-}
-
-.type-frontend_security { background-color: #fef3c7; color: #92400e; }
-.type-backend_security { background-color: #fee2e2; color: #991b1b; }
-.type-performance { background-color: #e0e7ff; color: #3730a3; }
-.type-zap { background-color: #f3e8ff; color: #7c3aed; }
-.type-gpt4all { background-color: #ecfccb; color: #365314; }
-.type-code_quality { background-color: #f0f9ff; color: #0c4a6e; }
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.stat-card {
-    background-color: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1rem;
-    text-align: center;
-}
-
-.stat-number {
-    font-size: 2rem;
-    font-weight: bold;
-    margin-bottom: 0.25rem;
-}
-
-.stat-label {
-    font-size: 0.875rem;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.auto-refresh-control {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    background-color: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-}
-
-.refresh-toggle {
-    position: relative;
-    display: inline-block;
-    width: 44px;
-    height: 24px;
-}
-
-.refresh-toggle input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.refresh-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .4s;
-    border-radius: 24px;
-}
-
-.refresh-slider:before {
-    position: absolute;
-    content: "";
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: .4s;
-    border-radius: 50%;
-}
-
-input:checked + .refresh-slider {
-    background-color: #10b981;
-}
-
-input:checked + .refresh-slider:before {
-    transform: translateX(20px);
-}
-
-.filter-tabs {
-    border-bottom: 2px solid #e5e7eb;
-    margin-bottom: 1rem;
-}
-
-.filter-tab {
-    display: inline-block;
-    padding: 0.75rem 1.5rem;
-    color: #6b7280;
-    text-decoration: none;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s ease;
-}
-
-.filter-tab:hover {
-    color: #3b82f6;
-    text-decoration: none;
-}
-
-.filter-tab.active {
-    color: #3b82f6;
-    border-bottom-color: #3b82f6;
-}
-
-.task-details {
-    background-color: #f9fafb;
-    border-radius: 6px;
-    padding: 1rem;
-    margin-top: 1rem;
-    display: none;
-}
-
-.task-details.show {
-    display: block;
-}
-
-.error-message {
-    background-color: #fef2f2;
-    border: 1px solid #fecaca;
-    border-radius: 6px;
-    padding: 1rem;
-    color: #991b1b;
-    margin-top: 0.5rem;
-}
-
-.runtime-display {
-    font-family: 'Courier New', monospace;
-    font-size: 1rem;
-    font-weight: bold;
-}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -403,7 +138,7 @@ input:checked + .refresh-slider:before {
                 </div>
                 <div class="card-body">
                     {% if job.models %}
-                        <div style="max-height: 150px; overflow-y: auto;">
+                        <div class="error-details-container">
                             {% for model in job.models %}
                             <span class="badge badge-secondary mr-1 mb-1">{{ model }}</span>
                             {% endfor %}
@@ -433,7 +168,7 @@ input:checked + .refresh-slider:before {
             </div>
         </div>
         <div class="card-body p-0">
-            <div id="tasksContainer" style="max-height: 600px; overflow-y: auto;">
+            <div id="tasksContainer" class="tasks-container">
                 {% if tasks %}
                     {% for task in tasks %}
                     <div class="task-card" data-task-id="{{ task.id }}" data-status="{{ task.status }}">
@@ -532,7 +267,7 @@ input:checked + .refresh-slider:before {
 {% endif %}
 
 <!-- Toast Container -->
-<div id="toastContainer" style="position: fixed; bottom: 1rem; left: 1rem; z-index: 9999;"></div>
+<div id="toastContainer" class="toast-container"></div>
 {% endblock %}
 
 {% block scripts %}

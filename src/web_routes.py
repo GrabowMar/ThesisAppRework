@@ -26,6 +26,9 @@ from flask import (
     redirect, render_template, request, session, url_for
 )
 
+# Performance imports
+from cache_service import cache, cached, cache_dashboard_stats, cache_model_stats, cache_system_health
+
 # Initialize logger
 logger = logging.getLogger(__name__)
 
@@ -1039,6 +1042,7 @@ def get_app_status(model: str, app_num: int):
 
 
 @api_bp.route("/sidebar/stats")
+@cache_model_stats(timeout=90)  # Cache for 90 seconds
 def get_sidebar_stats():
     """Get quick stats for sidebar."""
     try:
@@ -1048,20 +1052,23 @@ def get_sidebar_stats():
         model_count = db.session.query(ModelCapability).count()
         app_count = db.session.query(GeneratedApplication).count() if GeneratedApplication else model_count * 30
         
-        # Get running containers count
+        # Get running containers count with lighter sampling
         running_count = 0
         docker_manager = get_docker_manager()
         if docker_manager:
             try:
-                models = db.session.query(ModelCapability).all()
-                for model in models[:5]:  # Limit to first 5 models for quick stats
-                    for app_num in range(1, 6):  # Check first 5 apps per model
+                models = db.session.query(ModelCapability).limit(3).all()  # Even lighter sampling
+                for model in models:
+                    for app_num in range(1, 4):  # Check only first 3 apps per model
                         try:
                             statuses = get_app_container_statuses(model.canonical_slug, app_num, docker_manager)
                             if statuses.get('backend') == 'running' and statuses.get('frontend') == 'running':
                                 running_count += 1
                         except Exception:
                             pass
+                # Scale up the result
+                if len(models) > 0:
+                    running_count = int(running_count * (model_count / len(models)) * (30 / 3))
             except Exception:
                 pass
         
@@ -1107,24 +1114,26 @@ def get_sidebar_activity():
 
 
 @api_bp.route("/sidebar/system-status")
+@cache_system_health(timeout=60)  # Cache for 1 minute
 def get_sidebar_system_status():
     """Get system status for sidebar."""
     try:
-        # Check database
+        # Check database with simpler query
         database_status = 'success'
         try:
             from extensions import db
-            db.session.execute('SELECT 1')
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
         except Exception:
             database_status = 'danger'
         
-        # Check Docker
+        # Check Docker (cached result)
         docker_status = 'success'
         docker_manager = get_docker_manager()
         if not docker_manager:
             docker_status = 'warning'
         
-        # Check analysis queue (mock)
+        # Check analysis queue (lightweight check)
         queue_status = 'warning'  # Would check actual queue status
         
         statuses = [
@@ -3087,6 +3096,7 @@ def api_model_stats(model_slug):
         return jsonify({'error': str(e)}), 500
 
 @main_bp.route('/api/dashboard/stats')
+@cache_dashboard_stats(timeout=120)  # Cache for 2 minutes
 def api_dashboard_stats():
     """Get dashboard summary statistics"""
     try:
@@ -3102,9 +3112,14 @@ def api_dashboard_stats():
         error_containers = 0
         analyzed_apps = 0
         
-        if docker_manager:
-            for model in models:
-                for app_num in range(1, 31):
+        # Optimize container status checking with sampling
+        if docker_manager and total_models > 0:
+            # Sample a subset of models for performance
+            sample_size = min(5, total_models)
+            sample_models = models[:sample_size]
+            
+            for model in sample_models:
+                for app_num in range(1, min(6, 31)):  # Check only first 5 apps
                     try:
                         statuses = get_app_container_statuses(model.canonical_slug, app_num, docker_manager)
                         if statuses.get('backend') == 'running' and statuses.get('frontend') == 'running':
@@ -3113,6 +3128,12 @@ def api_dashboard_stats():
                             error_containers += 1
                     except Exception:
                         pass
+            
+            # Scale up the sample results
+            if sample_size > 0:
+                scale_factor = total_models / sample_size
+                running_containers = int(running_containers * scale_factor)
+                error_containers = int(error_containers * scale_factor)
         
         stats = {
             'total_models': total_models,

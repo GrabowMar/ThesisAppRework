@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid mt-4">
+<div class="container-fluid full-width">
     <!-- Page Header -->
-    <div class="row mb-4">
+    <div class="row">
         <div class="col-12">
             <div class="page-header">
                 {% block page_header %}
@@ -18,7 +18,7 @@
     <div class="row">
         <div class="col-12">
             <div id="main-content">
-                {% block content %}
+                {% block main_content %}
                 <!-- Page specific content will go here -->
                 {% endblock %}
             </div>
