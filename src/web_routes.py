@@ -884,7 +884,9 @@ def api_dashboard_models():
             model_data = {
                 'id': model.id,
                 'canonical_slug': model.canonical_slug,
+                'model_name': model.model_name,  # Keep consistent with template
                 'display_name': model.model_name,
+                'provider': model.provider,  # Keep consistent with template  
                 'provider_name': model.provider,
                 'context_window': model.context_window,
                 'max_output_tokens': model.max_output_tokens,
@@ -2312,19 +2314,26 @@ def run_openrouter_analysis(model: str, app_num: int):
 def batch_overview():
     """Batch processing overview and job management."""
     try:
-        # Get batch service
-        service = get_model_service()
+        # Get batch service from app
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            logger.warning("Batch service not available")
+            return render_template("pages/error.html", error="Batch service not available")
         
-        # Get active and recent jobs
-        # Implementation would get job status from service
+        # Get all jobs and statistics
+        jobs = batch_service.get_all_jobs()
+        job_stats = batch_service.get_job_stats()
+        
+        # Convert jobs to dict format for template
+        jobs_data = [job.to_dict() for job in jobs]
         
         context = {
-            'active_jobs': [],  # service.get_active_jobs(),
-            'recent_jobs': [],  # service.get_recent_jobs(),
-            'available_operations': ['security_analysis', 'performance_test', 'zap_scan']
+            'jobs': jobs_data,
+            'job_stats': job_stats,
+            'page_title': 'Batch Analysis Management'
         }
         
-        return render_htmx_response("batch_overview.html", **context)
+        return render_template("pages/batch_overview.html", **context)
         
     except Exception as e:
         logger.error(f"Error loading batch overview: {e}")
@@ -2336,16 +2345,18 @@ def create_batch_job():
     """Create new batch job."""
     if request.method == "GET":
         try:
-            # Get available models and apps for selection
-            all_apps = get_all_apps()
-            unique_models = sorted(set(app['model'] for app in all_apps))
+            # Get available models from database
+            from models import ModelCapability
+            available_models = ModelCapability.query.all()
             
             context = {
-                'models': unique_models,
-                'operation_types': ['security_analysis', 'performance_test', 'zap_scan']
+                'available_models': available_models,
+                'page_title': 'Create Batch Job'
             }
             
-            return render_htmx_response("batch_create.html", **context)
+            if is_htmx_request():
+                return render_template("partials/batch_create_form.html", **context)
+            return render_template("pages/batch_create.html", **context)
             
         except Exception as e:
             logger.error(f"Error loading batch job creation form: {e}")
@@ -2354,57 +2365,205 @@ def create_batch_job():
     else:  # POST
         try:
             # Get form data
-            operation_type = request.form.get('operation_type')
+            job_name = request.form.get('name', '').strip()
+            job_description = request.form.get('description', '').strip()
+            analysis_types = request.form.getlist('analysis_types')
             selected_models = request.form.getlist('models')
-            app_range_start = int(request.form.get('app_range_start', 1))
-            app_range_end = int(request.form.get('app_range_end', 30))
+            app_range = request.form.get('app_range', '').strip()
+            auto_start = bool(request.form.get('auto_start'))
+            
+            # Validate required fields
+            if not job_name:
+                return create_api_response(False, error="Job name is required")
+            if not analysis_types:
+                return create_api_response(False, error="At least one analysis type must be selected")
+            if not selected_models:
+                return create_api_response(False, error="At least one model must be selected")
+            if not app_range:
+                return create_api_response(False, error="Application range is required")
+            
+            # Get batch service
+            batch_service = getattr(current_app, 'batch_service', None)
+            if not batch_service:
+                return create_api_response(False, error="Batch service not available")
             
             # Create batch job
-            # Implementation would create and queue batch job
+            job = batch_service.create_job(
+                name=job_name,
+                description=job_description,
+                analysis_types=analysis_types,
+                models=selected_models,
+                app_range_str=app_range,
+                auto_start=auto_start
+            )
             
-            job_id = f"batch_{int(time.time())}"
+            logger.info(f"Created batch job {job.id}: {job_name}")
             
-            if is_htmx_request():
-                return render_template("partials/success_message.html", 
-                                     message=f"Batch job {job_id} created successfully")
-            return create_api_response(True, data={'job_id': job_id})
+            return create_api_response(True, data={
+                'job_id': job.id,
+                'message': f'Batch job "{job_name}" created successfully'
+            })
             
         except Exception as e:
             logger.error(f"Error creating batch job: {e}")
-            if is_htmx_request():
-                return render_template("partials/error_message.html", 
-                                     error=f"Failed to create batch job: {str(e)}")
             return create_api_response(False, error=str(e))
 
 
 @batch_bp.route("/job/<job_id>")
-def batch_job_status(job_id: str):
-    """Get batch job status and results."""
+def batch_job_detail(job_id: str):
+    """View detailed batch job information."""
     try:
-        # Get job status from service
-        # Implementation would get job details
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return render_template("pages/error.html", error="Batch service not available")
         
-        job_status = {
-            'id': job_id,
-            'status': 'running',
-            'progress': 65,
-            'total_tasks': 100,
-            'completed_tasks': 65,
-            'failed_tasks': 2,
-            'start_time': datetime.now().isoformat()
+        # Get job and tasks
+        job = batch_service.get_job(job_id)
+        if not job:
+            return render_template("pages/error.html", error="Job not found"), 404
+        
+        tasks = batch_service.get_job_tasks(job_id)
+        
+        # Calculate task statistics
+        task_stats = {
+            'total': len(tasks),
+            'pending': len([t for t in tasks if t.status.value == 'pending']),
+            'running': len([t for t in tasks if t.status.value == 'running']),
+            'completed': len([t for t in tasks if t.status.value == 'completed']),
+            'failed': len([t for t in tasks if t.status.value == 'failed']),
+            'cancelled': len([t for t in tasks if t.status.value == 'cancelled']),
         }
         
         context = {
-            'job': job_status,
-            'job_id': job_id
+            'job': job.to_dict(),
+            'tasks': [task.to_dict() for task in tasks],
+            'task_stats': task_stats,
+            'page_title': f'Job: {job.name}'
         }
         
-        if is_htmx_request():
-            return render_template("partials/batch_job_status.html", **context)
-        return jsonify(job_status)
+        return render_template("pages/batch_job_detail.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error getting batch job details for {job_id}: {e}")
+        return render_template("pages/error.html", error=str(e))
+
+
+@batch_bp.route("/job/<job_id>/status")
+def batch_job_status_api(job_id: str):
+    """Get batch job status via API."""
+    try:
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return create_api_response(False, error="Batch service not available")
+        
+        # Get job and tasks
+        job = batch_service.get_job(job_id)
+        if not job:
+            return create_api_response(False, error="Job not found")
+        
+        tasks = batch_service.get_job_tasks(job_id)
+        
+        return create_api_response(True, data={
+            'job': job.to_dict(),
+            'tasks': [task.to_dict() for task in tasks]
+        })
         
     except Exception as e:
         logger.error(f"Error getting batch job status for {job_id}: {e}")
+        return create_api_response(False, error=str(e))
+
+
+@batch_bp.route("/job/<job_id>/cancel", methods=["POST"])
+def cancel_batch_job(job_id: str):
+    """Cancel a running batch job."""
+    try:
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return create_api_response(False, error="Batch service not available")
+        
+        # Cancel job
+        success = batch_service.cancel_job(job_id)
+        
+        if success:
+            logger.info(f"Cancelled batch job {job_id}")
+            return create_api_response(True, message="Job cancelled successfully")
+        else:
+            return create_api_response(False, error="Failed to cancel job or job not found")
+        
+    except Exception as e:
+        logger.error(f"Error cancelling batch job {job_id}: {e}")
+        return create_api_response(False, error=str(e))
+
+
+@batch_bp.route("/job/<job_id>/archive", methods=["POST"])
+def archive_batch_job(job_id: str):
+    """Archive a completed batch job."""
+    try:
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return create_api_response(False, error="Batch service not available")
+        
+        # Archive job
+        success = batch_service.archive_job(job_id)
+        
+        if success:
+            logger.info(f"Archived batch job {job_id}")
+            return create_api_response(True, message="Job archived successfully")
+        else:
+            return create_api_response(False, error="Failed to archive job or job not found")
+        
+    except Exception as e:
+        logger.error(f"Error archiving batch job {job_id}: {e}")
+        return create_api_response(False, error=str(e))
+
+
+@batch_bp.route("/job/<job_id>/delete", methods=["DELETE"])
+def delete_batch_job(job_id: str):
+    """Delete an archived batch job."""
+    try:
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return create_api_response(False, error="Batch service not available")
+        
+        # Delete job
+        success = batch_service.delete_job(job_id)
+        
+        if success:
+            logger.info(f"Deleted batch job {job_id}")
+            return create_api_response(True, message="Job deleted successfully")
+        else:
+            return create_api_response(False, error="Failed to delete job or job not found")
+        
+    except Exception as e:
+        logger.error(f"Error deleting batch job {job_id}: {e}")
+        return create_api_response(False, error=str(e))
+
+
+@batch_bp.route("/api/jobs")
+def get_batch_jobs_api():
+    """Get all batch jobs via API for real-time updates."""
+    try:
+        # Get batch service
+        batch_service = getattr(current_app, 'batch_service', None)
+        if not batch_service:
+            return create_api_response(False, error="Batch service not available")
+        
+        # Get jobs and stats
+        jobs = batch_service.get_all_jobs()
+        job_stats = batch_service.get_job_stats()
+        
+        return create_api_response(True, data={
+            'jobs': [job.to_dict() for job in jobs],
+            'stats': job_stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting batch jobs via API: {e}")
         return create_api_response(False, error=str(e))
 
 
@@ -2769,13 +2928,15 @@ def api_start_container(model_slug, app_num):
     try:
         result = handle_docker_action('start', model_slug, app_num)
         if result.get('success'):
-            return render_template('partials/dashboard_model_apps.html', 
-                                 apps=[get_app_data(model_slug, app_num)], 
+            # Return updated single app card
+            app_data = get_app_data(model_slug, app_num)
+            return render_template('partials/single_app_card.html', 
+                                 app=app_data, 
                                  model_slug=model_slug)
         else:
-            return jsonify({'error': result.get('error', 'Failed to start containers')}), 500
+            return f'<div class="alert alert-danger">Error: {result.get("error", "Failed to start containers")}</div>', 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return f'<div class="alert alert-danger">Error: {str(e)}</div>', 500
 
 @main_bp.route('/api/containers/<model_slug>/<int:app_num>/stop', methods=['POST'])
 def api_stop_container(model_slug, app_num):
@@ -2783,13 +2944,15 @@ def api_stop_container(model_slug, app_num):
     try:
         result = handle_docker_action('stop', model_slug, app_num)
         if result.get('success'):
-            return render_template('partials/dashboard_model_apps.html', 
-                                 apps=[get_app_data(model_slug, app_num)], 
+            # Return updated single app card
+            app_data = get_app_data(model_slug, app_num)
+            return render_template('partials/single_app_card.html', 
+                                 app=app_data, 
                                  model_slug=model_slug)
         else:
-            return jsonify({'error': result.get('error', 'Failed to stop containers')}), 500
+            return f'<div class="alert alert-danger">Error: {result.get("error", "Failed to stop containers")}</div>', 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return f'<div class="alert alert-danger">Error: {str(e)}</div>', 500
 
 @main_bp.route('/api/containers/<model_slug>/<int:app_num>/restart', methods=['POST'])
 def api_restart_container(model_slug, app_num):
@@ -2797,13 +2960,15 @@ def api_restart_container(model_slug, app_num):
     try:
         result = handle_docker_action('restart', model_slug, app_num)
         if result.get('success'):
-            return render_template('partials/dashboard_model_apps.html', 
-                                 apps=[get_app_data(model_slug, app_num)], 
+            # Return updated single app card
+            app_data = get_app_data(model_slug, app_num)
+            return render_template('partials/single_app_card.html', 
+                                 app=app_data, 
                                  model_slug=model_slug)
         else:
-            return jsonify({'error': result.get('error', 'Failed to restart containers')}), 500
+            return f'<div class="alert alert-danger">Error: {result.get("error", "Failed to restart containers")}</div>', 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return f'<div class="alert alert-danger">Error: {str(e)}</div>', 500
 
 @main_bp.route('/api/containers/<model_slug>/<int:app_num>/logs')
 def api_container_logs(model_slug, app_num):
@@ -2839,16 +3004,84 @@ def api_container_logs(model_slug, app_num):
         return f"<div class='error'>Error fetching logs: {str(e)}</div>", 500
 
 def get_app_data(model_slug, app_num):
-    """Helper function to get app data"""
-    # This would be implemented with actual app data retrieval
-    # For now, return basic structure
-    return {
-        'app_number': app_num,
-        'app_name': f"App {app_num}",
-        'status': 'unknown',
-        'frontend_port': 9050 + (app_num * 2),
-        'backend_port': 6050 + (app_num * 2)
-    }
+    """Helper function to get complete app data for dashboard"""
+    try:
+        docker_manager = get_docker_manager()
+        
+        # Get container status
+        status = 'stopped'
+        frontend_status = 'stopped'
+        backend_status = 'stopped'
+        database_status = 'stopped'
+        
+        if docker_manager:
+            try:
+                statuses = get_app_container_statuses(model_slug, app_num, docker_manager)
+                backend_status = statuses.get('backend', 'stopped')
+                frontend_status = statuses.get('frontend', 'stopped')
+                
+                if backend_status == 'running' and frontend_status == 'running':
+                    status = 'running'
+                elif backend_status in ['exited', 'dead'] or frontend_status in ['exited', 'dead']:
+                    status = 'error'
+                else:
+                    status = 'stopped'
+            except Exception:
+                status = 'stopped'
+        
+        # Get port configuration
+        port_config = get_port_config(model_slug, app_num)
+        
+        # App type mapping
+        app_types = {
+            1: "Login System", 2: "Chat Application", 3: "Feedback System", 4: "Blog Platform",
+            5: "E-commerce Cart", 6: "Note Taking", 7: "File Upload", 8: "Forum", 9: "CRUD Manager",
+            10: "Microblog", 11: "Polling System", 12: "Reservation System", 13: "Photo Gallery",
+            14: "Cloud Storage", 15: "Kanban Board", 16: "IoT Dashboard", 17: "Fitness Tracker",
+            18: "Wiki", 19: "Crypto Wallet", 20: "Mapping App", 21: "Recipe Manager",
+            22: "Learning Platform", 23: "Finance Tracker", 24: "Networking Tool", 25: "Health Monitor",
+            26: "Environment Tracker", 27: "Team Management", 28: "Art Portfolio", 29: "Event Planner",
+            30: "Research Collaboration"
+        }
+        
+        return {
+            'app_number': app_num,
+            'app_name': f"App {app_num}",
+            'app_type': app_types.get(app_num, 'Unknown'),
+            'description': f"{app_types.get(app_num, 'Unknown')} - Generated by {model_slug}",
+            'status': status,
+            'frontend_port': port_config.get('frontend_port', 9050 + (app_num * 2)),
+            'backend_port': port_config.get('backend_port', 6050 + (app_num * 2)),
+            'containers': {
+                'frontend_status': frontend_status,
+                'backend_status': backend_status,
+                'database_status': database_status
+            },
+            'created_at': None,
+            'last_analyzed': None,
+            'analysis_summary': None,
+            'performance_summary': None
+        }
+    except Exception as e:
+        logger.error(f"Error getting app data for {model_slug}/app{app_num}: {e}")
+        return {
+            'app_number': app_num,
+            'app_name': f"App {app_num}",
+            'app_type': 'Unknown',
+            'description': 'Error loading app data',
+            'status': 'error',
+            'frontend_port': 9050 + (app_num * 2),
+            'backend_port': 6050 + (app_num * 2),
+            'containers': {
+                'frontend_status': 'error',
+                'backend_status': 'error',
+                'database_status': 'error'
+            },
+            'created_at': None,
+            'last_analyzed': None,
+            'analysis_summary': None,
+            'performance_summary': None
+        }
 
 
 # ===========================

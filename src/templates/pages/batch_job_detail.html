@@ -1,0 +1,768 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Job: {{ job.name }} - Thesis Research App{% endblock %}
+
+{% block head %}
+<style>
+.job-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.job-status-badge {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-pending { background-color: #fbbf24; color: #92400e; }
+.status-queued { background-color: #60a5fa; color: #1e40af; }
+.status-initializing { background-color: #34d399; color: #065f46; }
+.status-running { 
+    background-color: #10b981; 
+    color: white;
+    animation: pulse-running 2s ease-in-out infinite alternate;
+}
+.status-completed { background-color: #059669; color: white; }
+.status-failed { background-color: #ef4444; color: white; }
+.status-cancelled { background-color: #6b7280; color: white; }
+.status-archived { background-color: #9ca3af; color: white; }
+
+@keyframes pulse-running {
+    from { background-color: #10b981; }
+    to { background-color: #059669; }
+}
+
+.progress-section {
+    background-color: #f8fafc;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.progress-bar-custom {
+    height: 20px;
+    background-color: #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill-custom {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    transition: width 0.5s ease;
+    border-radius: 10px;
+    position: relative;
+}
+
+.progress-fill-custom::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.task-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+}
+
+.task-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.task-status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.task-pending { background-color: #fbbf24; }
+.task-running { 
+    background-color: #10b981;
+    animation: pulse-dot 1.5s ease-in-out infinite;
+}
+.task-completed { background-color: #059669; }
+.task-failed { background-color: #ef4444; }
+.task-cancelled { background-color: #6b7280; }
+.task-skipped { background-color: #9ca3af; }
+.task-timed_out { background-color: #f59e0b; }
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.analysis-type-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 4px;
+    margin-right: 0.5rem;
+}
+
+.type-frontend_security { background-color: #fef3c7; color: #92400e; }
+.type-backend_security { background-color: #fee2e2; color: #991b1b; }
+.type-performance { background-color: #e0e7ff; color: #3730a3; }
+.type-zap { background-color: #f3e8ff; color: #7c3aed; }
+.type-gpt4all { background-color: #ecfccb; color: #365314; }
+.type-code_quality { background-color: #f0f9ff; color: #0c4a6e; }
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.auto-refresh-control {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.refresh-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.refresh-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.refresh-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.refresh-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .refresh-slider {
+    background-color: #10b981;
+}
+
+input:checked + .refresh-slider:before {
+    transform: translateX(20px);
+}
+
+.filter-tabs {
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 1rem;
+}
+
+.filter-tab {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    color: #6b7280;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.filter-tab:hover {
+    color: #3b82f6;
+    text-decoration: none;
+}
+
+.filter-tab.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+.task-details {
+    background-color: #f9fafb;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: none;
+}
+
+.task-details.show {
+    display: block;
+}
+
+.error-message {
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 1rem;
+    color: #991b1b;
+    margin-top: 0.5rem;
+}
+
+.runtime-display {
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Job Header -->
+    <div class="job-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1 class="h2 mb-2">{{ job.name }}</h1>
+                {% if job.description %}
+                <p class="mb-3 opacity-75">{{ job.description }}</p>
+                {% endif %}
+                <div class="d-flex align-items-center">
+                    <span class="job-status-badge status-{{ job.status }}">{{ job.status.title() }}</span>
+                    <span class="ml-3 runtime-display" id="runtimeDisplay">
+                        {% if job.started_at %}
+                            {% if job.completed_at %}
+                                Completed in {{ "%.1f"|format((job.completed_at|to_datetime - job.started_at|to_datetime).total_seconds()) }}s
+                            {% else %}
+                                Running for <span id="runningTime">calculating...</span>
+                            {% endif %}
+                        {% else %}
+                            Not started
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="text-right">
+                <a href="/batch" class="btn btn-light btn-sm mr-2">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+                </a>
+                {% if job.status in ['pending', 'running'] %}
+                <button class="btn btn-warning btn-sm mr-2" onclick="cancelJob('{{ job.id }}')">
+                    <i class="fas fa-stop mr-2"></i>Cancel Job
+                </button>
+                {% endif %}
+                {% if job.status in ['completed', 'failed', 'cancelled'] %}
+                <button class="btn btn-secondary btn-sm" onclick="archiveJob('{{ job.id }}')">
+                    <i class="fas fa-archive mr-2"></i>Archive
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Section -->
+    <div class="progress-section">
+        <div class="row">
+            <div class="col-md-8">
+                <h5 class="mb-3">Overall Progress</h5>
+                <div class="progress-bar-custom mb-2">
+                    <div class="progress-fill-custom" 
+                         style="width: {{ (job.progress.completed / job.progress.total * 100) if job.progress.total > 0 else 0 }}%"
+                         id="progressBar"></div>
+                </div>
+                <div class="d-flex justify-content-between text-sm text-gray-600">
+                    <span>{{ job.progress.completed }} of {{ job.progress.total }} tasks completed</span>
+                    <span id="progressPercentage">{{ "%.1f"|format((job.progress.completed / job.progress.total * 100) if job.progress.total > 0 else 0) }}%</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <h5 class="mb-3">Job Information</h5>
+                <div class="small">
+                    <div class="mb-1">
+                        <strong>Created:</strong> {{ job.created_at_formatted if job.created_at_formatted else 'Unknown' }}
+                    </div>
+                    <div class="mb-1">
+                        <strong>Analysis Types:</strong> {{ job.analysis_types|length if job.analysis_types else 0 }}
+                    </div>
+                    <div class="mb-1">
+                        <strong>Models:</strong> {{ job.models|length if job.models else 0 }}
+                    </div>
+                    <div class="mb-1">
+                        <strong>Applications:</strong> {{ job.app_range.apps|length if job.app_range and job.app_range.apps else 0 }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number text-primary" id="totalTasks">{{ job.progress.total or 0 }}</div>
+            <div class="stat-label">Total Tasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-success" id="completedTasks">{{ job.progress.completed or 0 }}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-warning" id="runningTasks">{{ task_stats.running or 0 }}</div>
+            <div class="stat-label">Running</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-danger" id="failedTasks">{{ job.progress.failed or 0 }}</div>
+            <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number text-secondary" id="pendingTasks">{{ task_stats.pending or 0 }}</div>
+            <div class="stat-label">Pending</div>
+        </div>
+    </div>
+
+    <!-- Analysis Types & Models -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cogs mr-2"></i>Analysis Types
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if job.analysis_types %}
+                        {% for analysis_type in job.analysis_types %}
+                        <span class="analysis-type-badge type-{{ analysis_type }}">
+                            {{ analysis_type.replace('_', ' ').title() }}
+                        </span>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">No analysis types specified</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-robot mr-2"></i>AI Models ({{ job.models|length if job.models else 0 }})
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if job.models %}
+                        <div style="max-height: 150px; overflow-y: auto;">
+                            {% for model in job.models %}
+                            <span class="badge badge-secondary mr-1 mb-1">{{ model }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">No models specified</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task List -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-list mr-2"></i>Task Details
+                </h6>
+                <div class="filter-tabs">
+                    <a href="#" class="filter-tab active" data-filter="all">All</a>
+                    <a href="#" class="filter-tab" data-filter="pending">Pending</a>
+                    <a href="#" class="filter-tab" data-filter="running">Running</a>
+                    <a href="#" class="filter-tab" data-filter="completed">Completed</a>
+                    <a href="#" class="filter-tab" data-filter="failed">Failed</a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div id="tasksContainer" style="max-height: 600px; overflow-y: auto;">
+                {% if tasks %}
+                    {% for task in tasks %}
+                    <div class="task-card" data-task-id="{{ task.id }}" data-status="{{ task.status }}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="task-status-dot task-{{ task.status }}"></span>
+                                    <strong>{{ task.model }}</strong>
+                                    <span class="mx-2">•</span>
+                                    <span>App {{ task.app_num }}</span>
+                                    <span class="mx-2">•</span>
+                                    <span class="analysis-type-badge type-{{ task.analysis_type }}">
+                                        {{ task.analysis_type.replace('_', ' ').title() }}
+                                    </span>
+                                </div>
+                                <div class="small text-muted">
+                                    {% if task.started_at %}
+                                        Started: {{ task.started_at.strftime('%H:%M:%S') }}
+                                        {% if task.completed_at %}
+                                        • Completed: {{ task.completed_at.strftime('%H:%M:%S') }}
+                                        • Duration: {{ "%.1fs"|format((task.completed_at - task.started_at).total_seconds()) }}
+                                        {% endif %}
+                                    {% else %}
+                                        Not started
+                                    {% endif %}
+                                </div>
+                                {% if task.error and task.error.message %}
+                                <div class="error-message">
+                                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                                    {{ task.error.message }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="text-right">
+                                <span class="badge badge-{{ 'success' if task.status == 'completed' else 'warning' if task.status == 'running' else 'danger' if task.status == 'failed' else 'secondary' }}">
+                                    {{ task.status.title() }}
+                                </span>
+                                {% if task.status == 'completed' and task.result %}
+                                <button class="btn btn-outline-primary btn-sm ml-2" 
+                                        onclick="toggleTaskDetails('{{ task.id }}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if task.status == 'completed' and task.result %}
+                        <div class="task-details" id="details-{{ task.id }}">
+                            <h6>Task Results</h6>
+                            {% if task.result.issues_count is defined %}
+                            <div class="mb-2">
+                                <strong>Issues Found:</strong> {{ task.result.issues_count }}
+                            </div>
+                            {% endif %}
+                            {% if task.result.duration_seconds %}
+                            <div class="mb-2">
+                                <strong>Execution Time:</strong> {{ "%.1fs"|format(task.result.duration_seconds) }}
+                            </div>
+                            {% endif %}
+                            {% if task.result.summary %}
+                            <div class="mb-2">
+                                <strong>Summary:</strong> {{ task.result.summary }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No tasks found</h5>
+                        <p class="text-muted">Tasks will appear here once the job starts executing.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Auto-refresh Control -->
+{% if job.status in ['pending', 'running', 'initializing'] %}
+<div class="auto-refresh-control">
+    <div class="d-flex align-items-center">
+        <span class="small mr-2">Auto-refresh:</span>
+        <label class="refresh-toggle">
+            <input type="checkbox" id="autoRefreshToggle" checked>
+            <span class="refresh-slider"></span>
+        </label>
+        <div class="ml-2 small">
+            <i class="fas fa-sync-alt" id="refreshIcon"></i>
+            <span id="refreshCountdown">30s</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Toast Container -->
+<div id="toastContainer" style="position: fixed; bottom: 1rem; left: 1rem; z-index: 9999;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const jobId = '{{ job.id }}';
+    const jobStatus = '{{ job.status }}';
+    let autoRefreshEnabled = true;
+    let refreshInterval;
+    let countdownInterval;
+    let runningTimeInterval;
+    const REFRESH_INTERVAL = 30000; // 30 seconds
+
+    // Initialize running time display
+    {% if job.started_at and not job.completed_at %}
+    function updateRunningTime() {
+        const startTime = new Date('{{ job.started_at.isoformat() }}');
+        const now = new Date();
+        const diff = Math.floor((now - startTime) / 1000);
+        
+        const hours = Math.floor(diff / 3600);
+        const minutes = Math.floor((diff % 3600) / 60);
+        const seconds = diff % 60;
+        
+        let timeStr = '';
+        if (hours > 0) timeStr += hours + 'h ';
+        if (minutes > 0) timeStr += minutes + 'm ';
+        timeStr += seconds + 's';
+        
+        document.getElementById('runningTime').textContent = timeStr;
+    }
+    
+    runningTimeInterval = setInterval(updateRunningTime, 1000);
+    updateRunningTime();
+    {% endif %}
+
+    // Auto-refresh functionality
+    function startAutoRefresh() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        let countdown = REFRESH_INTERVAL / 1000;
+        
+        countdownInterval = setInterval(() => {
+            countdown--;
+            document.getElementById('refreshCountdown').textContent = countdown + 's';
+            
+            if (countdown <= 0) {
+                countdown = REFRESH_INTERVAL / 1000;
+            }
+        }, 1000);
+
+        refreshInterval = setInterval(() => {
+            if (autoRefreshEnabled) {
+                refreshJobData();
+            }
+        }, REFRESH_INTERVAL);
+    }
+
+    // Auto-refresh toggle
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    if (autoRefreshToggle) {
+        autoRefreshToggle.addEventListener('change', function(e) {
+            autoRefreshEnabled = e.target.checked;
+            const refreshIcon = document.getElementById('refreshIcon');
+            
+            if (autoRefreshEnabled) {
+                refreshIcon.classList.add('fa-spin');
+                startAutoRefresh();
+            } else {
+                refreshIcon.classList.remove('fa-spin');
+                if (refreshInterval) clearInterval(refreshInterval);
+                if (countdownInterval) clearInterval(countdownInterval);
+                document.getElementById('refreshCountdown').textContent = 'Off';
+            }
+        });
+        
+        // Start auto-refresh for running jobs
+        if (['pending', 'running', 'initializing'].includes(jobStatus)) {
+            startAutoRefresh();
+            document.getElementById('refreshIcon').classList.add('fa-spin');
+        }
+    }
+
+    // Refresh job data
+    function refreshJobData() {
+        fetch(`/batch/job/${jobId}/status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateJobDisplay(data.job);
+                    updateTasksList(data.tasks);
+                    
+                    // Stop auto-refresh if job is no longer active
+                    if (!['pending', 'running', 'initializing'].includes(data.job.status)) {
+                        if (refreshInterval) clearInterval(refreshInterval);
+                        if (countdownInterval) clearInterval(countdownInterval);
+                        if (runningTimeInterval) clearInterval(runningTimeInterval);
+                        autoRefreshEnabled = false;
+                        if (autoRefreshToggle) autoRefreshToggle.checked = false;
+                        document.getElementById('refreshIcon').classList.remove('fa-spin');
+                    }
+                } else {
+                    console.error('Failed to refresh job data:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing job data:', error);
+            });
+    }
+
+    // Update job display
+    function updateJobDisplay(job) {
+        // Update progress bar
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const percent = job.progress.total > 0 ? (job.progress.completed / job.progress.total * 100) : 0;
+        
+        if (progressBar) progressBar.style.width = percent + '%';
+        if (progressPercentage) progressPercentage.textContent = percent.toFixed(1) + '%';
+        
+        // Update statistics
+        document.getElementById('totalTasks').textContent = job.progress.total || 0;
+        document.getElementById('completedTasks').textContent = job.progress.completed || 0;
+        document.getElementById('failedTasks').textContent = job.progress.failed || 0;
+    }
+
+    // Update tasks list
+    function updateTasksList(tasks) {
+        // This would update the tasks list with new data
+        // For now, we'll just update the running tasks count
+        const runningCount = tasks.filter(task => task.status === 'running').length;
+        const pendingCount = tasks.filter(task => task.status === 'pending').length;
+        
+        document.getElementById('runningTasks').textContent = runningCount;
+        document.getElementById('pendingTasks').textContent = pendingCount;
+    }
+
+    // Task filtering
+    const filterTabs = document.querySelectorAll('.filter-tab');
+    filterTabs.forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Update active tab
+            filterTabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Filter tasks
+            const filter = this.dataset.filter;
+            const taskCards = document.querySelectorAll('.task-card');
+            
+            taskCards.forEach(card => {
+                const status = card.dataset.status;
+                if (filter === 'all' || status === filter) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+
+    // Toggle task details
+    window.toggleTaskDetails = function(taskId) {
+        const details = document.getElementById('details-' + taskId);
+        if (details) {
+            details.classList.toggle('show');
+        }
+    };
+
+    // Job actions
+    window.cancelJob = function(jobId) {
+        if (confirm('Are you sure you want to cancel this job? Running tasks will be stopped.')) {
+            fetch(`/batch/job/${jobId}/cancel`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Job cancelled successfully', 'success');
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        showToast(data.error || 'Failed to cancel job', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cancelling job:', error);
+                    showToast('Failed to cancel job', 'error');
+                });
+        }
+    };
+
+    window.archiveJob = function(jobId) {
+        if (confirm('Are you sure you want to archive this job?')) {
+            fetch(`/batch/job/${jobId}/archive`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Job archived successfully', 'success');
+                        setTimeout(() => window.location.href = '/batch', 1500);
+                    } else {
+                        showToast(data.error || 'Failed to archive job', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error archiving job:', error);
+                    showToast('Failed to archive job', 'error');
+                });
+        }
+    };
+
+    // Show toast notifications
+    window.showToast = function(message, type = 'info') {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show`;
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.remove();
+            }
+        }, 5000);
+    };
+});
+</script>
+{% endblock %}

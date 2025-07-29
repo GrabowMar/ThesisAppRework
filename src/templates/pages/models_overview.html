@@ -3,22 +3,22 @@
 {% block title %}AI Models Overview - Thesis Research App{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="text-center">
-                <h1 class="display-4 text-primary">
-                    <i class="fas fa-robot mr-3"></i>AI Models Overview
-                </h1>
-                <p class="lead text-muted">
-                    Comprehensive analysis of {{ summary_stats.total_models }} AI models across {{ summary_stats.total_providers }} providers
-                </p>
-            </div>
+<!-- Models overview content uses container from base.html -->
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="text-center">
+            <h1 class="display-4 text-primary">
+                <i class="fas fa-robot mr-3"></i>AI Models Overview
+            </h1>
+            <p class="lead text-muted">
+                Comprehensive analysis of {{ summary_stats.total_models }} AI models across {{ summary_stats.total_providers }} providers
+            </p>
         </div>
     </div>
+</div>
 
-    <!-- Summary Statistics Cards -->
+<!-- Summary Statistics Cards -->
     <div class="row mb-4">
         <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
             <div class="card border-left-primary h-100">

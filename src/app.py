@@ -151,12 +151,20 @@ def create_app(config_name=None):
             service_initializer = ServiceInitializer(app, service_manager)
             service_initializer.initialize_all()
             
+            # Initialize batch analysis service
+            from core_services import BatchAnalysisService
+            batch_service = BatchAnalysisService()
+            batch_service.init_app(app)
+            app.batch_service = batch_service
+            app.logger.info("Batch analysis service initialized successfully")
+            
             app.logger.info("Core services initialized successfully")
         except Exception as e:
             app.logger.error(f"Failed to initialize core services: {e}")
             # Set up minimal fallback services
             app.config['docker_manager'] = None
             app.config['service_manager'] = ServiceManager(app)
+            app.batch_service = None
     
     # Register blueprints with HTMX routes
     try:

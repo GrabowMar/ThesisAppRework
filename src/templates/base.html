@@ -30,123 +30,118 @@
     {% block head %}{% endblock %}
 </head>
 <<body>
-    <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container-fluid">
+    <!-- Clean Modern Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top border-bottom">
+        <div class="container">
             <!-- Brand -->
-            <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">
-                <i class="fas fa-microscope mr-2"></i>
-                <strong>Thesis Research App</strong>
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('main.dashboard') }}">
+                <div class="brand-icon">
+                    <i class="fas fa-atom"></i>
+                </div>
+                <span class="brand-text ml-2">TRA</span>
             </a>
-            
-            <!-- Mobile menu toggle -->
-            <button class="navbar-toggler" type="button" 
-                    _="on click toggle .show on #navbarNav"
-                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+
+            <!-- Mobile toggle -->
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
-            <!-- Navigation Links -->
+
+            <!-- Navbar content -->
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav mr-auto">
+                <!-- Navigation links -->
+                <ul class="navbar-nav ml-auto">
+                    <!-- Main navigation -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('main.dashboard') }}">
-                            <i class="fas fa-tachometer-alt mr-1"></i>Dashboard
+                            <i class="fas fa-home mr-2"></i>
+                            <span class="nav-text">Dashboard</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('main.models_overview') }}">
-                            <i class="fas fa-robot mr-1"></i>Models
+                            <i class="fas fa-robot mr-2"></i>
+                            <span class="nav-text">AI Models</span>
                         </a>
                     </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" 
-                           _="on click toggle .show on next .dropdown-menu"
-                           data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <i class="fas fa-shield-alt mr-1"></i>Analysis
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('analysis.analysis_overview') }}">
+                            <i class="fas fa-shield-alt mr-2"></i>
+                            <span class="nav-text">Security</span>
                         </a>
-                        <div class="dropdown-menu">
-                            <a class="dropdown-item" href="{{ url_for('analysis.analysis_overview') }}">
-                                <i class="fas fa-search mr-1"></i>Security Analysis
-                            </a>
-                            <a class="dropdown-item" href="{{ url_for('performance.performance_overview') }}">
-                                <i class="fas fa-chart-line mr-1"></i>Performance Testing
-                            </a>
-                            <a class="dropdown-item" href="{{ url_for('zap.zap_overview') }}">
-                                <i class="fas fa-bug mr-1"></i>ZAP Scanning
-                            </a>
-                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('performance.performance_overview') }}">
+                            <i class="fas fa-chart-line mr-2"></i>
+                            <span class="nav-text">Performance</span>
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('batch.batch_overview') }}">
-                            <i class="fas fa-tasks mr-1"></i>Batch Jobs
+                            <i class="fas fa-tasks mr-2"></i>
+                            <span class="nav-text">Batch</span>
                         </a>
                     </li>
-                </ul>
-                
-                <!-- Header Stats -->
-                <div class="navbar-text mr-3" 
-                     hx-get="/api/header-stats" 
-                     hx-trigger="load, every 60s"
-                     hx-swap="innerHTML"
-                     id="header-stats">
-                    <div class="d-inline-block">
-                        <span class="loading-spinner"></span>
-                    </div>
-                </div>
-                
-                <!-- System Health -->
-                <div class="navbar-text mr-3"
-                     hx-get="/api/health-status"
-                     hx-trigger="load, every 30s"
-                     hx-swap="innerHTML"
-                     id="system-health">
-                    <div class="health-indicator">
-                        <span class="health-dot health-warning"></span>
-                        <small>Checking...</small>
-                    </div>
-                </div>
-                
-                <!-- Settings & Actions -->
-                <ul class="navbar-nav">
+
+                    <!-- Divider -->
+                    <li class="nav-item">
+                        <div class="nav-divider"></div>
+                    </li>
+
+                    <!-- System status -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-toggle="tooltip" title="System Status">
+                            <div class="status-dot status-success"></div>
+                        </a>
+                    </li>
+
                     <!-- Notifications -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link notification-badge" href="#" role="button"
-                           _="on click toggle .show on next .dropdown-menu then trigger notificationOpen"
-                           hx-get="/api/notifications"
-                           hx-target="#notifications-dropdown"
-                           hx-trigger="notificationOpen">
+                        <a class="nav-link" href="#" id="notificationsDropdown" role="button" data-toggle="dropdown">
                             <i class="fas fa-bell"></i>
-                            <span class="badge badge-danger badge-pill" id="notification-count">0</span>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-right" id="notifications-dropdown" style="width: 300px;">
-                            <h6 class="dropdown-header">Notifications</h6>
-                            <div class="text-center p-3">
-                                <span class="loading-spinner"></span>
-                            </div>
-                        </div>
-                    </li>
-                    
-                    <!-- Settings -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link" href="#" role="button"
-                           _="on click toggle .show on next .dropdown-menu">
-                            <i class="fas fa-cog"></i>
+                            <span class="badge badge-danger badge-sm" id="notification-count">0</span>
                         </a>
                         <div class="dropdown-menu dropdown-menu-right">
-                            <a class="dropdown-item" href="#"
-                               _="on click call showSettingsModal()">
-                                <i class="fas fa-sliders-h mr-2"></i>Preferences
+                            <h6 class="dropdown-header">Notifications</h6>
+                            <a class="dropdown-item" href="#">
+                                <i class="fas fa-info-circle text-info mr-2"></i>System update available
                             </a>
-                            <a class="dropdown-item" href="#"
-                               hx-post="/api/cache/clear"
-                               hx-target="#flash-messages"
-                               hx-swap="afterbegin">
+                            <a class="dropdown-item" href="#">
+                                <i class="fas fa-check-circle text-success mr-2"></i>Analysis completed
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item text-center" href="#">View all</a>
+                        </div>
+                    </li>
+
+                    <!-- User dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown">
+                            <div class="user-avatar">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <span class="ml-2 d-none d-lg-inline">Research</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right">
+                            <div class="dropdown-header">
+                                <div class="d-flex align-items-center">
+                                    <div class="user-avatar-large mr-2">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Research User</h6>
+                                        <small class="text-muted">Thesis Research Platform</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#" onclick="showSettingsModal()">
+                                <i class="fas fa-cog mr-2"></i>Settings
+                            </a>
+                            <a class="dropdown-item" href="#" hx-post="/api/cache/clear" hx-target="#flash-messages">
                                 <i class="fas fa-trash mr-2"></i>Clear Cache
                             </a>
                             <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#"
-                               _="on click call showHelpModal()">
+                            <a class="dropdown-item" href="#" onclick="showHelpModal()">
                                 <i class="fas fa-question-circle mr-2"></i>Help
                             </a>
                         </div>
@@ -157,7 +152,7 @@
     </nav>
 
     <!-- Main Content Area -->
-    <div class="container-fluid" style="margin-top: 76px;">
+    <div class="container" style="padding-top: 1rem;">
         <!-- Flash Messages -->
         <div id="flash-messages">
             {% with messages = get_flashed_messages(with_categories=true) %}
@@ -279,12 +274,99 @@
             $('#helpModal').modal('show');
         }
         
+        // Facebook-style navbar functions
+        function startBulkAnalysis() {
+            if (confirm('Start security analysis on all AI models? This may take several minutes.')) {
+                showLoadingOverlay();
+                // Simulate API call
+                setTimeout(() => {
+                    hideLoadingOverlay();
+                    alert('Bulk analysis started successfully!');
+                }, 1000);
+            }
+        }
+        
+        function exportReports() {
+            showLoadingOverlay();
+            // Simulate export
+            setTimeout(() => {
+                hideLoadingOverlay();
+                alert('Reports exported successfully!');
+            }, 2000);
+        }
+        
+        function showSystemLogs() {
+            alert('System logs feature coming soon!');
+        }
+        
+        // Global search functionality
+        function initializeGlobalSearch() {
+            const searchInput = document.getElementById('global-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', function(e) {
+                    const query = e.target.value.toLowerCase();
+                    if (query.length > 2) {
+                        // Implement global search logic here
+                        console.log('Searching for:', query);
+                    }
+                });
+            }
+        }
+        
+        // Active page highlighting
+        function setActiveNavIcon() {
+            const currentPath = window.location.pathname;
+            const navIcons = document.querySelectorAll('.nav-icon-btn');
+            
+            navIcons.forEach(icon => {
+                icon.classList.remove('active');
+                const href = icon.getAttribute('href');
+                
+                if (href === currentPath || 
+                    (currentPath === '/' && href.includes('dashboard')) ||
+                    (currentPath.includes('/models') && href.includes('models')) ||
+                    (currentPath.includes('/analysis') && href.includes('analysis')) ||
+                    (currentPath.includes('/performance') && href.includes('performance')) ||
+                    (currentPath.includes('/batch') && href.includes('batch'))) {
+                    icon.classList.add('active');
+                }
+            });
+        }
+        
+        // Notification dots simulation
+        function updateNotificationDots() {
+            // Simulate some notification logic
+            const dots = ['dashboard-dot', 'models-dot', 'analysis-dot', 'performance-dot', 'batch-dot'];
+            dots.forEach(dotId => {
+                const dot = document.getElementById(dotId);
+                if (dot && Math.random() > 0.7) {
+                    dot.classList.add('active');
+                }
+            });
+        }
+        
+        // Update notification count
+        function updateNotificationCount() {
+            const count = Math.floor(Math.random() * 10);
+            const badge = document.getElementById('notification-count');
+            if (badge) {
+                badge.textContent = count;
+                badge.style.display = count > 0 ? 'flex' : 'none';
+            }
+        }
+        
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             // Ctrl+R - Refresh current view
             if (e.ctrlKey && e.key === 'r') {
                 e.preventDefault();
                 window.location.reload();
+            }
+            
+            // Ctrl+K - Focus search
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault();
+                document.getElementById('global-search').focus();
             }
             
             // Escape - Close modals
@@ -313,16 +395,64 @@
                 refreshElements.forEach(el => {
                     htmx.trigger(el, 'load');
                 });
+                
+                // Update notification indicators
+                updateNotificationDots();
+                updateNotificationCount();
             }, interval);
         }
         
-        // Start auto-refresh on page load
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // Only start auto-refresh on dashboard and app pages
+            // Initialize tooltips
+            $('[data-toggle="tooltip"]').tooltip();
+            
+            // Initialize global search
+            initializeGlobalSearch();
+            initializeMobileSearch();
+            
+            // Set active navigation icon
+            setActiveNavIcon();
+            
+            // Auto-close mobile menu on nav item click
+            $('.navbar-nav .nav-link').on('click', function() {
+                $('.navbar-collapse').collapse('hide');
+            });
+            
+            // Initial notification setup
+            updateNotificationDots();
+            updateNotificationCount();
+            
+            // Start auto-refresh on dashboard
             if (window.location.pathname === '/' || window.location.pathname.includes('/app/')) {
                 startAutoRefresh();
             }
         });
+        
+        // Mobile search functionality
+        function initializeMobileSearch() {
+            const mobileSearchInput = document.getElementById('mobile-global-search');
+            const desktopSearchInput = document.getElementById('global-search');
+            
+            if (mobileSearchInput && desktopSearchInput) {
+                // Sync mobile search with desktop
+                mobileSearchInput.addEventListener('input', function(e) {
+                    const query = e.target.value;
+                    desktopSearchInput.value = query;
+                    
+                    if (query.length > 2) {
+                        console.log('Mobile searching for:', query);
+                        // Implement your search logic here
+                    }
+                });
+                
+                // Sync desktop search with mobile
+                desktopSearchInput.addEventListener('input', function(e) {
+                    const query = e.target.value;
+                    mobileSearchInput.value = query;
+                });
+            }
+        }
         
         // Stop auto-refresh when page is hidden
         document.addEventListener('visibilitychange', function() {
@@ -332,6 +462,13 @@
                 if (window.location.pathname === '/' || window.location.pathname.includes('/app/')) {
                     startAutoRefresh();
                 }
+            }
+        });
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.dropdown')) {
+                $('.dropdown-menu.show').removeClass('show');
             }
         });
     </script>

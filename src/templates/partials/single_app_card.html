@@ -1,0 +1,151 @@
+<!-- Single App Card for HTMX updates -->
+<div class="col-lg-6 col-md-12 mb-3">
+    <div class="card app-card h-100" id="app-{{ model_slug }}-{{ app.app_number }}">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <h6 class="mb-0 font-weight-bold">{{ app.app_name }}</h6>
+            <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }}">
+                {{ app.status|title }}
+            </span>
+        </div>
+        
+        <div class="card-body">
+            <!-- App Description -->
+            <p class="text-muted small mb-2">
+                {{ app.description[:80] }}{% if app.description|length > 80 %}...{% endif %}
+            </p>
+            
+            <!-- Port Information -->
+            <div class="d-flex mb-2">
+                <span class="badge badge-light mr-2">
+                    <i class="fas fa-desktop mr-1"></i>Frontend: {{ app.frontend_port }}
+                </span>
+                <span class="badge badge-light">
+                    <i class="fas fa-server mr-1"></i>Backend: {{ app.backend_port }}
+                </span>
+            </div>
+            
+            <!-- Container Status Indicators -->
+            <div class="d-flex justify-content-center mb-3">
+                <span class="mx-2 {{ 'text-success' if app.containers.frontend_status == 'running' else 'text-muted' }}"
+                      title="Frontend Container">
+                    <i class="fas fa-globe-americas"></i>
+                </span>
+                <span class="mx-2 {{ 'text-success' if app.containers.backend_status == 'running' else 'text-muted' }}"
+                      title="Backend Container">
+                    <i class="fas fa-cogs"></i>
+                </span>
+                <span class="mx-2 {{ 'text-success' if app.containers.database_status == 'running' else 'text-muted' }}"
+                      title="Database Container">
+                    <i class="fas fa-database"></i>
+                </span>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="btn-group btn-group-sm w-100 mb-2" role="group">
+                {% if app.status.lower() == 'stopped' %}
+                <button class="btn btn-success" 
+                        hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/start"
+                        hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                        hx-swap="outerHTML"
+                        title="Start all containers">
+                    <i class="fas fa-play"></i>
+                </button>
+                {% elif app.status.lower() == 'running' %}
+                <button class="btn btn-warning" 
+                        hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/restart"
+                        hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                        hx-swap="outerHTML"
+                        title="Restart containers">
+                    <i class="fas fa-redo"></i>
+                </button>
+                <button class="btn btn-danger" 
+                        hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/stop"
+                        hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                        hx-swap="outerHTML"
+                        title="Stop all containers">
+                    <i class="fas fa-stop"></i>
+                </button>
+                {% elif app.status.lower() == 'error' %}
+                <button class="btn btn-warning" 
+                        hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/restart"
+                        hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                        hx-swap="outerHTML"
+                        title="Restart containers">
+                    <i class="fas fa-redo"></i>
+                </button>
+                {% endif %}
+                
+                {% if app.status.lower() == 'running' %}
+                <button class="btn btn-primary" 
+                        onclick="window.open('http://localhost:{{ app.frontend_port }}', '_blank')"
+                        title="Open frontend">
+                    <i class="fas fa-external-link-alt"></i>
+                </button>
+                {% endif %}
+            </div>
+            
+            <!-- Secondary Actions -->
+            <div class="btn-group btn-group-sm w-100" role="group">
+                <button class="btn btn-secondary" 
+                        onclick="showAppLogs('{{ model_slug }}', {{ app.app_number }})"
+                        title="View container logs">
+                    <i class="fas fa-file-alt"></i>
+                </button>
+                
+                <button class="btn btn-info" 
+                        onclick="window.location.href='/app/{{ model_slug }}/{{ app.app_number }}?tab=analysis'"
+                        title="Security analysis">
+                    <i class="fas fa-shield-alt"></i>
+                </button>
+                
+                <button class="btn btn-warning" 
+                        onclick="window.location.href='/app/{{ model_slug }}/{{ app.app_number }}?tab=performance'"
+                        title="Performance test">
+                    <i class="fas fa-bolt"></i>
+                </button>
+            </div>
+            
+            <!-- Analysis Summary (if available) -->
+            {% if app.analysis_summary %}
+            <div class="mt-2">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="text-danger">
+                            <strong>{{ app.analysis_summary.high_issues }}</strong>
+                            <br><small>High</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-warning">
+                            <strong>{{ app.analysis_summary.medium_issues }}</strong>
+                            <br><small>Medium</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-success">
+                            <strong>{{ app.analysis_summary.low_issues }}</strong>
+                            <br><small>Low</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Performance Summary (if available) -->
+            {% if app.performance_summary %}
+            <div class="mt-2 pt-2 border-top">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <small class="text-muted">Avg Response</small>
+                        <br><strong>{{ '%.0f'|format(app.performance_summary.avg_response_time) }}ms</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Success Rate</small>
+                        <br><strong>{{ '%.1f'|format(app.performance_summary.success_rate) }}%</strong>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

@@ -12,10 +12,11 @@
                 </div>
                 <div class="btn-group btn-group-sm" role="group">
                     <button type="button" class="btn btn-outline-secondary btn-sm"
-                            _="on click toggle .show on next .collapse"
+                            onclick="testLoadApps('{{ model.canonical_slug }}')"
                             data-toggle="collapse" 
                             data-target="#apps-{{ model.canonical_slug }}"
-                            aria-expanded="false">
+                            aria-expanded="false"
+                            id="toggle-{{ model.canonical_slug }}">
                         <i class="fas fa-chevron-down"></i>
                     </button>
                     <button type="button" class="btn btn-outline-info btn-sm"
@@ -114,11 +115,8 @@
 
             <!-- Collapsible Apps List -->
             <div class="collapse" id="apps-{{ model.canonical_slug }}">
-                <div class="card-footer p-0"
-                     hx-get="/api/model/{{ model.canonical_slug }}/apps"
-                     hx-trigger="show.bs.collapse from:#apps-{{ model.canonical_slug }}"
-                     hx-swap="innerHTML">
-                    <div class="text-center p-3">
+                <div class="card-footer p-0" id="apps-content-{{ model.canonical_slug }}">
+                    <div class="text-center p-3" id="loading-{{ model.canonical_slug }}">
                         <div class="spinner-border spinner-border-sm" role="status">
                             <span class="sr-only">Loading...</span>
                         </div>
@@ -181,6 +179,41 @@ function showModelDetails(modelSlug) {
     
     // Show modal using Bootstrap
     $('#model-details-modal').modal('show');
+}
+
+// Test function to load apps
+function testLoadApps(modelSlug) {
+    console.log('Testing load apps for model:', modelSlug);
+    const content = document.getElementById(`apps-content-${modelSlug}`);
+    const loading = document.getElementById(`loading-${modelSlug}`);
+    
+    // Show loading state
+    loading.style.display = 'block';
+    
+    // Make AJAX call to load apps
+    fetch(`/api/model/${modelSlug}/apps`)
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            console.log('Received HTML:', html.substring(0, 200) + '...');
+            loading.style.display = 'none';
+            content.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Error loading apps:', error);
+            loading.style.display = 'none';
+            content.innerHTML = `
+                <div class="alert alert-danger m-3">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Error loading applications: ${error.message}
+                </div>
+            `;
+        });
 }
 
 // Auto-refresh model stats every 30 seconds
