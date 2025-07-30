@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Analysis Management - Thesis Research App{% endblock %}
+
+{% block head %}
+<style>
+.batch-stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 1rem;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.jobs-table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.create-job-card {
+    background: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.analysis-type-checkbox {
+    margin: 0.5rem;
+    padding: 0.75rem;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    display: inline-block;
+    cursor: pointer;
+}
+
+.analysis-type-checkbox:hover {
+    border-color: #007bff;
+    background: #f8f9ff;
+}
+
+.analysis-type-checkbox.selected {
+    border-color: #007bff;
+    background: #e7f3ff;
+}
+
+.model-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
+.model-item {
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.error-banner {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.success-banner {
+    background: #d4edda;
+    color: #155724;
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h3 mb-1">Batch Analysis Management</h1>
+            <p class="text-muted mb-0">Create and manage analysis jobs across multiple applications</p>
+        </div>
+    </div>
+
+    <!-- Error/Success Messages -->
+    {% if error_message %}
+    <div class="error-banner">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        {{ error_message }}
+    </div>
+    {% endif %}
+
+    <!-- Statistics -->
+    <div class="batch-stats-card">
+        <div class="row">
+            <div class="col-md-2">
+                <div class="stat-item">
+                    <div class="stat-value">{{ job_stats.total or 0 }}</div>
+                    <div class="stat-label">Total Jobs</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-item">
+                    <div class="stat-value">{{ job_stats.pending or 0 }}</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-item">
+                    <div class="stat-value">{{ job_stats.running or 0 }}</div>
+                    <div class="stat-label">Running</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-item">
+                    <div class="stat-value">{{ job_stats.completed or 0 }}</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-item">
+                    <div class="stat-value">{{ job_stats.failed or 0 }}</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-item">
+                    <div class="stat-value">{{ job_stats.archived or 0 }}</div>
+                    <div class="stat-label">Archived</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Job Section -->
+    <div class="create-job-card">
+        <h4><i class="fas fa-plus-circle mr-2"></i>Create New Batch Job</h4>
+        <p class="text-muted mb-3">Run analysis across multiple models and applications</p>
+        
+        <form action="/batch/create" method="POST" id="batchJobForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group text-left">
+                        <label for="jobName" class="font-weight-bold">Job Name</label>
+                        <input type="text" class="form-control" id="jobName" name="name" 
+                               placeholder="Enter job name" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group text-left">
+                        <label for="jobDescription" class="font-weight-bold">Description</label>
+                        <input type="text" class="form-control" id="jobDescription" name="description" 
+                               placeholder="Optional description">
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group text-left">
+                        <label class="font-weight-bold">Analysis Types</label>
+                        <div>
+                            <label class="analysis-type-checkbox">
+                                <input type="checkbox" name="analysis_types" value="frontend_security">
+                                <i class="fas fa-code mr-1"></i> Frontend Security
+                            </label>
+                            <label class="analysis-type-checkbox">
+                                <input type="checkbox" name="analysis_types" value="backend_security">
+                                <i class="fas fa-server mr-1"></i> Backend Security
+                            </label>
+                            <label class="analysis-type-checkbox">
+                                <input type="checkbox" name="analysis_types" value="performance">
+                                <i class="fas fa-tachometer-alt mr-1"></i> Performance
+                            </label>
+                            <label class="analysis-type-checkbox">
+                                <input type="checkbox" name="analysis_types" value="code_quality">
+                                <i class="fas fa-code-branch mr-1"></i> Code Quality
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group text-left">
+                        <label for="appRange" class="font-weight-bold">Application Range</label>
+                        <input type="text" class="form-control" id="appRange" name="app_range" 
+                               placeholder="e.g., 1-5, 10, 15-20, or 'all'" value="1-3" required>
+                        <small class="form-text text-muted">
+                            Examples: "1-5" (apps 1-5), "1,3,5" (specific apps), "all" (all 30 apps)
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="form-group text-left">
+                        <label class="font-weight-bold">Select Models</label>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem;">
+                            {% if available_models %}
+                                <div class="model-grid">
+                                    {% for model in available_models[:12] %}
+                                    <label class="model-item">
+                                        <input type="checkbox" name="models" value="{{ model.canonical_slug }}" class="mr-2">
+                                        {{ model.display_name or model.canonical_slug }}
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                                {% if available_models|length > 12 %}
+                                <p class="text-muted mt-2">Showing first 12 models. {{ available_models|length - 12 }} more available.</p>
+                                {% endif %}
+                            {% else %}
+                                <p class="text-muted">No models available. Please check the model configuration.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fas fa-play mr-2"></i>Create & Start Job
+            </button>
+        </form>
+    </div>
+
+    <!-- Jobs List -->
+    <div class="card jobs-table">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-tasks mr-2"></i>Batch Jobs
+                <span class="badge badge-secondary ml-2">{{ jobs|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if jobs %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Job Name</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                            <th>Analysis Types</th>
+                            <th>Models</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in jobs %}
+                        <tr>
+                            <td>
+                                <strong>{{ job.name }}</strong>
+                                {% if job.description %}
+                                <br><small class="text-muted">{{ job.description }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ 'success' if job.status == 'completed' else 'warning' if job.status == 'running' else 'secondary' }}">
+                                    {{ job.status.title() }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if job.progress %}
+                                {{ job.progress.completed or 0 }}/{{ job.progress.total or 0 }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if job.analysis_types %}
+                                    {% for type in job.analysis_types %}
+                                    <span class="badge badge-light">{{ type.replace('_', ' ').title() }}</span>
+                                    {% endfor %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ job.models|length if job.models else 0 }} models</small>
+                            </td>
+                            <td>
+                                <small>{{ job.created_at_formatted or 'Unknown' }}</small>
+                            </td>
+                            <td>
+                                <a href="/batch/job/{{ job.id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No batch jobs found</h5>
+                <p class="text-muted">Create your first batch job to get started.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle analysis type checkbox styling
+    const analysisCheckboxes = document.querySelectorAll('input[name="analysis_types"]');
+    analysisCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const label = this.closest('label');
+            if (this.checked) {
+                label.classList.add('selected');
+            } else {
+                label.classList.remove('selected');
+            }
+        });
+    });
+
+    // Simple form validation
+    document.getElementById('batchJobForm').addEventListener('submit', function(e) {
+        const checkedAnalysisTypes = document.querySelectorAll('input[name="analysis_types"]:checked');
+        const checkedModels = document.querySelectorAll('input[name="models"]:checked');
+        
+        if (checkedAnalysisTypes.length === 0) {
+            e.preventDefault();
+            alert('Please select at least one analysis type.');
+            return;
+        }
+        
+        if (checkedModels.length === 0) {
+            e.preventDefault();
+            alert('Please select at least one model.');
+            return;
+        }
+    });
+});
+</script>
+{% endblock %}

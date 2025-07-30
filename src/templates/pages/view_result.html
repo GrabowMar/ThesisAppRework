@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+
+{% macro humanize_duration(seconds) %}
+{% if seconds is none or seconds < 0 %}N/A{% else %}{% set seconds = seconds|int %}{% if seconds < 60 %}{{ seconds }}s{% elif seconds < 3600 %}{{ '%dm %ds'|format(seconds // 60, seconds % 60) }}{% else %}{{ '%dh %dm'|format(seconds // 3600, (seconds % 3600) // 60) }}{% endif %}{% endif %}
+{% endmacro %}
+
+{% block title %}Result: {{ result.model }} App {{ result.app_num }} - {{ result.analysis_type|title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-4 max-w-7xl mx-auto">
+  <div class="border border-gray-400 bg-white p-2 rounded-md">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="font-bold text-xl text-gray-900">Result Details: {{ result.model }} App {{ result.app_num }}</h1>
+        <p class="text-xs text-gray-600 mt-1">
+            Analysis Type: <span class="font-medium capitalize">{{ result.analysis_type.replace('_', ' ') }}</span>
+            {% if job %}
+             | Part of Job: <a href="{{ url_for('batch_analysis.view_job', job_id=job.id) }}" class="text-blue-600 hover:underline">{{ job.name }} (ID: {{ job.id }})</a>
+            {% endif %}
+        </p>
+      </div>
+      <div class="flex items-center space-x-2">
+        {% if job %}
+        <a href="{{ url_for('batch_analysis.view_job', job_id=job.id) }}" class="action-btn h-6 px-2 text-xs flex items-center border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+          <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+          </svg>
+          Back to Job
+        </a>
+        {% else %}
+        <a href="{{ url_for('batch_analysis.batch_dashboard') }}" class="action-btn h-6 px-2 text-xs flex items-center border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+          <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+          </svg>
+          Back to Dashboard
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+      <div class="bg-gray-100 border-b border-gray-400 px-2 py-1">
+        <h2 class="font-bold text-sm">Result Information</h2>
+      </div>
+      <div class="p-2">
+        <table class="w-full text-xs">
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Result ID:</td>
+            <td>{{ result.id }}</td>
+          </tr>
+          {% if result.task_id %}
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Task ID:</td>
+            <td>{{ result.task_id }}</td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Model:</td>
+            <td>{{ result.model }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">App Number:</td>
+            <td>{{ result.app_num }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Analysis Type:</td>
+            <td>
+              <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">{{ result.analysis_type.replace('_', ' ')|title }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Status:</td>
+            <td>
+              <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+                {% if result.status == 'completed' %}bg-green-100 text-green-800
+                {% elif result.status == 'running' %}bg-blue-100 text-blue-800
+                {% elif result.status == 'pending' %}bg-yellow-100 text-yellow-800
+                {% elif result.status == 'failed' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ result.status|title }}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Start Time:</td>
+            <td>{{ result.started_at.strftime('%Y-%m-%d %H:%M:%S') if result.started_at else 'N/A' }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Completion Time:</td>
+            <td>{{ result.completed_at.strftime('%Y-%m-%d %H:%M:%S') if result.completed_at else 'N/A' }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Duration:</td>
+            <td>{{ humanize_duration(result.duration_seconds) if result.duration_seconds is not none else 'N/A' }}</td>
+          </tr>
+          
+          <!-- Analysis-specific metrics -->
+          {% if result.analysis_type == 'code_quality' %}
+              <tr><td class="font-medium text-gray-600 py-1 pr-2">Lint Errors:</td><td>{{ result.result.get('summary', {}).get('lint_errors', 0) if result.result else 0 }}</td></tr>
+          {% elif result.analysis_type in ['frontend_security', 'backend_security', 'zap'] %}
+              <tr><td class="font-medium text-gray-600 py-1 pr-2">Total Issues:</td><td>{{ result.issues_count if result.issues_count is not none else 0 }}</td></tr>
+          {% elif result.analysis_type == 'performance' %}
+              <tr><td class="font-medium text-gray-600 py-1 pr-2">Total Failures:</td><td>{{ result.result.get('total_failures', 0) if result.result else 0 }}</td></tr>
+          {% elif result.analysis_type == 'gpt4all' %}
+              <tr><td class="font-medium text-gray-600 py-1 pr-2">Reqs Checked:</td><td>{{ result.result.get('summary', {}).get('requirements_checked', 0) if result.result else 0 }}</td></tr>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+      <div class="bg-gray-100 border-b border-gray-400 px-2 py-1">
+        <h2 class="font-bold text-sm">Analysis Metrics</h2>
+      </div>
+      <div class="p-2">
+        {% if result.analysis_type in ['frontend_security', 'backend_security', 'zap'] %}
+            <div class="grid grid-cols-3 gap-2 text-xs">
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-red-600">High</div>
+                <div class="font-bold">{{ result.result.get('severity_counts', {}).get('high', 0) if result.result else 0 }}</div>
+              </div>
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-yellow-600">Medium</div>
+                <div class="font-bold">{{ result.result.get('severity_counts', {}).get('medium', 0) if result.result else 0 }}</div>
+              </div>
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-blue-600">Low</div>
+                <div class="font-bold">{{ result.result.get('severity_counts', {}).get('low', 0) if result.result else 0 }}</div>
+              </div>
+            </div>
+            
+            {% if result.analysis_type in ['frontend_security', 'backend_security'] %}
+            <div class="mt-2 border border-gray-300 p-2 rounded-md">
+                <div class="text-xs font-medium text-gray-600 mb-1">Tool Status</div>
+                <div class="space-y-1">
+                  {% if result.result and result.result.get('tool_results') %}
+                    {% for tool, tool_result in result.result.tool_results.items() %}
+                    <div class="flex justify-between items-center">
+                      <span class="text-xs text-gray-700">{{ tool|title }}</span>
+                      <span class="text-xs {% if tool_result.success %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if tool_result.success %}✓ Success{% else %}✗ Failed{% endif %}
+                      </span>
+                    </div>
+                    {% endfor %}
+                  {% else %}
+                    <span class="text-xs text-gray-500">No tool status available</span>
+                  {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        {% elif result.analysis_type == 'performance' %}
+            {% set perf_data = result.result %}
+            {% if perf_data %}
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                 <div class="border border-gray-300 p-2 rounded-md text-center"><div class="text-gray-600">Avg RPS</div><div class="font-bold">{{ perf_data.get('requests_per_sec', 0)|round(1) }}</div></div>
+                 <div class="border border-gray-300 p-2 rounded-md text-center"><div class="text-gray-600">Avg Resp Time</div><div class="font-bold">{{ perf_data.get('avg_response_time', 0)|round(0) }} ms</div></div>
+                 <div class="border border-gray-300 p-2 rounded-md text-center"><div class="text-gray-600">Total Requests</div><div class="font-bold">{{ perf_data.get('total_requests', 0) }}</div></div>
+            </div>
+            {% endif %}
+
+        {% elif result.analysis_type == 'gpt4all' %}
+            {% set gpt_summary = result.result.get('summary', {}) if result.result else {} %}
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Requirements</div>
+                <div class="font-bold">{{ gpt_summary.get('requirements_checked', 0) }}</div>
+              </div>
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Passed</div>
+                <div class="font-bold text-green-600">{{ gpt_summary.get('requirements_passed', 0) }}</div>
+              </div>
+            </div>
+            
+        {% elif result.analysis_type == 'code_quality' %}
+            {% set cq_summary = result.result.get('summary', {}) if result.result else {} %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Lint Errors</div>
+                <div class="font-bold text-red-600">{{ cq_summary.get('lint_errors', 0) }}</div>
+              </div>
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Code Smells</div>
+                <div class="font-bold text-yellow-600">{{ cq_summary.get('code_smells', 0) }}</div>
+              </div>
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Complexity</div>
+                <div class="font-bold">{{ cq_summary.get('complexity_score', 0) }}</div>
+              </div>
+            </div>
+        {% else %}
+            <p class="text-xs text-gray-500">No specific metrics available for this analysis type.</p>
+        {% endif %}
+
+        {% if result.error %}
+            <div class="mt-2 bg-red-50 border border-red-300 p-2 rounded-md">
+              <div class="text-xs font-medium text-red-800 mb-1">Error Details</div>
+              <div class="text-xs text-red-700">{{ result.error.get('message', 'Unknown error') if result.error else 'Unknown error' }}</div>
+            </div>
+        {% elif result.result and result.result.get('skip_reason') %}
+             <div class="mt-2 bg-yellow-50 border border-yellow-300 p-2 rounded-md">
+               <div class="text-xs font-medium text-yellow-800 mb-1">Skipped</div>
+               <div class="text-xs text-yellow-700">{{ result.result.skip_reason }}</div>
+            </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# --- Detailed Results Section --- #}
+  {% if result.analysis_type in ['frontend_security', 'backend_security', 'zap'] %}
+    {% set issues = result.result.get('issues', []) if result.result else [] %}
+    {% if issues %}
+      <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+        <div class="bg-gray-100 border-b border-gray-400 px-2 py-1 flex justify-between items-center">
+          <h2 class="font-bold text-sm">Issues Found ({{ issues|length }})</h2>
+          <div class="flex items-center space-x-2">
+            <select id="severityFilter" class="h-5 px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="all">All Severities</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="info">Info</option>
+            </select>
+          </div>
+        </div>
+        <div class="p-2">
+          <div id="issueList" class="space-y-2">
+            {% for issue in issues %}
+            <div class="issue-item border border-gray-200 rounded-md p-2 
+              {% if issue.severity == 'high' %}border-l-4 border-l-red-500
+              {% elif issue.severity == 'medium' %}border-l-4 border-l-yellow-500
+              {% elif issue.severity == 'low' %}border-l-4 border-l-blue-500
+              {% else %}border-l-4 border-l-gray-500{% endif %}" 
+              data-severity="{{ issue.severity }}">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <div class="flex items-center space-x-2">
+                    <h4 class="text-sm font-medium text-gray-900">{{ issue.title or issue.name or 'Security Issue' }}</h4>
+                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+                      {% if issue.severity == 'high' %}bg-red-100 text-red-800
+                      {% elif issue.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                      {% elif issue.severity == 'low' %}bg-blue-100 text-blue-800
+                      {% else %}bg-gray-100 text-gray-800{% endif %}">
+                      {{ issue.severity|title }}
+                    </span>
+                    {% if issue.tool %}
+                    <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-700">{{ issue.tool }}</span>
+                    {% endif %}
+                  </div>
+                  {% if issue.description %}
+                  <p class="text-xs text-gray-600 mt-1">{{ issue.description[:200] }}{% if issue.description|length > 200 %}...{% endif %}</p>
+                  {% endif %}
+                  {% if issue.file %}
+                  <div class="text-xs text-gray-500 mt-1">
+                    <span class="font-medium">File:</span> {{ issue.file }}
+                    {% if issue.line %} (Line {{ issue.line }}){% endif %}
+                  </div>
+                  {% endif %}
+                </div>
+                <button class="toggle-issue text-xs text-blue-600 hover:text-blue-800 ml-2">Details</button>
+              </div>
+              <div class="issue-details hidden mt-2 pt-2 border-t border-gray-200">
+                {% if issue.description and issue.description|length > 200 %}
+                <div class="mb-2">
+                  <span class="text-xs font-medium text-gray-700">Full Description:</span>
+                  <p class="text-xs text-gray-600">{{ issue.description }}</p>
+                </div>
+                {% endif %}
+                {% if issue.solution or issue.recommendation %}
+                <div class="mb-2">
+                  <span class="text-xs font-medium text-gray-700">Recommendation:</span>
+                  <p class="text-xs text-gray-600">{{ issue.solution or issue.recommendation }}</p>
+                </div>
+                {% endif %}
+                {% if issue.evidence %}
+                <div class="mb-2">
+                  <span class="text-xs font-medium text-gray-700">Evidence:</span>
+                  <pre class="text-xs text-gray-600 bg-gray-100 p-2 rounded mt-1 overflow-auto max-h-32">{{ issue.evidence }}</pre>
+                </div>
+                {% endif %}
+                {% if issue.references %}
+                <div>
+                  <span class="text-xs font-medium text-gray-700">References:</span>
+                  <ul class="text-xs text-blue-600 list-disc list-inside">
+                    {% for ref in issue.references %}
+                    <li><a href="{{ ref }}" target="_blank" class="hover:underline">{{ ref }}</a></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% elif result.status == 'completed' %}
+        <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+            <div class="bg-gray-100 border-b border-gray-400 px-2 py-1"><h2 class="font-bold text-sm">Issues Found</h2></div>
+            <div class="p-4 text-center">
+                <div class="inline-block border border-green-700 bg-green-50 p-2 rounded-md">
+                <p class="text-xs font-bold text-green-700">No security issues found by this scan.</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+  {% elif result.analysis_type == 'performance' %}
+    {% set perf_data = result.result %}
+    {% if perf_data %}
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+        <div class="bg-gray-100 border-b border-gray-400 px-2 py-1"><h2 class="font-bold text-sm">Performance Details</h2></div>
+        <div class="p-2 space-y-2">
+            <h4 class="text-xs font-medium text-gray-700">Test Configuration</h4>
+            <table class="w-full text-xs mb-2">
+                <tr><td class="font-medium text-gray-600 w-1/3">Target Host:</td><td>{{ perf_data.get('host', 'N/A') }}</td></tr>
+                <tr><td class="font-medium text-gray-600">Users:</td><td>{{ perf_data.get('user_count', perf_data.get('users', 'N/A')) }}</td></tr>
+                <tr><td class="font-medium text-gray-600">Spawn Rate:</td><td>{{ perf_data.get('spawn_rate', 'N/A') }}</td></tr>
+                <tr><td class="font-medium text-gray-600">Duration:</td><td>{{ perf_data.get('run_time', perf_data.get('duration', 'N/A')) }}s</td></tr>
+            </table>
+
+            <h4 class="text-xs font-medium text-gray-700">Summary Statistics</h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Total Requests</div>
+                <div class="font-bold">{{ perf_data.get('total_requests', 0) }}</div>
+              </div>
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Failures</div>
+                <div class="font-bold text-red-600">{{ perf_data.get('total_failures', 0) }}</div>
+              </div>
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Avg RPS</div>
+                <div class="font-bold">{{ perf_data.get('requests_per_sec', 0)|round(1) }}</div>
+              </div>
+              <div class="border border-gray-300 p-2 rounded-md text-center">
+                <div class="text-gray-600">Avg Response</div>
+                <div class="font-bold">{{ perf_data.get('avg_response_time', 0)|round(0) }}ms</div>
+              </div>
+            </div>
+
+            {% if perf_data.get('stats') %}
+            <h4 class="text-xs font-medium text-gray-700">Endpoint Statistics</h4>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-xs border border-collapse">
+                  <thead>
+                    <tr class="bg-gray-50">
+                      <th class="border border-gray-300 px-2 py-1 text-left">Endpoint</th>
+                      <th class="border border-gray-300 px-2 py-1 text-left">Requests</th>
+                      <th class="border border-gray-300 px-2 py-1 text-left">Failures</th>
+                      <th class="border border-gray-300 px-2 py-1 text-left">Avg Time (ms)</th>
+                      <th class="border border-gray-300 px-2 py-1 text-left">RPS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for stat in perf_data.stats %}
+                    <tr>
+                      <td class="border border-gray-300 px-2 py-1">{{ stat.get('name', 'Unknown') }}</td>
+                      <td class="border border-gray-300 px-2 py-1">{{ stat.get('num_requests', 0) }}</td>
+                      <td class="border border-gray-300 px-2 py-1 {% if stat.get('num_failures', 0) > 0 %}text-red-600{% endif %}">{{ stat.get('num_failures', 0) }}</td>
+                      <td class="border border-gray-300 px-2 py-1">{{ stat.get('avg_response_time', 0)|round(0) }}</td>
+                      <td class="border border-gray-300 px-2 py-1">{{ stat.get('current_rps', 0)|round(1) }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            {% if perf_data.get('errors') and perf_data.errors|length > 0 %}
+             <h4 class="text-xs font-medium text-gray-700 mt-2">Errors</h4>
+             <ul class="list-disc pl-4 text-xs">
+               {% for error in perf_data.errors %}
+               <li class="text-red-600">{{ error.get('error', 'Unknown error') }} ({{ error.get('occurrences', 1) }} times)</li>
+               {% endfor %}
+             </ul>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+  {% elif result.analysis_type == 'gpt4all' %}
+    {% set gpt_results = result.result.get('results', []) if result.result else [] %}
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+        <div class="bg-gray-100 border-b border-gray-400 px-2 py-1"><h2 class="font-bold text-sm">GPT4All Requirement Checks</h2></div>
+        <div class="p-2 space-y-2">
+            {% if gpt_results %}
+                {% for check in gpt_results %}
+                <div class="border border-gray-200 rounded-md p-2">
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <h4 class="text-sm font-medium text-gray-900">{{ check.get('requirement', 'Requirement Check') }}</h4>
+                      <p class="text-xs text-gray-600 mt-1">{{ check.get('description', '') }}</p>
+                    </div>
+                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+                      {% if check.get('passed') %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                      {% if check.get('passed') %}Passed{% else %}Failed{% endif %}
+                    </span>
+                  </div>
+                  {% if check.get('details') %}
+                  <div class="mt-2 text-xs text-gray-600">
+                    <span class="font-medium">Details:</span> {{ check.details }}
+                  </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-xs text-gray-500">No requirement check results available.</p>
+            {% endif %}
+        </div>
+    </div>
+    
+  {% elif result.analysis_type == 'code_quality' %}
+    {% set cq_details = result.result %}
+    {% set cq_issues = cq_details.get('issues', []) if cq_details else [] %}
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+        <div class="bg-gray-100 border-b border-gray-400 px-2 py-1"><h2 class="font-bold text-sm">Code Quality Details</h2></div>
+        <div class="p-2 space-y-2">
+            {% if cq_issues %}
+              <h3 class="text-xs font-medium text-gray-700">Issues Found ({{ cq_issues|length }})</h3>
+              <div id="cqIssueList" class="space-y-2 max-h-96 overflow-y-auto">
+                {% for issue in cq_issues %}
+                <div class="border border-gray-200 rounded-md p-2 border-l-4 
+                  {% if issue.severity == 'error' %}border-l-red-500
+                  {% elif issue.severity == 'warning' %}border-l-yellow-500
+                  {% else %}border-l-blue-500{% endif %}">
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <h4 class="text-sm font-medium text-gray-900">{{ issue.get('rule', 'Code Quality Issue') }}</h4>
+                      <p class="text-xs text-gray-600 mt-1">{{ issue.get('message', '') }}</p>
+                      {% if issue.get('file') %}
+                      <div class="text-xs text-gray-500 mt-1">
+                        <span class="font-medium">File:</span> {{ issue.file }}
+                        {% if issue.get('line') %} (Line {{ issue.line }}){% endif %}
+                      </div>
+                      {% endif %}
+                    </div>
+                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+                      {% if issue.severity == 'error' %}bg-red-100 text-red-800
+                      {% elif issue.severity == 'warning' %}bg-yellow-100 text-yellow-800
+                      {% else %}bg-blue-100 text-blue-800{% endif %}">
+                      {{ issue.severity|title }}
+                    </span>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            {% elif result.status == 'completed' %}
+                <div class="p-4 text-center">
+                  <div class="inline-block border border-green-700 bg-green-50 p-2 rounded-md">
+                    <p class="text-xs font-bold text-green-700">No code quality issues found.</p>
+                  </div>
+                </div>
+            {% else %}
+                 <p class="text-xs text-gray-500">Code quality analysis did not complete or produced no specific issues.</p>
+            {% endif %}
+        </div>
+    </div>
+  {% endif %}
+
+  {% if result.result and result.result.get('raw_output_preview') %}
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+      <div class="bg-gray-100 border-b border-gray-400 px-2 py-1">
+        <h2 class="font-bold text-sm">Raw Output Preview</h2>
+      </div>
+      <div class="p-2">
+        <pre class="text-[10px] font-mono bg-gray-800 text-white p-2 overflow-auto rounded-md max-h-60"><code>{{ result.result.raw_output_preview }}</code></pre>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if result.result %}
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+      <div class="bg-gray-100 border-b border-gray-400 px-2 py-1 flex justify-between items-center">
+        <h2 class="font-bold text-sm">Full Result Details (JSON)</h2>
+        <button id="toggleFullJson" class="text-xs text-blue-600 hover:text-blue-800">Show/Hide</button>
+      </div>
+      <div id="fullJsonContent" class="p-2 hidden">
+        <pre class="text-[10px] font-mono bg-gray-100 border border-gray-300 text-gray-800 p-2 overflow-auto rounded-md max-h-96"><code>{{ result.result | tojson(indent=2) }}</code></pre>
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Toggle issue details
+  const toggleButtons = document.querySelectorAll('.toggle-issue');
+  toggleButtons.forEach(button => {
+      button.addEventListener('click', function() {
+          const issueItem = this.closest('.issue-item');
+          if (issueItem) {
+              const issueDetails = issueItem.querySelector('.issue-details');
+              if (issueDetails) {
+                  const isHidden = issueDetails.classList.contains('hidden');
+                  issueDetails.classList.toggle('hidden');
+                  this.textContent = isHidden ? 'Hide' : 'Details';
+              }
+          }
+      });
+  });
+
+  // Severity filter for security issues
+  const severityFilter = document.getElementById('severityFilter');
+  if (severityFilter) {
+    severityFilter.addEventListener('change', function() {
+      const selectedSeverity = this.value;
+      const issueItems = document.querySelectorAll('.issue-item');
+      
+      issueItems.forEach(item => {
+        const severity = item.dataset.severity;
+        if (selectedSeverity === 'all' || severity === selectedSeverity) {
+          item.style.display = 'block';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+  }
+
+  // Toggle full JSON view
+  const toggleFullJsonBtn = document.getElementById('toggleFullJson');
+  const fullJsonContent = document.getElementById('fullJsonContent');
+  if (toggleFullJsonBtn && fullJsonContent) {
+    toggleFullJsonBtn.addEventListener('click', function() {
+      fullJsonContent.classList.toggle('hidden');
+    });
+  }
+});
+</script>
+{% endblock %}

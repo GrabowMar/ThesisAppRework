@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+
+{% macro humanize_duration(seconds) %}
+{% if seconds is none or seconds < 0 %}N/A{% else %}{% set seconds = seconds|int %}{% if seconds < 60 %}{{ seconds }}s{% elif seconds < 3600 %}{{ '%dm %ds'|format(seconds // 60, seconds % 60) }}{% else %}{{ '%dh %dm'|format(seconds // 3600, (seconds % 3600) // 60) }}{% endif %}{% endif %}
+{% endmacro %}
+
+{% block title %}Job: {{ job.name }} - Batch Analysis{% endblock %}
+
+{% block content %}
+<div class="space-y-4 max-w-7xl mx-auto">
+  <div class="border border-gray-400 bg-white p-2 rounded-md">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="font-bold text-xl text-gray-900">Job: {{ job.name }}</h1>
+        <p class="text-xs text-gray-600 mt-1">
+          {% if job.description %}{{ job.description }}{% else %}Batch analysis job{% endif %}
+        </p>
+      </div>
+      <div class="flex items-center space-x-2">
+        <a href="{{ url_for('batch_analysis.batch_dashboard') }}" class="action-btn h-6 px-2 text-xs flex items-center border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+          <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+          </svg>
+          Back to Dashboard
+        </a>
+        {% if job.status == 'running' %}
+        <button id="cancelJobBtn" class="action-btn h-6 px-2 text-xs flex items-center bg-red-600 text-white hover:bg-red-700 focus:ring-2 focus:ring-red-500 transition" data-job-id="{{ job.id }}">
+          <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+          Cancel Job
+        </button>
+        {% elif job.status in ['completed', 'failed', 'cancelled'] %}
+        <button id="archiveJobBtn" class="action-btn h-6 px-2 text-xs flex items-center bg-purple-600 text-white hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 transition" data-job-id="{{ job.id }}">
+          <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8l6 6V9h6V7h-6V2z"/>
+          </svg>
+          Archive Job
+        </button>
+        {% endif %}
+        <button id="refreshBtn" class="action-btn h-6 px-2 text-xs flex items-center border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+          <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- Job Information -->
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+      <div class="bg-gray-100 border-b border-gray-400 px-2 py-1">
+        <h2 class="font-bold text-sm">Job Information</h2>
+      </div>
+      <div class="p-2">
+        <table class="w-full text-xs">
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Job ID:</td>
+            <td>{{ job.id }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Status:</td>
+            <td>
+              <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+                {% if job.status == 'completed' %}bg-green-100 text-green-800
+                {% elif job.status == 'running' %}bg-blue-100 text-blue-800
+                {% elif job.status == 'pending' %}bg-yellow-100 text-yellow-800
+                {% elif job.status == 'failed' %}bg-red-100 text-red-800
+                {% elif job.status == 'cancelled' %}bg-gray-100 text-gray-800
+                {% elif job.status == 'archived' %}bg-purple-100 text-purple-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ job.status|title }}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Created:</td>
+            <td>{{ job.created_at_formatted if job.created_at_formatted else 'Unknown' }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Started:</td>
+            <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') if job.started_at else 'Not started' }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Completed:</td>
+            <td>{{ job.completed_at.strftime('%Y-%m-%d %H:%M:%S') if job.completed_at else 'Not completed' }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Duration:</td>
+            <td>
+              {% if job.started_at and job.completed_at %}
+                {% set duration = (job.completed_at - job.started_at).total_seconds() %}
+                {{ humanize_duration(duration) }}
+              {% elif job.started_at %}
+                <span class="text-blue-600">Running...</span>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Analysis Types:</td>
+            <td>
+              {% if job.analysis_types %}
+                {% for type in job.analysis_types %}
+                <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1">{{ type.replace('_', ' ')|title }}</span>
+                {% endfor %}
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">Models:</td>
+            <td>
+              <div class="max-h-20 overflow-y-auto">
+                {% if job.models %}
+                  {% for model in job.models %}
+                  <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1 mb-1">{{ model }}</span>
+                  {% endfor %}
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="font-medium text-gray-600 py-1 pr-2">App Range:</td>
+            <td>{{ job.app_range.raw if job.app_range and job.app_range.raw else 'Unknown' }}</td>
+          </tr>
+          {% if job.error_message %}
+          <tr>
+            <td class="font-medium text-red-600 py-1 pr-2">Error:</td>
+            <td class="text-red-600">{{ job.error_message }}</td>
+          </tr>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+
+    <!-- Progress Overview -->
+    <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+      <div class="bg-gray-100 border-b border-gray-400 px-2 py-1">
+        <h2 class="font-bold text-sm">Progress Overview</h2>
+      </div>
+      <div class="p-2">
+        {% if job.progress %}
+          {% set completed = job.progress.get('completed', 0) %}
+          {% set total = job.progress.get('total', 0) %}
+          {% set failed = job.progress.get('failed', 0) %}
+          {% set pending = total - completed - failed %}
+          
+          <div class="mb-4">
+            <div class="flex justify-between text-xs text-gray-600 mb-1">
+              <span>Progress</span>
+              <span>{{ completed }}/{{ total }} tasks</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+              <div class="bg-green-600 h-3 rounded-full transition-all duration-300" style="width: {{ ((completed / total * 100) if total > 0 else 0)|round(1) }}%"></div>
+            </div>
+            {% if failed > 0 %}
+            <div class="w-full bg-gray-200 rounded-full h-1 mt-1">
+              <div class="bg-red-600 h-1 rounded-full" style="width: {{ ((failed / total * 100) if total > 0 else 0)|round(1) }}%"></div>
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="border border-gray-300 p-2 rounded-md text-center">
+              <div class="text-gray-600">Total Tasks</div>
+              <div class="text-lg font-bold">{{ total }}</div>
+            </div>
+            <div class="border border-green-300 p-2 rounded-md text-center bg-green-50">
+              <div class="text-green-600">Completed</div>
+              <div class="text-lg font-bold text-green-700">{{ completed }}</div>
+            </div>
+            <div class="border border-yellow-300 p-2 rounded-md text-center bg-yellow-50">
+              <div class="text-yellow-600">Pending</div>
+              <div class="text-lg font-bold text-yellow-700">{{ pending }}</div>
+            </div>
+            <div class="border border-red-300 p-2 rounded-md text-center bg-red-50">
+              <div class="text-red-600">Failed</div>
+              <div class="text-lg font-bold text-red-700">{{ failed }}</div>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-xs text-gray-500">No progress information available</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Task Statistics by Type -->
+  {% if task_stats %}
+  <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+    <div class="bg-gray-100 border-b border-gray-400 px-2 py-1">
+      <h2 class="font-bold text-sm">Task Statistics</h2>
+    </div>
+    <div class="p-2">
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+        <div class="border border-gray-300 p-2 rounded-md text-center">
+          <div class="text-gray-600">Total</div>
+          <div class="text-lg font-bold">{{ task_stats.total }}</div>
+        </div>
+        <div class="border border-yellow-300 p-2 rounded-md text-center bg-yellow-50">
+          <div class="text-yellow-600">Pending</div>
+          <div class="text-lg font-bold text-yellow-700">{{ task_stats.pending }}</div>
+        </div>
+        <div class="border border-blue-300 p-2 rounded-md text-center bg-blue-50">
+          <div class="text-blue-600">Running</div>
+          <div class="text-lg font-bold text-blue-700">{{ task_stats.running }}</div>
+        </div>
+        <div class="border border-green-300 p-2 rounded-md text-center bg-green-50">
+          <div class="text-green-600">Completed</div>
+          <div class="text-lg font-bold text-green-700">{{ task_stats.completed }}</div>
+        </div>
+        <div class="border border-red-300 p-2 rounded-md text-center bg-red-50">
+          <div class="text-red-600">Failed</div>
+          <div class="text-lg font-bold text-red-700">{{ task_stats.failed }}</div>
+        </div>
+        <div class="border border-gray-300 p-2 rounded-md text-center bg-gray-50">
+          <div class="text-gray-600">Cancelled</div>
+          <div class="text-lg font-bold text-gray-700">{{ task_stats.cancelled }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Filters for Tasks -->
+  <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+    <div class="bg-gray-100 border-b border-gray-400 px-2 py-1">
+      <h2 class="font-bold text-sm">Task Filters</h2>
+    </div>
+    <div class="p-2 flex flex-wrap items-center gap-2">
+      <div class="relative">
+        <input type="text" id="searchTasks" placeholder="Search tasks..." 
+               class="h-6 px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 pl-6">
+        <svg class="w-3 h-3 absolute left-2 top-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+      <select id="taskStatusFilter" class="h-6 px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+        <option value="all">All Statuses</option>
+        <option value="pending">Pending</option>
+        <option value="running">Running</option>
+        <option value="completed">Completed</option>
+        <option value="failed">Failed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <select id="taskModelFilter" class="h-6 px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+        <option value="all">All Models</option>
+        {% if job.models %}
+          {% for model in job.models %}
+          <option value="{{ model }}">{{ model }}</option>
+          {% endfor %}
+        {% endif %}
+      </select>
+      <select id="taskTypeFilter" class="h-6 px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+        <option value="all">All Types</option>
+        {% if job.analysis_types %}
+          {% for type in job.analysis_types %}
+          <option value="{{ type }}">{{ type.replace('_', ' ')|title }}</option>
+          {% endfor %}
+        {% endif %}
+      </select>
+      <button id="clearTaskFilters" class="h-6 px-2 text-xs border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+        Clear Filters
+      </button>
+    </div>
+  </div>
+
+  <!-- Tasks List -->
+  <div class="border border-gray-400 bg-white rounded-md shadow-sm">
+    <div class="bg-gray-100 border-b border-gray-400 px-2 py-1 flex justify-between items-center">
+      <h2 class="font-bold text-sm">Tasks</h2>
+      <div class="text-xs text-gray-600" id="tasksCounter">
+        Showing <span id="visibleTasksCount">{{ tasks|length }}</span> of {{ tasks|length }} tasks
+      </div>
+    </div>
+    <div class="p-2">
+      {% if tasks %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="border-b border-gray-200">
+              <th class="text-left py-2 px-2 font-medium text-gray-700">Task</th>
+              <th class="text-left py-2 px-2 font-medium text-gray-700">Status</th>
+              <th class="text-left py-2 px-2 font-medium text-gray-700">Model</th>
+              <th class="text-left py-2 px-2 font-medium text-gray-700">App</th>
+              <th class="text-left py-2 px-2 font-medium text-gray-700">Type</th>
+              <th class="text-left py-2 px-2 font-medium text-gray-700">Duration</th>
+              <th class="text-left py-2 px-2 font-medium text-gray-700">Issues</th>
+              <th class="text-left py-2 px-2 font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tasksTableBody">
+            {% for task in tasks %}
+            <tr class="task-row border-b border-gray-100 hover:bg-gray-50" 
+                data-task-status="{{ task.status|lower }}" 
+                data-task-model="{{ task.model|lower }}" 
+                data-task-type="{{ task.analysis_type|lower }}"
+                data-task-search="{{ (task.model + ' ' + task.analysis_type + ' app' + task.app_num|string)|lower }}">
+              <td class="py-2 px-2">
+                <div class="font-medium text-gray-900">{{ task.id[:8] }}...</div>
+              </td>
+              <td class="py-2 px-2">
+                <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+                  {% if task.status == 'completed' %}bg-green-100 text-green-800
+                  {% elif task.status == 'running' %}bg-blue-100 text-blue-800
+                  {% elif task.status == 'pending' %}bg-yellow-100 text-yellow-800
+                  {% elif task.status == 'failed' %}bg-red-100 text-red-800
+                  {% elif task.status == 'cancelled' %}bg-gray-100 text-gray-800
+                  {% else %}bg-gray-100 text-gray-800{% endif %}">
+                  {{ task.status|title }}
+                </span>
+              </td>
+              <td class="py-2 px-2">
+                <span class="text-xs text-gray-600">{{ task.model }}</span>
+              </td>
+              <td class="py-2 px-2">
+                <span class="text-xs text-gray-600">App {{ task.app_num }}</span>
+              </td>
+              <td class="py-2 px-2">
+                <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">{{ task.analysis_type.replace('_', ' ')|title }}</span>
+              </td>
+              <td class="py-2 px-2">
+                {% if task.duration_seconds %}
+                  <span class="text-xs text-gray-600">{{ humanize_duration(task.duration_seconds) }}</span>
+                {% elif task.started_at and not task.completed_at %}
+                  <span class="text-xs text-blue-600">Running...</span>
+                {% else %}
+                  <span class="text-xs text-gray-500">-</span>
+                {% endif %}
+              </td>
+              <td class="py-2 px-2">
+                {% if task.issues_count is not none %}
+                  <span class="text-xs {% if task.issues_count > 0 %}text-red-600 font-medium{% else %}text-green-600{% endif %}">
+                    {{ task.issues_count }}
+                  </span>
+                {% else %}
+                  <span class="text-xs text-gray-500">-</span>
+                {% endif %}
+              </td>
+              <td class="py-2 px-2">
+                <div class="flex items-center space-x-1">
+                  {% if task.result %}
+                  <a href="{{ url_for('batch_analysis.view_result', result_id=task.id) }}" 
+                     class="action-btn h-5 px-2 text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 rounded focus:ring-1 focus:ring-blue-500 transition">
+                    View
+                  </a>
+                  {% endif %}
+                  {% if task.error %}
+                  <button class="view-error-btn action-btn h-5 px-2 text-xs bg-red-100 text-red-800 hover:bg-red-200 rounded focus:ring-1 focus:ring-red-500 transition" 
+                          data-error="{{ task.error | tojson | e }}">
+                    Error
+                  </button>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            <tr id="noTasksRow" class="hidden">
+              <td colspan="8" class="py-8 text-center text-gray-500">
+                <p class="text-sm text-gray-500">No tasks match your current filters</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-8">
+        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <h3 class="text-sm font-medium text-gray-900 mb-2">No tasks found</h3>
+        <p class="text-xs text-gray-500">This job has no associated tasks.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div id="errorModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+      <div class="flex items-center justify-between p-4 border-b border-gray-200">
+        <h3 class="text-lg font-medium text-gray-900">Task Error Details</h3>
+        <button id="closeErrorModal" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="p-4">
+        <pre id="errorContent" class="text-sm bg-gray-100 p-3 rounded-md overflow-auto max-h-96 whitespace-pre-wrap"></pre>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  console.log("Job view DOM loaded.");
+  
+  setupJobActions();
+  setupTaskFilters();
+  setupErrorModal();
+  setupAutoRefresh();
+
+  function setupJobActions() {
+    const cancelBtn = document.getElementById('cancelJobBtn');
+    const archiveBtn = document.getElementById('archiveJobBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        if (confirm('Are you sure you want to cancel this job? Running tasks will be stopped.')) {
+          handleJobAction('cancel', this);
+        }
+      });
+    }
+
+    if (archiveBtn) {
+      archiveBtn.addEventListener('click', function() {
+        if (confirm('Are you sure you want to archive this job?')) {
+          handleJobAction('archive', this);
+        }
+      });
+    }
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function() {
+        window.location.reload();
+      });
+    }
+
+    function handleJobAction(action, button) {
+      const jobId = button.dataset.jobId;
+      const originalText = button.innerHTML;
+      
+      button.disabled = true;
+      button.innerHTML = `<svg class="animate-spin w-3 h-3 inline mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Processing...`;
+
+      fetch(`/batch/job/${jobId}/${action}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showToast(data.message || `Job ${action}ed successfully`, 'success');
+          setTimeout(() => window.location.reload(), 1000);
+        } else {
+          showToast(data.error || `Failed to ${action} job`, 'error');
+          button.disabled = false;
+          button.innerHTML = originalText;
+        }
+      })
+      .catch(error => {
+        console.error(`Error ${action}ing job:`, error);
+        showToast(`Error ${action}ing job`, 'error');
+        button.disabled = false;
+        button.innerHTML = originalText;
+      });
+    }
+  }
+
+  function setupTaskFilters() {
+    const searchInput = document.getElementById('searchTasks');
+    const statusFilter = document.getElementById('taskStatusFilter');
+    const modelFilter = document.getElementById('taskModelFilter');
+    const typeFilter = document.getElementById('taskTypeFilter');
+    const clearFiltersBtn = document.getElementById('clearTaskFilters');
+    const taskRows = document.querySelectorAll('.task-row');
+    const noTasksRow = document.getElementById('noTasksRow');
+    const visibleTasksCountEl = document.getElementById('visibleTasksCount');
+
+    const applyFilters = function() {
+      const searchText = searchInput?.value?.toLowerCase() || '';
+      const selectedStatus = statusFilter?.value || 'all';
+      const selectedModel = modelFilter?.value || 'all';
+      const selectedType = typeFilter?.value || 'all';
+      let visibleCount = 0;
+
+      taskRows.forEach(function(row) {
+        const taskSearch = row.dataset.taskSearch || '';
+        const taskStatus = row.dataset.taskStatus || '';
+        const taskModel = row.dataset.taskModel || '';
+        const taskType = row.dataset.taskType || '';
+        
+        const matchesSearch = !searchText || taskSearch.includes(searchText);
+        const matchesStatus = selectedStatus === 'all' || taskStatus === selectedStatus;
+        const matchesModel = selectedModel === 'all' || taskModel === selectedModel;
+        const matchesType = selectedType === 'all' || taskType === selectedType;
+        
+        const isVisible = matchesSearch && matchesStatus && matchesModel && matchesType;
+        row.style.display = isVisible ? 'table-row' : 'none';
+        if (isVisible) visibleCount++;
+      });
+
+      if (visibleTasksCountEl) visibleTasksCountEl.textContent = visibleCount;
+      if (noTasksRow) noTasksRow.style.display = (visibleCount === 0 && taskRows.length > 0) ? 'table-row' : 'none';
+    };
+
+    let searchTimeout;
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(applyFilters, 300);
+      });
+    }
+
+    [statusFilter, modelFilter, typeFilter].forEach(function(filter) {
+      if (filter) filter.addEventListener('change', applyFilters);
+    });
+
+    if (clearFiltersBtn) {
+      clearFiltersBtn.addEventListener('click', function() {
+        if (searchInput) searchInput.value = '';
+        if (statusFilter) statusFilter.value = 'all';
+        if (modelFilter) modelFilter.value = 'all';
+        if (typeFilter) typeFilter.value = 'all';
+        applyFilters();
+        if (searchInput) searchInput.focus();
+      });
+    }
+
+    applyFilters();
+  }
+
+  function setupErrorModal() {
+    const errorModal = document.getElementById('errorModal');
+    const errorContent = document.getElementById('errorContent');
+    const closeBtn = document.getElementById('closeErrorModal');
+
+    document.addEventListener('click', function(event) {
+      const errorBtn = event.target.closest('.view-error-btn');
+      if (errorBtn) {
+        const errorData = JSON.parse(errorBtn.dataset.error);
+        errorContent.textContent = JSON.stringify(errorData, null, 2);
+        errorModal.classList.remove('hidden');
+      }
+    });
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function() {
+        errorModal.classList.add('hidden');
+      });
+    }
+
+    errorModal.addEventListener('click', function(event) {
+      if (event.target === errorModal) {
+        errorModal.classList.add('hidden');
+      }
+    });
+  }
+
+  function setupAutoRefresh() {
+    const jobStatus = '{{ job.status }}';
+    if (jobStatus === 'running') {
+      setInterval(function() {
+        // Auto-refresh every 30 seconds for running jobs
+        fetch(window.location.href, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => {
+          if (response.ok && response.headers.get('content-type')?.includes('text/html')) {
+            // Only refresh if status might have changed
+            window.location.reload();
+          }
+        })
+        .catch(console.error);
+      }, 30000);
+    }
+  }
+
+  window.showToast = function(message, type = 'success') {
+    if (!message) return;
+    let toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+      toastContainer = document.createElement('div');
+      toastContainer.id = 'toastContainer';
+      toastContainer.className = 'fixed bottom-4 right-4 z-50 flex flex-col gap-2';
+      document.body.appendChild(toastContainer);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `px-4 py-2 rounded-md shadow-md text-sm ${
+      type === 'success' ? 'bg-green-100 border border-green-300 text-green-800' :
+      type === 'error' ? 'bg-red-100 border border-red-300 text-red-800' :
+      'bg-blue-100 border border-blue-300 text-blue-800'
+    } transition-opacity duration-300`;
+    toast.textContent = message;
+    toastContainer.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.style.opacity = 0;
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+});
+</script>
+{% endblock %}

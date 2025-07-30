@@ -674,12 +674,15 @@ class BatchJob:
     analysis_types: List[AnalysisType]
     models: List[str]
     app_range: Dict[str, Any]
+    created_at: datetime = field(default_factory=datetime.now)
+    auto_start: bool = True
+    options: Dict[str, Any] = field(default_factory=dict)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    error_message: Optional[str] = None
     progress: Dict[str, int] = field(default_factory=lambda: {"total": 0, "completed": 0, "failed": 0})
     results: List[Dict] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: Optional[datetime] = None
     
     def update(self):
         """Update the updated_at timestamp."""
@@ -687,13 +690,21 @@ class BatchJob:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
-        return asdict(self)
+        data = asdict(self)
+        # Convert datetime objects to strings for JSON serialization
+        if data.get('created_at'):
+            data['created_at_formatted'] = data['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+        if data.get('started_at'):
+            data['started_at_formatted'] = data['started_at'].strftime('%Y-%m-%d %H:%M:%S')
+        if data.get('completed_at'):
+            data['completed_at_formatted'] = data['completed_at'].strftime('%Y-%m-%d %H:%M:%S')
+        if data.get('updated_at'):
+            data['updated_at_formatted'] = data['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+        return data
     
     def to_json(self) -> str:
         """Convert to JSON string."""
         return json.dumps(self.to_dict(), cls=CustomJSONEncoder)
-    error_message: Optional[str] = None
-    auto_start: bool = True
 
 
 @dataclass
@@ -1312,6 +1323,7 @@ class BatchAnalysisService(BaseService):
     
     def create_job(self, name: str, description: str, analysis_types: List[str],
                    models: List[str], app_range_str: str, 
+                   options: Optional[Dict[str, Any]] = None,
                    auto_start: bool = True) -> BatchJob:
         """Create a new batch job."""
         # Parse app range
@@ -1342,6 +1354,7 @@ class BatchAnalysisService(BaseService):
             analysis_types=analysis_type_enums,
             models=models,
             app_range=app_range,
+            options=options or {},
             auto_start=auto_start
         )
         
@@ -1478,6 +1491,73 @@ class BatchAnalysisService(BaseService):
     def get_all_jobs(self) -> List[BatchJob]:
         """Get all jobs."""
         return list(self.jobs.values())
+    
+    def get_job_stats(self) -> Dict[str, int]:
+        """Get job statistics."""
+        stats = {
+            'total': len(self.jobs),
+            'pending': 0,
+            'running': 0,
+            'completed': 0,
+            'failed': 0,
+            'cancelled': 0,
+            'archived': 0
+        }
+        
+        for job in self.jobs.values():
+            status = job.status.lower()
+            if status in stats:
+                stats[status] += 1
+        
+        return stats
+    
+    def get_detailed_statistics(self) -> Dict[str, Any]:
+        """Get detailed job and task statistics."""
+        with self._lock:
+            stats = {
+                'total_jobs': len(self.jobs),
+                'pending_jobs': 0,
+                'running_jobs': 0,
+                'completed_jobs': 0,
+                'failed_jobs': 0,
+                'cancelled_jobs': 0,
+                'archived_jobs': 0,
+                'total_tasks': len(self.tasks),
+                'pending_tasks': 0,
+                'running_tasks': 0,
+                'completed_tasks': 0,
+                'failed_tasks': 0,
+                'success_rate': 0.0
+            }
+            
+            # Count job statuses
+            for job in self.jobs.values():
+                status_key = f"{job.status.value}_jobs"
+                if status_key in stats:
+                    stats[status_key] += 1
+            
+            # Count task statuses
+            for task in self.tasks.values():
+                status_key = f"{task.status.value}_tasks"
+                if status_key in stats:
+                    stats[status_key] += 1
+            
+            # Calculate success rate
+            total_completed = stats['completed_tasks'] + stats['failed_tasks']
+            if total_completed > 0:
+                stats['success_rate'] = round((stats['completed_tasks'] / total_completed) * 100, 1)
+                
+            return stats
+    
+    def get_job_tasks(self, job_id: str) -> List[BatchTask]:
+        """Get all tasks for a specific job."""
+        with self._lock:
+            return [task for task in self.tasks.values() if task.job_id == job_id]
+    
+    def get_task(self, task_id: str) -> Optional[BatchTask]:
+        """Get a specific task by ID."""
+        with self._lock:
+            return self.tasks.get(task_id)
     
     def cleanup(self):
         """Cleanup resources."""
