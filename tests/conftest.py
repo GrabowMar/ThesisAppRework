@@ -110,6 +110,39 @@ def app():
         except Exception as e:
             app.logger.error(f"Failed to register blueprints: {e}")
     
+    # Register template globals that are missing in test environment
+    @app.template_global()
+    def get_model_count():
+        """Get total number of models in database."""
+        try:
+            from models import ModelCapability
+            return ModelCapability.query.count()
+        except Exception:
+            return 0
+    
+    @app.template_global()
+    def get_app_count():
+        """Get total number of generated applications."""
+        try:
+            from models import GeneratedApplication
+            return GeneratedApplication.query.count()
+        except Exception:
+            return 0
+    
+    @app.template_global()
+    def get_running_container_count():
+        """Get number of running containers."""
+        return 0  # Mock for tests
+    
+    @app.template_global()
+    def get_analysis_count():
+        """Get number of completed analyses."""
+        try:
+            from models import SecurityAnalysis
+            return SecurityAnalysis.query.count()
+        except Exception:
+            return 0
+    
     # Debug print to verify config
     print(f"DEBUG: APPLICATION_ROOT = {app.config.get('APPLICATION_ROOT')}")
     
@@ -226,7 +259,9 @@ def sample_performance_test():
 @pytest.fixture
 def sample_batch_analysis():
     """Create a sample BatchAnalysis instance."""
+    import uuid
     return BatchAnalysis(
+        id=str(uuid.uuid4()),
         name='Test Batch Analysis',
         analysis_type='security',
         status=AnalysisStatus.COMPLETED,

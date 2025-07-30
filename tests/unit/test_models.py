@@ -545,7 +545,9 @@ class TestBatchAnalysis:
     
     def test_create_batch_analysis(self, init_database):
         """Test creating a batch analysis."""
+        import uuid
         batch = BatchAnalysis(
+            id=str(uuid.uuid4()),
             name='Security Batch Test',
             analysis_type='security',
             status=AnalysisStatus.RUNNING,
@@ -625,7 +627,9 @@ class TestBatchAnalysis:
     
     def test_to_dict_method(self, init_database):
         """Test to_dict method."""
+        import uuid
         batch = BatchAnalysis(
+            id=str(uuid.uuid4()),
             name='Performance Batch',
             analysis_type='performance',
             status=AnalysisStatus.COMPLETED,

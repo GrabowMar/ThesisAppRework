@@ -1,42 +1,35 @@
 """
-Flask Web Routes - Thesis Research App
-=====================================
+Flask Routes and Blueprints - HTMX Edition
+==========================================
 
-Modern, clean Flask routes implementation with HTMX integration.
-Provides endpoints for dashboard, application management, analysis, and Docker operations.
+Modern route definitions for the Thesis Research App using HTMX patterns.
+Includes routes for dashboard, analysis, performance testing, ZAP scanning, and batch processing.
 
-Key Features:
-- HTMX-powered dynamic UI updates
-- RESTful API design with proper error handling
-- Modular blueprint architecture
-- Service-based architecture integration
-- Comprehensive logging and monitoring
-
-Authors: Thesis Research Team
-Version: 2.0.0
+Key HTMX Patterns Used:
+- hx-get/hx-post for AJAX requests
+- hx-target for DOM updates  
+- hx-swap for element replacement strategies
+- hx-trigger for event handling
+- Partial template rendering for component updates
 """
 
 import json
 import logging
-import os
 import time
-import uuid
-import zipfile
+import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from flask import (
-    Blueprint, current_app, flash, jsonify, make_response, redirect,
-    render_template, request, send_file, session, url_for
+    Blueprint, Response, current_app, flash, jsonify, make_response,
+    redirect, render_template, request, session, url_for, send_file
 )
-from werkzeug.exceptions import BadRequest, NotFound
 
-from extensions import db
-from models import (
-    AnalysisStatus, BatchAnalysis, GeneratedApplication, ModelCapability,
-    PerformanceTest, PortConfiguration, SecurityAnalysis, SeverityLevel
-)
+# Performance imports
+
+# Import Docker utility functions
+from core_services import get_docker_project_name
 
 # Initialize logger
 logger = logging.getLogger(__name__)
