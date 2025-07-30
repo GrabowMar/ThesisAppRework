@@ -577,15 +577,8 @@ class ModelAppDetails:
 
 
 # ===========================
-# CACHE MANAGEMENT
+# DOCKER MANAGEMENT
 # ===========================
-
-# Global cache for container status and names
-_container_cache = {}
-_docker_project_names_cache = {}
-_cache_lock = threading.Lock()
-_docker_cache_lock = threading.RLock()
-_cache_timeout = 30  # Cache timeout in seconds
 
 # Docker operation locks to prevent concurrent operations on the same project
 _docker_operation_locks = {}
@@ -671,82 +664,6 @@ def cleanup_docker_operation_locks():
         logger.debug(f"Cleaned up Docker locks. Active locks: {len(active_locks)}")
 
 
-def clear_container_cache(model: Optional[str] = None, app_num: Optional[int] = None) -> None:
-    """Clear container cache for specific app or all apps."""
-    logger = create_logger_for_component('utils')
-    with _cache_lock:
-        if model and app_num:
-            keys_to_remove = []
-            prefix = f"{model}:{app_num}:"
-            for key in _container_cache:
-                if key.startswith(prefix):
-                    keys_to_remove.append(key)
-            
-            for key in keys_to_remove:
-                del _container_cache[key]
-                
-            logger.debug(f"Cleared cache for {model}/app{app_num}")
-        else:
-            _container_cache.clear()
-            logger.debug("Cleared all container cache")
-    
-    if model and app_num:
-        with _docker_cache_lock:
-            docker_key = f"{model}:{app_num}"
-            _docker_project_names_cache.pop(docker_key, None)
-    elif model is None and app_num is None:
-        with _docker_cache_lock:
-            _docker_project_names_cache.clear()
-
-
-def clear_docker_caches() -> None:
-    """Clear all Docker-related caches."""
-    global DOCKER_AVAILABLE, DOCKER_COMPOSE_AVAILABLE
-    
-    with _cache_lock:
-        _container_cache.clear()
-    
-    with _docker_cache_lock:
-        _docker_project_names_cache.clear()
-    
-    DOCKER_AVAILABLE = None
-    DOCKER_COMPOSE_AVAILABLE = None
-    
-    logger = create_logger_for_component('utils')
-    logger.info("Cleared all Docker caches and reset availability flags")
-
-
-def cleanup_expired_cache() -> None:
-    """Clean up expired cache entries from both container and Docker name caches."""
-    logger = create_logger_for_component('utils')
-    current_time = time.time()
-    
-    with _cache_lock:
-        expired_keys = []
-        
-        for key, cached_data in _container_cache.items():
-            if current_time - cached_data['timestamp'] >= _cache_timeout:
-                expired_keys.append(key)
-        
-        for key in expired_keys:
-            del _container_cache[key]
-        
-        container_cleaned = len(expired_keys)
-    
-    with _docker_cache_lock:
-        expired_keys = []
-        
-        for key, cached_data in _docker_project_names_cache.items():
-            if current_time - cached_data['timestamp'] >= _cache_timeout:
-                expired_keys.append(key)
-        
-        for key in expired_keys:
-            del _docker_project_names_cache[key]
-        
-        if expired_keys:
-            logger.debug(f"Cleaned up {len(expired_keys)} expired cache entries")
-
-
 # ===========================
 # DOCKER UTILITIES
 # ===========================
@@ -826,31 +743,13 @@ def sanitize_docker_project_name(name: str) -> str:
 
 
 def get_docker_project_name(model: str, app_num: int) -> str:
-    """Get a sanitized Docker project name with caching."""
-    logger = create_logger_for_component('utils')
-    
+    """Get a sanitized Docker project name."""
     if not model or app_num < 1:
         raise ValueError("Invalid model name or app number")
-    
-    cache_key = f"{model}:{app_num}"
-    
-    with _docker_cache_lock:
-        if cache_key in _docker_project_names_cache:
-            cached_data = _docker_project_names_cache[cache_key]
-            if time.time() - cached_data['timestamp'] < _cache_timeout:
-                logger.debug(f"Using cached Docker project name for {model}/app{app_num}")
-                return cached_data['project_name']
     
     raw_name = f"{model}_app{app_num}"
     sanitized_name = sanitize_docker_project_name(raw_name)
     
-    with _docker_cache_lock:
-        _docker_project_names_cache[cache_key] = {
-            'project_name': sanitized_name,
-            'timestamp': time.time()
-        }
-    
-    logger.debug(f"Generated Docker project name for {model}/app{app_num}: {sanitized_name}")
     return sanitized_name
 
 
@@ -3719,8 +3618,6 @@ def handle_docker_action(action: str, model: str, app_num: int) -> Tuple[bool, s
         with get_docker_operation_lock(project_name):
             logger.info(f"Executing '{action}' for {model}/app{app_num} (project: {project_name})")
             
-            clear_container_cache(model, app_num)
-            
             action_commands = {
                 "start": [["up", "-d", "--remove-orphans"]],
                 "stop": [["down", "--timeout", "30"]],
@@ -3865,21 +3762,13 @@ def verify_container_health(docker_manager: DockerManager, model: str, app_num: 
     return False, "Containers failed to become healthy"
 
 
-def get_app_container_statuses_cached(model: str, app_num: int, 
-                                    docker_manager: DockerManager) -> Dict[str, Any]:
-    """Get container statuses for a specific application with caching."""
+def get_app_container_statuses(model: str, app_num: int, 
+                              docker_manager: DockerManager) -> Dict[str, Any]:
+    """Get container statuses for a specific application."""
     logger = create_logger_for_component('utils')
-    cache_key = f"{model}:{app_num}:status"
-    
-    with _cache_lock:
-        if cache_key in _container_cache:
-            cached_data = _container_cache[cache_key]
-            if time.time() - cached_data['timestamp'] < _cache_timeout:
-                logger.debug(f"Using cached status for {model}/app{app_num}")
-                return cached_data['data']
     
     try:
-        backend_name, frontend_name = get_container_names_cached(model, app_num)
+        backend_name, frontend_name = get_container_names(model, app_num)
         
         backend_status = docker_manager.get_container_status(backend_name)
         frontend_status = docker_manager.get_container_status(frontend_name)
@@ -3890,13 +3779,6 @@ def get_app_container_statuses_cached(model: str, app_num: int,
             "success": True
         }
         
-        with _cache_lock:
-            _container_cache[cache_key] = {
-                'data': result,
-                'timestamp': time.time()
-            }
-        
-        logger.debug(f"Cached fresh status for {model}/app{app_num}")
         return result
         
     except Exception as e:
@@ -3910,10 +3792,10 @@ def get_app_container_statuses_cached(model: str, app_num: int,
         return result
 
 
-def get_app_container_statuses(model: str, app_num: int, 
-                             docker_manager: DockerManager) -> Dict[str, Any]:
-    """Get container statuses for a specific application."""
-    return get_app_container_statuses_cached(model, app_num, docker_manager)
+def get_app_container_statuses_wrapper(model: str, app_num: int, 
+                                      docker_manager: DockerManager) -> Dict[str, Any]:
+    """Get container statuses for a specific application - wrapper for compatibility."""
+    return get_app_container_statuses(model, app_num, docker_manager)
 
 
 def save_analysis_results(model: str, app_num: int, results, filename: str = "performance_results.json"):
@@ -3980,13 +3862,6 @@ def get_container_names(model: str, app_num: int) -> Tuple[str, str]:
     if not model or app_num < 1:
         raise ValueError("Invalid model or app number")
     
-    cache_key = f"{model}:{app_num}:names"
-    with _cache_lock:
-        if cache_key in _container_cache:
-            cached_data = _container_cache[cache_key]
-            if time.time() - cached_data['timestamp'] < _cache_timeout:
-                return cached_data['data']
-    
     app_config = get_app_config_by_model_and_number(model, app_num)
     if not app_config:
         raise ValueError(f"No configuration found for model '{model}' app {app_num}")
@@ -4003,12 +3878,6 @@ def get_container_names(model: str, app_num: int) -> Tuple[str, str]:
     frontend_name = f"{project_name}_frontend_{frontend_port}"
     
     result = (backend_name, frontend_name)
-    
-    with _cache_lock:
-        _container_cache[cache_key] = {
-            'data': result,
-            'timestamp': time.time()
-        }
     
     logger.debug(f"Generated container names for {model}/app{app_num}: {result}")
     return result
@@ -4232,7 +4101,7 @@ def get_bulk_container_statuses(apps: List[Dict[str, Any]],
             if app_num:
                 key = f"{model}:{app_num}"
                 try:
-                    status = get_app_container_statuses_cached(model, app_num, docker_manager)
+                    status = get_app_container_statuses(model, app_num, docker_manager)
                     results[key] = status
                 except Exception as e:
                     logger.error(f"Error getting status for {model}/app{app_num}: {e}")
@@ -4246,69 +4115,8 @@ def get_bulk_container_statuses(apps: List[Dict[str, Any]],
     return results
 
 
-def refresh_container_cache_background(apps: List[Dict[str, Any]], 
-                                     docker_manager: DockerManager) -> None:
-    """Refresh container cache in the background."""
-    logger = create_logger_for_component('utils')
-    
-    def refresh_worker():
-        try:
-            logger.info("Starting background cache refresh")
-            clear_container_cache()
-            refresh_cache_directly(apps, docker_manager)
-            logger.info("Background cache refresh completed")
-        except Exception as e:
-            logger.error(f"Background cache refresh failed: {e}")
-    
-    thread = threading.Thread(target=refresh_worker, daemon=True)
-    thread.start()
-
-
-def refresh_cache_directly(apps: List[Dict[str, Any]], docker_manager: DockerManager) -> None:
-    """Refresh cache directly without Flask application context dependencies."""
-    logger = create_logger_for_component('utils')
-    
-    for app in apps:
-        model = app.get('model')
-        app_num = app.get('app_num')
-        
-        if not model or not app_num:
-            continue
-            
-        try:
-            cache_key = f"{model}:{app_num}:status"
-            
-            backend_port = app.get('backend_port')
-            frontend_port = app.get('frontend_port')
-            
-            if backend_port and frontend_port:
-                project_name = get_docker_project_name(model, app_num)
-                backend_name = f"{project_name}_backend_{backend_port}"
-                frontend_name = f"{project_name}_frontend_{frontend_port}"
-                
-                backend_status = docker_manager.get_container_status(backend_name)
-                frontend_status = docker_manager.get_container_status(frontend_name)
-                
-                result = {
-                    "backend": backend_status.to_dict() if backend_status else {},
-                    "frontend": frontend_status.to_dict() if frontend_status else {},
-                    "success": True
-                }
-                
-                with _cache_lock:
-                    _container_cache[cache_key] = {
-                        'data': result,
-                        'timestamp': time.time()
-                    }
-                
-                logger.debug(f"Cached status for {model}/app{app_num} in background")
-            
-        except Exception as e:
-            logger.warning(f"Failed to cache status for {model}/app{app_num}: {e}")
-
-
 def get_dashboard_data_optimized(docker_manager: DockerManager) -> Dict[str, Any]:
-    """Get optimized dashboard data with caching and bulk operations."""
+    """Get optimized dashboard data with bulk operations."""
     logger = create_logger_for_component('utils')
     
     try:
@@ -4329,15 +4137,9 @@ def get_dashboard_data_optimized(docker_manager: DockerManager) -> Dict[str, Any
         
         models = get_ai_models()
         
-        try:
-            warm_container_cache_safe(all_apps, docker_manager)
-        except Exception as e:
-            logger.warning(f"Background cache warming failed: {e}")
-        
         return {
             'apps': enhanced_apps,
             'models': models,
-            'cache_used': True,
             'total_apps': len(enhanced_apps)
         }
         
@@ -4351,96 +4153,11 @@ def get_dashboard_data_optimized(docker_manager: DockerManager) -> Dict[str, Any
         }
 
 
-def warm_container_cache(docker_manager: DockerManager) -> bool:
-    """Warm up the container cache by pre-loading all app statuses."""
-    logger = create_logger_for_component('utils')
-    
-    try:
-        logger.info("Warming up container cache...")
-        
-        try:
-            from flask import has_app_context
-            if has_app_context():
-                all_apps = get_all_apps()
-            else:
-                logger.warning("No Flask app context available, skipping cache warming")
-                return True
-        except ImportError:
-            logger.warning("Flask not available, skipping cache warming")
-            return True
-        
-        refresh_container_cache_background(all_apps, docker_manager)
-        
-        logger.info(f"Cache warming initiated for {len(all_apps)} apps")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error warming container cache: {e}")
-        return False
-
-
-def warm_container_cache_safe(apps: List[Dict[str, Any]], docker_manager: DockerManager) -> bool:
-    """Safely warm up the container cache with provided app data."""
-    logger = create_logger_for_component('utils')
-    
-    try:
-        logger.info(f"Safely warming up container cache for {len(apps)} apps...")
-        refresh_container_cache_background(apps, docker_manager)
-        logger.info(f"Safe cache warming initiated for {len(apps)} apps")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error in safe cache warming: {e}")
-        return False
-
-
-def get_cache_stats() -> Dict[str, Any]:
-    """Get container cache statistics including Docker-specific caches."""
-    current_time = time.time()
-    
-    with _cache_lock:
-        active_entries = 0
-        expired_entries = 0
-        
-        for key, cached_data in _container_cache.items():
-            if current_time - cached_data['timestamp'] < _cache_timeout:
-                active_entries += 1
-            else:
-                expired_entries += 1
-    
-    with _docker_cache_lock:
-        docker_active = 0
-        docker_expired = 0
-        
-        for key, cached_data in _docker_project_names_cache.items():
-            if current_time - cached_data['timestamp'] < _cache_timeout:
-                docker_active += 1
-            else:
-                docker_expired += 1
-    
-    return {
-        'container_cache': {
-            'total_entries': len(_container_cache),
-            'active_entries': active_entries,
-            'expired_entries': expired_entries,
-        },
-        'docker_names_cache': {
-            'total_entries': len(_docker_project_names_cache),
-            'active_entries': docker_active,
-            'expired_entries': docker_expired,
-        },
-        'cache_timeout': _cache_timeout,
-        'docker_available': DOCKER_AVAILABLE,
-        'docker_compose_available': DOCKER_COMPOSE_AVAILABLE
-    }
-
-
 def get_docker_system_status() -> Dict[str, Any]:
     """Get comprehensive Docker system status."""
     status = {
         'docker_available': is_docker_available(),
         'docker_compose_available': is_docker_compose_available(),
-        'cache_stats': get_cache_stats(),
         'timestamp': datetime.now().isoformat()
     }
     
@@ -4596,20 +4313,14 @@ def diagnose_docker_issues(model: str, app_num: int) -> Dict[str, Any]:
 
 
 def reset_docker_environment() -> Tuple[bool, str]:
-    """Reset Docker environment by clearing caches and checking availability."""
+    """Reset Docker environment by checking availability."""
     logger = create_logger_for_component('utils')
     
     try:
         logger.info("Resetting Docker environment...")
         
-        clear_docker_caches()
-        
         docker_available = is_docker_available()
         compose_available = is_docker_compose_available()
-        
-        cleanup_expired_cache()
-        
-        system_status = get_docker_system_status()
         
         if docker_available and compose_available:
             message = "Docker environment reset successfully. Docker and Docker Compose are available."
@@ -5258,64 +4969,12 @@ class ConfigurationLoader:
         self.logger.info("Batch analysis module enabled")
 
 
-class CacheCleanupManager:
-    """Manager for periodic cache cleanup."""
-    
-    def __init__(self, app: Flask) -> None:
-        self.app = app
-        self.cleanup_interval = 300
-        self.cleanup_thread = None
-        self.shutdown_event = threading.Event()
-        self.logger = create_logger_for_component('cache_cleanup')
-    
-    def start_cleanup_thread(self) -> None:
-        """Start the cache cleanup thread."""
-        if self.cleanup_thread is None or not self.cleanup_thread.is_alive():
-            self.cleanup_thread = threading.Thread(
-                target=self._cleanup_worker,
-                daemon=True,
-                name="CacheCleanup"
-            )
-            self.cleanup_thread.start()
-            self.logger.info("Cache cleanup thread started")
-    
-    def stop_cleanup_thread(self) -> None:
-        """Stop the cache cleanup thread."""
-        if self.cleanup_thread and self.cleanup_thread.is_alive():
-            self.shutdown_event.set()
-            self.cleanup_thread.join(timeout=5)
-            self.logger.info("Cache cleanup thread stopped")
-    
-    def _cleanup_worker(self) -> None:
-        """Background worker for cache cleanup."""
-        while not self.shutdown_event.is_set():
-            try:
-                if self.shutdown_event.wait(self.cleanup_interval):
-                    break
-                
-                try:
-                    cleanup_expired_cache()
-                    self.logger.debug("Performed periodic cache cleanup")
-                except Exception as cleanup_error:
-                    self.logger.warning(f"Cache cleanup failed: {cleanup_error}")
-                    
-            except Exception as e:
-                self.logger.error(f"Error in cache cleanup worker: {e}")
-                time.sleep(60)
-    
-    def cleanup(self) -> None:
-        """Cleanup method called on application shutdown."""
-        self.stop_cleanup_thread()
-
-
 class FlaskApplicationFactory:
     """Factory for creating and configuring Flask applications."""
     
     def __init__(self) -> None:
         self.logger = None
         self.service_manager = None
-        self.cleanup_manager = None
-        self.cache_cleanup_manager = None
     
     def create_app(self) -> Flask:
         """Create and configure the Flask application."""
@@ -5363,11 +5022,9 @@ class FlaskApplicationFactory:
         
         self.service_manager = ServiceManager(app)
         self.cleanup_manager = ScanCleanupManager(app)
-        self.cache_cleanup_manager = CacheCleanupManager(app)
         
         app.extensions['service_manager'] = self.service_manager
         app.extensions['cleanup_manager'] = self.cleanup_manager
-        app.extensions['cache_cleanup_manager'] = self.cache_cleanup_manager
         
         service_initializer = ServiceInitializer(app, self.service_manager)
         service_initializer.initialize_all()
@@ -5376,7 +5033,6 @@ class FlaskApplicationFactory:
         analyzer_initializer.initialize_all(project_root_path, app_base_dir)
         
         self.cleanup_manager.start_cleanup_thread()
-        self.cache_cleanup_manager.start_cleanup_thread()
         
         self._register_blueprints(app)
         self._initialize_batch_analysis(app)

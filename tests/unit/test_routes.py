@@ -110,12 +110,6 @@ class TestApiRoutes:
         
         assert response.status_code == 200
     
-    def test_cache_stats(self, client, auth_headers):
-        """Test cache stats endpoint."""
-        response = client.get('/api/cache/stats', headers=auth_headers, base_url='http://localhost/')
-        
-        assert response.status_code == 200
-    
     def test_header_stats(self, client, populated_database, auth_headers):
         """Test header stats endpoint."""
         response = client.get('/api/header-stats', headers=auth_headers, base_url='http://localhost/')
@@ -133,12 +127,6 @@ class TestApiRoutes:
         response = client.get('/api/notifications', headers=auth_headers, base_url='http://localhost/')
         
         assert response.status_code == 200
-    
-    def test_clear_cache_post(self, client, auth_headers):
-        """Test cache clearing endpoint."""
-        response = client.post('/api/cache/clear', headers=auth_headers, base_url='http://localhost/')
-        
-        assert response.status_code in [200, 204, 302]
     
     def test_dashboard_stats(self, client, populated_database, auth_headers):
         """Test dashboard stats endpoint."""
@@ -576,8 +564,7 @@ class TestRoutePerformance:
         
         api_endpoints = [
             '/api/header-stats',
-            '/api/health-status',
-            '/api/cache/stats'
+            '/api/health-status'
         ]
         
         for endpoint in api_endpoints:

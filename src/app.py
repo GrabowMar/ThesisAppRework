@@ -43,11 +43,6 @@ class Config:
         }
     }
     
-    # Enhanced caching configuration
-    CACHE_TYPE = 'simple'
-    CACHE_DEFAULT_TIMEOUT = 600  # Increased to 10 minutes
-    CACHE_THRESHOLD = 1000  # Maximum cache entries
-    
     APPLICATION_ROOT = '/'  # Fix for Flask test client
     PREFERRED_URL_SCHEME = 'http'
 
@@ -73,18 +68,9 @@ def setup_logging(app):
 
 
 def load_model_integration_data(app):
-    """Load model capabilities and port configurations from JSON files with caching."""
+    """Load model capabilities and port configurations from JSON files."""
     project_root = Path(__file__).parent.parent
     misc_dir = project_root / "misc"
-    
-    # Cache the loaded data to avoid repeated file reads
-    cache_key = "model_integration_data"
-    cached_data = getattr(app, '_cached_integration_data', None)
-    
-    if cached_data:
-        app.logger.info("Using cached model integration data")
-        app.config.update(cached_data)
-        return
     
     try:
         integration_data = {}
@@ -128,8 +114,7 @@ def load_model_integration_data(app):
         else:
             app.logger.warning(f"Models summary file not found: {models_file}")
             
-        # Cache the integration data
-        app._cached_integration_data = integration_data
+        # Apply the integration data
         app.config.update(integration_data)
         
         app.logger.info("Model integration data loaded successfully")

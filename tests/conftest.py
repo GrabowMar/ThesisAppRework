@@ -30,8 +30,6 @@ class TestConfig:
     WTF_CSRF_ENABLED = False
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    CACHE_TYPE = 'simple'
-    CACHE_DEFAULT_TIMEOUT = 1  # Short timeout for tests
     APPLICATION_ROOT = '/'  # Fix for Flask test client
     PORT_CONFIG = []  # Will be populated by fixtures
 
@@ -52,8 +50,6 @@ def app():
         WTF_CSRF_ENABLED = False
         SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
         SQLALCHEMY_TRACK_MODIFICATIONS = False
-        CACHE_TYPE = 'simple'
-        CACHE_DEFAULT_TIMEOUT = 1
         APPLICATION_ROOT = '/'  # Must be set at class level
         PREFERRED_URL_SCHEME = 'http'
         SERVER_NAME = 'localhost'

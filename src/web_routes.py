@@ -27,7 +27,6 @@ from flask import (
 )
 
 # Performance imports
-from cache_service import cache, cached, cache_dashboard_stats, cache_model_stats, cache_system_health
 
 # Import Docker utility functions
 from core_services import get_docker_project_name
@@ -390,19 +389,6 @@ def filter_apps(apps, search=None, model=None, status=None):
         filtered = [app for app in filtered if app.get('status') == status]
     
     return filtered
-
-def get_cache_stats():
-    """Get cache statistics."""
-    return {
-        'cache_hits': 0,
-        'cache_misses': 0,
-        'cache_size': 0
-    }
-
-def clear_container_cache(model: Optional[str] = None, app_num: Optional[int] = None):
-    """Clear container cache."""
-    # Stub implementation
-    return True
 
 def create_logger_for_component(component_name: str):
     """Create logger for component."""
@@ -1089,7 +1075,6 @@ def get_app_status(model: str, app_num: int):
 
 
 @api_bp.route("/sidebar/stats")
-@cache_model_stats(timeout=90)  # Cache for 90 seconds
 def get_sidebar_stats():
     """Get quick stats for sidebar."""
     try:
@@ -1161,7 +1146,6 @@ def get_sidebar_activity():
 
 
 @api_bp.route("/sidebar/system-status")
-@cache_system_health(timeout=60)  # Cache for 1 minute
 def get_sidebar_system_status():
     """Get system status for sidebar."""
     try:
@@ -1372,19 +1356,6 @@ def get_models_stats():
         return jsonify({'total_models': 0, 'total_apps': 0, 'unique_providers': 0, 'models_with_apps': 0})
 
 
-@api_bp.route("/cache/stats")
-def cache_stats():
-    """Get cache statistics for monitoring."""
-    try:
-        stats = get_cache_stats()
-        if is_htmx_request():
-            return render_template("partials/cache_info.html", stats=stats)
-        return jsonify(stats)
-    except Exception as e:
-        logger.error(f"Error getting cache stats: {e}")
-        return create_api_response(False, error=str(e))
-
-
 @api_bp.route("/header-stats")
 def get_header_stats():
     """Get header statistics for the navbar."""
@@ -1509,25 +1480,6 @@ def get_notifications_count():
         if is_htmx_request():
             return "0"
         return jsonify({'count': 0})
-
-
-@api_bp.route("/cache/clear", methods=["POST"])
-def clear_cache():
-    """Clear application cache."""
-    try:
-        clear_container_cache()
-        
-        if is_htmx_request():
-            return render_template("partials/success_message.html", 
-                                 message="Cache cleared successfully")
-        return create_api_response(True, message="Cache cleared")
-        
-    except Exception as e:
-        logger.error(f"Error clearing cache: {e}")
-        if is_htmx_request():
-            return render_template("partials/error_message.html", 
-                                 error="Failed to clear cache")
-        return create_api_response(False, error=str(e))
 
 
 @api_bp.route("/model/<model_slug>/stats")
@@ -3943,7 +3895,6 @@ def api_model_stats(model_slug):
         return jsonify({'error': str(e)}), 500
 
 @main_bp.route('/api/dashboard/stats')
-@cache_dashboard_stats(timeout=120)  # Cache for 2 minutes
 def api_dashboard_stats():
     """Get dashboard summary statistics"""
     try:
@@ -3999,7 +3950,6 @@ def api_dashboard_stats():
         return jsonify({'error': str(e)}), 500
 
 @main_bp.route('/api/dashboard/header-stats')
-@cache_dashboard_stats(timeout=120)  # Cache for 2 minutes
 def api_dashboard_header_stats():
     """Get compact dashboard stats for header display"""
     try:

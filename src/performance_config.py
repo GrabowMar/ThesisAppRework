@@ -23,24 +23,6 @@ HTMX_REFRESH_INTERVALS = {
     }
 }
 
-# Cache timeouts (in seconds)
-CACHE_TIMEOUTS = {
-    'development': {
-        'model_stats': 90,             # 1.5 minutes
-        'dashboard_stats': 120,        # 2 minutes
-        'system_health': 60,           # 1 minute
-        'container_status': 30,        # 30 seconds
-        'docker_health': 60,           # 1 minute
-    },
-    'production': {
-        'model_stats': 300,            # 5 minutes
-        'dashboard_stats': 600,        # 10 minutes
-        'system_health': 180,          # 3 minutes
-        'container_status': 120,       # 2 minutes
-        'docker_health': 300,          # 5 minutes
-    }
-}
-
 # Database optimization settings
 DATABASE_OPTIMIZATION = {
     'connection_pool_size': 20,
@@ -75,8 +57,6 @@ FRONTEND_OPTIMIZATION = {
 
 # Memory management
 MEMORY_MANAGEMENT = {
-    'cache_max_entries': 1000,         # Maximum cache entries
-    'cache_cleanup_interval': 300,     # Clean up cache every 5 minutes
     'log_rotation_size': '10MB',       # Rotate logs at 10MB
     'max_log_files': 5,                # Keep max 5 log files
 }
@@ -85,7 +65,6 @@ def get_config_for_environment(env: str = 'development') -> dict:
     """Get performance configuration for specific environment."""
     return {
         'htmx_intervals': HTMX_REFRESH_INTERVALS.get(env, HTMX_REFRESH_INTERVALS['development']),
-        'cache_timeouts': CACHE_TIMEOUTS.get(env, CACHE_TIMEOUTS['development']),
         'database': DATABASE_OPTIMIZATION,
         'sampling': SAMPLING_CONFIG,
         'frontend': FRONTEND_OPTIMIZATION,

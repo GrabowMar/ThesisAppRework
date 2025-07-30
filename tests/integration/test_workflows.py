@@ -285,20 +285,6 @@ class TestApiIntegration:
         # 3. Advanced search
         response = client.get('/api/advanced-search', headers=auth_headers)
         assert response.status_code == 200
-    
-    def test_cache_api_integration(self, client, auth_headers):
-        """Test cache API endpoints."""
-        # 1. Get cache stats
-        response = client.get('/api/cache/stats', headers=auth_headers)
-        assert response.status_code == 200
-        
-        # 2. Clear cache
-        response = client.post('/api/cache/clear', headers=auth_headers)
-        assert response.status_code in [200, 204, 302]
-        
-        # 3. Verify cache was cleared (stats might change)
-        response = client.get('/api/cache/stats', headers=auth_headers)
-        assert response.status_code == 200
 
 
 class TestServiceIntegration:
@@ -463,8 +449,7 @@ class TestPerformanceIntegration:
         endpoints = [
             '/api/dashboard-stats',
             '/api/header-stats',
-            '/api/system-health',
-            '/api/cache/stats'
+            '/api/system-health'
         ]
         
         for endpoint in endpoints:
