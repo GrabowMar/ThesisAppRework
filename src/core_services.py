@@ -1044,16 +1044,22 @@ class DockerManager:
         self._lock = threading.RLock()
 
     def _create_docker_client(self) -> Optional[docker.DockerClient]:
-        """Create a Docker client instance."""
+        """Create a Docker client instance with improved error handling."""
         try:
+            # Use Windows named pipe for Windows, Unix socket for Linux/Mac
             default_host = (
                 "npipe:////./pipe/docker_engine" if os.name == 'nt'
                 else "unix://var/run/docker.sock"
             )
             docker_host = os.getenv("DOCKER_HOST", default_host)
+            
+            # Create client with timeout
             client = docker.DockerClient(base_url=docker_host, timeout=Config.DOCKER_TIMEOUT)
+            
+            # Verify connection with ping
             client.ping()
-            self.logger.info("Docker client created and verified")
+            
+            self.logger.info(f"Docker client created and verified (host: {docker_host})")
             return client
         except Exception as e:
             self.logger.error(f"Docker client creation failed: {e}")
@@ -1189,6 +1195,67 @@ class DockerManager:
         except Exception as e:
             self.logger.error(f"Error fetching Docker version: {e}")
             return None
+
+    def safe_docker_operation(self, operation_name: str, operation_func, *args, **kwargs):
+        """Safely execute Docker operations with error handling and logging."""
+        try:
+            self.logger.debug(f"Starting {operation_name}")
+            result = operation_func(*args, **kwargs)
+            self.logger.debug(f"Completed {operation_name} successfully")
+            return result
+        except docker.errors.NotFound as e:
+            self.logger.warning(f"{operation_name} failed - resource not found: {e}")
+            raise
+        except docker.errors.APIError as e:
+            self.logger.error(f"{operation_name} failed - Docker API error: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"{operation_name} failed - unexpected error: {e}")
+            raise
+
+    def check_container_health(self, container_name: str) -> Dict[str, Any]:
+        """Check container health status with detailed information."""
+        if not self.client:
+            return {"status": "unknown", "reason": "Docker client unavailable"}
+        
+        try:
+            container = self.get_container(container_name)
+            if not container:
+                return {"status": "not_found", "reason": f"Container '{container_name}' not found"}
+            
+            container.reload()
+            status = container.status
+            health = container.attrs.get('State', {}).get('Health', {})
+            
+            return {
+                "status": status,
+                "health_status": health.get('Status', 'none'),
+                "health_log": health.get('Log', [])[-1:] if health.get('Log') else [],
+                "restart_count": container.attrs.get('RestartCount', 0),
+                "started_at": container.attrs.get('State', {}).get('StartedAt'),
+                "finished_at": container.attrs.get('State', {}).get('FinishedAt'),
+                "exit_code": container.attrs.get('State', {}).get('ExitCode')
+            }
+        except Exception as e:
+            self.logger.error(f"Health check failed for {container_name}: {e}")
+            return {"status": "error", "reason": str(e)}
+
+    def get_container_logs_with_limit(self, container_name: str, lines: int = 100) -> str:
+        """Get container logs with line limit and better error handling."""
+        if not self.client:
+            return "Docker client unavailable"
+        
+        try:
+            container = self.get_container(container_name)
+            if not container:
+                return f"Container '{container_name}' not found"
+            
+            logs = container.logs(tail=lines, timestamps=True).decode('utf-8')
+            return logs if logs.strip() else f"No logs available for {container_name}"
+            
+        except Exception as e:
+            self.logger.error(f"Log retrieval failed for {container_name}: {e}")
+            return f"Log retrieval error: {e}"
 
     def get_compose_version(self) -> str:
         """Get Docker Compose version by running docker-compose --version command."""
@@ -5456,6 +5523,885 @@ def filter_apps(apps, search=None, model=None, status=None):
     
     return filtered
 
+
+# ===========================
+# CONTAINER UTILITIES AND TEMPLATES
+# ===========================
+
+class ContainerState(Enum):
+    """Container state enumeration."""
+    CREATING = "creating"
+    RUNNING = "running"
+    STOPPED = "stopped"
+    PAUSED = "paused"
+    RESTARTING = "restarting"
+    REMOVING = "removing"
+    DEAD = "dead"
+    UNKNOWN = "unknown"
+
+
+class OperationType(Enum):
+    """Container operation types."""
+    CREATE = "create"
+    START = "start"
+    STOP = "stop"
+    RESTART = "restart"
+    BUILD = "build"
+    REMOVE = "remove"
+    PAUSE = "pause"
+    UNPAUSE = "unpause"
+
+
+@dataclass
+class ContainerInfo:
+    """Container information data class."""
+    name: str
+    model: str
+    app_num: int
+    container_type: str  # backend, frontend, database, etc.
+    state: ContainerState = ContainerState.UNKNOWN
+    ports: Dict[str, int] = field(default_factory=dict)
+    image: str = ""
+    created_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    health: str = "unknown"
+    project_name: str = ""
+    compose_path: str = ""
+    logs_tail: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class OperationResult:
+    """Result of a container operation."""
+    success: bool
+    operation: OperationType
+    container_info: ContainerInfo
+    message: str = ""
+    error: Optional[str] = None
+    output: str = ""
+    duration: float = 0.0
+    timestamp: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class BulkOperationResult:
+    """Result of bulk container operations."""
+    total: int
+    successful: int
+    failed: int
+    results: List[OperationResult] = field(default_factory=list)
+    duration: float = 0.0
+    timestamp: datetime = field(default_factory=datetime.now)
+
+
+class ContainerTemplate:
+    """Template for creating standardized containers."""
+    
+    def __init__(self, name: str, config: Dict[str, Any]):
+        self.name = name
+        self.config = config
+        self.base_compose_template = config.get('compose_template', {})
+        self.environment_vars = config.get('environment', {})
+        self.port_mappings = config.get('ports', {})
+        self.volumes = config.get('volumes', {})
+        self.networks = config.get('networks', [])
+        self.dependencies = config.get('depends_on', [])
+    
+    def generate_compose_config(self, model: str, app_num: int, **kwargs) -> Dict[str, Any]:
+        """Generate docker-compose configuration from template."""
+        # Get port configuration
+        app_config = get_app_config_by_model_and_number(model, app_num)
+        backend_port = app_config.get('backend_port', 6000) if app_config else 6000
+        frontend_port = app_config.get('frontend_port', 9000) if app_config else 9000
+        
+        # Build environment variables
+        env_vars = {
+            'MODEL_NAME': model,
+            'APP_NUMBER': str(app_num),
+            'BACKEND_PORT': str(backend_port),
+            'FRONTEND_PORT': str(frontend_port),
+            **self.environment_vars,
+            **kwargs.get('environment', {})
+        }
+        
+        # Build port mappings
+        ports = {}
+        for internal_port, external_port_template in self.port_mappings.items():
+            if external_port_template == 'backend_port':
+                external_port = backend_port
+            elif external_port_template == 'frontend_port':
+                external_port = frontend_port
+            else:
+                external_port = external_port_template
+            ports[f"{external_port}:{internal_port}"] = None
+        
+        # Generate compose configuration
+        compose_config = {
+            'version': '3.8',
+            'services': {}
+        }
+        
+        # Add services from template
+        for service_name, service_config in self.base_compose_template.get('services', {}).items():
+            service_name_formatted = service_name.format(
+                model=model.replace('_', '-'),
+                app_num=app_num
+            )
+            
+            compose_config['services'][service_name_formatted] = {
+                **service_config,
+                'environment': env_vars,
+                'ports': list(ports.keys()) if ports else None
+            }
+        
+        return compose_config
+
+
+class ContainerUtils:
+    """High-level container management utilities."""
+    
+    def __init__(self, docker_manager: Optional[DockerManager] = None):
+        try:
+            self.docker_manager = docker_manager or get_docker_manager()
+        except RuntimeError:
+            # Docker manager not available outside Flask context
+            self.docker_manager = None
+        self.logger = create_logger_for_component('container_utils')
+        self._operation_lock = threading.RLock()
+        self._templates: Dict[str, ContainerTemplate] = {}
+        self._load_default_templates()
+    
+    def _load_default_templates(self):
+        """Load default container templates."""
+        # Flask backend template
+        flask_template = {
+            'compose_template': {
+                'services': {
+                    '{model}-app{app_num}-backend': {
+                        'build': './backend',
+                        'container_name': '{model}_app{app_num}_backend',
+                        'restart': 'unless-stopped',
+                        'networks': ['app-network']
+                    }
+                }
+            },
+            'environment': {
+                'FLASK_ENV': 'production',
+                'FLASK_DEBUG': '0'
+            },
+            'ports': {
+                5000: 'backend_port'
+            }
+        }
+        self._templates['flask_backend'] = ContainerTemplate('flask_backend', flask_template)
+        
+        # React frontend template
+        react_template = {
+            'compose_template': {
+                'services': {
+                    '{model}-app{app_num}-frontend': {
+                        'build': './frontend',
+                        'container_name': '{model}_app{app_num}_frontend',
+                        'restart': 'unless-stopped',
+                        'networks': ['app-network'],
+                        'depends_on': ['{model}-app{app_num}-backend']
+                    }
+                }
+            },
+            'environment': {
+                'NODE_ENV': 'production',
+                'REACT_APP_API_URL': 'http://localhost:${BACKEND_PORT}'
+            },
+            'ports': {
+                3000: 'frontend_port'
+            }
+        }
+        self._templates['react_frontend'] = ContainerTemplate('react_frontend', react_template)
+        
+        self.logger.info(f"Loaded {len(self._templates)} default container templates")
+    
+    def register_template(self, name: str, template: ContainerTemplate):
+        """Register a custom container template."""
+        self._templates[name] = template
+        self.logger.info(f"Registered container template: {name}")
+    
+    def get_container_info(self, model: str, app_num: int, container_type: str = None) -> List[ContainerInfo]:
+        """Get detailed information about containers for a model/app."""
+        if not self.docker_manager:
+            return []
+        
+        containers = []
+        project_name = get_docker_project_name(model, app_num)
+        
+        # Get app configuration
+        app_config = get_app_config_by_model_and_number(model, app_num)
+        if not app_config:
+            self.logger.warning(f"No app configuration found for {model}/app{app_num}")
+            return []
+        
+        # Define container types to check
+        container_types = ['backend', 'frontend'] if container_type is None else [container_type]
+        
+        for ctype in container_types:
+            # Build container name
+            if ctype == 'backend':
+                port = app_config.get('backend_port', 6000)
+                container_name = f"{project_name}_backend_{port}"
+            elif ctype == 'frontend':
+                port = app_config.get('frontend_port', 9000)
+                container_name = f"{project_name}_frontend_{port}"
+            else:
+                container_name = f"{project_name}_{ctype}"
+            
+            # Get container status
+            status = self.docker_manager.get_container_status(container_name)
+            
+            # Create container info
+            container_info = ContainerInfo(
+                name=container_name,
+                model=model,
+                app_num=app_num,
+                container_type=ctype,
+                state=ContainerState.RUNNING if status.running else ContainerState.STOPPED,
+                project_name=project_name,
+                health=status.health,
+                metadata={
+                    'exists': status.exists,
+                    'status_details': status.details,
+                    'docker_status': status.status
+                }
+            )
+            
+            # Add port information
+            if ctype == 'backend':
+                container_info.ports = {'backend': app_config.get('backend_port', 6000)}
+            elif ctype == 'frontend':
+                container_info.ports = {'frontend': app_config.get('frontend_port', 9000)}
+            
+            # Get compose path
+            models_base_dir = Path(__file__).parent.parent / "misc" / "models"
+            model_dir = model
+            compose_path = models_base_dir / model_dir / f"app{app_num}" / "docker-compose.yml"
+            container_info.compose_path = str(compose_path)
+            
+            containers.append(container_info)
+        
+        return containers
+    
+    def create_from_template(self, template_name: str, model: str, app_num: int, **kwargs) -> OperationResult:
+        """Create containers from a template."""
+        start_time = time.time()
+        
+        if template_name not in self._templates:
+            return OperationResult(
+                success=False,
+                operation=OperationType.CREATE,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error=f"Template '{template_name}' not found"
+            )
+        
+        template = self._templates[template_name]
+        
+        try:
+            # Generate compose configuration
+            compose_config = template.generate_compose_config(model, app_num, **kwargs)
+            
+            # Create directory structure
+            models_base_dir = Path(__file__).parent.parent / "misc" / "models"
+            model_dir = model
+            app_dir = models_base_dir / model_dir / f"app{app_num}"
+            app_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write docker-compose.yml as text (since yaml may not be available)
+            compose_path = app_dir / "docker-compose.yml"
+            
+            # Convert compose config to YAML-like text
+            compose_text = "version: '3.8'\n\nservices:\n"
+            for service_name, service_config in compose_config.get('services', {}).items():
+                compose_text += f"  {service_name}:\n"
+                for key, value in service_config.items():
+                    if isinstance(value, dict):
+                        compose_text += f"    {key}:\n"
+                        for sub_key, sub_value in value.items():
+                            compose_text += f"      {sub_key}: {sub_value}\n"
+                    elif isinstance(value, list):
+                        if value:  # Only add if list is not empty
+                            compose_text += f"    {key}:\n"
+                            for item in value:
+                                compose_text += f"      - {item}\n"
+                    else:
+                        if value is not None:  # Only add if value is not None
+                            compose_text += f"    {key}: {value}\n"
+                compose_text += "\n"
+            
+            with open(compose_path, 'w') as f:
+                f.write(compose_text)
+            
+            # Create container info
+            container_info = ContainerInfo(
+                name=f"{model}_app{app_num}",
+                model=model,
+                app_num=app_num,
+                container_type=template_name,
+                compose_path=str(compose_path),
+                metadata={'template_used': template_name, 'config': compose_config}
+            )
+            
+            duration = time.time() - start_time
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.CREATE,
+                container_info=container_info,
+                message=f"Container configuration created from template '{template_name}'",
+                duration=duration
+            )
+            
+        except Exception as e:
+            duration = time.time() - start_time
+            self.logger.error(f"Failed to create from template {template_name}: {e}")
+            
+            return OperationResult(
+                success=False,
+                operation=OperationType.CREATE,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error=str(e),
+                duration=duration
+            )
+    
+    def start_container(self, model: str, app_num: int, wait_for_health: bool = True) -> OperationResult:
+        """Start containers for a specific model/app."""
+        start_time = time.time()
+        
+        if not self.docker_manager:
+            return OperationResult(
+                success=False,
+                operation=OperationType.START,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error="Docker manager not available"
+            )
+        
+        try:
+            # Get compose path
+            models_base_dir = Path(__file__).parent.parent / "misc" / "models"
+            model_dir = model
+            compose_path = models_base_dir / model_dir / f"app{app_num}" / "docker-compose.yml"
+            
+            if not compose_path.exists():
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.START,
+                    container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                    error=f"Docker compose file not found: {compose_path}"
+                )
+            
+            # Start containers using docker manager
+            with self._operation_lock:
+                result = self.docker_manager.start_containers(str(compose_path), model, app_num)
+            
+            # Create container info
+            containers = self.get_container_info(model, app_num)
+            main_container = containers[0] if containers else ContainerInfo(
+                name=f"{model}_app{app_num}",
+                model=model,
+                app_num=app_num,
+                container_type="main",
+                compose_path=str(compose_path)
+            )
+            
+            duration = time.time() - start_time
+            
+            if result['success']:
+                # Wait for health check if requested
+                if wait_for_health:
+                    self._wait_for_health(model, app_num, timeout=60)
+                
+                return OperationResult(
+                    success=True,
+                    operation=OperationType.START,
+                    container_info=main_container,
+                    message=result.get('message', 'Containers started successfully'),
+                    output=result.get('output', ''),
+                    duration=duration
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.START,
+                    container_info=main_container,
+                    error=result.get('error', 'Unknown error'),
+                    output=result.get('output', ''),
+                    duration=duration
+                )
+                
+        except Exception as e:
+            duration = time.time() - start_time
+            self.logger.error(f"Failed to start container {model}/app{app_num}: {e}")
+            
+            return OperationResult(
+                success=False,
+                operation=OperationType.START,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error=str(e),
+                duration=duration
+            )
+    
+    def stop_container(self, model: str, app_num: int, timeout: int = 30) -> OperationResult:
+        """Stop containers for a specific model/app."""
+        start_time = time.time()
+        
+        if not self.docker_manager:
+            return OperationResult(
+                success=False,
+                operation=OperationType.STOP,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error="Docker manager not available"
+            )
+        
+        try:
+            # Get compose path
+            models_base_dir = Path(__file__).parent.parent / "misc" / "models"
+            model_dir = model
+            compose_path = models_base_dir / model_dir / f"app{app_num}" / "docker-compose.yml"
+            
+            if not compose_path.exists():
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.STOP,
+                    container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                    error=f"Docker compose file not found: {compose_path}"
+                )
+            
+            # Stop containers using docker manager
+            with self._operation_lock:
+                result = self.docker_manager.stop_containers(str(compose_path), model, app_num)
+            
+            # Create container info
+            main_container = ContainerInfo(
+                name=f"{model}_app{app_num}",
+                model=model,
+                app_num=app_num,
+                container_type="main",
+                compose_path=str(compose_path),
+                state=ContainerState.STOPPED
+            )
+            
+            duration = time.time() - start_time
+            
+            if result['success']:
+                return OperationResult(
+                    success=True,
+                    operation=OperationType.STOP,
+                    container_info=main_container,
+                    message=result.get('message', 'Containers stopped successfully'),
+                    output=result.get('output', ''),
+                    duration=duration
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.STOP,
+                    container_info=main_container,
+                    error=result.get('error', 'Unknown error'),
+                    output=result.get('output', ''),
+                    duration=duration
+                )
+                
+        except Exception as e:
+            duration = time.time() - start_time
+            self.logger.error(f"Failed to stop container {model}/app{app_num}: {e}")
+            
+            return OperationResult(
+                success=False,
+                operation=OperationType.STOP,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error=str(e),
+                duration=duration
+            )
+    
+    def restart_container(self, model: str, app_num: int, wait_for_health: bool = True) -> OperationResult:
+        """Restart containers for a specific model/app."""
+        start_time = time.time()
+        
+        if not self.docker_manager:
+            return OperationResult(
+                success=False,
+                operation=OperationType.RESTART,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error="Docker manager not available"
+            )
+        
+        try:
+            # Get compose path
+            models_base_dir = Path(__file__).parent.parent / "misc" / "models"
+            model_dir = model
+            compose_path = models_base_dir / model_dir / f"app{app_num}" / "docker-compose.yml"
+            
+            if not compose_path.exists():
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.RESTART,
+                    container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                    error=f"Docker compose file not found: {compose_path}"
+                )
+            
+            # Restart containers using docker manager
+            with self._operation_lock:
+                result = self.docker_manager.restart_containers(str(compose_path), model, app_num)
+            
+            # Create container info
+            containers = self.get_container_info(model, app_num)
+            main_container = containers[0] if containers else ContainerInfo(
+                name=f"{model}_app{app_num}",
+                model=model,
+                app_num=app_num,
+                container_type="main",
+                compose_path=str(compose_path)
+            )
+            
+            duration = time.time() - start_time
+            
+            if result['success']:
+                # Wait for health check if requested
+                if wait_for_health:
+                    self._wait_for_health(model, app_num, timeout=60)
+                
+                return OperationResult(
+                    success=True,
+                    operation=OperationType.RESTART,
+                    container_info=main_container,
+                    message=result.get('message', 'Containers restarted successfully'),
+                    output=result.get('output', ''),
+                    duration=duration
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.RESTART,
+                    container_info=main_container,
+                    error=result.get('error', 'Unknown error'),
+                    output=result.get('output', ''),
+                    duration=duration
+                )
+                
+        except Exception as e:
+            duration = time.time() - start_time
+            self.logger.error(f"Failed to restart container {model}/app{app_num}: {e}")
+            
+            return OperationResult(
+                success=False,
+                operation=OperationType.RESTART,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error=str(e),
+                duration=duration
+            )
+    
+    def build_container(self, model: str, app_num: int, no_cache: bool = False) -> OperationResult:
+        """Build containers for a specific model/app."""
+        start_time = time.time()
+        
+        if not self.docker_manager:
+            return OperationResult(
+                success=False,
+                operation=OperationType.BUILD,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error="Docker manager not available"
+            )
+        
+        try:
+            # Get compose path
+            models_base_dir = Path(__file__).parent.parent / "misc" / "models"
+            model_dir = model
+            compose_path = models_base_dir / model_dir / f"app{app_num}" / "docker-compose.yml"
+            
+            if not compose_path.exists():
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.BUILD,
+                    container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                    error=f"Docker compose file not found: {compose_path}"
+                )
+            
+            # Build containers using docker manager
+            with self._operation_lock:
+                result = self.docker_manager.build_containers(str(compose_path), model, app_num, no_cache)
+            
+            # Create container info
+            main_container = ContainerInfo(
+                name=f"{model}_app{app_num}",
+                model=model,
+                app_num=app_num,
+                container_type="main",
+                compose_path=str(compose_path)
+            )
+            
+            duration = time.time() - start_time
+            
+            if result['success']:
+                return OperationResult(
+                    success=True,
+                    operation=OperationType.BUILD,
+                    container_info=main_container,
+                    message=result.get('message', 'Containers built successfully'),
+                    output=result.get('output', ''),
+                    duration=duration
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.BUILD,
+                    container_info=main_container,
+                    error=result.get('error', 'Unknown error'),
+                    output=result.get('output', ''),
+                    duration=duration
+                )
+                
+        except Exception as e:
+            duration = time.time() - start_time
+            self.logger.error(f"Failed to build container {model}/app{app_num}: {e}")
+            
+            return OperationResult(
+                success=False,
+                operation=OperationType.BUILD,
+                container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                error=str(e),
+                duration=duration
+            )
+    
+    def bulk_operation(self, operation: OperationType, targets: List[Tuple[str, int]], 
+                      max_workers: int = 4, **kwargs) -> BulkOperationResult:
+        """Perform bulk operations on multiple containers."""
+        start_time = time.time()
+        results = []
+        
+        # Map operation to method
+        operation_methods = {
+            OperationType.START: self.start_container,
+            OperationType.STOP: self.stop_container,
+            OperationType.RESTART: self.restart_container,
+            OperationType.BUILD: self.build_container
+        }
+        
+        if operation not in operation_methods:
+            self.logger.error(f"Unsupported bulk operation: {operation}")
+            return BulkOperationResult(
+                total=len(targets),
+                successful=0,
+                failed=len(targets),
+                results=[],
+                duration=0.0
+            )
+        
+        operation_method = operation_methods[operation]
+        
+        # Execute operations in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_target = {}
+            for model, app_num in targets:
+                future = executor.submit(operation_method, model, app_num, **kwargs)
+                future_to_target[future] = (model, app_num)
+            
+            # Collect results
+            for future in as_completed(future_to_target):
+                model, app_num = future_to_target[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                    
+                    if result.success:
+                        self.logger.info(f"Bulk {operation.value} successful for {model}/app{app_num}")
+                    else:
+                        self.logger.error(f"Bulk {operation.value} failed for {model}/app{app_num}: {result.error}")
+                        
+                except Exception as e:
+                    self.logger.error(f"Bulk {operation.value} exception for {model}/app{app_num}: {e}")
+                    error_result = OperationResult(
+                        success=False,
+                        operation=operation,
+                        container_info=ContainerInfo(name="", model=model, app_num=app_num, container_type=""),
+                        error=str(e)
+                    )
+                    results.append(error_result)
+        
+        # Calculate summary
+        successful = sum(1 for r in results if r.success)
+        failed = len(results) - successful
+        duration = time.time() - start_time
+        
+        self.logger.info(f"Bulk {operation.value} completed: {successful}/{len(targets)} successful")
+        
+        return BulkOperationResult(
+            total=len(targets),
+            successful=successful,
+            failed=failed,
+            results=results,
+            duration=duration
+        )
+    
+    def get_logs(self, model: str, app_num: int, container_type: str = 'backend', 
+                tail: int = 100) -> str:
+        """Get container logs."""
+        if not self.docker_manager:
+            return "Docker manager not available"
+        
+        try:
+            return self.docker_manager.get_container_logs(model, app_num, container_type, tail)
+        except Exception as e:
+            self.logger.error(f"Failed to get logs for {model}/app{app_num}/{container_type}: {e}")
+            return f"Error getting logs: {str(e)}"
+    
+    def health_check(self, model: str, app_num: int) -> Dict[str, Any]:
+        """Perform health check on containers."""
+        containers = self.get_container_info(model, app_num)
+        health_status = {
+            'overall_health': 'healthy',
+            'containers': {},
+            'issues': []
+        }
+        
+        for container in containers:
+            container_health = {
+                'name': container.name,
+                'state': container.state.value,
+                'health': container.health,
+                'running': container.state == ContainerState.RUNNING
+            }
+            
+            # Check for issues
+            if container.state != ContainerState.RUNNING:
+                health_status['issues'].append(f"Container {container.name} is not running ({container.state.value})")
+                health_status['overall_health'] = 'unhealthy'
+            
+            if container.health in ['unhealthy', 'starting']:
+                health_status['issues'].append(f"Container {container.name} health check failed ({container.health})")
+                if health_status['overall_health'] == 'healthy':
+                    health_status['overall_health'] = 'degraded'
+            
+            health_status['containers'][container.container_type] = container_health
+        
+        return health_status
+    
+    def _wait_for_health(self, model: str, app_num: int, timeout: int = 60) -> bool:
+        """Wait for containers to become healthy."""
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            health = self.health_check(model, app_num)
+            if health['overall_health'] in ['healthy', 'degraded']:
+                return True
+            
+            time.sleep(2)
+        
+        self.logger.warning(f"Health check timeout for {model}/app{app_num}")
+        return False
+    
+    def cleanup_stopped_containers(self) -> int:
+        """Clean up stopped containers."""
+        if not self.docker_manager:
+            return 0
+        
+        try:
+            self.docker_manager.cleanup_containers()
+            self.logger.info("Container cleanup completed")
+            return 1  # Simplified return
+        except Exception as e:
+            self.logger.error(f"Container cleanup failed: {e}")
+            return 0
+    
+    def get_system_info(self) -> Dict[str, Any]:
+        """Get Docker system information."""
+        if not self.docker_manager:
+            return {'error': 'Docker manager not available'}
+        
+        try:
+            docker_version = self.docker_manager.get_docker_version()
+            compose_version = self.docker_manager.get_compose_version()
+            is_available = self.docker_manager.is_docker_available()
+            
+            return {
+                'docker_available': is_available,
+                'docker_version': docker_version,
+                'compose_version': compose_version,
+                'templates_loaded': len(self._templates),
+                'available_templates': list(self._templates.keys())
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to get system info: {e}")
+            return {'error': str(e)}
+
+
+# Global instance
+_container_utils_instance: Optional[ContainerUtils] = None
+
+
+def get_container_utils() -> ContainerUtils:
+    """Get global container utils instance."""
+    global _container_utils_instance
+    if _container_utils_instance is None:
+        _container_utils_instance = ContainerUtils()
+    return _container_utils_instance
+
+
+def create_container(model: str, app_num: int, template: str = 'flask_backend', **kwargs) -> OperationResult:
+    """Create a container using a template (convenience function)."""
+    utils = get_container_utils()
+    return utils.create_from_template(template, model, app_num, **kwargs)
+
+
+def start_container(model: str, app_num: int, wait_for_health: bool = True) -> OperationResult:
+    """Start a container (convenience function)."""
+    utils = get_container_utils()
+    return utils.start_container(model, app_num, wait_for_health)
+
+
+def stop_container(model: str, app_num: int, timeout: int = 30) -> OperationResult:
+    """Stop a container (convenience function)."""
+    utils = get_container_utils()
+    return utils.stop_container(model, app_num, timeout)
+
+
+def restart_container(model: str, app_num: int, wait_for_health: bool = True) -> OperationResult:
+    """Restart a container (convenience function)."""
+    utils = get_container_utils()
+    return utils.restart_container(model, app_num, wait_for_health)
+
+
+def build_container(model: str, app_num: int, no_cache: bool = False) -> OperationResult:
+    """Build a container (convenience function)."""
+    utils = get_container_utils()
+    return utils.build_container(model, app_num, no_cache)
+
+
+def bulk_start_containers(targets: List[Tuple[str, int]], max_workers: int = 4) -> BulkOperationResult:
+    """Start multiple containers in parallel (convenience function)."""
+    utils = get_container_utils()
+    return utils.bulk_operation(OperationType.START, targets, max_workers)
+
+
+def bulk_stop_containers(targets: List[Tuple[str, int]], max_workers: int = 4) -> BulkOperationResult:
+    """Stop multiple containers in parallel (convenience function)."""
+    utils = get_container_utils()
+    return utils.bulk_operation(OperationType.STOP, targets, max_workers)
+
+
+def get_container_logs(model: str, app_num: int, container_type: str = 'backend', tail: int = 100) -> str:
+    """Get container logs (convenience function)."""
+    utils = get_container_utils()
+    return utils.get_logs(model, app_num, container_type, tail)
+
+
+def check_container_health(model: str, app_num: int) -> Dict[str, Any]:
+    """Check container health (convenience function)."""
+    utils = get_container_utils()
+    return utils.health_check(model, app_num)
+
+
+def get_container_info(model: str, app_num: int, container_type: str = None) -> List[ContainerInfo]:
+    """Get container information (convenience function)."""
+    utils = get_container_utils()
+    return utils.get_container_info(model, app_num, container_type)
 
 
 def create_app() -> Flask:

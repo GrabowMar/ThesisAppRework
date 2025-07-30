@@ -1,0 +1,29 @@
+<div class="card">
+    <div class="card-header">
+        <h6 class="mb-0">Docker Diagnostics: {{ model }}/app{{ app_num }}</h6>
+    </div>
+    <div class="card-body">
+        {% if diagnostics %}
+            {% for category, issues in diagnostics.items() %}
+                <div class="mb-3">
+                    <h6 class="text-capitalize">{{ category.replace('_', ' ') }}</h6>
+                    {% if issues %}
+                        <ul class="list-unstyled">
+                            {% for issue in issues %}
+                                <li class="text-warning">
+                                    <i class="fas fa-exclamation-triangle"></i> {{ issue }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="text-success">
+                            <i class="fas fa-check-circle"></i> No issues found
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-muted">No diagnostic information available</div>
+        {% endif %}
+    </div>
+</div>

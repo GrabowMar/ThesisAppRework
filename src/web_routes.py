@@ -210,8 +210,8 @@ def handle_docker_action(action: str, model: str, app_num: int):
         project_root = current_dir.parent
         models_base_dir = project_root / "misc" / "models"
         
-        # Convert model slug back to directory format (replace - with _)
-        model_dir = model.replace('-', '_')
+        # Use model name directly as directory name
+        model_dir = model
         compose_path = models_base_dir / model_dir / f"app{app_num}" / "docker-compose.yml"
         
         # Check if compose file exists
@@ -1896,7 +1896,7 @@ def docker_action(action: str, model: str, app_num: int):
         logger.info(f"Docker {action} requested for {model}/app{app_num}")
         
         # Validate action
-        valid_actions = ['start', 'stop', 'restart']
+        valid_actions = ['start', 'stop', 'restart', 'build']
         if action not in valid_actions:
             raise ValueError(f"Invalid action: {action}")
         
@@ -1935,6 +1935,456 @@ def docker_action(action: str, model: str, app_num: int):
         if is_htmx_request():
             return render_template("partials/error_message.html", 
                                  error=f"Docker {action} failed: {str(e)}")
+        return create_api_response(False, error=str(e))
+
+
+@docker_bp.route("/build/<model>/<int:app_num>", methods=["POST"])
+def build_container(model: str, app_num: int):
+    """Build container for specific model/app."""
+    try:
+        logger.info(f"Building containers for {model}/app{app_num}")
+        
+        # Get build options from form
+        no_cache = request.form.get('no_cache', 'false').lower() == 'true'
+        pull = request.form.get('pull', 'false').lower() == 'true'
+        
+        # Use container utils for building if available
+        try:
+            from container_utils import build_container as build_container_util
+            result = build_container_util(model, app_num, no_cache=no_cache)
+            
+            if result.success:
+                message = f"Containers built successfully for {model}/app{app_num}"
+                if result.duration:
+                    message += f" (took {result.duration:.1f}s)"
+                
+                if is_htmx_request():
+                    return render_template("partials/build_success.html", 
+                                         model=model, app_num=app_num,
+                                         message=message, output=result.output)
+                return create_api_response(True, message=message, data={'duration': result.duration})
+                
+            else:
+                error_msg = f"Build failed for {model}/app{app_num}: {result.error}"
+                if is_htmx_request():
+                    return render_template("partials/build_error.html", 
+                                         model=model, app_num=app_num,
+                                         error=error_msg, output=result.output)
+                return create_api_response(False, error=error_msg)
+                
+        except ImportError:
+            # Fallback to handle_docker_action
+            logger.warning("Container utils not available, using fallback build method")
+            result = handle_docker_action('build', model, app_num)
+            
+            if result['success']:
+                message = result.get('message', f'Containers built successfully for {model}/app{app_num}')
+                if is_htmx_request():
+                    return render_template("partials/build_success.html", 
+                                         model=model, app_num=app_num,
+                                         message=message, output=result.get('output', ''))
+                return create_api_response(True, message=message)
+            else:
+                error_msg = result.get('error', f'Build failed for {model}/app{app_num}')
+                if is_htmx_request():
+                    return render_template("partials/build_error.html", 
+                                         model=model, app_num=app_num,
+                                         error=error_msg, output=result.get('output', ''))
+                return create_api_response(False, error=error_msg)
+        
+    except Exception as e:
+        logger.error(f"Error building containers for {model}/app{app_num}: {e}")
+        error_msg = f"Build error: {str(e)}"
+        
+        if is_htmx_request():
+            return render_template("partials/build_error.html", 
+                                 model=model, app_num=app_num,
+                                 error=error_msg, output="")
+        return create_api_response(False, error=error_msg)
+
+
+@docker_bp.route("/bulk-build", methods=["POST"])
+def bulk_build_containers():
+    """Build multiple containers in parallel."""
+    try:
+        model_filter = request.form.get('model_filter', '').strip()
+        app_range = request.form.get('app_range', '').strip()
+        no_cache = request.form.get('no_cache', 'false').lower() == 'true'
+        max_workers = int(request.form.get('max_workers', 2))
+        
+        # Parse app range
+        app_numbers = []
+        if app_range:
+            try:
+                if '-' in app_range:
+                    start, end = map(int, app_range.split('-'))
+                    app_numbers = list(range(start, end + 1))
+                elif ',' in app_range:
+                    app_numbers = [int(x.strip()) for x in app_range.split(',')]
+                else:
+                    app_numbers = [int(app_range)]
+            except ValueError:
+                if is_htmx_request():
+                    return render_template("partials/error_message.html", 
+                                         error="Invalid app range format")
+                return create_api_response(False, error="Invalid app range format")
+        else:
+            app_numbers = list(range(1, 31))  # Default: all apps 1-30
+        
+        # Get matching applications
+        from core_services import get_port_config as get_port_config_from_db
+        port_config = get_port_config_from_db()
+        
+        matching_apps = []
+        for config in port_config:
+            model_name = config.get('model_name', '')
+            app_num = config.get('app_number', 0)
+            
+            # Apply filters
+            if model_filter and model_filter.lower() not in model_name.lower():
+                continue
+            if app_num not in app_numbers:
+                continue
+                
+            matching_apps.append((model_name, app_num))
+        
+        if not matching_apps:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="No matching applications found")
+            return create_api_response(False, error="No matching applications found")
+        
+        # Limit for safety
+        matching_apps = matching_apps[:10]
+        
+        # Use container utils for bulk build if available
+        try:
+            from container_utils import bulk_operation, OperationType
+            
+            result = bulk_operation(
+                OperationType.BUILD, 
+                matching_apps, 
+                max_workers=max_workers, 
+                no_cache=no_cache
+            )
+            
+            context = {
+                'action': 'build',
+                'results': [
+                    {
+                        'model': r.container_info.model,
+                        'app_num': r.container_info.app_num,
+                        'success': r.success,
+                        'message': r.message or r.error or 'Unknown result',
+                        'duration': r.duration
+                    }
+                    for r in result.results
+                ],
+                'total_attempted': result.total,
+                'successful': result.successful,
+                'failed': result.failed,
+                'total_duration': result.duration
+            }
+            
+        except ImportError:
+            # Fallback to individual builds
+            logger.warning("Container utils not available, using individual builds")
+            results = []
+            successful = 0
+            
+            for model, app_num in matching_apps:
+                try:
+                    build_result = handle_docker_action('build', model, app_num)
+                    success = build_result['success']
+                    if success:
+                        successful += 1
+                    
+                    results.append({
+                        'model': model,
+                        'app_num': app_num,
+                        'success': success,
+                        'message': build_result.get('message', build_result.get('error', 'Unknown result')),
+                        'duration': 0
+                    })
+                except Exception as e:
+                    results.append({
+                        'model': model,
+                        'app_num': app_num,
+                        'success': False,
+                        'message': str(e),
+                        'duration': 0
+                    })
+            
+            context = {
+                'action': 'build',
+                'results': results,
+                'total_attempted': len(matching_apps),
+                'successful': successful,
+                'failed': len(matching_apps) - successful,
+                'total_duration': 0
+            }
+        
+        if is_htmx_request():
+            return render_template("partials/bulk_build_results.html", **context)
+        
+        return create_api_response(True, data=context)
+        
+    except Exception as e:
+        logger.error(f"Error in bulk build: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error=f"Bulk build failed: {str(e)}")
+        return create_api_response(False, error=str(e))
+
+
+@docker_bp.route("/logs/<model>/<int:app_num>/<container_type>")
+def container_logs(model: str, app_num: int, container_type: str):
+    """Get container logs for specific container type."""
+    try:
+        if container_type not in ['backend', 'frontend']:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="Invalid container type")
+            return create_api_response(False, error="Invalid container type")
+        
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="Docker manager not available")
+            return create_api_response(False, error="Docker manager not available")
+        
+        # Get logs
+        logs = docker_manager.get_container_logs(model, app_num, container_type, tail=200)
+        
+        context = {
+            'model': model,
+            'app_num': app_num,
+            'container_type': container_type,
+            'logs': logs
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/container_logs.html", **context)
+        
+        return create_api_response(True, data=context)
+        
+    except Exception as e:
+        logger.error(f"Error getting logs for {model}/app{app_num}/{container_type}: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error=f"Failed to get container logs: {str(e)}")
+        return create_api_response(False, error=str(e))
+
+
+@docker_bp.route("/diagnose/<model>/<int:app_num>")
+def diagnose_issues(model: str, app_num: int):
+    """Diagnose Docker issues for a specific application."""
+    try:
+        from core_services import diagnose_docker_issues
+        
+        diagnostics = diagnose_docker_issues(model, app_num)
+        
+        context = {
+            'model': model,
+            'app_num': app_num,
+            'diagnostics': diagnostics
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/docker_diagnostics.html", **context)
+        
+        return create_api_response(True, data=context)
+        
+    except Exception as e:
+        logger.error(f"Error diagnosing issues for {model}/app{app_num}: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error=f"Failed to diagnose issues: {str(e)}")
+        return create_api_response(False, error=str(e))
+
+
+@docker_bp.route("/bulk-action", methods=["POST"])
+def bulk_docker_action():
+    """Handle bulk Docker actions."""
+    try:
+        action = request.form.get('action')
+        model_filter = request.form.get('model_filter', '').strip()
+        app_range = request.form.get('app_range', '').strip()
+        
+        if not action:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="No action specified")
+            return create_api_response(False, error="No action specified")
+        
+        valid_actions = ['start', 'stop', 'restart', 'cleanup']
+        if action not in valid_actions:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error=f"Invalid action: {action}")
+            return create_api_response(False, error=f"Invalid action: {action}")
+        
+        # Parse app range
+        app_numbers = []
+        if app_range:
+            try:
+                # Handle ranges like "1-10" or comma-separated "1,5,7"
+                if '-' in app_range:
+                    start, end = map(int, app_range.split('-'))
+                    app_numbers = list(range(start, end + 1))
+                elif ',' in app_range:
+                    app_numbers = [int(x.strip()) for x in app_range.split(',')]
+                else:
+                    app_numbers = [int(app_range)]
+            except ValueError:
+                if is_htmx_request():
+                    return render_template("partials/error_message.html", 
+                                         error="Invalid app range format")
+                return create_api_response(False, error="Invalid app range format")
+        else:
+            app_numbers = list(range(1, 31))  # Default: all apps 1-30
+        
+        # Get matching applications
+        from core_services import get_port_config as get_port_config_from_db
+        port_config = get_port_config_from_db()
+        
+        matching_apps = []
+        for config in port_config:
+            model_name = config.get('model_name', '')
+            app_num = config.get('app_number', 0)
+            
+            # Apply filters
+            if model_filter and model_filter.lower() not in model_name.lower():
+                continue
+            if app_num not in app_numbers:
+                continue
+                
+            matching_apps.append((model_name, app_num))
+        
+        if not matching_apps:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="No matching applications found")
+            return create_api_response(False, error="No matching applications found")
+        
+        # Execute bulk action
+        results = []
+        for model, app_num in matching_apps[:20]:  # Limit to 20 for safety
+            try:
+                result = handle_docker_action(action, model, app_num)
+                results.append({
+                    'model': model,
+                    'app_num': app_num,
+                    'success': result['success'],
+                    'message': result.get('message', result.get('error', 'Unknown result'))
+                })
+            except Exception as e:
+                results.append({
+                    'model': model,
+                    'app_num': app_num,
+                    'success': False,
+                    'message': str(e)
+                })
+        
+        context = {
+            'action': action,
+            'results': results,
+            'total_attempted': len(matching_apps),
+            'successful': len([r for r in results if r['success']]),
+            'failed': len([r for r in results if not r['success']])
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/bulk_action_results.html", **context)
+        
+        return create_api_response(True, data=context)
+        
+    except Exception as e:
+        logger.error(f"Error in bulk Docker action: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error=f"Bulk action failed: {str(e)}")
+        return create_api_response(False, error=str(e))
+
+
+@docker_bp.route("/system/<action>", methods=["POST"])
+def system_docker_action(action: str):
+    """Handle system-wide Docker actions."""
+    try:
+        if action not in ['prune', 'restart-all']:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error=f"Invalid system action: {action}")
+            return create_api_response(False, error=f"Invalid system action: {action}")
+        
+        docker_manager = get_docker_manager()
+        if not docker_manager:
+            if is_htmx_request():
+                return render_template("partials/error_message.html", 
+                                     error="Docker manager not available")
+            return create_api_response(False, error="Docker manager not available")
+        
+        if action == 'prune':
+            # System cleanup - remove unused containers, networks, images
+            import subprocess
+            try:
+                result = subprocess.run(
+                    ["docker", "system", "prune", "-f"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                )
+                if result.returncode == 0:
+                    message = f"System cleanup completed successfully. {result.stdout.strip()}"
+                    success = True
+                else:
+                    message = f"System cleanup failed: {result.stderr.strip()}"
+                    success = False
+            except subprocess.TimeoutExpired:
+                message = "System cleanup timed out"
+                success = False
+            except Exception as e:
+                message = f"System cleanup error: {str(e)}"
+                success = False
+        
+        elif action == 'restart-all':
+            # Restart all running containers
+            try:
+                all_containers = docker_manager.client.containers.list()
+                restarted = 0
+                failed = 0
+                
+                for container in all_containers:
+                    try:
+                        container.restart(timeout=10)
+                        restarted += 1
+                    except Exception:
+                        failed += 1
+                
+                message = f"Restart completed. {restarted} containers restarted, {failed} failed."
+                success = restarted > 0
+            except Exception as e:
+                message = f"Restart all failed: {str(e)}"
+                success = False
+        
+        context = {
+            'action': action,
+            'success': success,
+            'message': message
+        }
+        
+        if is_htmx_request():
+            return render_template("partials/system_action_result.html", **context)
+        
+        return create_api_response(success, message=message)
+        
+    except Exception as e:
+        logger.error(f"Error in system Docker action {action}: {e}")
+        if is_htmx_request():
+            return render_template("partials/error_message.html", 
+                                 error=f"System action failed: {str(e)}")
         return create_api_response(False, error=str(e))
 
 

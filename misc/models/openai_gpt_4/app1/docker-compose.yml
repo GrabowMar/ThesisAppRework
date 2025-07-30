@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: openai-gpt-4-app1_backend_9051
+    ports:
+      - "9051:5000"
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+      - MODEL_NAME=openai_gpt-4
+      - APP_NUMBER=1
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  frontend:
+    build: ./frontend
+    container_name: openai-gpt-4-app1_frontend_12051
+    ports:
+      - "12051:3000"
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=http://localhost:9051
+      - REACT_APP_MODEL_NAME=openai_gpt-4
+      - REACT_APP_APP_NUMBER=1
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

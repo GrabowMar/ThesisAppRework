@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}Docker Management - Thesis Research App{% endblock %}
+
+{% block content %}
+<div class="docker-overview">
+    <!-- Page Header -->
+    <header class="page-header">
+        <h1>Docker Container Management</h1>
+        <p>Manage and monitor Docker containers for the 900+ generated applications</p>
+    </header>
+
+    <!-- Docker System Status -->
+    <div class="docker-system-status">
+        <div class="system-info-grid">
+            <div class="system-info-card">
+                <div class="info-header">
+                    <h3>Docker Status</h3>
+                    <span class="status-indicator {{ 'available' if docker_available else 'unavailable' }}">
+                        {{ '🟢 Available' if docker_available else '🔴 Unavailable' }}
+                    </span>
+                </div>
+                
+                {% if docker_available %}
+                <div class="info-details">
+                    <div class="detail-item">
+                        <span class="label">Version:</span>
+                        <span class="value">{{ docker_version.get('Version', 'Unknown') if docker_version else 'Unknown' }}</span>
+                    </div>
+                    {% if docker_info %}
+                    <div class="detail-item">
+                        <span class="label">Containers:</span>
+                        <span class="value">{{ docker_info.get('Containers', 0) }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Images:</span>
+                        <span class="value">{{ docker_info.get('Images', 0) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="error-message">
+                    <p>Docker is not available. Please ensure Docker Desktop is running.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="system-info-card">
+                <div class="info-header">
+                    <h3>Container Statistics</h3>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">{{ container_stats.total_apps }}</div>
+                        <div class="stat-label">Total Apps</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ container_stats.running }}</div>
+                        <div class="stat-label">Running</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ container_stats.stopped }}</div>
+                        <div class="stat-label">Stopped</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ container_stats.models }}</div>
+                        <div class="stat-label">Models</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Docker Actions -->
+        {% if docker_available %}
+        <div class="docker-actions">
+            <h3>System Actions</h3>
+            <div class="action-buttons">
+                <button hx-post="/docker/system/prune"
+                        hx-confirm="This will remove all unused containers, networks, and images. Continue?"
+                        hx-target="#action-result"
+                        class="btn-secondary">
+                    🧹 System Cleanup
+                </button>
+                
+                <button hx-post="/docker/system/restart-all"
+                        hx-confirm="This will restart all running containers. Continue?"
+                        hx-target="#action-result"
+                        class="btn-secondary">
+                    🔄 Restart All
+                </button>
+                
+                <button hx-get="/docker/system/status"
+                        hx-target="#system-status"
+                        class="btn-info">
+                    📊 Refresh Status
+                </button>
+            </div>
+            <div id="action-result" class="action-result"></div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Applications -->
+    <div class="recent-applications">
+        <h3>Recent Applications</h3>
+        
+        {% if recent_apps %}
+        <div class="apps-grid">
+            {% for app in recent_apps %}
+            <div class="app-card">
+                <div class="app-header">
+                    <h4>{{ app.model|replace('_', ' ')|title }}</h4>
+                    <span class="app-number">App {{ app.app_num }}</span>
+                </div>
+                
+                <div class="container-status"
+                     hx-get="/api/containers/{{ app.model }}/{{ app.app_num }}/status"
+                     hx-trigger="load, every 30s"
+                     hx-target="this">
+                    <div class="loading-inline">Loading status...</div>
+                </div>
+                
+                <div class="app-actions">
+                    <button hx-post="/docker/start/{{ app.model }}/{{ app.app_num }}"
+                            hx-target="#app-{{ app.model }}-{{ app.app_num }}-result"
+                            class="btn-sm btn-success">
+                        ▶️ Start
+                    </button>
+                    
+                    <button hx-post="/docker/stop/{{ app.model }}/{{ app.app_num }}"
+                            hx-target="#app-{{ app.model }}-{{ app.app_num }}-result"
+                            class="btn-sm btn-danger">
+                        ⏹️ Stop
+                    </button>
+                    
+                    <button hx-post="/docker/restart/{{ app.model }}/{{ app.app_num }}"
+                            hx-target="#app-{{ app.model }}-{{ app.app_num }}-result"
+                            class="btn-sm btn-secondary">
+                        🔄 Restart
+                    </button>
+                    
+                    <button hx-get="/docker/status/{{ app.model }}/{{ app.app_num }}"
+                            hx-target="#modal-container"
+                            class="btn-sm btn-info">
+                        📊 Details
+                    </button>
+                </div>
+                
+                <div id="app-{{ app.model }}-{{ app.app_num }}-result" class="action-result"></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h4>No Applications Found</h4>
+            <p>No application data is available for container management.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Bulk Operations -->
+    {% if docker_available %}
+    <div class="bulk-operations">
+        <h3>Bulk Operations</h3>
+        
+        <form hx-post="/docker/bulk-action" 
+              hx-target="#bulk-result" 
+              class="bulk-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="bulk-action">Action:</label>
+                    <select name="action" id="bulk-action" required>
+                        <option value="">Select Action</option>
+                        <option value="start">Start Selected</option>
+                        <option value="stop">Stop Selected</option>
+                        <option value="restart">Restart Selected</option>
+                        <option value="cleanup">Cleanup Selected</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="bulk-model">Model Filter (optional):</label>
+                    <input type="text" name="model_filter" id="bulk-model" 
+                           placeholder="e.g., anthropic, openai">
+                </div>
+                
+                <div class="form-group">
+                    <label for="app-range">App Range (optional):</label>
+                    <input type="text" name="app_range" id="app-range" 
+                           placeholder="e.g., 1-10 or 5,7,9">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-primary">Execute Bulk Action</button>
+        </form>
+        
+        <div id="bulk-result" class="bulk-result"></div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.docker-overview {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-lg);
+}
+
+.system-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xl);
+}
+
+.system-info-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-lg);
+}
+
+.info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+}
+
+.info-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.status-indicator {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-xs);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.status-indicator.available {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border: 1px solid #22c55e;
+}
+
+.status-indicator.unavailable {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid #ef4444;
+}
+
+.info-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-xs) 0;
+    border-bottom: 1px solid var(--border-secondary);
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.detail-item .label {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.detail-item .value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-md);
+}
+
+.stat-item {
+    text-align: center;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-xs);
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent-blue);
+    margin-bottom: var(--space-xs);
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.docker-actions {
+    margin: var(--space-xl) 0;
+    padding: var(--space-lg);
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+}
+
+.action-buttons {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-md);
+}
+
+.apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-lg);
+}
+
+.app-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md);
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+}
+
+.app-header h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.app-number {
+    background: var(--accent-blue);
+    color: white;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-xs);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.container-status {
+    margin: var(--space-md) 0;
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-xs);
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+}
+
+.app-actions {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    margin: var(--space-md) 0;
+}
+
+.action-result, .bulk-result {
+    margin-top: var(--space-md);
+    min-height: 20px;
+}
+
+.bulk-operations {
+    margin-top: var(--space-xl);
+    padding: var(--space-lg);
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+}
+
+.bulk-form .form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-lg);
+    margin-bottom: var(--space-lg);
+}
+
+.error-message {
+    color: var(--status-error);
+    background: rgba(239, 68, 68, 0.1);
+    padding: var(--space-md);
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--status-error);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--text-secondary);
+}
+
+.empty-state h4 {
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+</style>
+{% endblock %}
