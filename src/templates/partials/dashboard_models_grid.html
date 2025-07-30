@@ -183,42 +183,52 @@ function showModelDetails(modelSlug) {
 
 // Test function to load apps
 function testLoadApps(modelSlug) {
-    console.log('Testing load apps for model:', modelSlug);
+    console.log('Loading apps for model:', modelSlug);
     const content = document.getElementById(`apps-content-${modelSlug}`);
     const loading = document.getElementById(`loading-${modelSlug}`);
     
     // Show loading state
     loading.style.display = 'block';
     
-    // Make AJAX call to load apps
-    fetch(`/api/model/${modelSlug}/apps`)
-        .then(response => {
-            console.log('Response status:', response.status);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.text();
-        })
-        .then(html => {
-            console.log('Received HTML:', html.substring(0, 200) + '...');
-            loading.style.display = 'none';
-            content.innerHTML = html;
-        })
-        .catch(error => {
-            console.error('Error loading apps:', error);
-            loading.style.display = 'none';
-            content.innerHTML = `
-                <div class="alert alert-danger m-3">
-                    <i class="fas fa-exclamation-triangle mr-2"></i>
-                    Error loading applications: ${error.message}
-                </div>
-            `;
-        });
+    // Use HTMX to load apps properly
+    htmx.ajax('GET', `/api/model/${modelSlug}/apps`, {
+        target: `#apps-content-${modelSlug}`,
+        swap: 'innerHTML'
+    }).then(() => {
+        // Hide loading after successful load
+        loading.style.display = 'none';
+        console.log('Apps loaded successfully for:', modelSlug);
+        
+        // Initialize tooltips for newly loaded content
+        $(`#apps-content-${modelSlug} [title]`).tooltip();
+    }).catch((error) => {
+        console.error('Error loading apps:', error);
+        loading.style.display = 'none';
+        content.innerHTML = `
+            <div class="alert alert-danger m-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                Error loading applications: ${error}
+            </div>
+        `;
+    });
 }
 
 // Helper function to safely escape CSS selectors
 function escapeSelector(str) {
     return str.replace(/[.#]/g, '\\$&');
+}
+
+// Global function for showing app logs (used in loaded app tables)
+function showAppLogs(modelSlug, appNum) {
+    console.log('Loading logs for:', modelSlug, appNum);
+    // Load logs via HTMX
+    htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
+        target: '#container-logs-content',
+        swap: 'innerHTML'
+    });
+    
+    // Show modal using Bootstrap
+    $('#containerLogsModal').modal('show');
 }
 
 // Auto-refresh model stats every 30 seconds

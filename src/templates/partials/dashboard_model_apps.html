@@ -182,18 +182,6 @@
 {% endif %}
 
 <script>
-// App-specific functions using HTMX and Bootstrap
-function showAppLogs(modelSlug, appNum) {
-    // Load logs via HTMX
-    htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
-        target: '#container-logs-content',
-        swap: 'innerHTML'
-    });
-    
-    // Show modal using Bootstrap
-    $('#containerLogsModal').modal('show');
-}
-
 // Initialize tooltips for app table
 $(document).ready(function() {
     $('[title]').tooltip();
