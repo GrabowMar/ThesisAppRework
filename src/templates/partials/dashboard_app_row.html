@@ -15,10 +15,17 @@
     
     <!-- Status -->
     <td class="align-middle">
+        {% if show_error %}
+        <div class="text-danger">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            <small>{{ app.error_message }}</small>
+        </div>
+        {% else %}
         <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }} badge-pill">
             <i class="fas fa-circle mr-1 icon-sm"></i>
             {{ app.status|title }}
         </span>
+        {% endif %}
     </td>
     
     <!-- Container Status -->

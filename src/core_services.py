@@ -1046,21 +1046,55 @@ class DockerManager:
     def _create_docker_client(self) -> Optional[docker.DockerClient]:
         """Create a Docker client instance with improved error handling."""
         try:
-            # Use Windows named pipe for Windows, Unix socket for Linux/Mac
-            default_host = (
-                "npipe:////./pipe/docker_engine" if os.name == 'nt'
-                else "unix://var/run/docker.sock"
-            )
-            docker_host = os.getenv("DOCKER_HOST", default_host)
+            # Try multiple Docker connection options for Windows
+            if os.name == 'nt':
+                # Check what pipes are actually available
+                available_pipes = []
+                try:
+                    import glob
+                    pipes = glob.glob(r'\\.\pipe\docker*')
+                    available_pipes = [p.replace(r'\\.\pipe\\', '') for p in pipes]
+                    self.logger.info(f"Available Docker pipes: {available_pipes}")
+                except Exception as e:
+                    self.logger.debug(f"Could not list pipes: {e}")
+                
+                # Try different Docker connection options
+                docker_hosts = [
+                    "npipe:////./pipe/dockerDesktopLinuxEngine",  # Docker Desktop Linux
+                    "npipe:////./pipe/docker_engine",             # Docker Engine
+                    "npipe:////./pipe/dockerDesktopBuildServer",  # Alternative Desktop pipe
+                    "tcp://localhost:2375",                       # TCP without TLS
+                    "tcp://localhost:2376",                       # TCP with TLS
+                ]
+            else:
+                docker_hosts = ["unix://var/run/docker.sock"]
             
-            # Create client with timeout
-            client = docker.DockerClient(base_url=docker_host, timeout=Config.DOCKER_TIMEOUT)
+            # Try user-specified DOCKER_HOST first if set
+            user_host = os.getenv("DOCKER_HOST")
+            if user_host:
+                docker_hosts.insert(0, user_host)
             
-            # Verify connection with ping
-            client.ping()
+            # Try each host until one works
+            last_error = None
+            for docker_host in docker_hosts:
+                try:
+                    self.logger.info(f"Attempting Docker connection to: {docker_host}")
+                    client = docker.DockerClient(base_url=docker_host, timeout=Config.DOCKER_TIMEOUT)
+                    
+                    # Verify connection with ping
+                    client.ping()
+                    
+                    self.logger.info(f"Docker client created and verified (host: {docker_host})")
+                    return client
+                except Exception as e:
+                    last_error = e
+                    self.logger.debug(f"Failed to connect to {docker_host}: {e}")
+                    continue
             
-            self.logger.info(f"Docker client created and verified (host: {docker_host})")
-            return client
+            # If all attempts failed, log the last error
+            self.logger.error(f"All Docker connection attempts failed. Last error: {last_error}")
+            return None
+            
         except Exception as e:
             self.logger.error(f"Docker client creation failed: {e}")
             return None

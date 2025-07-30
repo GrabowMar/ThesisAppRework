@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from flask import (
     Blueprint, Response, current_app, flash, jsonify, make_response,
-    redirect, render_template, request, session, url_for
+    redirect, render_template, request, session, url_for, send_file
 )
 
 # Performance imports
@@ -4055,9 +4055,34 @@ def api_start_container(model_slug, app_num):
                                  app=app_data, 
                                  model_slug=model_slug)
         else:
-            return f'<tr><td colspan="7"><div class="alert alert-danger">Error: {result.get("error", "Failed to start containers")}</div></td></tr>', 500
+            # Return error row with user-friendly message
+            error_msg = result.get("error", "Failed to start containers")
+            
+            # Check for Docker Desktop not running
+            if "Nie można odnaleźć określonego pliku" in error_msg or "dockerDesktopLinuxEngine" in error_msg:
+                error_msg = "Docker Desktop is not running. Please start Docker Desktop and try again."
+            elif "unable to get image" in error_msg:
+                error_msg = "Docker images not built. Please build the containers first or start Docker Desktop."
+            
+            app_data = get_app_data(model_slug, app_num)
+            app_data['status'] = 'ERROR'
+            app_data['error_message'] = error_msg
+            return render_template('partials/dashboard_app_row.html', 
+                                 app=app_data, 
+                                 model_slug=model_slug,
+                                 show_error=True)
     except Exception as e:
-        return f'<tr><td colspan="7"><div class="alert alert-danger">Error: {str(e)}</div></td></tr>', 500
+        error_msg = str(e)
+        if "Nie można odnaleźć określonego pliku" in error_msg or "dockerDesktopLinuxEngine" in error_msg:
+            error_msg = "Docker Desktop is not running. Please start Docker Desktop and try again."
+        
+        app_data = get_app_data(model_slug, app_num)
+        app_data['status'] = 'ERROR'
+        app_data['error_message'] = error_msg
+        return render_template('partials/dashboard_app_row.html', 
+                             app=app_data, 
+                             model_slug=model_slug,
+                             show_error=True)
 
 @main_bp.route('/api/containers/<model_slug>/<int:app_num>/stop', methods=['POST'])
 def api_stop_container(model_slug, app_num):
@@ -4071,9 +4096,32 @@ def api_stop_container(model_slug, app_num):
                                  app=app_data, 
                                  model_slug=model_slug)
         else:
-            return f'<tr><td colspan="7"><div class="alert alert-danger">Error: {result.get("error", "Failed to stop containers")}</div></td></tr>', 500
+            # Return error row with user-friendly message
+            error_msg = result.get("error", "Failed to stop containers")
+            
+            # Check for Docker Desktop not running
+            if "Nie można odnaleźć określonego pliku" in error_msg or "dockerDesktopLinuxEngine" in error_msg:
+                error_msg = "Docker Desktop is not running. Please start Docker Desktop and try again."
+            
+            app_data = get_app_data(model_slug, app_num)
+            app_data['status'] = 'ERROR'
+            app_data['error_message'] = error_msg
+            return render_template('partials/dashboard_app_row.html', 
+                                 app=app_data, 
+                                 model_slug=model_slug,
+                                 show_error=True)
     except Exception as e:
-        return f'<tr><td colspan="7"><div class="alert alert-danger">Error: {str(e)}</div></td></tr>', 500
+        error_msg = str(e)
+        if "Nie można odnaleźć określonego pliku" in error_msg or "dockerDesktopLinuxEngine" in error_msg:
+            error_msg = "Docker Desktop is not running. Please start Docker Desktop and try again."
+        
+        app_data = get_app_data(model_slug, app_num)
+        app_data['status'] = 'ERROR'
+        app_data['error_message'] = error_msg
+        return render_template('partials/dashboard_app_row.html', 
+                             app=app_data, 
+                             model_slug=model_slug,
+                             show_error=True)
 
 @main_bp.route('/api/containers/<model_slug>/<int:app_num>/restart', methods=['POST'])
 def api_restart_container(model_slug, app_num):
@@ -4087,9 +4135,34 @@ def api_restart_container(model_slug, app_num):
                                  app=app_data, 
                                  model_slug=model_slug)
         else:
-            return f'<tr><td colspan="7"><div class="alert alert-danger">Error: {result.get("error", "Failed to restart containers")}</div></td></tr>', 500
+            # Return error row with user-friendly message
+            error_msg = result.get("error", "Failed to restart containers")
+            
+            # Check for Docker Desktop not running
+            if "Nie można odnaleźć określonego pliku" in error_msg or "dockerDesktopLinuxEngine" in error_msg:
+                error_msg = "Docker Desktop is not running. Please start Docker Desktop and try again."
+            elif "unable to get image" in error_msg:
+                error_msg = "Docker images not built. Please build the containers first or start Docker Desktop."
+            
+            app_data = get_app_data(model_slug, app_num)
+            app_data['status'] = 'ERROR'
+            app_data['error_message'] = error_msg
+            return render_template('partials/dashboard_app_row.html', 
+                                 app=app_data, 
+                                 model_slug=model_slug,
+                                 show_error=True)
     except Exception as e:
-        return f'<tr><td colspan="7"><div class="alert alert-danger">Error: {str(e)}</div></td></tr>', 500
+        error_msg = str(e)
+        if "Nie można odnaleźć określonego pliku" in error_msg or "dockerDesktopLinuxEngine" in error_msg:
+            error_msg = "Docker Desktop is not running. Please start Docker Desktop and try again."
+        
+        app_data = get_app_data(model_slug, app_num)
+        app_data['status'] = 'ERROR'
+        app_data['error_message'] = error_msg
+        return render_template('partials/dashboard_app_row.html', 
+                             app=app_data, 
+                             model_slug=model_slug,
+                             show_error=True)
 
 @main_bp.route('/api/containers/<model_slug>/<int:app_num>/logs')
 def api_container_logs(model_slug, app_num):
@@ -4397,6 +4470,388 @@ def get_app_data(model_slug, app_num):
 
 # ===========================
 # BLUEPRINT REGISTRATION
+# ===========================
+# APP DETAILS API ENDPOINTS (From Chat Implementation)
+# ===========================
+
+@api_bp.route('/app/<model>/<int:app_num>/files')
+def get_app_files(model: str, app_num: int):
+    """Get file tree for app details files tab."""
+    try:
+        # Get app directory path
+        project_root = Path(__file__).parent.parent
+        misc_dir = project_root / "misc"
+        app_dir = misc_dir / f"{model}_app_{app_num}"
+        
+        if not app_dir.exists():
+            return jsonify({
+                'success': False,
+                'error': 'Application directory not found'
+            })
+        
+        # Build file tree
+        file_tree = []
+        for root, dirs, files in os.walk(app_dir):
+            root_path = Path(root)
+            
+            for file in files:
+                file_path = root_path / file
+                relative_file_path = file_path.relative_to(app_dir)
+                
+                file_tree.append({
+                    'name': file,
+                    'path': str(relative_file_path),
+                    'type': 'file',
+                    'size': file_path.stat().st_size,
+                    'modified': datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
+                })
+        
+        return jsonify({
+            'success': True,
+            'files': file_tree
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting app files: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@api_bp.route('/app/<model>/<int:app_num>/file-content')
+def get_app_file_content(model: str, app_num: int):
+    """Get content of a specific file."""
+    try:
+        file_path = request.args.get('path')
+        if not file_path:
+            return jsonify({
+                'success': False,
+                'error': 'File path is required'
+            })
+        
+        # Get app directory path
+        project_root = Path(__file__).parent.parent
+        misc_dir = project_root / "misc"
+        app_dir = misc_dir / f"{model}_app_{app_num}"
+        full_file_path = app_dir / file_path
+        
+        if not full_file_path.exists() or not full_file_path.is_file():
+            return jsonify({
+                'success': False,
+                'error': 'File not found'
+            })
+        
+        # Read file content
+        with open(full_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Determine file type for syntax highlighting
+        file_extension = full_file_path.suffix.lower()
+        language_map = {
+            '.py': 'python',
+            '.js': 'javascript', 
+            '.jsx': 'javascript',
+            '.ts': 'typescript',
+            '.tsx': 'typescript',
+            '.html': 'html',
+            '.css': 'css',
+            '.json': 'json',
+            '.md': 'markdown',
+            '.yml': 'yaml',
+            '.yaml': 'yaml',
+            '.dockerfile': 'dockerfile',
+            '.sh': 'bash'
+        }
+        
+        return jsonify({
+            'success': True,
+            'content': content,
+            'language': language_map.get(file_extension, 'text'),
+            'filename': full_file_path.name,
+            'size': len(content)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting file content: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@api_bp.route('/app/<model>/<int:app_num>/download-file')
+def download_app_file(model: str, app_num: int):
+    """Download a specific file."""
+    try:
+        file_path = request.args.get('path')
+        if not file_path:
+            return "File path is required", 400
+        
+        # Get app directory path
+        project_root = Path(__file__).parent.parent
+        misc_dir = project_root / "misc"
+        app_dir = misc_dir / f"{model}_app_{app_num}"
+        full_file_path = app_dir / file_path
+        
+        if not full_file_path.exists() or not full_file_path.is_file():
+            return "File not found", 404
+        
+        return send_file(full_file_path, as_attachment=True)
+        
+    except Exception as e:
+        logger.error(f"Error downloading file: {e}")
+        return "Error downloading file", 500
+
+@api_bp.route('/app/<model>/<int:app_num>/download-all')
+def download_all_app_files(model: str, app_num: int):
+    """Download all app files as a zip."""
+    try:
+        import zipfile
+        import io
+        
+        # Get app directory path
+        project_root = Path(__file__).parent.parent
+        misc_dir = project_root / "misc"
+        app_dir = misc_dir / f"{model}_app_{app_num}"
+        
+        if not app_dir.exists():
+            return "Application directory not found", 404
+        
+        # Create zip in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for root, dirs, files in os.walk(app_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    arc_name = file_path.relative_to(app_dir)
+                    zip_file.write(file_path, arc_name)
+        
+        zip_buffer.seek(0)
+        
+        return Response(
+            zip_buffer.getvalue(),
+            mimetype='application/zip',
+            headers={'Content-Disposition': f'attachment; filename={model}_app_{app_num}.zip'}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error creating zip: {e}")
+        return "Error creating download", 500
+
+@api_bp.route('/app/<model>/<int:app_num>/prompt-preview')
+def get_prompt_preview(model: str, app_num: int):
+    """Get prompt preview for prompts tab."""
+    try:
+        prompt_type = request.args.get('type', 'backend')  # backend or frontend
+        
+        # Get app templates directory
+        project_root = Path(__file__).parent.parent
+        templates_dir = project_root / "misc" / "app_templates"
+        
+        # Find the appropriate template file
+        template_file = templates_dir / f"app_{app_num}_{prompt_type}_{model}.md"
+        
+        if not template_file.exists():
+            # Try alternative naming patterns
+            alt_patterns = [
+                f"app_{app_num}_{prompt_type}_{model.replace('-', '_')}.md",
+                f"app_{app_num}_{prompt_type}_{model.replace('_', '-')}.md"
+            ]
+            
+            for pattern in alt_patterns:
+                alt_file = templates_dir / pattern
+                if alt_file.exists():
+                    template_file = alt_file
+                    break
+        
+        if not template_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Prompt template not found for {prompt_type}'
+            })
+        
+        # Read first few lines for preview
+        with open(template_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            preview_lines = lines[:10]  # First 10 lines
+            total_lines = len(lines)
+        
+        preview_text = ''.join(preview_lines)
+        if total_lines > 10:
+            preview_text += f"\n... ({total_lines - 10} more lines)"
+        
+        return jsonify({
+            'success': True,
+            'preview': preview_text,
+            'total_lines': total_lines,
+            'prompt_type': prompt_type
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting prompt preview: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@api_bp.route('/app/<model>/<int:app_num>/full-prompt')
+def get_full_prompt(model: str, app_num: int):
+    """Get full prompt content."""
+    try:
+        prompt_type = request.args.get('type', 'backend')
+        
+        # Get app templates directory
+        project_root = Path(__file__).parent.parent
+        templates_dir = project_root / "misc" / "app_templates"
+        
+        # Find the appropriate template file
+        template_file = templates_dir / f"app_{app_num}_{prompt_type}_{model}.md"
+        
+        if not template_file.exists():
+            # Try alternative naming patterns
+            alt_patterns = [
+                f"app_{app_num}_{prompt_type}_{model.replace('-', '_')}.md",
+                f"app_{app_num}_{prompt_type}_{model.replace('_', '-')}.md"
+            ]
+            
+            for pattern in alt_patterns:
+                alt_file = templates_dir / pattern
+                if alt_file.exists():
+                    template_file = alt_file
+                    break
+        
+        if not template_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Prompt template not found for {prompt_type}'
+            })
+        
+        # Read full content
+        with open(template_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Get file stats
+        stat = template_file.stat()
+        
+        return jsonify({
+            'success': True,
+            'content': content,
+            'filename': template_file.name,
+            'size': len(content),
+            'lines': len(content.splitlines()),
+            'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            'prompt_type': prompt_type
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting full prompt: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@api_bp.route('/app/<model>/<int:app_num>/generation-metadata')
+def get_generation_metadata(model: str, app_num: int):
+    """Get generation metadata for the app."""
+    try:
+        # This would typically come from a database or log files
+        # For now, return mock data structure
+        metadata = {
+            'generation_date': '2024-07-30T10:30:00Z',
+            'model_used': model,
+            'app_number': app_num,
+            'generation_time': {
+                'backend': '45.2s',
+                'frontend': '38.7s',
+                'total': '83.9s'
+            },
+            'token_usage': {
+                'backend': {
+                    'input_tokens': 2847,
+                    'output_tokens': 5234,
+                    'total_cost': '$0.0234'
+                },
+                'frontend': {
+                    'input_tokens': 2156,
+                    'output_tokens': 4892,
+                    'total_cost': '$0.0198'
+                }
+            },
+            'quality_metrics': {
+                'code_quality_score': 8.5,
+                'completeness': 0.92,
+                'security_score': 7.8
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'metadata': metadata
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting generation metadata: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@api_bp.route('/app/<model>/<int:app_num>/download-prompt')
+def download_prompt(model: str, app_num: int):
+    """Download a specific prompt file."""
+    try:
+        prompt_type = request.args.get('type', 'backend')
+        
+        # Get app templates directory
+        project_root = Path(__file__).parent.parent
+        templates_dir = project_root / "misc" / "app_templates"
+        
+        # Find the appropriate template file
+        template_file = templates_dir / f"app_{app_num}_{prompt_type}_{model}.md"
+        
+        if not template_file.exists():
+            return "Prompt file not found", 404
+        
+        return send_file(template_file, as_attachment=True)
+        
+    except Exception as e:
+        logger.error(f"Error downloading prompt: {e}")
+        return "Error downloading prompt", 500
+
+@api_bp.route('/app/<model>/<int:app_num>/export-prompts')
+def export_all_prompts(model: str, app_num: int):
+    """Export all prompts as a zip file."""
+    try:
+        import zipfile
+        import io
+        
+        # Get app templates directory
+        project_root = Path(__file__).parent.parent
+        templates_dir = project_root / "misc" / "app_templates"
+        
+        # Find prompt files
+        backend_file = templates_dir / f"app_{app_num}_backend_{model}.md"
+        frontend_file = templates_dir / f"app_{app_num}_frontend_{model}.md"
+        
+        # Create zip in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            if backend_file.exists():
+                zip_file.write(backend_file, f"backend_prompt_{model}_app_{app_num}.md")
+            if frontend_file.exists():
+                zip_file.write(frontend_file, f"frontend_prompt_{model}_app_{app_num}.md")
+        
+        zip_buffer.seek(0)
+        
+        return Response(
+            zip_buffer.getvalue(),
+            mimetype='application/zip',
+            headers={'Content-Disposition': f'attachment; filename={model}_app_{app_num}_prompts.zip'}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting prompts: {e}")
+        return "Error exporting prompts", 500
+
 # ===========================
 
 def register_blueprints(app):

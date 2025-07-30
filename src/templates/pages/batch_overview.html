@@ -888,8 +888,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('overview-tab').click();
     };
 
-    // Initialize auto-refresh
-    function startAutoRefresh() {
+    // Initialize batch overview auto-refresh
+    function startBatchAutoRefresh() {
         if (refreshInterval) clearInterval(refreshInterval);
         if (countdownInterval) clearInterval(countdownInterval);
 
@@ -918,7 +918,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (autoRefreshEnabled) {
             refreshIcon.classList.add('spinning');
-            startAutoRefresh();
+            startBatchAutoRefresh();
         } else {
             refreshIcon.classList.remove('spinning');
             if (refreshInterval) clearInterval(refreshInterval);
@@ -1402,7 +1402,7 @@ document.addEventListener('DOMContentLoaded', function() {
     applyFilters();
     updateEstimates();
     if (autoRefreshEnabled) {
-        startAutoRefresh();
+        startBatchAutoRefresh();
     }
 });
 </script>

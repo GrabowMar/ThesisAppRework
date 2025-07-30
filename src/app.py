@@ -529,6 +529,7 @@ def main():
         )
     except KeyboardInterrupt:
         print("\n\n👋 Application stopped by user")
+        print("Docker connection refreshed on restart")
     except Exception as e:
         print(f"\n❌ Failed to start application: {e}")
         return 1
