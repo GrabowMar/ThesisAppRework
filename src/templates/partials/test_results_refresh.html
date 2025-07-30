@@ -1,0 +1,154 @@
+<div class="test-results-refresh">
+    <!-- Security Results -->
+    <div id="security-results" class="mb-4">
+        {% if analysis_results and analysis_results.security %}
+            <div class="analysis-card card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-shield-alt mr-2"></i>
+                        Security Analysis Results
+                        <span class="badge badge-light ml-2">{{ analysis_results.security.timestamp|strftime('%H:%M') if analysis_results.security.timestamp else 'Recent' }}</span>
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if analysis_results.security.issues %}
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 class="text-danger mb-1">{{ analysis_results.security.issues|length }}</h4>
+                                    <small class="text-muted">Total Issues</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 class="text-danger mb-1">{{ analysis_results.security.issues|selectattr('severity', 'equalto', 'HIGH')|list|length }}</h4>
+                                    <small class="text-muted">High Severity</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 class="text-warning mb-1">{{ analysis_results.security.issues|selectattr('severity', 'equalto', 'MEDIUM')|list|length }}</h4>
+                                    <small class="text-muted">Medium Severity</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 class="text-info mb-1">{{ analysis_results.security.issues|selectattr('severity', 'equalto', 'LOW')|list|length }}</h4>
+                                    <small class="text-muted">Low Severity</small>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    <div class="test-results">
+                        <pre>{{ analysis_results.security | tojsonpretty }}</pre>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-light border" role="alert">
+                <i class="fas fa-info-circle text-muted mr-2"></i>
+                No security analysis results yet. Run a security scan to see results here.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Performance Results -->
+    <div id="performance-results" class="mb-4">
+        {% if analysis_results and analysis_results.performance %}
+            <div class="analysis-card card border-success">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-tachometer-alt mr-2"></i>
+                        Performance Test Results
+                        <span class="badge badge-light ml-2">{{ analysis_results.performance.timestamp|strftime('%H:%M') if analysis_results.performance.timestamp else 'Recent' }}</span>
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if analysis_results.performance.metrics %}
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 class="text-success mb-1">{{ analysis_results.performance.metrics.avg_response_time or 'N/A' }}ms</h4>
+                                    <small class="text-muted">Avg Response Time</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 class="text-info mb-1">{{ analysis_results.performance.metrics.requests_per_second or 'N/A' }}</h4>
+                                    <small class="text-muted">Requests/sec</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 class="text-warning mb-1">{{ analysis_results.performance.metrics.max_response_time or 'N/A' }}ms</h4>
+                                    <small class="text-muted">Max Response</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 class="text-{{ 'danger' if analysis_results.performance.metrics.failure_rate > 5 else 'success' }} mb-1">{{ analysis_results.performance.metrics.failure_rate or 0 }}%</h4>
+                                    <small class="text-muted">Failure Rate</small>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    <div class="test-results">
+                        <pre>{{ analysis_results.performance | tojsonpretty }}</pre>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-light border" role="alert">
+                <i class="fas fa-info-circle text-muted mr-2"></i>
+                No performance test results yet. Run a performance test to see results here.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- ZAP Results -->
+    <div id="zap-results" class="mb-4">
+        {% if analysis_results and analysis_results.zap %}
+            <div class="analysis-card card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bug mr-2"></i>
+                        ZAP Security Scan Results
+                        <span class="badge badge-light ml-2">{{ analysis_results.zap.timestamp|strftime('%H:%M') if analysis_results.zap.timestamp else 'Recent' }}</span>
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if analysis_results.zap.alerts %}
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h4 class="text-danger mb-1">{{ analysis_results.zap.alerts|length }}</h4>
+                                    <small class="text-muted">Total Alerts</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h4 class="text-danger mb-1">{{ analysis_results.zap.alerts|selectattr('risk', 'equalto', 'High')|list|length }}</h4>
+                                    <small class="text-muted">High Risk</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h4 class="text-warning mb-1">{{ analysis_results.zap.alerts|selectattr('risk', 'equalto', 'Medium')|list|length }}</h4>
+                                    <small class="text-muted">Medium Risk</small>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    <div class="test-results">
+                        <pre>{{ analysis_results.zap | tojsonpretty }}</pre>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-light border" role="alert">
+                <i class="fas fa-info-circle text-muted mr-2"></i>
+                No ZAP scan results yet. Start a ZAP scan to see results here.
+            </div>
+        {% endif %}
+    </div>
+</div>

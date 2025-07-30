@@ -1,0 +1,397 @@
+<div class="tests-tab">
+    <div class="row">
+        <!-- Test Controls -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-play text-success mr-2"></i>
+                        Run Tests
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Security Analysis -->
+                    <div class="test-controls">
+                        <h6 class="text-primary">Security Analysis</h6>
+                        <p class="text-muted small mb-3">Run security vulnerability scans using Bandit, Safety, and other tools</p>
+                        
+                        <form id="security-test-form">
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="use_all_security_tools" name="use_all_tools" checked>
+                                    <label class="form-check-label" for="use_all_security_tools">
+                                        Use all available tools
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="force_security_rerun" name="force_rerun">
+                                    <label class="form-check-label" for="force_security_rerun">
+                                        Force re-run if results exist
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" 
+                                    class="btn btn-primary btn-sm quick-action-btn"
+                                    hx-post="/analysis/backend_security/{{ model }}/{{ app_num }}/run"
+                                    hx-target="#security-results"
+                                    hx-include="#security-test-form"
+                                    hx-indicator="#security-spinner">
+                                <i class="fas fa-shield-alt mr-1"></i>
+                                Run Security Scan
+                            </button>
+                        </form>
+                        
+                        <div id="security-spinner" class="htmx-indicator mt-2">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="sr-only">Running...</span>
+                            </div>
+                            <span class="ml-2 small">Running security analysis...</span>
+                        </div>
+                    </div>
+
+                    <!-- Performance Test -->
+                    <div class="test-controls">
+                        <h6 class="text-success">Performance Test</h6>
+                        <p class="text-muted small mb-3">Load test the application endpoints</p>
+                        
+                        <form id="performance-test-form">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="form-group">
+                                        <label for="user_count" class="small">Users:</label>
+                                        <input type="number" class="form-control form-control-sm" 
+                                               id="user_count" name="user_count" value="10" min="1" max="100">
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-group">
+                                        <label for="duration" class="small">Duration (s):</label>
+                                        <input type="number" class="form-control form-control-sm" 
+                                               id="duration" name="duration" value="30" min="10" max="300">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" 
+                                    class="btn btn-success btn-sm quick-action-btn"
+                                    hx-post="/performance/{{ model }}/{{ app_num }}/run"
+                                    hx-target="#performance-results"
+                                    hx-include="#performance-test-form"
+                                    hx-indicator="#performance-spinner">
+                                <i class="fas fa-tachometer-alt mr-1"></i>
+                                Run Performance Test
+                            </button>
+                        </form>
+                        
+                        <div id="performance-spinner" class="htmx-indicator mt-2">
+                            <div class="spinner-border spinner-border-sm text-success" role="status">
+                                <span class="sr-only">Running...</span>
+                            </div>
+                            <span class="ml-2 small">Running performance test...</span>
+                        </div>
+                    </div>
+
+                    <!-- ZAP Security Scan -->
+                    <div class="test-controls">
+                        <h6 class="text-danger">ZAP Security Scan</h6>
+                        <p class="text-muted small mb-3">Dynamic application security testing with OWASP ZAP</p>
+                        
+                        <form id="zap-test-form">
+                            <div class="form-group">
+                                <label for="scan_type" class="small">Scan Type:</label>
+                                <select class="form-control form-control-sm" id="scan_type" name="scan_type">
+                                    <option value="passive">Passive Scan (Safe)</option>
+                                    <option value="active">Active Scan (May affect app)</option>
+                                    <option value="full">Full Scan (Comprehensive)</option>
+                                </select>
+                            </div>
+                            
+                            <button type="submit" 
+                                    class="btn btn-danger btn-sm quick-action-btn"
+                                    hx-post="/zap/{{ model }}/{{ app_num }}/scan"
+                                    hx-target="#zap-results"
+                                    hx-include="#zap-test-form"
+                                    hx-indicator="#zap-spinner">
+                                <i class="fas fa-bug mr-1"></i>
+                                Start ZAP Scan
+                            </button>
+                        </form>
+                        
+                        <div id="zap-spinner" class="htmx-indicator mt-2">
+                            <div class="spinner-border spinner-border-sm text-danger" role="status">
+                                <span class="sr-only">Running...</span>
+                            </div>
+                            <span class="ml-2 small">Running ZAP scan...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Container Status -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-heartbeat text-info mr-2"></i>
+                        Container Status
+                    </h5>
+                </div>
+                <div class="card-body" 
+                     id="container-status"
+                     hx-get="/api/status/{{ model }}/{{ app_num }}"
+                     hx-trigger="load, every 15s"
+                     hx-target="this">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-info" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted small">Loading status...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Results -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line text-primary mr-2"></i>
+                        Test Results
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-outline-primary"
+                                hx-get="/api/test-results/{{ model }}/{{ app_num }}/refresh"
+                                hx-target="#all-results"
+                                hx-indicator="#results-spinner">
+                            <i class="fas fa-sync-alt mr-1"></i>
+                            Refresh All
+                        </button>
+                        <button class="btn btn-outline-secondary"
+                                hx-post="/api/test-results/{{ model }}/{{ app_num }}/save"
+                                hx-target="#save-status"
+                                hx-indicator="#save-spinner">
+                            <i class="fas fa-save mr-1"></i>
+                            Save Results
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="results-spinner" class="htmx-indicator text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Refreshing all results...</p>
+                    </div>
+                    
+                    <div id="save-spinner" class="htmx-indicator">
+                        <div class="alert alert-info" role="alert">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            Saving test results to database...
+                        </div>
+                    </div>
+                    
+                    <div id="save-status"></div>
+                    
+                    <div id="all-results">
+                        <!-- Security Results -->
+                        <div id="security-results" class="mb-4">
+                            {% if analysis_results and analysis_results.security %}
+                                <div class="analysis-card card border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-shield-alt mr-2"></i>
+                                            Security Analysis Results
+                                            <span class="badge badge-light ml-2">
+                                                {{ analysis_results.security.timestamp|strftime('%H:%M') if analysis_results.security.timestamp else 'Recent' }}
+                                            </span>
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {% if analysis_results.security.summary %}
+                                            <div class="row mb-3">
+                                                <div class="col-md-3 text-center">
+                                                    <h4 class="text-danger mb-1">{{ analysis_results.security.summary.total_issues or 0 }}</h4>
+                                                    <small class="text-muted">Total Issues</small>
+                                                </div>
+                                                <div class="col-md-3 text-center">
+                                                    <h4 class="text-danger mb-1">{{ analysis_results.security.summary.high_severity or 0 }}</h4>
+                                                    <small class="text-muted">High Severity</small>
+                                                </div>
+                                                <div class="col-md-3 text-center">
+                                                    <h4 class="text-warning mb-1">{{ analysis_results.security.summary.medium_severity or 0 }}</h4>
+                                                    <small class="text-muted">Medium Severity</small>
+                                                </div>
+                                                <div class="col-md-3 text-center">
+                                                    <h4 class="text-info mb-1">{{ analysis_results.security.summary.low_severity or 0 }}</h4>
+                                                    <small class="text-muted">Low Severity</small>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                        <div class="test-results">
+                                            <pre>{{ analysis_results.security | tojsonpretty }}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-light border" role="alert">
+                                    <i class="fas fa-info-circle text-muted mr-2"></i>
+                                    <strong>No security analysis results yet.</strong> 
+                                    Click "Run Security Scan" to analyze this application for security vulnerabilities.
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Performance Results -->
+                        <div id="performance-results" class="mb-4">
+                            {% if analysis_results and analysis_results.performance %}
+                                <div class="analysis-card card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-tachometer-alt mr-2"></i>
+                                            Performance Test Results
+                                            <span class="badge badge-light ml-2">
+                                                {{ analysis_results.performance.timestamp|strftime('%H:%M') if analysis_results.performance.timestamp else 'Recent' }}
+                                            </span>
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {% if analysis_results.performance.metrics %}
+                                            <div class="row mb-3">
+                                                <div class="col-md-3 text-center">
+                                                    <h4 class="text-success mb-1">{{ analysis_results.performance.metrics.avg_response_time or 'N/A' }}ms</h4>
+                                                    <small class="text-muted">Avg Response</small>
+                                                </div>
+                                                <div class="col-md-3 text-center">
+                                                    <h4 class="text-info mb-1">{{ analysis_results.performance.metrics.requests_per_second or 'N/A' }}</h4>
+                                                    <small class="text-muted">Requests/sec</small>
+                                                </div>
+                                                <div class="col-md-3 text-center">
+                                                    <h4 class="text-warning mb-1">{{ analysis_results.performance.metrics.max_response_time or 'N/A' }}ms</h4>
+                                                    <small class="text-muted">Max Response</small>
+                                                </div>
+                                                <div class="col-md-3 text-center">
+                                                    <h4 class="text-{{ 'danger' if analysis_results.performance.metrics.failure_rate > 5 else 'success' }} mb-1">
+                                                        {{ analysis_results.performance.metrics.failure_rate or 0 }}%
+                                                    </h4>
+                                                    <small class="text-muted">Failure Rate</small>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                        <div class="test-results">
+                                            <pre>{{ analysis_results.performance | tojsonpretty }}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-light border" role="alert">
+                                    <i class="fas fa-info-circle text-muted mr-2"></i>
+                                    <strong>No performance test results yet.</strong> 
+                                    Click "Run Performance Test" to load test this application and see detailed metrics.
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- ZAP Results -->
+                        <div id="zap-results" class="mb-4">
+                            {% if analysis_results and analysis_results.zap %}
+                                <div class="analysis-card card border-danger">
+                                    <div class="card-header bg-danger text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-bug mr-2"></i>
+                                            ZAP Security Scan Results
+                                            <span class="badge badge-light ml-2">
+                                                {{ analysis_results.zap.timestamp|strftime('%H:%M') if analysis_results.zap.timestamp else 'Recent' }}
+                                            </span>
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {% if analysis_results.zap.summary %}
+                                            <div class="row mb-3">
+                                                <div class="col-md-4 text-center">
+                                                    <h4 class="text-danger mb-1">{{ analysis_results.zap.summary.total_alerts or 0 }}</h4>
+                                                    <small class="text-muted">Total Alerts</small>
+                                                </div>
+                                                <div class="col-md-4 text-center">
+                                                    <h4 class="text-danger mb-1">{{ analysis_results.zap.summary.high_risk or 0 }}</h4>
+                                                    <small class="text-muted">High Risk</small>
+                                                </div>
+                                                <div class="col-md-4 text-center">
+                                                    <h4 class="text-warning mb-1">{{ analysis_results.zap.summary.medium_risk or 0 }}</h4>
+                                                    <small class="text-muted">Medium Risk</small>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                        <div class="test-results">
+                                            <pre>{{ analysis_results.zap | tojsonpretty }}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-light border" role="alert">
+                                    <i class="fas fa-info-circle text-muted mr-2"></i>
+                                    <strong>No ZAP scan results yet.</strong> 
+                                    Click "Start ZAP Scan" to perform dynamic security testing on this application.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.test-controls {
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid;
+}
+
+.test-controls:first-child { border-left-color: #007bff; }
+.test-controls:nth-child(2) { border-left-color: #28a745; }
+.test-controls:nth-child(3) { border-left-color: #dc3545; }
+
+.quick-action-btn {
+    transition: all 0.3s ease;
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.analysis-card {
+    transition: all 0.3s ease;
+    margin-bottom: 1.5rem;
+}
+
+.analysis-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.test-results {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+    background: #ffffff;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+}
+
+.test-results pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.htmx-indicator {
+    display: none;
+}
+</style>

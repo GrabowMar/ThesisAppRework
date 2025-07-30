@@ -665,7 +665,32 @@ def app_details(model: str, app_num: int):
         # Handle tab-specific requests
         tab = request.args.get('tab')
         if is_htmx_request() and tab:
-            return render_template(f"partials/app_tab_{tab}.html", **context)
+            if tab == 'tests':
+                # Load fresh analysis results for tests tab
+                context['analysis_results'] = load_json_results_for_template(model, app_num)
+                return render_template("partials/app_tab_tests.html", **context)
+            elif tab == 'performance':
+                # Add performance-specific data
+                try:
+                    from performance_service import LocustPerformanceTester
+                    if LocustPerformanceTester:
+                        tester = LocustPerformanceTester(Path.cwd() / "performance_reports")
+                        context['existing_results'] = tester.load_performance_results(model, app_num)
+                        context['has_results'] = context['existing_results'] is not None
+                        context['performance_available'] = True
+                    else:
+                        context['performance_available'] = False
+                        context['existing_results'] = None
+                        context['has_results'] = False
+                except ImportError:
+                    context['performance_available'] = False
+                    context['existing_results'] = None
+                    context['has_results'] = False
+                return render_template("partials/app_tab_performance.html", **context)
+            elif tab == 'files':
+                return render_template("partials/app_tab_files.html", **context)
+            else:
+                return render_template(f"partials/app_tab_{tab}.html", **context)
         
         return render_template("pages/app_details.html", **context)
         
@@ -4801,6 +4826,224 @@ def export_all_prompts(model: str, app_num: int):
     except Exception as e:
         logger.error(f"Error exporting prompts: {e}")
         return "Error exporting prompts", 500
+
+
+# ===========================
+# APP DETAILS API ROUTES
+# ===========================
+
+@api_bp.route("/test-results/<model>/<int:app_num>/refresh")
+def refresh_test_results(model: str, app_num: int):
+    """Refresh all test results for an app."""
+    try:
+        # Load latest analysis results
+        analysis_results = load_json_results_for_template(model, app_num)
+        
+        context = {
+            'model': model,
+            'app_num': app_num,
+            'analysis_results': analysis_results
+        }
+        
+        return render_template("partials/test_results_refresh.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error refreshing test results for {model}/app{app_num}: {e}")
+        return render_template("partials/error_message.html", 
+                             error="Failed to refresh test results")
+
+
+@api_bp.route("/test-results/<model>/<int:app_num>/save", methods=["POST"])
+def save_test_results(model: str, app_num: int):
+    """Save current test results to database."""
+    try:
+        from models import GeneratedApplication, db
+        from datetime import datetime
+        
+        # Find or create the app record
+        app = GeneratedApplication.query.filter_by(
+            model=model, 
+            app_num=app_num
+        ).first()
+        
+        if not app:
+            # Create new app record
+            app = GeneratedApplication(
+                model=model,
+                app_num=app_num,
+                app_type=f"app_{app_num}",
+                provider="unknown",
+                created_at=datetime.now()
+            )
+            db.session.add(app)
+        
+        # Update last analyzed timestamp
+        app.last_analyzed = datetime.now()
+        db.session.commit()
+        
+        return render_template("partials/save_success.html", 
+                             message="Test results saved successfully!")
+        
+    except Exception as e:
+        logger.error(f"Error saving test results for {model}/app{app_num}: {e}")
+        return render_template("partials/error_message.html", 
+                             error="Failed to save test results")
+
+
+@api_bp.route("/files/<model>/<int:app_num>/tree")
+def get_file_tree(model: str, app_num: int):
+    """Get file tree structure for an app."""
+    try:
+        # Get app directory
+        project_root = Path(__file__).parent.parent
+        app_dir = project_root / "misc" / "models" / model / f"app{app_num}"
+        
+        if not app_dir.exists():
+            return render_template("partials/error_message.html", 
+                                 error="Application directory not found")
+        
+        # Build file tree
+        files = []
+        total_files = 0
+        
+        def scan_directory(directory, level=0):
+            nonlocal total_files
+            items = []
+            
+            try:
+                for item in sorted(directory.iterdir()):
+                    if item.is_file() and not item.name.startswith('.'):
+                        total_files += 1
+                        items.append({
+                            'name': item.name,
+                            'path': str(item.relative_to(app_dir)),
+                            'type': 'file',
+                            'size': item.stat().st_size,
+                            'level': level,
+                            'icon': get_file_icon(item.suffix)
+                        })
+                    elif item.is_dir() and not item.name.startswith('.'):
+                        items.append({
+                            'name': item.name,
+                            'path': str(item.relative_to(app_dir)),
+                            'type': 'directory',
+                            'level': level,
+                            'icon': 'fas fa-folder',
+                            'children': scan_directory(item, level + 1)
+                        })
+            except PermissionError:
+                pass
+                
+            return items
+        
+        files = scan_directory(app_dir)
+        
+        context = {
+            'files': files,
+            'total_files': total_files,
+            'model': model,
+            'app_num': app_num
+        }
+        
+        return render_template("partials/file_tree.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error getting file tree for {model}/app{app_num}: {e}")
+        return render_template("partials/error_message.html", 
+                             error="Failed to load file tree")
+
+
+@api_bp.route("/files/<model>/<int:app_num>/content")
+def get_file_content(model: str, app_num: int):
+    """Get content of a specific file."""
+    try:
+        file_path = request.args.get('path')
+        if not file_path:
+            return "File path required", 400
+        
+        # Get app directory
+        project_root = Path(__file__).parent.parent
+        app_dir = project_root / "misc" / "models" / model / f"app{app_num}"
+        full_path = app_dir / file_path
+        
+        # Security check - ensure path is within app directory
+        if not str(full_path.resolve()).startswith(str(app_dir.resolve())):
+            return "Access denied", 403
+        
+        if not full_path.exists() or not full_path.is_file():
+            return "File not found", 404
+        
+        # Read file content
+        try:
+            content = full_path.read_text(encoding='utf-8')
+        except UnicodeDecodeError:
+            try:
+                content = full_path.read_text(encoding='latin-1')
+            except:
+                content = "Binary file - cannot display content"
+        
+        # Determine language for syntax highlighting
+        language = get_language_from_extension(full_path.suffix)
+        
+        context = {
+            'content': content,
+            'language': language,
+            'file_name': full_path.name,
+            'file_path': file_path
+        }
+        
+        return render_template("partials/file_content.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error getting file content: {e}")
+        return render_template("partials/error_message.html", 
+                             error="Failed to load file content")
+
+
+def get_file_icon(extension: str) -> str:
+    """Get appropriate icon for file extension."""
+    icon_map = {
+        '.py': 'fab fa-python',
+        '.js': 'fab fa-js-square',
+        '.ts': 'fab fa-js-square',
+        '.jsx': 'fab fa-react',
+        '.tsx': 'fab fa-react',
+        '.html': 'fab fa-html5',
+        '.css': 'fab fa-css3-alt',
+        '.scss': 'fab fa-sass',
+        '.json': 'fas fa-code',
+        '.yml': 'fas fa-file-code',
+        '.yaml': 'fas fa-file-code',
+        '.md': 'fab fa-markdown',
+        '.txt': 'fas fa-file-alt',
+        '.dockerfile': 'fab fa-docker',
+        '.gitignore': 'fab fa-git-alt',
+        '.env': 'fas fa-cog'
+    }
+    return icon_map.get(extension.lower(), 'fas fa-file')
+
+
+def get_language_from_extension(extension: str) -> str:
+    """Get language identifier for syntax highlighting."""
+    language_map = {
+        '.py': 'python',
+        '.js': 'javascript',
+        '.ts': 'typescript',
+        '.jsx': 'javascript',
+        '.tsx': 'typescript',
+        '.html': 'html',
+        '.css': 'css',
+        '.scss': 'scss',
+        '.json': 'json',
+        '.yml': 'yaml',
+        '.yaml': 'yaml',
+        '.md': 'markdown',
+        '.dockerfile': 'dockerfile',
+        '.sh': 'bash',
+        '.sql': 'sql'
+    }
+    return language_map.get(extension.lower(), 'text')
+
 
 # ===========================
 

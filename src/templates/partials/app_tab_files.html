@@ -1,0 +1,279 @@
+<div class="files-tab">
+    <!-- File Browser -->
+    <div class="row">
+        <div class="col-lg-3">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-folder-tree text-primary mr-2"></i>
+                        Project Structure
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div id="file-tree" 
+                         hx-get="/api/files/{{ model }}/{{ app_num }}/tree"
+                         hx-target="this"
+                         hx-trigger="load">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted small">Loading files...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-9">
+            <!-- File Actions Bar -->
+            <div class="card mb-3">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" 
+                                    class="btn btn-outline-primary"
+                                    hx-get="/api/files/{{ model }}/{{ app_num }}/refresh"
+                                    hx-target="#file-tree">
+                                <i class="fas fa-sync-alt mr-1"></i>
+                                Refresh
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-outline-success"
+                                    hx-get="/api/files/{{ model }}/{{ app_num }}/download"
+                                    hx-target="#modal-container">
+                                <i class="fas fa-download mr-1"></i>
+                                Download Project
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-outline-info"
+                                    hx-get="/api/files/{{ model }}/{{ app_num }}/analyze"
+                                    hx-target="#file-analysis">
+                                <i class="fas fa-search mr-1"></i>
+                                Analyze Code
+                            </button>
+                        </div>
+                        
+                        <div class="file-stats text-muted small">
+                            <span id="file-count">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- File Content Viewer -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-file-code text-info mr-2"></i>
+                            <span id="current-file-name">Select a file to view</span>
+                        </h6>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" 
+                                    class="btn btn-outline-secondary"
+                                    onclick="copyFileContent()">
+                                <i class="fas fa-copy mr-1"></i>
+                                Copy
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-outline-primary"
+                                    onclick="downloadCurrentFile()">
+                                <i class="fas fa-download mr-1"></i>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="file-content">
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-folder-open fa-3x mb-3"></i>
+                            <h5>No File Selected</h5>
+                            <p>Click on a file in the project structure to view its contents</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Code Analysis Results -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-microscope text-warning mr-2"></i>
+                        Code Analysis
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="file-analysis">
+                        <div class="row">
+                            <!-- Code Statistics -->
+                            <div class="col-lg-4">
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body text-center">
+                                        <h3 class="text-primary mb-1" id="total-lines">-</h3>
+                                        <small class="text-muted">Total Lines of Code</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body text-center">
+                                        <h3 class="text-success mb-1" id="total-files">-</h3>
+                                        <small class="text-muted">Total Files</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body text-center">
+                                        <h3 class="text-info mb-1" id="complexity-score">-</h3>
+                                        <small class="text-muted">Complexity Score</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- File Type Breakdown -->
+                        <div class="row mt-3">
+                            <div class="col-lg-6">
+                                <h6>File Types</h6>
+                                <div id="file-types-breakdown">
+                                    <div class="text-muted text-center py-3">
+                                        <i class="fas fa-chart-pie mr-2"></i>
+                                        Run code analysis to see file breakdown
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <h6>Code Quality</h6>
+                                <div id="code-quality-metrics">
+                                    <div class="text-muted text-center py-3">
+                                        <i class="fas fa-star mr-2"></i>
+                                        Run code analysis to see quality metrics
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.file-tree {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.file-tree .list-group-item {
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.file-tree .list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+.file-tree .list-group-item.active {
+    background-color: #007bff;
+    color: white;
+}
+
+.file-tree .file-icon {
+    width: 16px;
+    text-align: center;
+    margin-right: 0.5rem;
+}
+
+#file-content {
+    max-height: 600px;
+    overflow-y: auto;
+    background: #f8f9fa;
+}
+
+#file-content pre {
+    margin: 0;
+    padding: 1rem;
+    background: transparent;
+    border: none;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+#file-content code {
+    background: transparent;
+    color: inherit;
+}
+
+.language-javascript { color: #f1c40f; }
+.language-python { color: #3776ab; }
+.language-html { color: #e34c26; }
+.language-css { color: #1572b6; }
+.language-json { color: #000000; }
+.language-dockerfile { color: #2496ed; }
+.language-yaml { color: #cb171e; }
+</style>
+
+<script>
+// File viewer functionality
+function selectFile(element, filePath, fileName) {
+    // Update active state
+    document.querySelectorAll('.file-tree .list-group-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Update file name
+    document.getElementById('current-file-name').textContent = fileName;
+    
+    // Load file content
+    htmx.ajax('GET', `/api/files/{{ model }}/{{ app_num }}/content?path=${encodeURIComponent(filePath)}`, {
+        target: '#file-content'
+    });
+}
+
+function copyFileContent() {
+    const content = document.querySelector('#file-content pre');
+    if (content) {
+        navigator.clipboard.writeText(content.textContent).then(() => {
+            showNotification('File content copied to clipboard!', 'success');
+        });
+    }
+}
+
+function downloadCurrentFile() {
+    const fileName = document.getElementById('current-file-name').textContent;
+    if (fileName !== 'Select a file to view') {
+        window.location.href = `/api/files/{{ model }}/{{ app_num }}/download-file?name=${encodeURIComponent(fileName)}`;
+    }
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 80px; right: 20px; z-index: 9999; max-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'} mr-2"></i>
+        ${message}
+        <button type="button" class="close" data-dismiss="alert">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
+</script>

@@ -1,0 +1,127 @@
+<div class="file-tree-container">
+    <div class="d-flex justify-content-between align-items-center mb-2 px-3 py-2 bg-light">
+        <small class="text-muted">
+            <i class="fas fa-folder mr-1"></i>
+            {{ total_files }} files
+        </small>
+        <button class="btn btn-sm btn-outline-secondary" onclick="expandAllFolders()">
+            <i class="fas fa-expand-arrows-alt mr-1"></i>
+            Expand All
+        </button>
+    </div>
+    
+    <div class="list-group list-group-flush file-tree">
+        {% for item in files %}
+            {% if item.type == 'directory' %}
+                <div class="list-group-item folder-item" data-toggle="collapse" data-target="#folder-{{ loop.index }}" style="padding-left: {{ (item.level * 20 + 15) }}px;">
+                    <i class="fas fa-folder text-warning mr-2"></i>
+                    <span class="folder-name">{{ item.name }}</span>
+                    <i class="fas fa-chevron-right float-right folder-chevron"></i>
+                </div>
+                <div class="collapse" id="folder-{{ loop.index }}">
+                    {% for child in item.children %}
+                        {% if child.type == 'file' %}
+                            <a href="javascript:void(0)" 
+                               class="list-group-item list-group-item-action file-item"
+                               style="padding-left: {{ ((child.level + 1) * 20 + 15) }}px;"
+                               onclick="selectFile(this, '{{ child.path }}', '{{ child.name }}')">
+                                <i class="{{ child.icon }} mr-2 file-icon"></i>
+                                <span class="file-name">{{ child.name }}</span>
+                                <small class="text-muted float-right">{{ (child.size / 1024) | round(1) }}KB</small>
+                            </a>
+                        {% elif child.type == 'directory' %}
+                            <!-- Nested directories would go here -->
+                            <div class="list-group-item folder-item" style="padding-left: {{ ((child.level + 1) * 20 + 15) }}px;">
+                                <i class="fas fa-folder text-warning mr-2"></i>
+                                <span class="folder-name">{{ child.name }}</span>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% elif item.type == 'file' %}
+                <a href="javascript:void(0)" 
+                   class="list-group-item list-group-item-action file-item"
+                   style="padding-left: {{ (item.level * 20 + 15) }}px;"
+                   onclick="selectFile(this, '{{ item.path }}', '{{ item.name }}')">
+                    <i class="{{ item.icon }} mr-2 file-icon"></i>
+                    <span class="file-name">{{ item.name }}</span>
+                    <small class="text-muted float-right">{{ (item.size / 1024) | round(1) }}KB</small>
+                </a>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+.file-tree .list-group-item {
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.file-tree .file-item:hover {
+    background-color: #f8f9fa;
+}
+
+.file-tree .file-item.active {
+    background-color: #007bff;
+    color: white;
+}
+
+.folder-item {
+    background-color: #f1f3f4;
+    font-weight: 500;
+}
+
+.folder-item:hover {
+    background-color: #e8f0fe;
+}
+
+.folder-chevron {
+    transition: transform 0.2s ease;
+}
+
+.folder-item[aria-expanded="true"] .folder-chevron {
+    transform: rotate(90deg);
+}
+
+.file-icon {
+    width: 16px;
+    text-align: center;
+}
+</style>
+
+<script>
+function expandAllFolders() {
+    const folders = document.querySelectorAll('[data-toggle="collapse"]');
+    folders.forEach(folder => {
+        const target = folder.getAttribute('data-target');
+        const collapse = document.querySelector(target);
+        if (collapse && !collapse.classList.contains('show')) {
+            folder.click();
+        }
+    });
+}
+
+// Handle folder expand/collapse
+document.addEventListener('DOMContentLoaded', function() {
+    const folderItems = document.querySelectorAll('.folder-item[data-toggle="collapse"]');
+    folderItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const chevron = this.querySelector('.folder-chevron');
+            const target = this.getAttribute('data-target');
+            const collapse = document.querySelector(target);
+            
+            if (collapse) {
+                // Toggle chevron rotation
+                if (collapse.classList.contains('show')) {
+                    chevron.style.transform = 'rotate(0deg)';
+                } else {
+                    chevron.style.transform = 'rotate(90deg)';
+                }
+            }
+        });
+    });
+});
+</script>
