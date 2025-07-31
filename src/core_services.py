@@ -1841,7 +1841,7 @@ class ServiceInitializer:
     def initialize_batch_service(self):
         """Initialize the batch processing service."""
         try:
-            batch_service = BatchProcessingService()
+            batch_service = BatchAnalysisService()
             self.service_manager.register('batch_service', batch_service)
             self.logger.info("Batch service initialized")
         except Exception as e:

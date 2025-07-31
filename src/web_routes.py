@@ -49,7 +49,16 @@ class ResponseHandler:
     def render_response(template_name: str, **context) -> Union[str, Response]:
         """Render appropriate response based on request type."""
         if ResponseHandler.is_htmx_request():
-            return render_template(f"partials/{template_name}", **context)
+            # For HTMX requests, check if partial is requested
+            partial_type = request.args.get('partial')
+            if partial_type:
+                # Use specific partial template
+                template_base = template_name.replace('.html', '')
+                return render_template(f"partials/{template_base}_{partial_type}.html", **context)
+            else:
+                # Use corresponding partial template
+                template_base = template_name.replace('.html', '')
+                return render_template(f"partials/{template_base}.html", **context)
         return render_template(f"pages/{template_name}", **context)
     
     @staticmethod
@@ -743,6 +752,129 @@ def dashboard_stats():
         
     except Exception as e:
         logger.error(f"Stats error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+# ===========================
+# API ROUTES - Sidebar & System
+# ===========================
+
+@api_bp.route("/sidebar/stats")
+def sidebar_stats():
+    """Get sidebar statistics."""
+    try:
+        model_count = ModelCapability.query.count()
+        app_count = model_count * 30
+        running_count = 0  # Calculate based on Docker status
+        active_scans = 0  # Calculate based on active analyses
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template('partials/sidebar_stats.html',
+                                 model_count=model_count,
+                                 app_count=app_count,
+                                 running_count=running_count,
+                                 active_scans=active_scans)
+        
+        stats = {
+            'total_models': model_count,
+            'total_apps': app_count,
+            'running_containers': running_count,
+            'active_scans': active_scans
+        }
+        return ResponseHandler.success_response(data=stats)
+    except Exception as e:
+        logger.error(f"Sidebar stats error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/sidebar/activity")
+def sidebar_activity():
+    """Get recent activity."""
+    try:
+        # Mock activity data - replace with actual activity tracking
+        activities = [
+            {
+                "content": "Container started: anthropic/app1",
+                "time": "2 min ago",
+                "icon": "fas fa-play text-success"
+            },
+            {
+                "content": "Analysis completed: openai/app5",
+                "time": "5 min ago",
+                "icon": "fas fa-check text-success"
+            }
+        ]
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template('partials/sidebar_activity.html', activities=activities)
+        
+        return ResponseHandler.success_response(data=activities)
+    except Exception as e:
+        logger.error(f"Sidebar activity error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/sidebar/system-status")
+def sidebar_system_status():
+    """Get system status."""
+    try:
+        docker_manager = ServiceLocator.get_docker_manager()
+        
+        # Create status list for template
+        statuses = [
+            {
+                "label": "Database",
+                "status": "success"  # Map to CSS class: status-success
+            },
+            {
+                "label": "Docker", 
+                "status": "success" if docker_manager else "warning"
+            },
+            {
+                "label": "Services",
+                "status": "success"
+            }
+        ]
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template('partials/sidebar_system_status.html', statuses=statuses)
+        
+        # Return legacy format for JSON API
+        status = {
+            'docker': 'healthy' if docker_manager else 'unavailable',
+            'database': 'healthy',
+            'services': 'healthy'
+        }
+        return ResponseHandler.success_response(data=status)
+    except Exception as e:
+        logger.error(f"System status error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/settings")
+def get_settings():
+    """Get application settings."""
+    try:
+        settings = {
+            'theme': 'light',
+            'auto_refresh': True,
+            'notifications': True
+        }
+        return ResponseHandler.success_response(data=settings)
+    except Exception as e:
+        logger.error(f"Settings error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/notifications/count")
+def notifications_count():
+    """Get notification count."""
+    try:
+        # Mock notification count - replace with actual notification system
+        count = 3
+        return ResponseHandler.success_response(data={'count': count})
+    except Exception as e:
+        logger.error(f"Notifications count error: {e}")
         return ResponseHandler.error_response(str(e))
 
 

@@ -1,0 +1,111 @@
+<!-- Models Overview Partial Template -->
+<div class="card shadow">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 fw-bold text-primary">Models ({{ models|length }})</h6>
+        <div class="text-xs text-muted">
+            <i class="fas fa-running text-success"></i> {{ summary_stats.total_running }} Running |
+            <i class="fas fa-eye text-info"></i> {{ summary_stats.vision_models }} Vision |
+            <i class="fas fa-code text-warning"></i> {{ summary_stats.function_calling_models }} Function Calling
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th scope="col">Model</th>
+                        <th scope="col">Provider</th>
+                        <th scope="col">Context</th>
+                        <th scope="col">Pricing</th>
+                        <th scope="col">Features</th>
+                        <th scope="col">Apps</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="ms-2">
+                                    <div class="fw-bold">{{ model.display_name }}</div>
+                                    <div class="text-xs text-muted">{{ model.canonical_slug }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ model.provider }}</span>
+                        </td>
+                        <td>
+                            <span class="text-sm">
+                                {% if model.context_window %}
+                                    {{ "{:,}".format(model.context_window) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="text-xs">
+                                {% if model.pricing %}
+                                    <div>In: ${{ "%.4f"|format(model.pricing.get('prompt', 0)) }}</div>
+                                    <div>Out: ${{ "%.4f"|format(model.pricing.get('completion', 0)) }}</div>
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                {% if model.supports_vision %}
+                                    <span class="badge badge-sm bg-info" title="Vision Support">
+                                        <i class="fas fa-eye"></i>
+                                    </span>
+                                {% endif %}
+                                {% if model.supports_function_calling %}
+                                    <span class="badge badge-sm bg-warning" title="Function Calling">
+                                        <i class="fas fa-code"></i>
+                                    </span>
+                                {% endif %}
+                                {% if model.is_free %}
+                                    <span class="badge badge-sm bg-success" title="Free Tier">
+                                        <i class="fas fa-gift"></i>
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">30</span>
+                        </td>
+                        <td>
+                            {% if model.running_containers > 0 %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-running"></i> {{ model.running_containers }} Running
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-stop"></i> Stopped
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="/app/{{ model.canonical_slug }}/1" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-success" 
+                                        hx-post="/api/containers/{{ model.canonical_slug }}/1/start"
+                                        hx-target="closest tr"
+                                        title="Start Containers">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
