@@ -43,13 +43,11 @@ def test_route_functions_exist():
     """Test that route handler functions exist."""
     try:
         from web_routes import (
-            main_bp, api_bp, analysis_bp, performance_bp, 
-            zap_bp, openrouter_bp, batch_bp, generation_bp, docker_bp
+            main_bp, api_bp, statistics_bp, batch_bp, docker_bp
         )
         
         # Check blueprints exist
-        blueprints = [main_bp, api_bp, analysis_bp, performance_bp, 
-                     zap_bp, openrouter_bp, batch_bp, generation_bp, docker_bp]
+        blueprints = [main_bp, api_bp, statistics_bp, batch_bp, docker_bp]
         
         for bp in blueprints:
             assert bp is not None, f"Blueprint {bp.name} is None"
@@ -63,13 +61,13 @@ def test_service_helpers_exist():
     """Test that service helper functions exist."""
     try:
         from web_routes import (
-            get_model_service, get_scan_manager, get_docker_manager,
-            get_all_apps, get_app_info, get_ai_models
+            get_settings, get_app_status, get_container_logs,
+            get_app_files, get_file_content
         )
         
         # These should be callable functions
-        helpers = [get_model_service, get_scan_manager, get_docker_manager,
-                  get_all_apps, get_app_info, get_ai_models]
+        helpers = [get_settings, get_app_status, get_container_logs,
+                  get_app_files, get_file_content]
         
         for helper in helpers:
             assert callable(helper), f"Helper {helper.__name__} is not callable"

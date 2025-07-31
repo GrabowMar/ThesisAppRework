@@ -68,15 +68,9 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('analysis.analysis_overview') }}">
-                            <i class="fas fa-shield-alt mr-2"></i>
-                            <span class="nav-text">Security</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('performance.performance_overview') }}">
-                            <i class="fas fa-chart-line mr-2"></i>
-                            <span class="nav-text">Performance</span>
+                        <a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}">
+                            <i class="fas fa-chart-bar mr-2"></i>
+                            <span class="nav-text">Statistics</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -196,8 +190,8 @@
                             <i class="fas fa-stop mr-1"></i>Stop All
                         </button>
                         <button class="btn btn-sm btn-outline-info btn-block"
-                                onclick="window.location.href='/analysis'">
-                            <i class="fas fa-shield-alt mr-1"></i>Security Scan
+                                onclick="window.location.href='/statistics'">
+                            <i class="fas fa-chart-bar mr-1"></i>View Statistics
                         </button>
                         <button class="btn btn-sm btn-outline-secondary btn-block"
                                 onclick="window.location.href='/batch'">

@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Generation Statistics{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-chart-bar text-primary mr-2"></i>
+                    Generation Statistics & Analysis
+                </h2>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="refresh-stats">
+                        <i class="fas fa-sync-alt mr-1"></i>
+                        Refresh Data
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="export-stats">
+                        <i class="fas fa-download mr-1"></i>
+                        Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- Overview Cards -->
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card border-primary">
+                        <div class="card-body text-center">
+                            <i class="fas fa-robot fa-2x text-primary mb-2"></i>
+                            <h4 class="card-title">{{ stats.total_models or 0 }}</h4>
+                            <p class="card-text text-muted">AI Models Used</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card border-success">
+                        <div class="card-body text-center">
+                            <i class="fas fa-code fa-2x text-success mb-2"></i>
+                            <h4 class="card-title">{{ stats.total_applications or 0 }}</h4>
+                            <p class="card-text text-muted">App Types</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card border-info">
+                        <div class="card-body text-center">
+                            <i class="fas fa-exchange-alt fa-2x text-info mb-2"></i>
+                            <h4 class="card-title">{{ stats.total_calls or 0 }}</h4>
+                            <p class="card-text text-muted">API Calls</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card border-warning">
+                        <div class="card-body text-center">
+                            <i class="fas fa-check-circle fa-2x text-warning mb-2"></i>
+                            <h4 class="card-title">{{ "%.1f"|format(stats.success_rate or 0) }}%</h4>
+                            <p class="card-text text-muted">Success Rate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Statistics Row -->
+            <div class="row mb-4">
+                <div class="col-lg-6 col-md-6 mb-3">
+                    <div class="card border-secondary">
+                        <div class="card-body text-center">
+                            <i class="fas fa-clock fa-2x text-secondary mb-2"></i>
+                            <h4 class="card-title">{{ stats.avg_generation_time or 'N/A' }}</h4>
+                            <p class="card-text text-muted">Avg Generation Time</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 col-md-6 mb-3">
+                    <div class="card border-dark">
+                        <div class="card-body text-center">
+                            <i class="fas fa-thumbs-up fa-2x text-dark mb-2"></i>
+                            <h4 class="card-title">{{ stats.successful_calls or 0 }}</h4>
+                            <p class="card-text text-muted">Successful Calls</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generation Data Tables -->
+            <div class="row">
+                <!-- Recent Generation Activity -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-history mr-2"></i>
+                                Recent Generation Activity
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if recent_generations %}
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Model</th>
+                                                <th>App Type</th>
+                                                <th>Type</th>
+                                                <th>Status</th>
+                                                <th>Duration</th>
+                                                <th>Size</th>
+                                                <th>Time</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for gen in recent_generations %}
+                                            <tr>
+                                                <td class="small">{{ gen.model_name }}</td>
+                                                <td>{{ gen.app_type }}</td>
+                                                <td class="small">{{ gen.call_type|title }}</td>
+                                                <td>
+                                                    <span class="badge badge-{{ 'success' if gen.status == 'success' else 'danger' }}">
+                                                        {{ gen.status|title }}
+                                                    </span>
+                                                </td>
+                                                <td class="small">{{ gen.duration }}</td>
+                                                <td class="small">
+                                                    {% if gen.content_length > 0 %}
+                                                        {{ "%.1f"|format(gen.content_length / 1024) }}KB
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td class="small">{{ gen.date }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-info-circle fa-2x mb-2"></i>
+                                    <p>No generation data available yet.</p>
+                                    <p class="small">Use <code>generateOutputs.py</code> to generate applications.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Performance -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-trophy mr-2"></i>
+                                Top Performing Models
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if top_models %}
+                                {% for model in top_models %}
+                                <div class="d-flex justify-content-between align-items-center mb-3 p-2 border rounded">
+                                    <div>
+                                        <span class="font-weight-bold">{{ model.name }}</span>
+                                        <br>
+                                        <small class="text-muted">{{ model.apps_generated }} apps • {{ model.total_calls }} calls</small>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="badge badge-{{ 'success' if model.success_rate >= 70 else 'warning' if model.success_rate >= 40 else 'danger' }}">
+                                            {{ "%.1f"|format(model.success_rate) }}%
+                                        </span>
+                                        <br>
+                                        <small class="text-muted">{{ model.successful_calls }}/{{ model.total_calls }}</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-info-circle mb-2"></i>
+                                    <p class="small">No performance data available yet.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Statistics Chart -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-line mr-2"></i>
+                                Generation Trends
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if daily_stats %}
+                                <canvas id="generationChart" width="400" height="100"></canvas>
+                            {% else %}
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-chart-line fa-2x mb-2"></i>
+                                    <p>Generation trends will appear here as data is collected.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js for visualization -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Refresh data button
+    document.getElementById('refresh-stats').addEventListener('click', function() {
+        location.reload();
+    });
+
+    // Export button
+    document.getElementById('export-stats').addEventListener('click', function() {
+        window.open('/statistics/api/export', '_blank');
+    });
+
+    // Initialize chart if data exists
+    {% if daily_stats %}
+    const ctx = document.getElementById('generationChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ daily_stats.dates | tojson }},
+            datasets: [{
+                label: 'Successful Generations',
+                data: {{ daily_stats.successful | tojson }},
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            }, {
+                label: 'Failed Generations',
+                data: {{ daily_stats.failed | tojson }},
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Daily Generation Statistics'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}

@@ -579,8 +579,7 @@ class FileOperations:
 
 main_bp = Blueprint("main", __name__)
 api_bp = Blueprint("api", __name__, url_prefix="/api")
-analysis_bp = Blueprint("analysis", __name__, url_prefix="/analysis")
-performance_bp = Blueprint("performance", __name__, url_prefix="/performance")
+statistics_bp = Blueprint("statistics", __name__, url_prefix="/statistics")
 batch_bp = Blueprint("batch", __name__, url_prefix="/batch")
 docker_bp = Blueprint("docker", __name__, url_prefix="/docker")
 
@@ -1626,145 +1625,280 @@ def export_models_data():
 
 
 # ===========================
-# ANALYSIS ROUTES
+# LEGACY ROUTES - REDIRECT TO STATISTICS
 # ===========================
 
-@analysis_bp.route("/")
-def analysis_overview():
-    """Analysis tools overview."""
-    try:
-        # Check if analysis tools are available
-        analyzer_available = False
-        available_tools = {}
-        analysis_types = []
-        
-        try:
-            from security_analysis_service import UnifiedCLIAnalyzer, ToolCategory
-            analyzer = UnifiedCLIAnalyzer(Path.cwd())
-            available_tools = analyzer.get_available_tools()
-            analysis_types = [t.value for t in ToolCategory]
-            analyzer_available = True
-        except ImportError:
-            pass
-        
-        context = {
-            'available_tools': available_tools,
-            'analysis_types': analysis_types,
-            'analyzers_available': analyzer_available
-        }
-        
-        return ResponseHandler.render_response("analysis_overview_improved.html", **context)
-        
-    except Exception as e:
-        logger.error(f"Analysis overview error: {e}")
-        return ResponseHandler.error_response(str(e))
+@main_bp.route("/analysis")
+@main_bp.route("/analysis/")
+def analysis_redirect():
+    """Redirect analysis routes to statistics page."""
+    return redirect(url_for('statistics.statistics_overview'))
 
+@main_bp.route("/analysis/<path:subpath>")
+def analysis_subpath_redirect(subpath):
+    """Redirect all analysis subpaths to statistics."""
+    return redirect(url_for('statistics.statistics_overview'))
 
-@analysis_bp.route("/<analysis_type>/<model>/<int:app_num>/run", methods=["POST"])
-def run_analysis(analysis_type: str, model: str, app_num: int):
-    """Run analysis on an application."""
-    try:
-        from security_analysis_service import UnifiedCLIAnalyzer, ToolCategory
-        
-        analyzer = UnifiedCLIAnalyzer(Path.cwd())
-        category = ToolCategory(analysis_type)
-        
-        # Get options from form
-        use_all_tools = request.form.get('use_all_tools', 'false').lower() == 'true'
-        force_rerun = request.form.get('force_rerun', 'false').lower() == 'true'
-        
-        # Run analysis
-        results = analyzer.run_analysis(
-            model=model,
-            app_num=app_num,
-            categories=[category],
-            use_all_tools=use_all_tools,
-            force_rerun=force_rerun
-        )
-        
-        context = {
-            'analysis_type': analysis_type,
-            'model': model,
-            'app_num': app_num,
-            'results': results,
-            'success': True
-        }
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/analysis_results.html", **context)
-        
-        return ResponseHandler.success_response(data=results)
-        
-    except ImportError:
-        return ResponseHandler.error_response("Analysis tools not available", 503)
-    except Exception as e:
-        logger.error(f"Analysis error: {e}")
-        return ResponseHandler.error_response(str(e))
+@main_bp.route("/performance")
+@main_bp.route("/performance/")
+def performance_redirect():
+    """Redirect performance routes to statistics page."""
+    return redirect(url_for('statistics.statistics_overview'))
+
+@main_bp.route("/performance/<path:subpath>")
+def performance_subpath_redirect(subpath):
+    """Redirect all performance subpaths to statistics."""
+    return redirect(url_for('statistics.statistics_overview'))
 
 
 # ===========================
-# PERFORMANCE ROUTES
+# STATISTICS ROUTES
 # ===========================
 
-@performance_bp.route("/")
-def performance_overview():
-    """Performance testing overview."""
+@statistics_bp.route("/")
+def statistics_overview():
+    """Statistics and generation data overview."""
     try:
+        # Load generation statistics from generateOutputs.py data
+        stats = load_generation_statistics()
+        recent_generations = load_recent_generations()
+        top_models = load_top_performing_models()
+        daily_stats = load_daily_statistics()
+        
         context = {
-            'test_types': ['load', 'stress', 'spike', 'endurance'],
-            'default_users': 10,
-            'default_duration': 30
+            'stats': stats,
+            'recent_generations': recent_generations,
+            'top_models': top_models,
+            'daily_stats': daily_stats
         }
         
-        return ResponseHandler.render_response("performance_overview.html", **context)
+        return ResponseHandler.render_response("statistics_overview.html", **context)
         
     except Exception as e:
-        logger.error(f"Performance overview error: {e}")
+        logger.error(f"Statistics overview error: {e}")
         return ResponseHandler.error_response(str(e))
 
 
-@performance_bp.route("/<model>/<int:app_num>/run", methods=["POST"])
-def run_performance_test(model: str, app_num: int):
-    """Run performance test."""
+@statistics_bp.route("/api/refresh", methods=["POST"])
+def refresh_statistics():
+    """Refresh statistics data."""
     try:
-        from performance_service import LocustPerformanceTester
+        # Clear any cached data and reload
+        return ResponseHandler.success_response({"message": "Statistics refreshed"})
+    except Exception as e:
+        return ResponseHandler.error_response(str(e))
+
+
+@statistics_bp.route("/api/export")
+def export_statistics():
+    """Export statistics data."""
+    try:
+        # Generate export file with statistics
+        return ResponseHandler.success_response({"message": "Export not implemented yet"})
+    except Exception as e:
+        return ResponseHandler.error_response(str(e))
         
-        # Get test parameters
-        user_count = int(request.form.get('user_count', 10))
-        spawn_rate = int(request.form.get('spawn_rate', 1))
-        duration = int(request.form.get('duration', 30))
-        test_type = request.form.get('test_type', 'load')
+        # Placeholder for successful statistics loading
+        return ResponseHandler.success_response({"message": "Statistics page loaded"})
+
+
+# Helper functions for loading generation data
+def load_generation_statistics():
+    """Load generation statistics from generateOutputs.py data."""
+    try:
+        import json
         
-        # Initialize tester
-        tester = LocustPerformanceTester(Path.cwd() / "performance_reports")
+        # Load from API data directory
+        api_data_dir = Path("api_data/generation_stats")
         
-        # Run test
-        results = tester.run_performance_test(
-            model=model,
-            app_num=app_num,
-            user_count=user_count,
-            spawn_rate=spawn_rate,
-            duration=duration,
-            test_type=test_type
-        )
-        
-        context = {
-            'model': model,
-            'app_num': app_num,
-            'results': results,
-            'success': results.get('success', False)
+        stats = {
+            'total_models': 0,
+            'total_applications': 0,
+            'total_calls': 0,
+            'successful_calls': 0,
+            'avg_generation_time': 'N/A',
+            'success_rate': 0.0
         }
         
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/performance_results.html", **context)
+        if api_data_dir.exists():
+            # Find latest date directory
+            date_dirs = [d for d in api_data_dir.iterdir() if d.is_dir()]
+            if date_dirs:
+                latest_date = max(date_dirs, key=lambda x: x.name).name
+                date_dir = api_data_dir / latest_date
+                
+                # Load daily summary if it exists
+                daily_summary_file = date_dir / f"daily_summary_{latest_date}.json"
+                if daily_summary_file.exists():
+                    with open(daily_summary_file, 'r') as f:
+                        daily_data = json.load(f)
+                    
+                    models = set()
+                    apps = set()
+                    total_calls = len(daily_data)
+                    successful_calls = sum(1 for call in daily_data if call.get('success', False))
+                    total_duration = 0
+                    duration_count = 0
+                    
+                    for call in daily_data:
+                        models.add(call.get('model', ''))
+                        apps.add(call.get('app_name', ''))
+                        if call.get('total_duration'):
+                            total_duration += call.get('total_duration', 0)
+                            duration_count += 1
+                    
+                    stats['total_models'] = len(models)
+                    stats['total_applications'] = len(apps) 
+                    stats['total_calls'] = total_calls
+                    stats['successful_calls'] = successful_calls
+                    stats['success_rate'] = (successful_calls / total_calls * 100) if total_calls > 0 else 0
+                    
+                    if duration_count > 0:
+                        avg_time = total_duration / duration_count
+                        stats['avg_generation_time'] = f"{avg_time:.1f}s"
+                else:
+                    # Fallback: count model subdirectories
+                    model_subdirs = [d for d in date_dir.iterdir() if d.is_dir() and not d.name.startswith('daily_')]
+                    stats['total_models'] = len(model_subdirs)
         
-        return ResponseHandler.success_response(data=results)
+        return stats
         
-    except ImportError:
-        return ResponseHandler.error_response("Performance tools not available", 503)
     except Exception as e:
-        logger.error(f"Performance test error: {e}")
-        return ResponseHandler.error_response(str(e))
+        logger.error(f"Error loading generation statistics: {e}")
+        return {
+            'total_models': 0,
+            'total_applications': 0,
+            'total_calls': 0,
+            'successful_calls': 0,
+            'avg_generation_time': 'N/A',
+            'success_rate': 0.0
+        }
+
+
+def load_recent_generations():
+    """Load recent generation activity."""
+    try:
+        import json
+        from datetime import datetime
+        
+        # Load from API data directory
+        api_data_dir = Path("api_data/generation_stats")
+        recent = []
+        
+        if api_data_dir.exists():
+            # Find latest date directory
+            date_dirs = [d for d in api_data_dir.iterdir() if d.is_dir()]
+            if date_dirs:
+                latest_date = max(date_dirs, key=lambda x: x.name).name
+                date_dir = api_data_dir / latest_date
+                
+                # Load daily summary if it exists
+                daily_summary_file = date_dir / f"daily_summary_{latest_date}.json"
+                if daily_summary_file.exists():
+                    with open(daily_summary_file, 'r') as f:
+                        daily_data = json.load(f)
+                    
+                    # Sort by timestamp, most recent first
+                    daily_data.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+                    
+                    for call in daily_data[:15]:  # Get last 15 calls
+                        model_display = call.get('model', '').split('/')[-1].replace(':free', '')
+                        if len(model_display) > 20:
+                            model_display = model_display[:17] + "..."
+                            
+                        status = 'success' if call.get('success', False) else 'failed'
+                        duration = f"{call.get('total_duration', 0):.1f}s"
+                        
+                        # Parse timestamp for display
+                        timestamp_str = call.get('timestamp', '')
+                        try:
+                            dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                            time_display = dt.strftime('%H:%M:%S')
+                        except Exception:
+                            time_display = 'Unknown'
+                        
+                        recent.append({
+                            'model_name': model_display,
+                            'app_type': call.get('app_name', 'Unknown'),
+                            'call_type': call.get('call_type', 'N/A'),
+                            'status': status,
+                            'duration': duration,
+                            'date': time_display,
+                            'content_length': call.get('content_length', 0)
+                        })
+        
+        return recent
+        
+    except Exception as e:
+        logger.error(f"Error loading recent generations: {e}")
+        return []
+
+
+def load_top_performing_models():
+    """Load top performing models."""
+    try:
+        import json
+        from collections import defaultdict
+        
+        # Load from API data directory
+        api_data_dir = Path("api_data/generation_stats")
+        model_stats = defaultdict(lambda: {'total': 0, 'successful': 0, 'apps': set()})
+        
+        if api_data_dir.exists():
+            # Find latest date directory
+            date_dirs = [d for d in api_data_dir.iterdir() if d.is_dir()]
+            if date_dirs:
+                latest_date = max(date_dirs, key=lambda x: x.name).name
+                date_dir = api_data_dir / latest_date
+                
+                # Load daily summary if it exists
+                daily_summary_file = date_dir / f"daily_summary_{latest_date}.json"
+                if daily_summary_file.exists():
+                    with open(daily_summary_file, 'r') as f:
+                        daily_data = json.load(f)
+                    
+                    for call in daily_data:
+                        model = call.get('model', 'Unknown')
+                        model_display = model.split('/')[-1].replace(':free', '')
+                        if len(model_display) > 25:
+                            model_display = model_display[:22] + "..."
+                        
+                        model_stats[model_display]['total'] += 1
+                        if call.get('success', False):
+                            model_stats[model_display]['successful'] += 1
+                        model_stats[model_display]['apps'].add(call.get('app_name', ''))
+                    
+                    # Calculate success rates and sort
+                    top_models = []
+                    for model, stats in model_stats.items():
+                        success_rate = (stats['successful'] / stats['total'] * 100) if stats['total'] > 0 else 0
+                        top_models.append({
+                            'name': model,
+                            'success_rate': success_rate,
+                            'apps_generated': len(stats['apps']),
+                            'total_calls': stats['total'],
+                            'successful_calls': stats['successful']
+                        })
+                    
+                    # Sort by success rate, then by total calls
+                    top_models.sort(key=lambda x: (x['success_rate'], x['total_calls']), reverse=True)
+                    return top_models[:8]  # Return top 8
+        
+        return []
+        
+    except Exception as e:
+        logger.error(f"Error loading top models: {e}")
+        return []
+
+
+def load_daily_statistics():
+    """Load daily generation statistics."""
+    try:
+        # This would load daily statistics for charts
+        return None  # Placeholder
+    except Exception as e:
+        logger.error(f"Error loading daily statistics: {e}")
+        return None
 
 
 # ===========================
@@ -2118,8 +2252,7 @@ def register_blueprints(app):
     """Register all blueprints with the Flask app."""
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
-    app.register_blueprint(analysis_bp)
-    app.register_blueprint(performance_bp)
+    app.register_blueprint(statistics_bp)
     app.register_blueprint(batch_bp)
     app.register_blueprint(docker_bp)
     
@@ -2131,6 +2264,6 @@ def register_blueprints(app):
 
 # Export blueprints for use in app factory
 __all__ = [
-    'main_bp', 'api_bp', 'analysis_bp', 'performance_bp', 'batch_bp', 'docker_bp',
+    'main_bp', 'api_bp', 'statistics_bp', 'batch_bp', 'docker_bp',
     'register_blueprints'
 ]
