@@ -1,15 +1,17 @@
 {
   "issues": [],
   "tool_status": {
-    "eslint": "\u274c Command not found"
+    "eslint": "\u274c Command not found",
+    "prettier": "\u274c Command not found",
+    "jshint": "\u274c Command not found"
   },
   "tool_outputs": {},
-  "timestamp": "2025-07-31T21:46:42.643019",
+  "timestamp": "2025-07-31T22:15:38.518702",
   "_metadata": {
     "module": "frontend_quality",
     "model": "anthropic_claude-3.7-sonnet",
     "app_num": 1,
-    "saved_at": "2025-07-31T21:46:42.643019",
+    "saved_at": "2025-07-31T22:15:38.518702",
     "filename": ".frontend_quality_results.json"
   }
 }

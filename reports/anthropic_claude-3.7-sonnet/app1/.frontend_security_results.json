@@ -1,16 +1,21 @@
 {
   "issues": [],
   "tool_status": {
+    "npm-audit": "\u274c Command not found",
     "eslint": "\u274c Command not found",
-    "retire": "\u274c Command not found"
+    "retire": "\u274c Command not found",
+    "jshint": "\u274c Command not found",
+    "snyk": "\u274c Command not found"
   },
-  "tool_outputs": {},
-  "timestamp": "2025-07-31T21:46:42.414477",
+  "tool_outputs": {
+    "npm-audit": "Command not found"
+  },
+  "timestamp": "2025-07-31T22:15:23.988146",
   "_metadata": {
     "module": "frontend_security",
     "model": "anthropic_claude-3.7-sonnet",
     "app_num": 1,
-    "saved_at": "2025-07-31T21:46:42.414477",
+    "saved_at": "2025-07-31T22:15:23.988146",
     "filename": ".frontend_security_results.json"
   }
 }

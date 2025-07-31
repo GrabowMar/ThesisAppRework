@@ -56,6 +56,15 @@ except ImportError:
         def load_results(self, *args, **kwargs):
             return None
 
+# Import database models
+try:
+    from flask import current_app
+    from models import SecurityAnalysis, GeneratedApplication, AnalysisStatus, SeverityLevel
+    from extensions import db
+    DATABASE_INTEGRATION = True
+except ImportError:
+    DATABASE_INTEGRATION = False
+
 # Initialize logger
 logger = create_logger_for_component('cli_tools_analysis')
 
@@ -1204,6 +1213,127 @@ class BackendQualityAnalyzer(BaseAnalyzer):
             logger.error(f"Radon parsing error: {e}")
             return []
             
+    def _parse_mypy(self, output: str) -> List[AnalysisIssue]:
+        """Parse MyPy output."""
+        issues = []
+        try:
+            for line in output.strip().split('\n'):
+                if not line.strip():
+                    continue
+                    
+                # MyPy format: filename:line:column: severity: message
+                if ':' in line and any(sev in line for sev in ['error', 'warning', 'note']):
+                    parts = line.split(':', 4)
+                    if len(parts) >= 4:
+                        filename = parts[0]
+                        line_num = int(parts[1]) if parts[1].isdigit() else 1
+                        severity = "ERROR" if "error" in line.lower() else "WARNING" if "warning" in line.lower() else "INFO"
+                        message = parts[-1].strip()
+                        
+                        issues.append(AnalysisIssue(
+                            filename=filename,
+                            line_number=line_num,
+                            issue_text=message,
+                            severity=severity,
+                            confidence="HIGH",
+                            issue_type="mypy_type",
+                            category="type_checking",
+                            rule_id="mypy",
+                            line_range=[line_num],
+                            code="N/A",
+                            tool="mypy"
+                        ))
+        except Exception as e:
+            logger.error(f"MyPy parsing error: {e}")
+            
+        return issues
+        
+    def _parse_pycodestyle(self, output: str) -> List[AnalysisIssue]:
+        """Parse pycodestyle output."""
+        issues = []
+        try:
+            for line in output.strip().split('\n'):
+                if not line.strip():
+                    continue
+                    
+                # pycodestyle format: filename:line:column: code message
+                if ':' in line:
+                    parts = line.split(':', 3)
+                    if len(parts) >= 4:
+                        filename = parts[0]
+                        line_num = int(parts[1]) if parts[1].isdigit() else 1
+                        message_part = parts[3].strip()
+                        
+                        # Extract error code
+                        code_match = message_part.split(' ', 1)
+                        rule_id = code_match[0] if code_match else "E999"
+                        message = code_match[1] if len(code_match) > 1 else message_part
+                        
+                        # Determine severity based on error code
+                        severity = "ERROR" if rule_id.startswith('E') else "WARNING"
+                        
+                        issues.append(AnalysisIssue(
+                            filename=filename,
+                            line_number=line_num,
+                            issue_text=message,
+                            severity=severity,
+                            confidence="HIGH",
+                            issue_type="pycodestyle_style",
+                            category="style",
+                            rule_id=rule_id,
+                            line_range=[line_num],
+                            code="N/A",
+                            tool="pycodestyle"
+                        ))
+        except Exception as e:
+            logger.error(f"Pycodestyle parsing error: {e}")
+            
+        return issues
+        
+    def _parse_pydocstyle(self, output: str) -> List[AnalysisIssue]:
+        """Parse pydocstyle output."""
+        issues = []
+        try:
+            lines = output.strip().split('\n')
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                if not line:
+                    i += 1
+                    continue
+                    
+                # pydocstyle format: filename:line: D### message
+                if ':' in line and 'D' in line:
+                    parts = line.split(':', 2)
+                    if len(parts) >= 3:
+                        filename = parts[0]
+                        line_num = int(parts[1]) if parts[1].isdigit() else 1
+                        message_part = parts[2].strip()
+                        
+                        # Extract error code and message
+                        code_match = message_part.split(' ', 1)
+                        rule_id = code_match[0] if code_match else "D999"
+                        message = code_match[1] if len(code_match) > 1 else message_part
+                        
+                        issues.append(AnalysisIssue(
+                            filename=filename,
+                            line_number=line_num,
+                            issue_text=message,
+                            severity="WARNING",
+                            confidence="MEDIUM",
+                            issue_type="pydocstyle_doc",
+                            category="documentation",
+                            rule_id=rule_id,
+                            line_range=[line_num],
+                            code="N/A",
+                            tool="pydocstyle"
+                        ))
+                i += 1
+        except Exception as e:
+            logger.error(f"Pydocstyle parsing error: {e}")
+            
+        return issues
+        
     def _run_flake8(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
         """Run Flake8 analysis."""
         has_files, source_files = self._check_source_files(app_path)
@@ -1240,6 +1370,43 @@ class BackendQualityAnalyzer(BaseAnalyzer):
         command = self.tools["radon"]["cmd"] + ["cc", "--json"] + files_to_scan
         return self._run_tool("radon", command, self._parse_radon, working_dir=app_path)
         
+    def _run_mypy(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run MyPy type checking analysis."""
+        has_files, source_files = self._check_source_files(app_path)
+        if not has_files:
+            return [], ToolStatus.NO_FILES.value, "No Python files found"
+
+        max_files = self.tools["mypy"].get("max_files", 25)
+        files_to_scan = [str(Path(f).relative_to(app_path)) for f in source_files[:max_files]]
+        
+        # Simplified mypy command without json report
+        command = self.tools["mypy"]["cmd"] + ["--no-error-summary", "--show-error-codes"] + files_to_scan
+        return self._run_tool("mypy", command, self._parse_mypy, working_dir=app_path)
+        
+    def _run_pycodestyle(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run pycodestyle (PEP 8) analysis."""
+        has_files, source_files = self._check_source_files(app_path)
+        if not has_files:
+            return [], ToolStatus.NO_FILES.value, "No Python files found"
+
+        max_files = self.tools["pycodestyle"].get("max_files", 50)
+        files_to_scan = [str(Path(f).relative_to(app_path)) for f in source_files[:max_files]]
+        
+        command = self.tools["pycodestyle"]["cmd"] + files_to_scan
+        return self._run_tool("pycodestyle", command, self._parse_pycodestyle, working_dir=app_path)
+        
+    def _run_pydocstyle(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
+        """Run pydocstyle documentation analysis."""
+        has_files, source_files = self._check_source_files(app_path)
+        if not has_files:
+            return [], ToolStatus.NO_FILES.value, "No Python files found"
+
+        max_files = self.tools["pydocstyle"].get("max_files", 40)
+        files_to_scan = [str(Path(f).relative_to(app_path)) for f in source_files[:max_files]]
+        
+        command = self.tools["pydocstyle"]["cmd"] + files_to_scan
+        return self._run_tool("pydocstyle", command, self._parse_pydocstyle, working_dir=app_path)
+        
     def run_analysis(self, model: str, app_num: int, use_all_tools: bool = False,
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run backend quality analysis."""
@@ -1267,7 +1434,7 @@ class BackendQualityAnalyzer(BaseAnalyzer):
             tool_status = {}
             tool_outputs = {}
             
-            tools_to_run = ["flake8", "pylint", "radon"] if use_all_tools else ["flake8"]
+            tools_to_run = list(self.tools.keys()) if use_all_tools else ["flake8"]
             
             for tool_name in tools_to_run:
                 if not self.available_tools.get(tool_name):
@@ -1280,6 +1447,12 @@ class BackendQualityAnalyzer(BaseAnalyzer):
                     issues, status, output = self._run_pylint(app_path)
                 elif tool_name == "radon":
                     issues, status, output = self._run_radon(app_path)
+                elif tool_name == "mypy":
+                    issues, status, output = self._run_mypy(app_path)
+                elif tool_name == "pycodestyle":
+                    issues, status, output = self._run_pycodestyle(app_path)
+                elif tool_name == "pydocstyle":
+                    issues, status, output = self._run_pydocstyle(app_path)
                 else:
                     continue
                     
@@ -1750,6 +1923,127 @@ class UnifiedCLIAnalyzer:
                     "tool_outputs": {}
                 }
                 
+        return results
+        
+    def save_to_database(self, model: str, app_num: int, results: Dict[str, Any]) -> bool:
+        """Save analysis results to the database."""
+        try:
+            # Import database components within Flask context
+            from flask import current_app
+            from models import SecurityAnalysis, GeneratedApplication, AnalysisStatus
+            from extensions import db
+            
+            # Check if we're in app context
+            if not current_app:
+                logger.warning("No Flask app context available")
+                return False
+        except ImportError as e:
+            logger.warning(f"Database integration not available: {e}")
+            return False
+            
+        try:
+            # Find or create the GeneratedApplication
+            app = GeneratedApplication.query.filter_by(model_slug=model, app_number=app_num).first()
+            if not app:
+                logger.warning(f"GeneratedApplication not found for {model}/app{app_num}")
+                return False
+            
+            # Count issues by severity
+            total_issues = 0
+            critical_severity = 0
+            high_severity = 0
+            medium_severity = 0 
+            low_severity = 0
+            
+            for category_data in results.values():
+                if isinstance(category_data, dict) and "issues" in category_data:
+                    issues = category_data["issues"]
+                    total_issues += len(issues)
+                    
+                    for issue in issues:
+                        severity = issue.get("severity", "").upper()
+                        if severity in ["CRITICAL"]:
+                            critical_severity += 1
+                        elif severity in ["HIGH", "ERROR"]:
+                            high_severity += 1
+                        elif severity in ["MEDIUM", "WARNING"]:
+                            medium_severity += 1
+                        else:
+                            low_severity += 1
+            
+            # Prepare tool status data
+            enabled_tools = {}
+            
+            for category_name, category_data in results.items():
+                if isinstance(category_data, dict) and "tool_status" in category_data:
+                    tool_status = category_data["tool_status"]
+                    for tool_name, status in tool_status.items():
+                        enabled_tools[tool_name] = status not in ["NOT_FOUND", "ERROR"]
+            
+            # Create or update SecurityAnalysis record
+            analysis = SecurityAnalysis.query.filter_by(application_id=app.id).first()
+            if not analysis:
+                analysis = SecurityAnalysis()
+                analysis.application_id = app.id
+                db.session.add(analysis)
+            
+            # Update analysis fields
+            analysis.status = AnalysisStatus.COMPLETED
+            analysis.total_issues = total_issues
+            analysis.critical_severity_count = critical_severity
+            analysis.high_severity_count = high_severity
+            analysis.medium_severity_count = medium_severity
+            analysis.low_severity_count = low_severity
+            analysis.completed_at = datetime.utcnow()
+            
+            if not analysis.started_at:
+                analysis.started_at = datetime.utcnow()
+            
+            # Set tool configuration and results
+            analysis.set_enabled_tools(enabled_tools)
+            analysis.set_results(results)
+            
+            db.session.commit()
+            logger.info(f"Saved CLI analysis results to database for {model}/app{app_num}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to save to database: {e}")
+            try:
+                db.session.rollback()
+            except:
+                pass
+            return False
+    
+    def run_full_analysis(self, model: str, app_num: int, 
+                         use_all_tools: bool = True,
+                         save_to_db: bool = True,
+                         force_rerun: bool = False) -> Dict[str, Any]:
+        """Run complete analysis with all tools and save to database."""
+        logger.info(f"Starting full CLI analysis for {model}/app{app_num} (use_all_tools={use_all_tools})")
+        
+        # Run analysis across all categories
+        results = self.run_analysis(
+            model=model,
+            app_num=app_num,
+            categories=list(ToolCategory),
+            use_all_tools=use_all_tools,
+            force_rerun=force_rerun
+        )
+        
+        # Add metadata
+        results["metadata"] = {
+            "analysis_timestamp": datetime.utcnow().isoformat(),
+            "model": model,
+            "app_num": app_num,
+            "use_all_tools": use_all_tools,
+            "analyzer_version": "1.0.0"
+        }
+        
+        # Save to database if requested
+        if save_to_db:
+            self.save_to_database(model, app_num, results)
+        
         return results
         
     def _generate_summary(self, issues: List[Dict[str, Any]]) -> Dict[str, Any]:
