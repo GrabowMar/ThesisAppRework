@@ -62,7 +62,7 @@
         <div class="usage-item">
             <span class="usage-label">CPU</span>
             <div class="usage-bar">
-                <div class="usage-fill" style="width: {{ statuses.resource_usage.cpu }}%"></div>
+                <div class="usage-fill dynamic-width" data-width="{{ statuses.resource_usage.cpu }}%"></div>
             </div>
             <span class="usage-value">{{ statuses.resource_usage.cpu }}%</span>
         </div>
@@ -70,7 +70,7 @@
         <div class="usage-item">
             <span class="usage-label">Memory</span>
             <div class="usage-bar">
-                <div class="usage-fill" style="width: {{ statuses.resource_usage.memory }}%"></div>
+                <div class="usage-fill dynamic-width" data-width="{{ statuses.resource_usage.memory }}%"></div>
             </div>
             <span class="usage-value">{{ statuses.resource_usage.memory }}%</span>
         </div>

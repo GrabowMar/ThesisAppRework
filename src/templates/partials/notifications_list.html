@@ -134,7 +134,7 @@ document.addEventListener('htmx:afterSwap', function(evt) {
         const countElement = document.querySelector('.notification-count');
         if (countElement) {
             countElement.textContent = unreadCount;
-            countElement.style.display = unreadCount > 0 ? 'flex' : 'none';
+            countElement.classList.toggle('d-hidden', unreadCount === 0);
         }
     }
 });

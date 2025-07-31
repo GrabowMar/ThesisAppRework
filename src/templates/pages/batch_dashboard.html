@@ -7,284 +7,12 @@
 {% macro progress_bar(current, total, type='primary') %}
 {% set percentage = ((current / total * 100) | round(1)) if total > 0 else 0 %}
 <div class="progress-container">
-    <div class="progress-bar bg-{{ type }}" style="width: {{ percentage }}%"></div>
+    <div class="progress-bar bg-{{ type }} dynamic-width" data-width="{{ percentage }}%"></div>
     <span class="progress-text">{{ current }}/{{ total }} ({{ percentage }}%)</span>
 </div>
 {% endmacro %}
 
 {% block title %}Batch Analysis Dashboard - Thesis Research App{% endblock %}
-
-{% block head %}
-<style>
-    .action-btn {
-        transition: all 0.2s ease;
-        border: 1px solid #e0e0e0;
-        background: #fff;
-        color: #333;
-    }
-    
-    .action-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        border-color: #007bff;
-        color: #007bff;
-    }
-    
-    .action-btn.btn-primary {
-        background: #007bff;
-        color: white;
-        border-color: #007bff;
-    }
-    
-    .action-btn.btn-primary:hover {
-        background: #0056b3;
-        border-color: #0056b3;
-        color: white;
-    }
-    
-    .status-badge {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.375rem;
-        font-weight: 500;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-    }
-    
-    .status-pending { background-color: #fef3c7; color: #92400e; }
-    .status-running { background-color: #dbeafe; color: #1e40af; }
-    .status-completed { background-color: #d1fae5; color: #047857; }
-    .status-failed { background-color: #fee2e2; color: #dc2626; }
-    .status-cancelled { background-color: #f3f4f6; color: #6b7280; }
-    
-    .status-running::before {
-        content: '';
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: currentColor;
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-    }
-    
-    .create-form {
-        border: 1px solid #e5e7eb;
-        border-radius: 0.75rem;
-        background: white;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        animation: slideDown 0.3s ease-out;
-    }
-    
-    @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .form-section {
-        border-bottom: 1px solid #f3f4f6;
-        padding: 1.5rem;
-        transition: background-color 0.2s ease;
-    }
-    
-    .form-section:hover {
-        background-color: #f9fafb;
-    }
-    
-    .form-section:last-child {
-        border-bottom: none;
-    }
-    
-    .table-container {
-        max-height: 70vh;
-        overflow-y: auto;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.75rem;
-        background: white;
-    }
-    
-    .table-container::-webkit-scrollbar {
-        width: 8px;
-    }
-    
-    .table-container::-webkit-scrollbar-track {
-        background: #f1f5f9;
-    }
-    
-    .table-container::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
-    }
-    
-    .table-container::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-    }
-    
-    .progress-container {
-        position: relative;
-        height: 20px;
-        background-color: #f1f5f9;
-        border-radius: 10px;
-        overflow: hidden;
-        border: 1px solid #e2e8f0;
-    }
-    
-    .progress-bar {
-        height: 100%;
-        transition: width 0.6s ease;
-        border-radius: 10px;
-        position: relative;
-        background: linear-gradient(45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent);
-        background-size: 20px 20px;
-        animation: move 1s linear infinite;
-    }
-    
-    @keyframes move {
-        0% { background-position: 0 0; }
-        100% { background-position: 20px 0; }
-    }
-    
-    .progress-text {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #374151;
-        text-shadow: 0 1px 2px rgba(255,255,255,0.8);
-    }
-    
-    .stats-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 1rem;
-        padding: 1.5rem;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    
-    .stats-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 15px 35px rgba(0,0,0,0.15);
-    }
-    
-    .stats-card .stat-value {
-        font-size: 2.5rem;
-        font-weight: 700;
-        line-height: 1;
-        margin-bottom: 0.5rem;
-    }
-    
-    .stats-card .stat-label {
-        font-size: 0.875rem;
-        opacity: 0.9;
-        font-weight: 500;
-    }
-    
-    .empty-state {
-        padding: 4rem 2rem;
-        text-align: center;
-        color: #6b7280;
-    }
-    
-    .empty-state i {
-        font-size: 4rem;
-        margin-bottom: 1rem;
-        opacity: 0.5;
-    }
-    
-    .refresh-indicator {
-        display: inline-block;
-        animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-    
-    .job-actions {
-        display: flex;
-        gap: 0.25rem;
-    }
-    
-    .btn-icon {
-        width: 32px;
-        height: 32px;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 0.375rem;
-    }
-    
-    .alert-floating {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 1050;
-        min-width: 300px;
-        max-width: 500px;
-        animation: slideInRight 0.3s ease-out;
-    }
-    
-    @keyframes slideInRight {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    
-    .real-time-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        background: #10b981;
-        color: white;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-    }
-    
-    .real-time-indicator.disconnected {
-        background: #ef4444;
-    }
-    
-    .real-time-indicator::before {
-        content: '';
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: currentColor;
-        animation: pulse 2s infinite;
-    }
-    
-    .filters-panel {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.75rem;
-        padding: 1rem;
-        margin-bottom: 1rem;
-    }
-    
-    .filter-group {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        flex-wrap: wrap;
-    }
-    
-    .filter-group .form-select,
-    .filter-group .form-control {
-        min-width: 150px;
-        max-width: 200px;
-    }
-</style>
-{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
@@ -353,7 +81,7 @@
     {% endif %}
 
     <!-- Create Job Form -->
-    <div id="createJobForm" class="create-form mb-4" style="display: none;" aria-hidden="true">
+    <div id="createJobForm" class="create-form mb-4 d-hidden" aria-hidden="true">
         <div class="bg-light border-bottom px-3 py-2">
             <h5 class="mb-0">Create New Batch Job</h5>
         </div>
@@ -606,7 +334,7 @@
             </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+            <div class="stats-card stats-card-gradient-blue">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <div class="stat-value" id="runningJobsCount">{{ running_jobs|default(0) }}</div>
@@ -623,7 +351,7 @@
             </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+            <div class="stats-card stats-card-gradient-green">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <div class="stat-value" id="completedJobsCount">{{ completed_jobs|default(0) }}</div>
@@ -641,7 +369,7 @@
             </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+            <div class="stats-card stats-card-gradient-orange">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <div class="stat-value" id="failedJobsCount">{{ failed_jobs|default(0) }}</div>
@@ -660,7 +388,7 @@
     </div>
 
     <!-- Advanced Filters Panel -->
-    <div class="filters-panel" id="filtersPanel" style="display: none;">
+    <div class="filters-panel d-hidden" id="filtersPanel">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">
                 <i class="fas fa-filter me-2"></i>Advanced Filters
@@ -750,37 +478,37 @@
                 <table class="table table-hover mb-0" id="jobsTable">
                     <thead class="table-light sticky-top">
                         <tr>
-                            <th style="width: 30px;">
+                            <th class="th-select">
                                 <input type="checkbox" class="form-check-input" id="selectAllJobs">
                             </th>
-                            <th style="width: 250px;">
+                            <th class="th-job-name">
                                 <i class="fas fa-tag me-1"></i>Job Name
                                 <button class="btn btn-sm btn-link p-0 ms-1 sort-btn" data-column="name">
                                     <i class="fas fa-sort"></i>
                                 </button>
                             </th>
-                            <th style="width: 100px;">
+                            <th class="th-status">
                                 <i class="fas fa-info-circle me-1"></i>Status
                                 <button class="btn btn-sm btn-link p-0 ms-1 sort-btn" data-column="status">
                                     <i class="fas fa-sort"></i>
                                 </button>
                             </th>
-                            <th style="width: 200px;">
+                            <th class="th-created">
                                 <i class="fas fa-chart-line me-1"></i>Progress
                             </th>
-                            <th style="width: 150px;">
+                            <th class="th-duration">
                                 <i class="fas fa-cog me-1"></i>Analysis Type
                             </th>
-                            <th style="width: 120px;">
+                            <th class="th-progress">
                                 <i class="fas fa-calendar me-1"></i>Created
                                 <button class="btn btn-sm btn-link p-0 ms-1 sort-btn" data-column="created">
                                     <i class="fas fa-sort"></i>
                                 </button>
                             </th>
-                            <th style="width: 100px;">
+                            <th class="th-models">
                                 <i class="fas fa-clock me-1"></i>Duration
                             </th>
-                            <th style="width: 150px;">
+                            <th class="th-actions">
                                 <i class="fas fa-tools me-1"></i>Actions
                             </th>
                         </tr>
@@ -795,11 +523,11 @@
                             </td>
                             <td>
                                 <div class="job-info">
-                                    <div class="fw-bold text-truncate" style="max-width: 200px;" title="{{ job.name }}">
+                                    <div class="fw-bold text-truncate text-truncate-200" title="{{ job.name }}">
                                         {{ job.name }}
                                     </div>
                                     {% if job.description %}
-                                    <div class="text-muted small text-truncate" style="max-width: 200px;" title="{{ job.description }}">
+                                    <div class="text-muted small text-truncate text-truncate-200" title="{{ job.description }}">
                                         {{ job.description }}
                                     </div>
                                     {% endif %}
@@ -1078,8 +806,8 @@ class BatchDashboard {
         
         if (!createForm || !toggleBtn) return;
         
-        const isHidden = createForm.style.display === 'none';
-        createForm.style.display = isHidden ? 'block' : 'none';
+        const isHidden = createForm.classList.contains('d-hidden');
+        createForm.classList.toggle('d-hidden');
         createForm.setAttribute('aria-hidden', !isHidden);
         toggleBtn.setAttribute('aria-expanded', isHidden);
         
@@ -1097,7 +825,7 @@ class BatchDashboard {
         
         if (!createForm || !toggleBtn) return;
         
-        createForm.style.display = 'none';
+        createForm.classList.add('d-hidden');
         createForm.setAttribute('aria-hidden', true);
         toggleBtn.setAttribute('aria-expanded', false);
     }
@@ -1439,8 +1167,8 @@ class BatchDashboard {
         const toggleBtn = document.getElementById('toggleFilters');
         
         if (filtersPanel) {
-            const isHidden = filtersPanel.style.display === 'none';
-            filtersPanel.style.display = isHidden ? 'block' : 'none';
+            const isHidden = filtersPanel.classList.contains('d-hidden');
+            filtersPanel.classList.toggle('d-hidden');
             toggleBtn?.setAttribute('aria-expanded', isHidden.toString());
         }
     }
@@ -1500,7 +1228,7 @@ class BatchDashboard {
                 }
             }
             
-            row.style.display = visible ? '' : 'none';
+            row.classList.toggle('d-hidden', !visible);
             if (visible) visibleCount++;
         });
         

@@ -259,8 +259,7 @@ function downloadCurrentFile() {
 
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
-    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = 'top: 80px; right: 20px; z-index: 9999; max-width: 300px;';
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed notification-fixed`;
     notification.innerHTML = `
         <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'} mr-2"></i>
         ${message}

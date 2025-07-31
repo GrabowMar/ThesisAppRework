@@ -32,7 +32,7 @@
     {% endif %}
 
     <!-- Statistics -->
-    <div class="card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+    <div class="card mb-4 stats-card-gradient-purple">
         <div class="card-body">
             <div class="row text-center">
                 <div class="col-md-2">
@@ -133,7 +133,7 @@
 
                 <div class="mb-3">
                     <label class="form-label">Select Models</label>
-                    <div style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem;">
+                    <div class="scrollable-logs">
                         {% if available_models %}
                             <div class="model-grid">
                                 {% for model in available_models[:12] %}

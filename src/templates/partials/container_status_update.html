@@ -7,7 +7,7 @@
     // Auto-hide success message after 3 seconds
     setTimeout(() => {
         const msg = document.getElementById('action-message');
-        if (msg) msg.style.opacity = '0';
+        if (msg) msg.classList.add('fade-out');
         setTimeout(() => {
             if (msg) msg.remove();
         }, 300);

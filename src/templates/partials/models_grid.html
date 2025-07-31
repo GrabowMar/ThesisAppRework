@@ -1,6 +1,5 @@
 <!-- Models Grid - Expandable Tabs for Each Model -->
-<div class="models-grid">
-    {% for model in models %}
+<div class="models-grid">             class="model-content d-hidden"{% for model in models %}
     <div class="model-card" 
          data-model-id="{{ model.id }}"
          data-model-slug="{{ model.canonical_slug }}"

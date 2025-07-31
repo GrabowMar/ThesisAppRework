@@ -188,7 +188,7 @@ function testLoadApps(modelSlug) {
     const loading = document.getElementById(`loading-${modelSlug}`);
     
     // Show loading state
-    loading.style.display = 'block';
+    loading.classList.remove('d-hidden');
     
     // Use HTMX to load apps properly
     htmx.ajax('GET', `/api/model/${modelSlug}/apps`, {
@@ -196,14 +196,14 @@ function testLoadApps(modelSlug) {
         swap: 'innerHTML'
     }).then(() => {
         // Hide loading after successful load
-        loading.style.display = 'none';
+        loading.classList.add('d-hidden');
         console.log('Apps loaded successfully for:', modelSlug);
         
         // Initialize tooltips for newly loaded content
         $(`#apps-content-${modelSlug} [title]`).tooltip();
     }).catch((error) => {
         console.error('Error loading apps:', error);
-        loading.style.display = 'none';
+        loading.classList.add('d-hidden');
         content.innerHTML = `
             <div class="alert alert-danger m-3">
                 <i class="fas fa-exclamation-triangle mr-2"></i>
