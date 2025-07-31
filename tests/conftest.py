@@ -31,6 +31,8 @@ class TestConfig:
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     APPLICATION_ROOT = '/'  # Fix for Flask test client
+    PREFERRED_URL_SCHEME = 'http'
+    SERVER_NAME = 'localhost'
     PORT_CONFIG = []  # Will be populated by fixtures
 
 
@@ -46,7 +48,7 @@ def app():
     # Create a test config class
     class TestConfig(Config):
         TESTING = True
-        SECRET_KEY = 'test-secret-key-that-is-long-enough-to-be-secure'  # Longer secret key
+        SECRET_KEY = 'test-secret-key-that-is-long-enough-to-be-secure-for-testing'  # Secret key for sessions
         WTF_CSRF_ENABLED = False
         SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
         SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -54,6 +56,12 @@ def app():
         PREFERRED_URL_SCHEME = 'http'
         SERVER_NAME = 'localhost'
         PORT_CONFIG = []
+        
+        def __init__(self):
+            super().__init__()
+            # Ensure APPLICATION_ROOT is always set for Flask 3.x compatibility
+            if not hasattr(self, 'APPLICATION_ROOT') or self.APPLICATION_ROOT is None:
+                self.APPLICATION_ROOT = '/'
     
     # Create Flask app manually to ensure config is properly loaded
     # Get the absolute path to the src directory where templates are located
@@ -62,6 +70,14 @@ def app():
                 template_folder=str(src_dir / "templates"),
                 static_folder=str(src_dir / "static"))
     app.config.from_object(TestConfig)
+    
+    # Explicitly ensure APPLICATION_ROOT is set (Flask 3.x fix)
+    if not app.config.get('APPLICATION_ROOT'):
+        app.config['APPLICATION_ROOT'] = '/'
+    
+    # Explicitly ensure SECRET_KEY is set for sessions
+    if not app.config.get('SECRET_KEY'):
+        app.config['SECRET_KEY'] = 'test-secret-key-that-is-long-enough-to-be-secure-for-testing'
     
     # Ensure required directories exist
     from pathlib import Path
@@ -76,6 +92,9 @@ def app():
     
     # Initialize extensions (database, cache, etc.)
     init_extensions(app)
+    
+    # Ensure APPLICATION_ROOT is preserved after extensions init
+    app.config['APPLICATION_ROOT'] = '/'
     
     # Load model integration data first (before services need it)
     with app.app_context():
@@ -146,6 +165,18 @@ def app():
     # Debug print to verify config
     print(f"DEBUG: APPLICATION_ROOT = {app.config.get('APPLICATION_ROOT')}")
     
+    # Final explicit setting for Flask 3.x compatibility
+    app.config.update({
+        'APPLICATION_ROOT': '/',
+        'TESTING': True,
+        'SERVER_NAME': 'localhost',
+        'PREFERRED_URL_SCHEME': 'http',
+        'SECRET_KEY': 'test-secret-key-that-is-long-enough-to-be-secure-for-testing',
+        'WTF_CSRF_ENABLED': False
+    })
+    
+    print(f"DEBUG: Final APPLICATION_ROOT = {app.config.get('APPLICATION_ROOT')}")
+    
     with app.app_context():
         db.create_all()
         yield app
@@ -155,7 +186,62 @@ def app():
 @pytest.fixture(scope='function')
 def client(app):
     """Create a test client for the Flask application."""
-    return app.test_client()
+    # Workaround for Flask 3.x APPLICATION_ROOT issue by providing base_url
+    test_client = app.test_client()
+    
+    # Override client methods to provide base_url to avoid APPLICATION_ROOT issue
+    original_get = test_client.get
+    original_post = test_client.post
+    original_put = test_client.put
+    original_patch = test_client.patch
+    original_delete = test_client.delete
+    original_head = test_client.head
+    original_options = test_client.options
+    
+    def patched_get(path, **kwargs):
+        if 'base_url' not in kwargs:
+            kwargs['base_url'] = 'http://localhost/'
+        return original_get(path, **kwargs)
+    
+    def patched_post(path, **kwargs):
+        if 'base_url' not in kwargs:
+            kwargs['base_url'] = 'http://localhost/'
+        return original_post(path, **kwargs)
+    
+    def patched_put(path, **kwargs):
+        if 'base_url' not in kwargs:
+            kwargs['base_url'] = 'http://localhost/'
+        return original_put(path, **kwargs)
+    
+    def patched_patch(path, **kwargs):
+        if 'base_url' not in kwargs:
+            kwargs['base_url'] = 'http://localhost/'
+        return original_patch(path, **kwargs)
+    
+    def patched_delete(path, **kwargs):
+        if 'base_url' not in kwargs:
+            kwargs['base_url'] = 'http://localhost/'
+        return original_delete(path, **kwargs)
+    
+    def patched_head(path, **kwargs):
+        if 'base_url' not in kwargs:
+            kwargs['base_url'] = 'http://localhost/'
+        return original_head(path, **kwargs)
+    
+    def patched_options(path, **kwargs):
+        if 'base_url' not in kwargs:
+            kwargs['base_url'] = 'http://localhost/'
+        return original_options(path, **kwargs)
+    
+    test_client.get = patched_get
+    test_client.post = patched_post
+    test_client.put = patched_put
+    test_client.patch = patched_patch
+    test_client.delete = patched_delete
+    test_client.head = patched_head
+    test_client.options = patched_options
+    
+    return test_client
 
 
 @pytest.fixture(scope='function')

@@ -1563,6 +1563,78 @@ class BatchAnalysisService(BaseService):
         with self._lock:
             return self.tasks.get(task_id)
     
+    def cancel_job(self, job_id: str) -> bool:
+        """Cancel a running or pending job."""
+        job = self.jobs.get(job_id)
+        if not job:
+            return False
+        
+        if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+            return False
+        
+        with self._lock:
+            job.status = JobStatus.CANCELLED
+            job.completed_at = datetime.now()
+            
+            # Cancel running thread if exists
+            if job_id in self.job_threads:
+                # Note: Python threads can't be forcefully stopped
+                # We rely on shutdown_event being checked in the execution loop
+                pass
+        
+        self.logger.info(f"Cancelled job: {job_id}")
+        return True
+    
+    def pause_job(self, job_id: str) -> bool:
+        """Pause a running job."""
+        job = self.jobs.get(job_id)
+        if not job or job.status != JobStatus.RUNNING:
+            return False
+        
+        with self._lock:
+            job.status = JobStatus.PAUSED
+        
+        self.logger.info(f"Paused job: {job_id}")
+        return True
+    
+    def resume_job(self, job_id: str) -> bool:
+        """Resume a paused job."""
+        job = self.jobs.get(job_id)
+        if not job or job.status != JobStatus.PAUSED:
+            return False
+        
+        with self._lock:
+            job.status = JobStatus.RUNNING
+        
+        # Restart the job execution
+        self.start_job(job_id)
+        self.logger.info(f"Resumed job: {job_id}")
+        return True
+    
+    def delete_job(self, job_id: str) -> bool:
+        """Delete a job and all its tasks."""
+        job = self.jobs.get(job_id)
+        if not job:
+            return False
+        
+        # Only allow deletion of completed, failed, or cancelled jobs
+        if job.status in [JobStatus.RUNNING, JobStatus.PENDING]:
+            return False
+        
+        with self._lock:
+            # Remove job
+            if job_id in self.jobs:
+                del self.jobs[job_id]
+            
+            # Remove associated tasks
+            tasks_to_remove = [task_id for task_id, task in self.tasks.items() 
+                             if task.job_id == job_id]
+            for task_id in tasks_to_remove:
+                del self.tasks[task_id]
+        
+        self.logger.info(f"Deleted job: {job_id}")
+        return True
+    
     def cleanup(self):
         """Cleanup resources."""
         self.shutdown_event.set()

@@ -2060,6 +2060,245 @@ def view_job(job_id: str):
         return ResponseHandler.error_response(str(e))
 
 
+@batch_bp.route("/job/<job_id>/cancel", methods=["POST"])
+def cancel_job(job_id: str):
+    """Cancel a batch job."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        success = batch_service.cancel_job(job_id)
+        if success:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.success_response("Job cancelled successfully")
+            flash("Job cancelled successfully", "success")
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.error_response("Failed to cancel job")
+            flash("Failed to cancel job", "error")
+        
+        return redirect(url_for('batch.batch_overview'))
+        
+    except Exception as e:
+        logger.error(f"Cancel job error: {e}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return ResponseHandler.error_response(f"Error cancelling job: {str(e)}")
+        flash(f"Error cancelling job: {str(e)}", "error")
+        return redirect(url_for('batch.batch_overview'))
+
+
+@batch_bp.route("/job/<job_id>/pause", methods=["POST"])
+def pause_job(job_id: str):
+    """Pause a batch job."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        success = batch_service.pause_job(job_id)
+        if success:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.success_response("Job paused successfully")
+            flash("Job paused successfully", "success")
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.error_response("Failed to pause job")
+            flash("Failed to pause job", "error")
+        
+        return redirect(url_for('batch.batch_overview'))
+        
+    except Exception as e:
+        logger.error(f"Pause job error: {e}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return ResponseHandler.error_response(f"Error pausing job: {str(e)}")
+        flash(f"Error pausing job: {str(e)}", "error")
+        return redirect(url_for('batch.batch_overview'))
+
+
+@batch_bp.route("/job/<job_id>/resume", methods=["POST"])
+def resume_job(job_id: str):
+    """Resume a paused batch job."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        success = batch_service.resume_job(job_id)
+        if success:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.success_response("Job resumed successfully")
+            flash("Job resumed successfully", "success")
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.error_response("Failed to resume job")
+            flash("Failed to resume job", "error")
+        
+        return redirect(url_for('batch.batch_overview'))
+        
+    except Exception as e:
+        logger.error(f"Resume job error: {e}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return ResponseHandler.error_response(f"Error resuming job: {str(e)}")
+        flash(f"Error resuming job: {str(e)}", "error")
+        return redirect(url_for('batch.batch_overview'))
+
+
+@batch_bp.route("/job/<job_id>/start", methods=["POST"])
+def start_job(job_id: str):
+    """Start a pending batch job."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        success = batch_service.start_job(job_id)
+        if success:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.success_response("Job started successfully")
+            flash("Job started successfully", "success")
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.error_response("Failed to start job")
+            flash("Failed to start job", "error")
+        
+        return redirect(url_for('batch.batch_overview'))
+        
+    except Exception as e:
+        logger.error(f"Start job error: {e}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return ResponseHandler.error_response(f"Error starting job: {str(e)}")
+        flash(f"Error starting job: {str(e)}", "error")
+        return redirect(url_for('batch.batch_overview'))
+
+
+@batch_bp.route("/job/<job_id>", methods=["DELETE"])
+def delete_job(job_id: str):
+    """Delete a batch job."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        success = batch_service.delete_job(job_id)
+        if success:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.success_response("Job deleted successfully")
+            flash("Job deleted successfully", "success")
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return ResponseHandler.error_response("Failed to delete job")
+            flash("Failed to delete job", "error")
+        
+        return redirect(url_for('batch.batch_overview'))
+        
+    except Exception as e:
+        logger.error(f"Delete job error: {e}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return ResponseHandler.error_response(f"Error deleting job: {str(e)}")
+        flash(f"Error deleting job: {str(e)}", "error")
+        return redirect(url_for('batch.batch_overview'))
+
+
+@batch_bp.route("/job/<job_id>/export")
+def export_job(job_id: str):
+    """Export job results."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        job = batch_service.get_job(job_id)
+        if not job:
+            return ResponseHandler.error_response("Job not found", 404)
+        
+        tasks = batch_service.get_job_tasks(job_id)
+        
+        export_data = {
+            'job': job.to_dict(),
+            'tasks': [task.to_dict() for task in tasks],
+            'exported_at': datetime.now().isoformat(),
+            'export_version': '1.0'
+        }
+        
+        return jsonify(export_data)
+        
+    except Exception as e:
+        logger.error(f"Export job error: {e}")
+        return ResponseHandler.error_response(f"Error exporting job: {str(e)}")
+
+
+@batch_bp.route("/export-all")
+def export_all_jobs():
+    """Export all jobs data."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        jobs = batch_service.get_all_jobs()
+        stats = batch_service.get_job_stats()
+        
+        export_data = {
+            'jobs': [job.to_dict() for job in jobs],
+            'statistics': stats,
+            'exported_at': datetime.now().isoformat(),
+            'export_version': '1.0',
+            'total_jobs': len(jobs)
+        }
+        
+        return jsonify(export_data)
+        
+    except Exception as e:
+        logger.error(f"Export all jobs error: {e}")
+        return ResponseHandler.error_response(f"Error exporting jobs: {str(e)}")
+
+
+@batch_bp.route("/api/status")
+def api_status():
+    """Get batch system status."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        stats = batch_service.get_detailed_statistics()
+        
+        return ResponseHandler.success_response(stats, "Status retrieved")
+        
+    except Exception as e:
+        logger.error(f"API status error: {e}")
+        return ResponseHandler.error_response(f"Error getting status: {str(e)}")
+
+
+@batch_bp.route("/api/jobs")
+def api_jobs():
+    """Get jobs data for AJAX requests."""
+    try:
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        jobs = batch_service.get_all_jobs()
+        stats = batch_service.get_job_stats()
+        
+        data = {
+            'jobs': [job.to_dict() for job in jobs],
+            'stats': stats,
+            'total_jobs': len(jobs),
+            'running_jobs': sum(1 for j in jobs if j.status.value == 'running'),
+            'completed_jobs': sum(1 for j in jobs if j.status.value == 'completed'),
+            'failed_jobs': sum(1 for j in jobs if j.status.value == 'failed'),
+            'last_updated': datetime.now().isoformat()
+        }
+        
+        return ResponseHandler.success_response(data, "Jobs retrieved")
+        
+    except Exception as e:
+        logger.error(f"API jobs error: {e}")
+        return ResponseHandler.error_response(f"Error getting jobs: {str(e)}")
+
+
 # ===========================
 # DOCKER ROUTES
 # ===========================

@@ -4,23 +4,52 @@
 {% if seconds is none or seconds < 0 %}N/A{% else %}{% set seconds = seconds|int %}{% if seconds < 60 %}{{ seconds }}s{% elif seconds < 3600 %}{{ '%dm %ds'|format(seconds // 60, seconds % 60) }}{% else %}{{ '%dh %dm'|format(seconds // 3600, (seconds % 3600) // 60) }}{% endif %}{% endif %}
 {% endmacro %}
 
+{% macro progress_bar(current, total, type='primary') %}
+{% set percentage = ((current / total * 100) | round(1)) if total > 0 else 0 %}
+<div class="progress-container">
+    <div class="progress-bar bg-{{ type }}" style="width: {{ percentage }}%"></div>
+    <span class="progress-text">{{ current }}/{{ total }} ({{ percentage }}%)</span>
+</div>
+{% endmacro %}
+
 {% block title %}Batch Analysis Dashboard - Thesis Research App{% endblock %}
 
 {% block head %}
 <style>
     .action-btn {
         transition: all 0.2s ease;
+        border: 1px solid #e0e0e0;
+        background: #fff;
+        color: #333;
     }
     
     .action-btn:hover {
         transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        border-color: #007bff;
+        color: #007bff;
+    }
+    
+    .action-btn.btn-primary {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+    
+    .action-btn.btn-primary:hover {
+        background: #0056b3;
+        border-color: #0056b3;
+        color: white;
     }
     
     .status-badge {
         font-size: 0.75rem;
         padding: 0.25rem 0.5rem;
-        border-radius: 0.25rem;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
     }
     
     .status-pending { background-color: #fef3c7; color: #92400e; }
@@ -29,16 +58,41 @@
     .status-failed { background-color: #fee2e2; color: #dc2626; }
     .status-cancelled { background-color: #f3f4f6; color: #6b7280; }
     
+    .status-running::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
     .create-form {
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
         background: white;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        animation: slideDown 0.3s ease-out;
+    }
+    
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     
     .form-section {
-        border-bottom: 1px solid #e5e7eb;
-        padding: 1rem;
+        border-bottom: 1px solid #f3f4f6;
+        padding: 1.5rem;
+        transition: background-color 0.2s ease;
+    }
+    
+    .form-section:hover {
+        background-color: #f9fafb;
     }
     
     .form-section:last-child {
@@ -46,37 +100,225 @@
     }
     
     .table-container {
-        max-height: 600px;
+        max-height: 70vh;
         overflow-y: auto;
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        background: white;
     }
     
-    .progress-bar-custom {
-        height: 8px;
+    .table-container::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .table-container::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+    
+    .table-container::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
         border-radius: 4px;
-        overflow: hidden;
-        background-color: #e5e7eb;
     }
     
-    .progress-fill {
+    .table-container::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    
+    .progress-container {
+        position: relative;
+        height: 20px;
+        background-color: #f1f5f9;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .progress-bar {
         height: 100%;
-        transition: width 0.3s ease;
+        transition: width 0.6s ease;
+        border-radius: 10px;
+        position: relative;
+        background: linear-gradient(45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent);
+        background-size: 20px 20px;
+        animation: move 1s linear infinite;
+    }
+    
+    @keyframes move {
+        0% { background-position: 0 0; }
+        100% { background-position: 20px 0; }
+    }
+    
+    .progress-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #374151;
+        text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+    }
+    
+    .stats-card .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stats-card .stat-label {
+        font-size: 0.875rem;
+        opacity: 0.9;
+        font-weight: 500;
+    }
+    
+    .empty-state {
+        padding: 4rem 2rem;
+        text-align: center;
+        color: #6b7280;
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    .refresh-indicator {
+        display: inline-block;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    
+    .job-actions {
+        display: flex;
+        gap: 0.25rem;
+    }
+    
+    .btn-icon {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.375rem;
+    }
+    
+    .alert-floating {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1050;
+        min-width: 300px;
+        max-width: 500px;
+        animation: slideInRight 0.3s ease-out;
+    }
+    
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .real-time-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #10b981;
+        color: white;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .real-time-indicator.disconnected {
+        background: #ef4444;
+    }
+    
+    .real-time-indicator::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 2s infinite;
+    }
+    
+    .filters-panel {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .filter-group .form-select,
+    .filter-group .form-control {
+        min-width: 150px;
+        max-width: 200px;
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
+    <!-- Floating Alerts Container -->
+    <div id="alertsContainer"></div>
+    
     <!-- Header Section -->
     <div class="card mb-4">
         <div class="card-body">
             <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h1 class="h3 mb-1">Batch Analysis</h1>
-                    <p class="text-muted small mb-0">Run analysis on multiple applications at once</p>
+                <div class="col-md-6">
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-layer-group me-2 text-primary"></i>
+                        Batch Analysis Dashboard
+                    </h1>
+                    <p class="text-muted small mb-0">
+                        Manage and monitor large-scale analysis operations
+                        <span class="real-time-indicator ms-3" id="connectionStatus">
+                            <span>Live Updates</span>
+                        </span>
+                    </p>
                 </div>
-                <div class="col-md-4 text-md-end">
+                <div class="col-md-6 text-md-end">
+                    <div class="btn-group me-2">
+                        <button id="refreshDashboard" class="btn btn-outline-secondary btn-sm action-btn" 
+                                title="Refresh Dashboard">
+                            <i class="fas fa-sync-alt" id="refreshIcon"></i>
+                        </button>
+                        <button id="autoRefreshToggle" class="btn btn-outline-info btn-sm action-btn" 
+                                title="Toggle Auto-refresh">
+                            <i class="fas fa-clock me-1"></i>
+                            <span id="autoRefreshText">Auto</span>
+                        </button>
+                    </div>
                     <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary btn-sm me-2 action-btn">
                         <i class="fas fa-arrow-left me-1"></i>Dashboard
                     </a>
@@ -88,6 +330,27 @@
             </div>
         </div>
     </div>
+    
+    <!-- Error/Success Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show" role="alert">
+                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }} me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    {% if error_message %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        {{ error_message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
 
     <!-- Create Job Form -->
     <div id="createJobForm" class="create-form mb-4" style="display: none;" aria-hidden="true">
@@ -323,112 +586,312 @@
         </form>
     </div>
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-primary">{{ total_jobs|default(0) }}</h5>
-                    <p class="card-text small text-muted">Total Jobs</p>
+    <!-- Enhanced Statistics Dashboard -->
+    <div class="row mb-4" id="statisticsSection">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="totalJobsCount">{{ total_jobs|default(0) }}</div>
+                        <div class="stat-label">Total Jobs</div>
+                    </div>
+                    <i class="fas fa-layer-group fa-2x opacity-75"></i>
+                </div>
+                <div class="mt-3">
+                    <small class="opacity-75">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        Last updated: <span id="lastUpdateTime">{{ moment().strftime('%H:%M:%S') if moment else 'N/A' }}</span>
+                    </small>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-info">{{ running_jobs|default(0) }}</h5>
-                    <p class="card-text small text-muted">Running</p>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="runningJobsCount">{{ running_jobs|default(0) }}</div>
+                        <div class="stat-label">Running</div>
+                    </div>
+                    <i class="fas fa-play fa-2x opacity-75"></i>
+                </div>
+                <div class="mt-3">
+                    <small class="opacity-75">
+                        <i class="fas fa-clock me-1"></i>
+                        Active processes
+                    </small>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-success">{{ completed_jobs|default(0) }}</h5>
-                    <p class="card-text small text-muted">Completed</p>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="completedJobsCount">{{ completed_jobs|default(0) }}</div>
+                        <div class="stat-label">Completed</div>
+                    </div>
+                    <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                </div>
+                <div class="mt-3">
+                    {% set success_rate = ((completed_jobs / (completed_jobs + failed_jobs) * 100) | round(1)) if (completed_jobs + failed_jobs) > 0 else 0 %}
+                    <small class="opacity-75">
+                        <i class="fas fa-chart-line me-1"></i>
+                        Success rate: {{ success_rate }}%
+                    </small>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-danger">{{ failed_jobs|default(0) }}</h5>
-                    <p class="card-text small text-muted">Failed</p>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="failedJobsCount">{{ failed_jobs|default(0) }}</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                    <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                </div>
+                <div class="mt-3">
+                    <small class="opacity-75">
+                        <i class="fas fa-tools me-1"></i>
+                        Needs attention
+                    </small>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Jobs Table -->
+    <!-- Advanced Filters Panel -->
+    <div class="filters-panel" id="filtersPanel" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">
+                <i class="fas fa-filter me-2"></i>Advanced Filters
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" id="clearFilters">
+                <i class="fas fa-times me-1"></i>Clear All
+            </button>
+        </div>
+        <div class="filter-group">
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-medium">Status:</label>
+                <select class="form-select form-select-sm" id="statusFilter">
+                    <option value="">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-medium">Analysis Type:</label>
+                <select class="form-select form-select-sm" id="analysisTypeFilter">
+                    <option value="">All Types</option>
+                    <option value="frontend_security">Frontend Security</option>
+                    <option value="backend_security">Backend Security</option>
+                    <option value="performance">Performance</option>
+                    <option value="zap">ZAP Security</option>
+                    <option value="code_quality">Code Quality</option>
+                </select>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-medium">Created:</label>
+                <select class="form-select form-select-sm" id="dateFilter">
+                    <option value="">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                </select>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-medium">Search:</label>
+                <input type="text" class="form-control form-control-sm" id="searchFilter" 
+                       placeholder="Search job names...">
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhanced Jobs Table -->
     <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Batch Jobs</h5>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Batch Jobs
+                    <span class="badge bg-primary ms-2" id="jobsCount">{{ jobs|length if jobs else 0 }}</span>
+                </h5>
+            </div>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" id="toggleFilters" 
+                        aria-expanded="false" title="Show/Hide Filters">
+                    <i class="fas fa-filter"></i>
+                </button>
+                <button class="btn btn-outline-secondary" id="exportJobs" title="Export Job Data">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button class="btn btn-outline-secondary dropdown-toggle" 
+                        data-bs-toggle="dropdown" title="Bulk Actions">
+                    <i class="fas fa-cogs"></i>
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" id="pauseAllJobs">
+                        <i class="fas fa-pause me-2"></i>Pause All Running
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" id="resumeAllJobs">
+                        <i class="fas fa-play me-2"></i>Resume All Paused
+                    </a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="#" id="cancelAllJobs">
+                        <i class="fas fa-stop me-2"></i>Cancel All Running
+                    </a></li>
+                </ul>
+            </div>
         </div>
         <div class="card-body p-0">
             {% if jobs and jobs|length > 0 %}
-            <div class="table-container">
-                <table class="table table-striped table-hover mb-0">
-                    <thead class="table-light">
+            <div class="table-container" id="jobsTableContainer">
+                <table class="table table-hover mb-0" id="jobsTable">
+                    <thead class="table-light sticky-top">
                         <tr>
-                            <th>Name</th>
-                            <th>Status</th>
-                            <th>Progress</th>
-                            <th>Type</th>
-                            <th>Created</th>
-                            <th>Duration</th>
-                            <th>Actions</th>
+                            <th style="width: 30px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllJobs">
+                            </th>
+                            <th style="width: 250px;">
+                                <i class="fas fa-tag me-1"></i>Job Name
+                                <button class="btn btn-sm btn-link p-0 ms-1 sort-btn" data-column="name">
+                                    <i class="fas fa-sort"></i>
+                                </button>
+                            </th>
+                            <th style="width: 100px;">
+                                <i class="fas fa-info-circle me-1"></i>Status
+                                <button class="btn btn-sm btn-link p-0 ms-1 sort-btn" data-column="status">
+                                    <i class="fas fa-sort"></i>
+                                </button>
+                            </th>
+                            <th style="width: 200px;">
+                                <i class="fas fa-chart-line me-1"></i>Progress
+                            </th>
+                            <th style="width: 150px;">
+                                <i class="fas fa-cog me-1"></i>Analysis Type
+                            </th>
+                            <th style="width: 120px;">
+                                <i class="fas fa-calendar me-1"></i>Created
+                                <button class="btn btn-sm btn-link p-0 ms-1 sort-btn" data-column="created">
+                                    <i class="fas fa-sort"></i>
+                                </button>
+                            </th>
+                            <th style="width: 100px;">
+                                <i class="fas fa-clock me-1"></i>Duration
+                            </th>
+                            <th style="width: 150px;">
+                                <i class="fas fa-tools me-1"></i>Actions
+                            </th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="jobsTableBody">
                         {% for job in jobs %}
-                        <tr>
+                        <tr class="job-row" data-job-id="{{ job.id }}" data-status="{{ job.status|lower }}" 
+                            data-analysis-type="{{ job.analysis_types|join(',')|lower if job.analysis_types else '' }}"
+                            data-created="{{ job.created_at.isoformat() if job.created_at else '' }}">
                             <td>
-                                <div>
-                                    <strong>{{ job.name }}</strong>
+                                <input type="checkbox" class="form-check-input job-checkbox" value="{{ job.id }}">
+                            </td>
+                            <td>
+                                <div class="job-info">
+                                    <div class="fw-bold text-truncate" style="max-width: 200px;" title="{{ job.name }}">
+                                        {{ job.name }}
+                                    </div>
                                     {% if job.description %}
-                                    <br><small class="text-muted">{{ job.description }}</small>
+                                    <div class="text-muted small text-truncate" style="max-width: 200px;" title="{{ job.description }}">
+                                        {{ job.description }}
+                                    </div>
                                     {% endif %}
                                 </div>
                             </td>
                             <td>
-                                <span class="badge status-{{ job.status|lower }}">
+                                <span class="status-badge status-{{ job.status|lower }}" id="status-{{ job.id }}">
                                     {{ job.status|title }}
                                 </span>
                             </td>
                             <td>
                                 {% if job.progress is defined and job.progress is not none %}
-                                <div class="progress-bar-custom">
-                                    <div class="progress-fill bg-primary" style="width: {{ job.progress }}%"></div>
-                                </div>
-                                <small class="text-muted">{{ job.progress }}%</small>
+                                {% set progress_val = job.progress.completed if job.progress is mapping else job.progress %}
+                                {% set total_val = job.progress.total if job.progress is mapping else 100 %}
+                                {{ progress_bar(progress_val, total_val, 'primary') }}
                                 {% else %}
-                                <small class="text-muted">N/A</small>
+                                <div class="text-muted small">
+                                    <i class="fas fa-question-circle me-1"></i>N/A
+                                </div>
                                 {% endif %}
                             </td>
                             <td>
-                                <small>{{ job.analysis_types|join(', ')|title if job.analysis_types else 'N/A' }}</small>
+                                <div class="analysis-types">
+                                    {% if job.analysis_types %}
+                                        {% for analysis_type in job.analysis_types[:2] %}
+                                        <span class="badge bg-secondary small me-1 mb-1">{{ analysis_type|title }}</span>
+                                        {% endfor %}
+                                        {% if job.analysis_types|length > 2 %}
+                                        <span class="badge bg-light text-dark small" title="{{ job.analysis_types[2:]|join(', ') }}">
+                                            +{{ job.analysis_types|length - 2 }}
+                                        </span>
+                                        {% endif %}
+                                    {% else %}
+                                    <span class="text-muted small">N/A</span>
+                                    {% endif %}
+                                </div>
                             </td>
                             <td>
-                                <small>{{ job.created_at.strftime('%m/%d %H:%M') if job.created_at else 'N/A' }}</small>
+                                <div class="small">
+                                    {% if job.created_at %}
+                                    <div>{{ job.created_at.strftime('%m/%d %H:%M') }}</div>
+                                    <div class="text-muted">{{ job.created_at.strftime('%Y') }}</div>
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </div>
                             </td>
                             <td>
-                                <small>{{ humanize_duration(job.duration) }}</small>
+                                <div class="small">
+                                    <span id="duration-{{ job.id }}">{{ humanize_duration(job.duration) }}</span>
+                                </div>
                             </td>
                             <td>
-                                <div class="btn-group btn-group-sm">
+                                <div class="job-actions" id="actions-{{ job.id }}">
                                     <a href="{{ url_for('batch.view_job', job_id=job.id) }}" 
-                                       class="btn btn-outline-primary btn-sm">
+                                       class="btn btn-outline-primary btn-icon" title="View Details">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     {% if job.status == 'running' %}
-                                    <button class="btn btn-outline-danger btn-sm cancel-job-btn" 
-                                            data-job-id="{{ job.id }}">
+                                    <button class="btn btn-outline-warning btn-icon pause-job-btn" 
+                                            data-job-id="{{ job.id }}" title="Pause Job">
+                                        <i class="fas fa-pause"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-icon cancel-job-btn" 
+                                            data-job-id="{{ job.id }}" title="Cancel Job">
                                         <i class="fas fa-stop"></i>
                                     </button>
-                                    {% endif %}
-                                    {% if job.status in ['completed', 'failed', 'cancelled'] %}
-                                    <button class="btn btn-outline-secondary btn-sm delete-job-btn" 
-                                            data-job-id="{{ job.id }}">
+                                    {% elif job.status == 'paused' %}
+                                    <button class="btn btn-outline-success btn-icon resume-job-btn" 
+                                            data-job-id="{{ job.id }}" title="Resume Job">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-icon cancel-job-btn" 
+                                            data-job-id="{{ job.id }}" title="Cancel Job">
+                                        <i class="fas fa-stop"></i>
+                                    </button>
+                                    {% elif job.status == 'pending' %}
+                                    <button class="btn btn-outline-success btn-icon start-job-btn" 
+                                            data-job-id="{{ job.id }}" title="Start Job">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-icon cancel-job-btn" 
+                                            data-job-id="{{ job.id }}" title="Cancel Job">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    {% elif job.status in ['completed', 'failed', 'cancelled'] %}
+                                    <button class="btn btn-outline-info btn-icon export-job-btn" 
+                                            data-job-id="{{ job.id }}" title="Export Results">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-icon delete-job-btn" 
+                                            data-job-id="{{ job.id }}" title="Delete Job">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                     {% endif %}
@@ -440,12 +903,18 @@
                 </table>
             </div>
             {% else %}
-            <div class="text-center py-5">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No batch jobs found</h5>
-                <p class="text-muted">Create your first batch job to get started</p>
-                <button class="btn btn-primary" onclick="document.getElementById('toggleCreateForm').click()">
-                    <i class="fas fa-plus me-1"></i>Create Job
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h5 class="mt-3 mb-2">No batch jobs found</h5>
+                <p class="text-muted mb-4">
+                    {% if error_message %}
+                    There was an issue loading jobs. Please try refreshing.
+                    {% else %}
+                    Create your first batch job to get started with automated analysis
+                    {% endif %}
+                </p>
+                <button class="btn btn-primary btn-lg" onclick="document.getElementById('toggleCreateForm').click()">
+                    <i class="fas fa-plus me-2"></i>Create Your First Job
                 </button>
             </div>
             {% endif %}
@@ -454,13 +923,161 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Toggle create form
-    const toggleBtn = document.getElementById('toggleCreateForm');
-    const createForm = document.getElementById('createJobForm');
-    const cancelBtn = document.getElementById('cancelCreateForm');
+class BatchDashboard {
+    constructor() {
+        this.autoRefreshInterval = null;
+        this.autoRefreshEnabled = false;
+        this.refreshRate = 5000; // 5 seconds
+        this.sortState = { column: null, direction: 'asc' };
+        this.activeFilters = {};
+        this.selectedJobs = new Set();
+        
+        this.init();
+    }
     
-    toggleBtn.addEventListener('click', function() {
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+        this.setupFilters();
+        this.setupBulkActions();
+        this.updateConnectionStatus(true);
+        
+        // Enable auto-refresh by default for running jobs
+        if (this.hasRunningJobs()) {
+            this.toggleAutoRefresh(true);
+        }
+    }
+    
+    setupEventListeners() {
+        // Form toggle
+        const toggleBtn = document.getElementById('toggleCreateForm');
+        const createForm = document.getElementById('createJobForm');
+        const cancelBtn = document.getElementById('cancelCreateForm');
+        
+        if (toggleBtn && createForm) {
+            toggleBtn.addEventListener('click', () => this.toggleCreateForm());
+        }
+        
+        if (cancelBtn && createForm) {
+            cancelBtn.addEventListener('click', () => this.hideCreateForm());
+        }
+        
+        // Refresh controls
+        document.getElementById('refreshDashboard')?.addEventListener('click', () => this.refreshDashboard());
+        document.getElementById('autoRefreshToggle')?.addEventListener('click', () => this.toggleAutoRefresh());
+        
+        // Filter controls
+        document.getElementById('toggleFilters')?.addEventListener('click', () => this.toggleFilters());
+        document.getElementById('clearFilters')?.addEventListener('click', () => this.clearFilters());
+        
+        // Job action buttons
+        this.setupJobActionButtons();
+        
+        // Table controls
+        this.setupTableControls();
+        
+        // Form validation
+        this.setupFormValidation();
+    }
+    
+    setupJobActionButtons() {
+        // Cancel job buttons
+        document.querySelectorAll('.cancel-job-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.cancelJob(e.target.dataset.jobId));
+        });
+        
+        // Delete job buttons
+        document.querySelectorAll('.delete-job-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.deleteJob(e.target.dataset.jobId));
+        });
+        
+        // Pause job buttons
+        document.querySelectorAll('.pause-job-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.pauseJob(e.target.dataset.jobId));
+        });
+        
+        // Resume job buttons
+        document.querySelectorAll('.resume-job-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.resumeJob(e.target.dataset.jobId));
+        });
+        
+        // Start job buttons
+        document.querySelectorAll('.start-job-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.startJob(e.target.dataset.jobId));
+        });
+        
+        // Export job buttons
+        document.querySelectorAll('.export-job-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.exportJob(e.target.dataset.jobId));
+        });
+    }
+    
+    setupTableControls() {
+        // Select all checkbox
+        const selectAllCheckbox = document.getElementById('selectAllJobs');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => this.toggleSelectAll(e.target.checked));
+        }
+        
+        // Individual job checkboxes
+        document.querySelectorAll('.job-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => this.toggleJobSelection(e.target.value, e.target.checked));
+        });
+        
+        // Sort buttons
+        document.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.sortTable(e.target.dataset.column));
+        });
+    }
+    
+    setupAutoRefresh() {
+        this.autoRefreshEnabled = localStorage.getItem('batchDashboardAutoRefresh') === 'true';
+        this.updateAutoRefreshUI();
+        
+        if (this.autoRefreshEnabled) {
+            this.startAutoRefresh();
+        }
+    }
+    
+    setupFilters() {
+        const filterInputs = ['statusFilter', 'analysisTypeFilter', 'dateFilter', 'searchFilter'];
+        
+        filterInputs.forEach(filterId => {
+            const element = document.getElementById(filterId);
+            if (element) {
+                element.addEventListener('change', () => this.applyFilters());
+                element.addEventListener('input', () => this.debounceApplyFilters());
+            }
+        });
+    }
+    
+    setupBulkActions() {
+        document.getElementById('pauseAllJobs')?.addEventListener('click', () => this.bulkPauseJobs());
+        document.getElementById('resumeAllJobs')?.addEventListener('click', () => this.bulkResumeJobs());
+        document.getElementById('cancelAllJobs')?.addEventListener('click', () => this.bulkCancelJobs());
+        document.getElementById('exportJobs')?.addEventListener('click', () => this.exportAllJobs());
+    }
+    
+    setupFormValidation() {
+        const form = document.getElementById('batchJobForm');
+        if (!form) return;
+        
+        form.addEventListener('submit', (e) => this.validateForm(e));
+        
+        // Dynamic tool enabling/disabling
+        const analysisTypesSelect = document.getElementById('analysis_types');
+        if (analysisTypesSelect) {
+            analysisTypesSelect.addEventListener('change', () => this.updateToolAvailability());
+        }
+    }
+    
+    // Form Management
+    toggleCreateForm() {
+        const createForm = document.getElementById('createJobForm');
+        const toggleBtn = document.getElementById('toggleCreateForm');
+        
+        if (!createForm || !toggleBtn) return;
+        
         const isHidden = createForm.style.display === 'none';
         createForm.style.display = isHidden ? 'block' : 'none';
         createForm.setAttribute('aria-hidden', !isHidden);
@@ -468,159 +1085,635 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (isHidden) {
             createForm.scrollIntoView({ behavior: 'smooth' });
+            // Focus first input
+            const firstInput = createForm.querySelector('input, select');
+            if (firstInput) firstInput.focus();
         }
-    });
+    }
     
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', function() {
-            createForm.style.display = 'none';
-            createForm.setAttribute('aria-hidden', true);
-            toggleBtn.setAttribute('aria-expanded', false);
+    hideCreateForm() {
+        const createForm = document.getElementById('createJobForm');
+        const toggleBtn = document.getElementById('toggleCreateForm');
+        
+        if (!createForm || !toggleBtn) return;
+        
+        createForm.style.display = 'none';
+        createForm.setAttribute('aria-hidden', true);
+        toggleBtn.setAttribute('aria-expanded', false);
+    }
+    
+    validateForm(e) {
+        const form = e.target;
+        const name = form.querySelector('#name')?.value?.trim();
+        const analysisTypes = form.querySelectorAll('#analysis_types option:checked');
+        const models = form.querySelectorAll('#models option:checked');
+        const appStart = parseInt(form.querySelector('#app_start')?.value || 0);
+        const appEnd = parseInt(form.querySelector('#app_end')?.value || 0);
+        
+        // Basic validation
+        if (!name) {
+            this.showAlert('Please enter a job name', 'error');
+            e.preventDefault();
+            return false;
+        }
+        
+        if (analysisTypes.length === 0) {
+            this.showAlert('Please select at least one analysis type', 'error');
+            e.preventDefault();
+            return false;
+        }
+        
+        if (models.length === 0) {
+            this.showAlert('Please select at least one model', 'error');
+            e.preventDefault();
+            return false;
+        }
+        
+        if (appStart > appEnd) {
+            this.showAlert('Start app number must be less than or equal to end app number', 'error');
+            e.preventDefault();
+            return false;
+        }
+        
+        // Tool validation
+        const selectedAnalysisTypes = Array.from(analysisTypes).map(opt => opt.value);
+        
+        if (selectedAnalysisTypes.some(type => type.includes('security'))) {
+            const securityTools = form.querySelectorAll('input[name="security_tools"]:checked');
+            if (securityTools.length === 0) {
+                this.showAlert('Please select at least one security analysis tool', 'error');
+                e.preventDefault();
+                return false;
+            }
+        }
+        
+        // Confirm large batch jobs
+        const totalJobs = (appEnd - appStart + 1) * models.length * analysisTypes.length;
+        if (totalJobs > 50) {
+            if (!confirm(`This will create ${totalJobs} analysis tasks. This may take a very long time. Continue?`)) {
+                e.preventDefault();
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    updateToolAvailability() {
+        const analysisTypesSelect = document.getElementById('analysis_types');
+        if (!analysisTypesSelect) return;
+        
+        const selectedTypes = Array.from(analysisTypesSelect.selectedOptions).map(opt => opt.value);
+        
+        // Enable/disable tool sections based on selected analysis types
+        this.updateToolSection('security_tools', selectedTypes.some(type => type.includes('security')));
+        this.updateToolSection('performance_tools', selectedTypes.includes('performance'));
+        this.updateToolSection('web_security_tools', selectedTypes.includes('zap'));
+    }
+    
+    updateToolSection(toolGroup, enabled) {
+        const tools = document.querySelectorAll(`input[name="${toolGroup}"]`);
+        const card = tools[0]?.closest('.card');
+        
+        if (card) {
+            card.classList.toggle('opacity-50', !enabled);
+        }
+        
+        tools.forEach(tool => {
+            tool.disabled = !enabled;
         });
     }
     
-    // Cancel job buttons
-    document.querySelectorAll('.cancel-job-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const jobId = this.dataset.jobId;
-            if (confirm('Are you sure you want to cancel this job?')) {
-                // Implement cancel job logic
-                console.log('Cancelling job:', jobId);
-            }
-        });
-    });
-    
-    // Delete job buttons
-    document.querySelectorAll('.delete-job-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const jobId = this.dataset.jobId;
-            if (confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
-                // Implement delete job logic
-                console.log('Deleting job:', jobId);
-            }
-        });
-    });
-    
-    // Form validation
-    const form = document.getElementById('batchJobForm');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            const name = document.getElementById('name').value;
-            const analysisTypes = document.getElementById('analysis_types').selectedOptions;
-            const models = document.getElementById('models').selectedOptions;
-            const appStart = parseInt(document.getElementById('app_start').value);
-            const appEnd = parseInt(document.getElementById('app_end').value);
-            
-            // Basic validation
-            if (!name.trim()) {
-                alert('Please enter a job name');
-                e.preventDefault();
-                return;
-            }
-            
-            if (analysisTypes.length === 0) {
-                alert('Please select at least one analysis type');
-                e.preventDefault();
-                return;
-            }
-            
-            if (models.length === 0) {
-                alert('Please select at least one model');
-                e.preventDefault();
-                return;
-            }
-            
-            // App range validation
-            if (appStart > appEnd) {
-                alert('Start app number must be less than or equal to end app number');
-                e.preventDefault();
-                return;
-            }
-            
-            // Tool validation - ensure at least one tool is selected for each analysis type
-            const selectedAnalysisTypes = Array.from(analysisTypes).map(opt => opt.value);
-            
-            if (selectedAnalysisTypes.includes('frontend_security') || selectedAnalysisTypes.includes('backend_security')) {
-                const securityTools = document.querySelectorAll('input[name="security_tools"]:checked');
-                if (securityTools.length === 0) {
-                    alert('Please select at least one security analysis tool');
-                    e.preventDefault();
-                    return;
-                }
-            }
-            
-            if (selectedAnalysisTypes.includes('performance')) {
-                const performanceTools = document.querySelectorAll('input[name="performance_tools"]:checked');
-                if (performanceTools.length === 0) {
-                    alert('Please select at least one performance testing tool');
-                    e.preventDefault();
-                    return;
-                }
-            }
-            
-            if (selectedAnalysisTypes.includes('zap')) {
-                const zapTool = document.getElementById('tool_zap');
-                if (!zapTool.checked) {
-                    alert('ZAP tool must be enabled for ZAP analysis type');
-                    e.preventDefault();
-                    return;
-                }
-            }
-            
-            // Confirm large batch jobs
-            const totalJobs = (appEnd - appStart + 1) * models.length;
-            if (totalJobs > 50) {
-                if (!confirm(`This will create ${totalJobs} analysis jobs. This may take a very long time. Continue?`)) {
-                    e.preventDefault();
-                    return;
-                }
-            }
-        });
+    // Auto-refresh Management
+    toggleAutoRefresh(forceState = null) {
+        this.autoRefreshEnabled = forceState !== null ? forceState : !this.autoRefreshEnabled;
+        localStorage.setItem('batchDashboardAutoRefresh', this.autoRefreshEnabled.toString());
         
-        // Dynamic tool enabling/disabling based on analysis types
-        const analysisTypesSelect = document.getElementById('analysis_types');
-        if (analysisTypesSelect) {
-            analysisTypesSelect.addEventListener('change', function() {
-                const selectedTypes = Array.from(this.selectedOptions).map(opt => opt.value);
+        if (this.autoRefreshEnabled) {
+            this.startAutoRefresh();
+        } else {
+            this.stopAutoRefresh();
+        }
+        
+        this.updateAutoRefreshUI();
+    }
+    
+    startAutoRefresh() {
+        this.stopAutoRefresh(); // Clear any existing interval
+        this.autoRefreshInterval = setInterval(() => this.refreshDashboard(), this.refreshRate);
+    }
+    
+    stopAutoRefresh() {
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+            this.autoRefreshInterval = null;
+        }
+    }
+    
+    updateAutoRefreshUI() {
+        const toggleBtn = document.getElementById('autoRefreshToggle');
+        const textElement = document.getElementById('autoRefreshText');
+        
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('btn-outline-info', !this.autoRefreshEnabled);
+            toggleBtn.classList.toggle('btn-info', this.autoRefreshEnabled);
+        }
+        
+        if (textElement) {
+            textElement.textContent = this.autoRefreshEnabled ? 'Auto ON' : 'Auto OFF';
+        }
+    }
+    
+    async refreshDashboard() {
+        const refreshIcon = document.getElementById('refreshIcon');
+        if (refreshIcon) {
+            refreshIcon.classList.add('refresh-indicator');
+        }
+        
+        try {
+            const response = await fetch(window.location.href, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            if (response.ok) {
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
                 
-                // Enable/disable security tools
-                const securityTools = document.querySelectorAll('input[name="security_tools"]');
-                const securityCard = securityTools[0]?.closest('.card');
-                if (selectedTypes.includes('frontend_security') || selectedTypes.includes('backend_security')) {
-                    securityCard?.classList.remove('opacity-50');
-                    securityTools.forEach(tool => tool.disabled = false);
-                } else {
-                    securityCard?.classList.add('opacity-50');
-                    securityTools.forEach(tool => tool.disabled = true);
-                }
+                // Update statistics
+                this.updateStatistics(doc);
                 
-                // Enable/disable performance tools
-                const performanceTools = document.querySelectorAll('input[name="performance_tools"]');
-                const performanceCard = performanceTools[0]?.closest('.card');
-                if (selectedTypes.includes('performance')) {
-                    performanceCard?.classList.remove('opacity-50');
-                    performanceTools.forEach(tool => tool.disabled = false);
-                } else {
-                    performanceCard?.classList.add('opacity-50');
-                    performanceTools.forEach(tool => tool.disabled = true);
-                }
+                // Update jobs table
+                this.updateJobsTable(doc);
                 
-                // Enable/disable web security tools
-                const webSecurityTools = document.querySelectorAll('input[name="web_security_tools"]');
-                const webSecurityCard = webSecurityTools[0]?.closest('.card');
-                if (selectedTypes.includes('zap')) {
-                    webSecurityCard?.classList.remove('opacity-50');
-                    webSecurityTools.forEach(tool => tool.disabled = false);
-                } else {
-                    webSecurityCard?.classList.add('opacity-50');
-                    webSecurityTools.forEach(tool => tool.disabled = true);
+                // Update last refresh time
+                document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
+                
+                this.updateConnectionStatus(true);
+            } else {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Refresh failed:', error);
+            this.updateConnectionStatus(false);
+            this.showAlert('Failed to refresh dashboard', 'error');
+        } finally {
+            if (refreshIcon) {
+                refreshIcon.classList.remove('refresh-indicator');
+            }
+        }
+    }
+    
+    updateStatistics(doc) {
+        const statsMapping = {
+            'totalJobsCount': doc.querySelector('#totalJobsCount')?.textContent,
+            'runningJobsCount': doc.querySelector('#runningJobsCount')?.textContent,
+            'completedJobsCount': doc.querySelector('#completedJobsCount')?.textContent,
+            'failedJobsCount': doc.querySelector('#failedJobsCount')?.textContent
+        };
+        
+        Object.entries(statsMapping).forEach(([id, newValue]) => {
+            const element = document.getElementById(id);
+            if (element && newValue !== undefined) {
+                this.animateCounterUpdate(element, parseInt(newValue) || 0);
+            }
+        });
+    }
+    
+    animateCounterUpdate(element, newValue) {
+        const currentValue = parseInt(element.textContent) || 0;
+        if (currentValue === newValue) return;
+        
+        const duration = 500;
+        const steps = 20;
+        const stepValue = (newValue - currentValue) / steps;
+        let step = 0;
+        
+        const interval = setInterval(() => {
+            step++;
+            const value = Math.round(currentValue + (stepValue * step));
+            element.textContent = value;
+            
+            if (step >= steps) {
+                clearInterval(interval);
+                element.textContent = newValue;
+            }
+        }, duration / steps);
+    }
+    
+    updateJobsTable(doc) {
+        const newTableBody = doc.querySelector('#jobsTableBody');
+        const currentTableBody = document.getElementById('jobsTableBody');
+        
+        if (newTableBody && currentTableBody) {
+            // Preserve selections
+            const selectedJobIds = Array.from(document.querySelectorAll('.job-checkbox:checked')).map(cb => cb.value);
+            
+            currentTableBody.innerHTML = newTableBody.innerHTML;
+            
+            // Restore selections
+            selectedJobIds.forEach(jobId => {
+                const checkbox = document.querySelector(`.job-checkbox[value="${jobId}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                    this.selectedJobs.add(jobId);
                 }
             });
             
-            // Trigger initial state
-            analysisTypesSelect.dispatchEvent(new Event('change'));
+            // Re-attach event listeners
+            this.setupJobActionButtons();
+            this.setupTableControls();
         }
     }
+    
+    updateConnectionStatus(connected) {
+        const indicator = document.getElementById('connectionStatus');
+        if (indicator) {
+            indicator.classList.toggle('disconnected', !connected);
+            indicator.querySelector('span').textContent = connected ? 'Live Updates' : 'Disconnected';
+        }
+    }
+    
+    hasRunningJobs() {
+        return document.querySelectorAll('.status-running').length > 0;
+    }
+    
+    // Job Actions
+    async cancelJob(jobId) {
+        if (!confirm('Are you sure you want to cancel this job?')) return;
+        
+        try {
+            const response = await fetch(`/batch/job/${jobId}/cancel`, { method: 'POST' });
+            if (response.ok) {
+                this.showAlert('Job cancelled successfully', 'success');
+                this.refreshDashboard();
+            } else {
+                throw new Error('Failed to cancel job');
+            }
+        } catch (error) {
+            this.showAlert('Failed to cancel job', 'error');
+        }
+    }
+    
+    async deleteJob(jobId) {
+        if (!confirm('Are you sure you want to delete this job? This action cannot be undone.')) return;
+        
+        try {
+            const response = await fetch(`/batch/job/${jobId}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.showAlert('Job deleted successfully', 'success');
+                this.refreshDashboard();
+            } else {
+                throw new Error('Failed to delete job');
+            }
+        } catch (error) {
+            this.showAlert('Failed to delete job', 'error');
+        }
+    }
+    
+    async pauseJob(jobId) {
+        try {
+            const response = await fetch(`/batch/job/${jobId}/pause`, { method: 'POST' });
+            if (response.ok) {
+                this.showAlert('Job paused successfully', 'success');
+                this.refreshDashboard();
+            } else {
+                throw new Error('Failed to pause job');
+            }
+        } catch (error) {
+            this.showAlert('Failed to pause job', 'error');
+        }
+    }
+    
+    async resumeJob(jobId) {
+        try {
+            const response = await fetch(`/batch/job/${jobId}/resume`, { method: 'POST' });
+            if (response.ok) {
+                this.showAlert('Job resumed successfully', 'success');
+                this.refreshDashboard();
+            } else {
+                throw new Error('Failed to resume job');
+            }
+        } catch (error) {
+            this.showAlert('Failed to resume job', 'error');
+        }
+    }
+    
+    async startJob(jobId) {
+        try {
+            const response = await fetch(`/batch/job/${jobId}/start`, { method: 'POST' });
+            if (response.ok) {
+                this.showAlert('Job started successfully', 'success');
+                this.refreshDashboard();
+            } else {
+                throw new Error('Failed to start job');
+            }
+        } catch (error) {
+            this.showAlert('Failed to start job', 'error');
+        }
+    }
+    
+    async exportJob(jobId) {
+        try {
+            const response = await fetch(`/batch/job/${jobId}/export`);
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `batch_job_${jobId}_results.json`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                this.showAlert('Job results exported successfully', 'success');
+            } else {
+                throw new Error('Failed to export job');
+            }
+        } catch (error) {
+            this.showAlert('Failed to export job results', 'error');
+        }
+    }
+    
+    // Filtering and Sorting
+    toggleFilters() {
+        const filtersPanel = document.getElementById('filtersPanel');
+        const toggleBtn = document.getElementById('toggleFilters');
+        
+        if (filtersPanel) {
+            const isHidden = filtersPanel.style.display === 'none';
+            filtersPanel.style.display = isHidden ? 'block' : 'none';
+            toggleBtn?.setAttribute('aria-expanded', isHidden.toString());
+        }
+    }
+    
+    clearFilters() {
+        document.getElementById('statusFilter').value = '';
+        document.getElementById('analysisTypeFilter').value = '';
+        document.getElementById('dateFilter').value = '';
+        document.getElementById('searchFilter').value = '';
+        
+        this.activeFilters = {};
+        this.applyFilters();
+    }
+    
+    debounceApplyFilters() {
+        clearTimeout(this.filterTimeout);
+        this.filterTimeout = setTimeout(() => this.applyFilters(), 300);
+    }
+    
+    applyFilters() {
+        const filters = {
+            status: document.getElementById('statusFilter')?.value,
+            analysisType: document.getElementById('analysisTypeFilter')?.value,
+            date: document.getElementById('dateFilter')?.value,
+            search: document.getElementById('searchFilter')?.value?.toLowerCase()
+        };
+        
+        this.activeFilters = filters;
+        
+        const rows = document.querySelectorAll('.job-row');
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            let visible = true;
+            
+            // Status filter
+            if (filters.status && row.dataset.status !== filters.status) {
+                visible = false;
+            }
+            
+            // Analysis type filter
+            if (filters.analysisType && !row.dataset.analysisType.includes(filters.analysisType)) {
+                visible = false;
+            }
+            
+            // Date filter
+            if (filters.date && !this.matchesDateFilter(row.dataset.created, filters.date)) {
+                visible = false;
+            }
+            
+            // Search filter
+            if (filters.search) {
+                const jobName = row.querySelector('.job-info .fw-bold')?.textContent?.toLowerCase() || '';
+                const jobDesc = row.querySelector('.job-info .text-muted')?.textContent?.toLowerCase() || '';
+                if (!jobName.includes(filters.search) && !jobDesc.includes(filters.search)) {
+                    visible = false;
+                }
+            }
+            
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+        
+        // Update jobs count
+        document.getElementById('jobsCount').textContent = visibleCount;
+    }
+    
+    matchesDateFilter(dateString, filter) {
+        if (!dateString) return false;
+        
+        const date = new Date(dateString);
+        const now = new Date();
+        
+        switch (filter) {
+            case 'today':
+                return date.toDateString() === now.toDateString();
+            case 'week':
+                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                return date >= weekAgo;
+            case 'month':
+                const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+                return date >= monthAgo;
+            default:
+                return true;
+        }
+    }
+    
+    sortTable(column) {
+        if (!column) return;
+        
+        const direction = this.sortState.column === column && this.sortState.direction === 'asc' ? 'desc' : 'asc';
+        this.sortState = { column, direction };
+        
+        const tableBody = document.getElementById('jobsTableBody');
+        const rows = Array.from(tableBody.querySelectorAll('.job-row'));
+        
+        rows.sort((a, b) => {
+            let aVal, bVal;
+            
+            switch (column) {
+                case 'name':
+                    aVal = a.querySelector('.job-info .fw-bold')?.textContent || '';
+                    bVal = b.querySelector('.job-info .fw-bold')?.textContent || '';
+                    break;
+                case 'status':
+                    aVal = a.dataset.status || '';
+                    bVal = b.dataset.status || '';
+                    break;
+                case 'created':
+                    aVal = new Date(a.dataset.created || 0);
+                    bVal = new Date(b.dataset.created || 0);
+                    break;
+                default:
+                    return 0;
+            }
+            
+            if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+        
+        // Update table
+        rows.forEach(row => tableBody.appendChild(row));
+        
+        // Update sort indicators
+        document.querySelectorAll('.sort-btn i').forEach(icon => {
+            icon.className = 'fas fa-sort';
+        });
+        
+        const sortBtn = document.querySelector(`[data-column="${column}"] i`);
+        if (sortBtn) {
+            sortBtn.className = `fas fa-sort-${direction === 'asc' ? 'up' : 'down'}`;
+        }
+    }
+    
+    // Selection Management
+    toggleSelectAll(checked) {
+        document.querySelectorAll('.job-checkbox').forEach(checkbox => {
+            checkbox.checked = checked;
+            this.toggleJobSelection(checkbox.value, checked);
+        });
+    }
+    
+    toggleJobSelection(jobId, selected) {
+        if (selected) {
+            this.selectedJobs.add(jobId);
+        } else {
+            this.selectedJobs.delete(jobId);
+        }
+        
+        // Update select all checkbox
+        const allCheckboxes = document.querySelectorAll('.job-checkbox');
+        const checkedCheckboxes = document.querySelectorAll('.job-checkbox:checked');
+        const selectAllCheckbox = document.getElementById('selectAllJobs');
+        
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = allCheckboxes.length === checkedCheckboxes.length && allCheckboxes.length > 0;
+            selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < allCheckboxes.length;
+        }
+    }
+    
+    // Bulk Actions
+    async bulkPauseJobs() {
+        const runningJobs = Array.from(this.selectedJobs).filter(jobId => {
+            const row = document.querySelector(`[data-job-id="${jobId}"]`);
+            return row?.dataset.status === 'running';
+        });
+        
+        if (runningJobs.length === 0) {
+            this.showAlert('No running jobs selected', 'warning');
+            return;
+        }
+        
+        if (!confirm(`Pause ${runningJobs.length} running job(s)?`)) return;
+        
+        for (const jobId of runningJobs) {
+            await this.pauseJob(jobId);
+        }
+    }
+    
+    async bulkResumeJobs() {
+        const pausedJobs = Array.from(this.selectedJobs).filter(jobId => {
+            const row = document.querySelector(`[data-job-id="${jobId}"]`);
+            return row?.dataset.status === 'paused';
+        });
+        
+        if (pausedJobs.length === 0) {
+            this.showAlert('No paused jobs selected', 'warning');
+            return;
+        }
+        
+        if (!confirm(`Resume ${pausedJobs.length} paused job(s)?`)) return;
+        
+        for (const jobId of pausedJobs) {
+            await this.resumeJob(jobId);
+        }
+    }
+    
+    async bulkCancelJobs() {
+        const activeJobs = Array.from(this.selectedJobs).filter(jobId => {
+            const row = document.querySelector(`[data-job-id="${jobId}"]`);
+            return ['running', 'paused', 'pending'].includes(row?.dataset.status);
+        });
+        
+        if (activeJobs.length === 0) {
+            this.showAlert('No active jobs selected', 'warning');
+            return;
+        }
+        
+        if (!confirm(`Cancel ${activeJobs.length} active job(s)? This cannot be undone.`)) return;
+        
+        for (const jobId of activeJobs) {
+            await this.cancelJob(jobId);
+        }
+    }
+    
+    async exportAllJobs() {
+        try {
+            const response = await fetch('/batch/export-all');
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `batch_jobs_export_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                this.showAlert('All jobs exported successfully', 'success');
+            } else {
+                throw new Error('Failed to export jobs');
+            }
+        } catch (error) {
+            this.showAlert('Failed to export jobs', 'error');
+        }
+    }
+    
+    // Utility Methods
+    showAlert(message, type = 'info') {
+        const alertsContainer = document.getElementById('alertsContainer');
+        if (!alertsContainer) return;
+        
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show alert-floating`;
+        alert.innerHTML = `
+            <i class="fas fa-${this.getAlertIcon(type)} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        alertsContainer.appendChild(alert);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+    
+    getAlertIcon(type) {
+        const icons = {
+            success: 'check-circle',
+            error: 'exclamation-triangle',
+            warning: 'exclamation-triangle',
+            info: 'info-circle'
+        };
+        return icons[type] || 'info-circle';
+    }
+}
+
+// Initialize dashboard when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    window.batchDashboard = new BatchDashboard();
 });
 </script>
 {% endblock %}
