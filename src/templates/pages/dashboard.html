@@ -137,6 +137,354 @@
     </div>
 </div>
 
+<!-- ==================== CONSOLIDATED DASHBOARD PARTIALS ==================== -->
+
+<!-- Dashboard Models Grid Template (replaces dashboard_models_grid.html) -->
+<template id="dashboard-models-grid-template">
+    <div class="row">
+        {% raw %}
+        {{#models}}
+        <div class="col-12 mb-4">
+            <div class="card model-card" id="model-{{canonical_slug}}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1 font-weight-bold text-primary">
+                            {{model_name}}
+                        </h6>
+                        <small class="text-muted">{{provider}}</small>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-sm"
+                                onclick="testLoadApps('{{canonical_slug}}')"
+                                data-toggle="collapse" 
+                                data-target="#apps-{{safe_css_id}}"
+                                aria-expanded="false"
+                                id="toggle-{{safe_css_id}}">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm"
+                                onclick="showModelDetails('{{canonical_slug}}')"
+                                data-toggle="tooltip" title="Model Details">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Model Metadata -->
+                    <div class="mb-3">
+                        <div class="d-flex flex-wrap">
+                            <span class="badge badge-primary mr-1 mb-1">{{provider}}</span>
+                            {{#context_window}}
+                            <span class="badge badge-secondary mr-1 mb-1">{{context_window}} tokens</span>
+                            {{/context_window}}
+                            {{#supports_function_calling}}
+                            <span class="badge badge-success mr-1 mb-1">
+                                <i class="fas fa-cog mr-1"></i>Functions
+                            </span>
+                            {{/supports_function_calling}}
+                            {{#supports_vision}}
+                            <span class="badge badge-info mr-1 mb-1">
+                                <i class="fas fa-eye mr-1"></i>Vision
+                            </span>
+                            {{/supports_vision}}
+                        </div>
+                    </div>
+
+                    <!-- Model Stats -->
+                    <div class="row text-center mb-3">
+                        <div class="col-3">
+                            <div class="stat-item">
+                                <div class="stat-value text-info">{{total_apps}}</div>
+                                <div class="stat-label">Apps</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-item">
+                                <div class="stat-value text-success" data-stat="running" data-model="{{canonical_slug}}">{{running_containers}}</div>
+                                <div class="stat-label">Running</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-item">
+                                <div class="stat-value text-secondary" data-stat="stopped" data-model="{{canonical_slug}}">{{stopped_containers}}</div>
+                                <div class="stat-label">Stopped</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-item">
+                                <div class="stat-value text-danger" data-stat="error" data-model="{{canonical_slug}}">{{error_containers}}</div>
+                                <div class="stat-label">Errors</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <button type="button" class="btn btn-success"
+                                hx-post="/api/model/{{canonical_slug}}/start-all"
+                                hx-target="#model-{{canonical_slug}}"
+                                hx-swap="outerHTML"
+                                hx-confirm="Start all containers for {{model_name}}?"
+                                data-toggle="tooltip" title="Start All Apps">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button type="button" class="btn btn-warning"
+                                hx-post="/api/model/{{canonical_slug}}/restart-all"
+                                hx-target="#model-{{canonical_slug}}"
+                                hx-swap="outerHTML"
+                                hx-confirm="Restart all containers for {{model_name}}?"
+                                data-toggle="tooltip" title="Restart All Apps">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <button type="button" class="btn btn-danger"
+                                hx-post="/api/model/{{canonical_slug}}/stop-all"
+                                hx-target="#model-{{canonical_slug}}"
+                                hx-swap="outerHTML"
+                                hx-confirm="Stop all containers for {{model_name}}?"
+                                data-toggle="tooltip" title="Stop All Apps">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <button type="button" class="btn btn-secondary"
+                                hx-post="/api/model/{{canonical_slug}}/analyze-all"
+                                hx-target="#model-{{canonical_slug}}"
+                                hx-swap="outerHTML"
+                                hx-confirm="Run security analysis on all apps for {{model_name}}?"
+                                data-toggle="tooltip" title="Analyze All Apps">
+                            <i class="fas fa-shield-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Collapsible Apps List -->
+                <div class="collapse" id="apps-{{safe_css_id}}">
+                    <div class="card-footer p-0" id="apps-content-{{safe_css_id}}">
+                        <div class="text-center p-3" id="loading-{{safe_css_id}}">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <small class="d-block mt-2 text-muted">Loading applications...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/models}}
+        {{^models}}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Models Found</h4>
+                    <p class="text-muted">No AI models are currently configured in the system.</p>
+                    <button class="btn btn-primary" onclick="location.reload()">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+        {{/models}}
+        {% endraw %}
+    </div>
+</template>
+
+<!-- Dashboard Model Apps Template (replaces dashboard_model_apps.html) -->
+<template id="dashboard-model-apps-template">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="thead-light">
+                <tr>
+                    <th width="8%">App</th>
+                    <th width="20%">Name</th>
+                    <th width="10%">Status</th>
+                    <th width="12%">Containers</th>
+                    <th width="15%">Ports</th>
+                    <th width="15%">Analysis</th>
+                    <th width="20%">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% raw %}
+                {{#apps}}
+                <tr id="app-{{model_slug_safe}}-{{app_number}}" class="app-row">
+                    <!-- App Number -->
+                    <td class="align-middle">
+                        <span class="badge badge-outline-primary px-2">{{app_number}}</span>
+                    </td>
+                    
+                    <!-- App Name -->
+                    <td class="align-middle">
+                        <div class="app-info">
+                            <div class="font-weight-medium">{{app_name}}</div>
+                            <small class="text-muted d-block">{{description_short}}</small>
+                        </div>
+                    </td>
+                    
+                    <!-- Status -->
+                    <td class="align-middle">
+                        {{#show_error}}
+                        <div class="text-danger">
+                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                            <small>{{error_message}}</small>
+                        </div>
+                        {{/show_error}}
+                        {{^show_error}}
+                        <span class="badge badge-{{status_class}} badge-pill">
+                            <i class="fas fa-circle mr-1 icon-sm"></i>
+                            {{status_title}}
+                        </span>
+                        {{/show_error}}
+                    </td>
+                    
+                    <!-- Container Status -->
+                    <td class="align-middle">
+                        <div class="d-flex justify-content-start">
+                            <span class="mx-1 {{frontend_status_class}}"
+                                  title="Frontend: {{frontend_status_title}}">
+                                <i class="fas fa-globe-americas icon-md"></i>
+                            </span>
+                            <span class="mx-1 {{backend_status_class}}"
+                                  title="Backend: {{backend_status_title}}">
+                                <i class="fas fa-cogs icon-md"></i>
+                            </span>
+                            <span class="mx-1 {{database_status_class}}"
+                                  title="Database: {{database_status_title}}">
+                                <i class="fas fa-database icon-md"></i>
+                            </span>
+                        </div>
+                    </td>
+                    
+                    <!-- Ports -->
+                    <td class="align-middle">
+                        <div class="port-info">
+                            <small class="d-block">
+                                <i class="fas fa-desktop mr-1"></i>{{frontend_port}}
+                            </small>
+                            <small class="d-block">
+                                <i class="fas fa-server mr-1"></i>{{backend_port}}
+                            </small>
+                        </div>
+                    </td>
+                    
+                    <!-- Analysis Summary -->
+                    <td class="align-middle">
+                        {{#has_analysis}}
+                        <div class="d-flex justify-content-between analysis-compact">
+                            <span class="text-danger" title="High Issues">
+                                <i class="fas fa-exclamation-triangle"></i> {{high_issues}}
+                            </span>
+                            <span class="text-warning" title="Medium Issues">
+                                <i class="fas fa-exclamation-circle"></i> {{medium_issues}}
+                            </span>
+                            <span class="text-success" title="Low Issues">
+                                <i class="fas fa-info-circle"></i> {{low_issues}}
+                            </span>
+                        </div>
+                        {{#has_performance}}
+                        <div class="mt-1">
+                            <small class="text-muted">
+                                {{avg_response_time}}ms | {{success_rate}}%
+                            </small>
+                        </div>
+                        {{/has_performance}}
+                        {{/has_analysis}}
+                        {{^has_analysis}}
+                        <small class="text-muted">No analysis</small>
+                        {{/has_analysis}}
+                    </td>
+                    
+                    <!-- Actions -->
+                    <td class="align-middle">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <!-- Primary Actions -->
+                            {{#is_stopped}}
+                            <button class="btn btn-outline-success btn-xs" 
+                                    hx-post="/api/containers/{{model_slug}}/{{app_number}}/start"
+                                    hx-target="#app-{{model_slug_safe}}-{{app_number}}"
+                                    hx-swap="outerHTML"
+                                    title="Start containers">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            {{/is_stopped}}
+                            {{#is_running}}
+                            <button class="btn btn-outline-warning btn-xs" 
+                                    hx-post="/api/containers/{{model_slug}}/{{app_number}}/restart"
+                                    hx-target="#app-{{model_slug_safe}}-{{app_number}}"
+                                    hx-swap="outerHTML"
+                                    title="Restart containers">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-xs" 
+                                    hx-post="/api/containers/{{model_slug}}/{{app_number}}/stop"
+                                    hx-target="#app-{{model_slug_safe}}-{{app_number}}"
+                                    hx-swap="outerHTML"
+                                    title="Stop containers">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                            {{/is_running}}
+                            {{#is_error}}
+                            <button class="btn btn-outline-warning btn-xs" 
+                                    hx-post="/api/containers/{{model_slug}}/{{app_number}}/restart"
+                                    hx-target="#app-{{model_slug_safe}}-{{app_number}}"
+                                    hx-swap="outerHTML"
+                                    title="Restart containers">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                            {{/is_error}}
+                            
+                            <!-- Open App -->
+                            {{#is_running}}
+                            <button class="btn btn-outline-primary btn-xs" 
+                                    onclick="window.open('http://localhost:{{frontend_port}}', '_blank')"
+                                    title="Open app">
+                                <i class="fas fa-external-link-alt"></i>
+                            </button>
+                            {{/is_running}}
+                            
+                            <!-- Dropdown for Additional Actions -->
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-xs dropdown-toggle dropdown-toggle-split" 
+                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <span class="sr-only">Toggle Dropdown</span>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-right">
+                                    <a class="dropdown-item" href="#" 
+                                       onclick="showAppLogs('{{model_slug}}', {{app_number}})">
+                                        <i class="fas fa-file-alt mr-2"></i>View Logs
+                                    </a>
+                                    <a class="dropdown-item" 
+                                       href="/app/{{model_slug}}/{{app_number}}/analysis">
+                                        <i class="fas fa-shield-alt mr-2"></i>Security Analysis
+                                    </a>
+                                    <a class="dropdown-item" 
+                                       href="/app/{{model_slug}}/{{app_number}}/performance">
+                                        <i class="fas fa-bolt mr-2"></i>Performance Test
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item" 
+                                       href="/app/{{model_slug}}/{{app_number}}">
+                                        <i class="fas fa-info-circle mr-2"></i>View Details
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {{/apps}}
+                {{^apps}}
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <i class="fas fa-box-open fa-2x text-muted mb-2"></i>
+                        <p class="text-muted mb-0">No applications found for this model</p>
+                    </td>
+                </tr>
+                {{/apps}}
+                {% endraw %}
+            </tbody>
+        </table>
+    </div>
+</template>
+
 <!-- Model Details Modal -->
 <div class="modal fade" id="modelDetailsModal" tabindex="-1" role="dialog" aria-labelledby="modelDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
@@ -159,6 +507,93 @@
         </div>
     </div>
 </div>
+
+<!-- Model Details Modal Content Template (replaces model_details_modal.html) -->
+<template id="model-details-modal-template">
+    {% raw %}
+    <div class="row">
+        <div class="col-md-6">
+            <h6>Basic Information</h6>
+            <table class="table table-sm">
+                <tr>
+                    <td><strong>Provider:</strong></td>
+                    <td>{{provider}}</td>
+                </tr>
+                <tr>
+                    <td><strong>Model Name:</strong></td>
+                    <td>{{model_name}}</td>
+                </tr>
+                <tr>
+                    <td><strong>Canonical Slug:</strong></td>
+                    <td><code>{{canonical_slug}}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Total Apps:</strong></td>
+                    <td>{{total_apps}}</td>
+                </tr>
+                {{#created_at}}
+                <tr>
+                    <td><strong>Added:</strong></td>
+                    <td>{{created_at}}</td>
+                </tr>
+                {{/created_at}}
+            </table>
+        </div>
+        <div class="col-md-6">
+            <h6>Capabilities</h6>
+            {{#capabilities}}
+            <div class="small">
+                <pre>{{capabilities_json}}</pre>
+            </div>
+            {{/capabilities}}
+            {{^capabilities}}
+            <p class="text-muted">No capability data available</p>
+            {{/capabilities}}
+        </div>
+    </div>
+    
+    <div class="row mt-3">
+        <div class="col-12">
+            <h6>Quick Actions</h6>
+            <div class="btn-group w-100" role="group">
+                <button type="button" class="btn btn-success btn-sm"
+                        hx-post="/api/model/{{canonical_slug}}/start-all"
+                        hx-target="#model-{{canonical_slug}}"
+                        hx-swap="outerHTML"
+                        data-dismiss="modal">
+                    <i class="fas fa-play"></i> Start All
+                </button>
+                <button type="button" class="btn btn-warning btn-sm"
+                        hx-post="/api/model/{{canonical_slug}}/restart-all"
+                        hx-target="#model-{{canonical_slug}}"
+                        hx-swap="outerHTML"
+                        data-dismiss="modal">
+                    <i class="fas fa-redo"></i> Restart All
+                </button>
+                <button type="button" class="btn btn-danger btn-sm"
+                        hx-post="/api/model/{{canonical_slug}}/stop-all"
+                        hx-target="#model-{{canonical_slug}}"
+                        hx-swap="outerHTML"
+                        data-dismiss="modal">
+                    <i class="fas fa-stop"></i> Stop All
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm"
+                        hx-post="/api/model/{{canonical_slug}}/analyze-all"
+                        hx-target="#model-{{canonical_slug}}"
+                        hx-swap="outerHTML"
+                        data-dismiss="modal">
+                    <i class="fas fa-shield-alt"></i> Analyze All
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-3 d-flex justify-content-end">
+        <button type="button" class="btn btn-secondary mr-2" data-dismiss="modal">Close</button>
+        <a href="/app/{{canonical_slug}}/1" class="btn btn-primary">View Apps</a>
+    </div>
+    {% endraw %}
+</template>
 
 <!-- Container Logs Modal -->
 <div class="modal fade" id="containerLogsModal" tabindex="-1" role="dialog" aria-labelledby="containerLogsModalLabel" aria-hidden="true">
@@ -188,6 +623,69 @@
 
 {% block scripts %}
 <script>
+    // ==================== CONSOLIDATED DASHBOARD JAVASCRIPT ====================
+    
+    // Template rendering utility
+    function renderTemplate(templateId, data) {
+        const template = document.getElementById(templateId);
+        if (!template) {
+            console.error('Template not found:', templateId);
+            return '';
+        }
+        
+        let html = template.innerHTML;
+        
+        // Simple Mustache-style template rendering
+        function render(template, data) {
+            return template.replace(/\{\{([^}]+)\}\}/g, function(match, key) {
+                const keys = key.trim().split('.');
+                let value = data;
+                
+                // Handle conditional rendering
+                if (key.startsWith('#')) {
+                    const propName = key.substring(1);
+                    const endTag = `{{ '{{' }}/${propName}{{ '}}' }}`;
+                    const endIndex = template.indexOf(endTag);
+                    if (endIndex > -1) {
+                        const content = template.substring(template.indexOf(match) + match.length, endIndex);
+                        return data[propName] ? render(content, data) : '';
+                    }
+                    return '';
+                }
+                
+                if (key.startsWith('^')) {
+                    const propName = key.substring(1);
+                    const endTag = `{{ '{{' }}/${propName}{{ '}}' }}`;
+                    const endIndex = template.indexOf(endTag);
+                    if (endIndex > -1) {
+                        const content = template.substring(template.indexOf(match) + match.length, endIndex);
+                        return !data[propName] ? render(content, data) : '';
+                    }
+                    return '';
+                }
+                
+                // Handle array iteration
+                if (key.startsWith('/')) {
+                    return '';
+                }
+                
+                // Get nested property value
+                for (let k of keys) {
+                    if (value && typeof value === 'object') {
+                        value = value[k];
+                    } else {
+                        value = undefined;
+                        break;
+                    }
+                }
+                
+                return value !== undefined && value !== null ? value : '';
+            });
+        }
+        
+        return render(html, data);
+    }
+
     // Dashboard specific functions
     function toggleAdvancedFilters() {
         const filters = document.getElementById('advanced-filters');
@@ -196,10 +694,10 @@
         }
     }
 
-    // Modal functions for dashboard
-    window.showModelDetails = function(modelSlug) {
+    // Model interaction functions (from dashboard_models_grid.html)
+    function showModelDetails(modelSlug) {
         if (typeof htmx !== 'undefined') {
-            htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
+            htmx.ajax('GET', `/api/model/${encodeURIComponent(modelSlug)}/details`, {
                 target: '#model-details-content',
                 swap: 'innerHTML'
             });
@@ -207,23 +705,8 @@
         if (typeof $ !== 'undefined') {
             $('#modelDetailsModal').modal('show');
         }
-    };
+    }
 
-    window.showContainerLogs = function(modelSlug, appNum) {
-        if (typeof htmx !== 'undefined') {
-            // URL encode the model slug for the API call
-            const encodedModelSlug = encodeURIComponent(modelSlug);
-            htmx.ajax('GET', `/api/containers/${encodedModelSlug}/${appNum}/logs`, {
-                target: '#container-logs-content',
-                swap: 'innerHTML'
-            });
-        }
-        if (typeof $ !== 'undefined') {
-            $('#containerLogsModal').modal('show');
-        }
-    };
-
-    // Container control functions
     function safeCssId(value) {
         if (!value) return '';
         // Replace any problematic characters with underscores for CSS IDs
@@ -234,7 +717,73 @@
         }
         return safeId;
     }
-    
+
+    function testLoadApps(modelSlug) {
+        console.log('Loading apps for model:', modelSlug);
+        
+        // Convert model slug to safe CSS ID format
+        const safeModelSlug = safeCssId(modelSlug);
+        
+        // Use the safe ID format to find elements
+        const content = document.getElementById(`apps-content-${safeModelSlug}`);
+        const loading = document.getElementById(`loading-${safeModelSlug}`);
+        
+        if (!content || !loading) {
+            console.error('Could not find elements for model:', modelSlug);
+            console.error('Looking for safe ID:', `apps-content-${safeModelSlug}`);
+            return;
+        }
+        
+        // Show loading state
+        loading.classList.remove('d-hidden');
+        
+        // Use HTMX to load apps properly with URL encoding
+        const encodedModelSlug = encodeURIComponent(modelSlug);
+        htmx.ajax('GET', `/api/model/${encodedModelSlug}/apps`, {
+            target: `#apps-content-${safeModelSlug}`,
+            swap: 'innerHTML'
+        }).then(() => {
+            // Hide loading after successful load
+            loading.classList.add('d-hidden');
+            console.log('Apps loaded successfully for:', modelSlug);
+            
+            // Initialize tooltips for newly loaded content
+            if (typeof $ !== 'undefined') {
+                $(`#apps-content-${safeModelSlug} [title]`).tooltip();
+            }
+        }).catch((error) => {
+            console.error('Error loading apps:', error);
+            loading.classList.add('d-hidden');
+            content.innerHTML = `
+                <div class="alert alert-danger m-3">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Error loading applications: ${error}
+                </div>
+            `;
+        });
+    }
+
+    // Global function for showing app logs (used in loaded app tables)
+    function showAppLogs(modelSlug, appNum) {
+        console.log('Loading logs for:', modelSlug, appNum);
+        // Load logs via HTMX with URL encoding
+        const encodedModelSlug = encodeURIComponent(modelSlug);
+        htmx.ajax('GET', `/api/containers/${encodedModelSlug}/${appNum}/logs`, {
+            target: '#container-logs-content',
+            swap: 'innerHTML'
+        });
+        
+        // Show modal using Bootstrap
+        if (typeof $ !== 'undefined') {
+            $('#containerLogsModal').modal('show');
+        }
+    }
+
+    window.showContainerLogs = function(modelSlug, appNum) {
+        showAppLogs(modelSlug, appNum);
+    };
+
+    // Container control functions
     function handleContainerAction(action, modelSlug, appNum, element) {
         if (!element || typeof htmx === 'undefined') return;
         
@@ -273,6 +822,33 @@
         handleContainerAction('restart', modelSlug, appNum, element);
     };
 
+    // Auto-refresh model stats every 30 seconds
+    function startModelStatsRefresh() {
+        setInterval(() => {
+            document.querySelectorAll('.model-card').forEach(card => {
+                const modelSlug = card.id.replace('model-', '');
+                
+                // Use data attributes instead of IDs with dots
+                const runningElement = card.querySelector('[data-stat="running"][data-model="' + modelSlug + '"]');
+                const stoppedElement = card.querySelector('[data-stat="stopped"][data-model="' + modelSlug + '"]');
+                const errorElement = card.querySelector('[data-stat="error"][data-model="' + modelSlug + '"]');
+                
+                if (runningElement || stoppedElement || errorElement) {
+                    // URL encode the model slug for the API call
+                    const encodedModelSlug = encodeURIComponent(modelSlug);
+                    fetch(`/api/model/${encodedModelSlug}/stats`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (runningElement) runningElement.textContent = data.running || 0;
+                            if (stoppedElement) stoppedElement.textContent = data.stopped || 0;
+                            if (errorElement) errorElement.textContent = data.error || 0;
+                        })
+                        .catch(err => console.warn('Failed to update stats for', modelSlug, err));
+                }
+            });
+        }, 30000);
+    }
+
     // Auto-refresh functionality
     let autoRefreshInterval;
     
@@ -305,6 +881,12 @@
     // Event listeners
     document.addEventListener('DOMContentLoaded', function() {
         startAutoRefresh();
+        startModelStatsRefresh();
+        
+        // Initialize tooltips when page loads
+        if (typeof $ !== 'undefined') {
+            $('[data-toggle="tooltip"]').tooltip();
+        }
         
         // Additional keyboard shortcuts
         document.addEventListener('keydown', function(e) {
@@ -356,7 +938,18 @@
                     }
                 }, 1000);
             }
+            
+            // Initialize tooltips for newly loaded content
+            if (typeof $ !== 'undefined') {
+                $('[title]').tooltip();
+            }
         }
     });
+    
+    // Global function exports for templates
+    window.showModelDetails = showModelDetails;
+    window.testLoadApps = testLoadApps;
+    window.showAppLogs = showAppLogs;
+    window.safeCssId = safeCssId;
 </script>
 {% endblock %}

@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from flask import (
     Blueprint, current_app, flash, jsonify, make_response, redirect,
-    render_template, request, send_file, session, url_for, Response
+    render_template, render_template_string, request, send_file, session, url_for, Response
 )
 from sqlalchemy import func, text
 
@@ -993,7 +993,163 @@ def api_dashboard_models():
             }
             models_data.append(model_data)
         
-        return render_template('partials/dashboard_models_grid.html', models=models_data)
+        return render_template_string('''
+<!-- Dashboard Models Grid - Consolidated -->
+<div class="row">
+    {% for model in models %}
+    <div class="col-12 mb-4">
+        <div class="card model-card" id="model-{{ model.canonical_slug }}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-1 font-weight-bold text-primary">
+                        {{ model.model_name or model.display_name }}
+                    </h6>
+                    <small class="text-muted">{{ model.provider or model.provider_name }}</small>
+                </div>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            onclick="testLoadApps('{{ model.canonical_slug|url_encode_model }}')"
+                            data-toggle="collapse" 
+                            data-target="#apps-{{ model.canonical_slug|safe_css_id }}"
+                            aria-expanded="false"
+                            id="toggle-{{ model.canonical_slug|safe_css_id }}">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-sm"
+                            onclick="showModelDetails('{{ model.canonical_slug|url_encode_model }}')"
+                            data-toggle="tooltip" title="Model Details">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <!-- Model Metadata -->
+                <div class="mb-3">
+                    <div class="d-flex flex-wrap">
+                        <span class="badge badge-primary mr-1 mb-1">{{ model.provider or model.provider_name }}</span>
+                        {% if model.context_window %}
+                        <span class="badge badge-secondary mr-1 mb-1">{{ '{:,}'.format(model.context_window) }} tokens</span>
+                        {% endif %}
+                        {% if model.supports_function_calling %}
+                        <span class="badge badge-success mr-1 mb-1">
+                            <i class="fas fa-cog mr-1"></i>Functions
+                        </span>
+                        {% endif %}
+                        {% if model.supports_vision %}
+                        <span class="badge badge-info mr-1 mb-1">
+                            <i class="fas fa-eye mr-1"></i>Vision
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Model Stats -->
+                <div class="row text-center mb-3">
+                    <div class="col-3">
+                        <div class="stat-item">
+                            <div class="stat-value text-info">{{ model.total_apps or 30 }}</div>
+                            <div class="stat-label">Apps</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-item">
+                            <div class="stat-value text-success" data-stat="running" data-model="{{ model.canonical_slug }}">{{ model.running_containers or 0 }}</div>
+                            <div class="stat-label">Running</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-item">
+                            <div class="stat-value text-secondary" data-stat="stopped" data-model="{{ model.canonical_slug }}">{{ model.stopped_containers or 30 }}</div>
+                            <div class="stat-label">Stopped</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-item">
+                            <div class="stat-value text-danger" data-stat="error" data-model="{{ model.canonical_slug }}">{{ model.error_containers or 0 }}</div>
+                            <div class="stat-label">Errors</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-success"
+                            hx-post="/api/model/{{ model.canonical_slug|url_encode_model }}/start-all"
+                            hx-target="#model-{{ model.canonical_slug }}"
+                            hx-swap="outerHTML"
+                            hx-confirm="Start all containers for {{ model.model_name or model.display_name }}?"
+                            data-toggle="tooltip" title="Start All Apps">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button type="button" class="btn btn-warning"
+                            hx-post="/api/model/{{ model.canonical_slug|url_encode_model }}/restart-all"
+                            hx-target="#model-{{ model.canonical_slug }}"
+                            hx-swap="outerHTML"
+                            hx-confirm="Restart all containers for {{ model.model_name or model.display_name }}?"
+                            data-toggle="tooltip" title="Restart All Apps">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button type="button" class="btn btn-danger"
+                            hx-post="/api/model/{{ model.canonical_slug|url_encode_model }}/stop-all"
+                            hx-target="#model-{{ model.canonical_slug }}"
+                            hx-swap="outerHTML"
+                            hx-confirm="Stop all containers for {{ model.model_name or model.display_name }}?"
+                            data-toggle="tooltip" title="Stop All Apps">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <button type="button" class="btn btn-secondary"
+                            hx-post="/api/model/{{ model.canonical_slug|url_encode_model }}/analyze-all"
+                            hx-target="#model-{{ model.canonical_slug }}"
+                            hx-swap="outerHTML"
+                            hx-confirm="Run security analysis on all apps for {{ model.model_name or model.display_name }}?"
+                            data-toggle="tooltip" title="Analyze All Apps">
+                        <i class="fas fa-shield-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Collapsible Apps List -->
+            <div class="collapse" id="apps-{{ model.canonical_slug|safe_css_id }}">
+                <div class="card-footer p-0" id="apps-content-{{ model.canonical_slug|safe_css_id }}">
+                    <div class="text-center p-3" id="loading-{{ model.canonical_slug|safe_css_id }}">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <small class="d-block mt-2 text-muted">Loading applications...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- No Models Found State -->
+{% if not models %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No Models Found</h4>
+                <p class="text-muted">No AI models are currently configured in the system.</p>
+                <button class="btn btn-primary" onclick="location.reload()">
+                    <i class="fas fa-sync-alt mr-2"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Initialize tooltips for model grid
+$(document).ready(function() {
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>
+        ''', models=models_data)
         
     except Exception as e:
         logger.error(f"Error fetching dashboard models: {e}")
@@ -1017,8 +1173,197 @@ def api_model_apps(model_slug: str):
             app_data = AppDataProvider.get_app_for_dashboard(decoded_model_slug, app_num)
             apps_data.append(app_data)
         
-        return render_template('partials/dashboard_model_apps.html', 
-                             apps=apps_data, model_slug=decoded_model_slug)
+        return render_template_string('''
+<!-- Dashboard Model Apps - Compact Table View -->
+<div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+        <thead class="thead-light">
+            <tr>
+                <th width="8%">App</th>
+                <th width="20%">Name</th>
+                <th width="10%">Status</th>
+                <th width="12%">Containers</th>
+                <th width="15%">Ports</th>
+                <th width="15%">Analysis</th>
+                <th width="20%">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for app in apps %}
+            <tr id="app-{{ model_slug|safe_css_id }}-{{ app.app_number }}" class="app-row">
+                <!-- App Number -->
+                <td class="align-middle">
+                    <span class="badge badge-outline-primary px-2">{{ app.app_number }}</span>
+                </td>
+                
+                <!-- App Name -->
+                <td class="align-middle">
+                    <div class="app-info">
+                        <div class="font-weight-medium">{{ app.app_name }}</div>
+                        <small class="text-muted d-block">{{ app.description[:40] }}{% if app.description|length > 40 %}...{% endif %}</small>
+                    </div>
+                </td>
+                
+                <!-- Status -->
+                <td class="align-middle">
+                    <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }} badge-pill">
+                        <i class="fas fa-circle mr-1 icon-sm"></i>
+                        {{ app.status|title }}
+                    </span>
+                </td>
+                
+                <!-- Container Status -->
+                <td class="align-middle">
+                    <div class="d-flex justify-content-start">
+                        <span class="mx-1 {{ 'text-success' if app.containers.frontend_status == 'running' else 'text-muted' }}"
+                              title="Frontend: {{ app.containers.frontend_status|title }}">
+                            <i class="fas fa-globe-americas icon-md"></i>
+                        </span>
+                        <span class="mx-1 {{ 'text-success' if app.containers.backend_status == 'running' else 'text-muted' }}"
+                              title="Backend: {{ app.containers.backend_status|title }}">
+                            <i class="fas fa-cogs icon-md"></i>
+                        </span>
+                        <span class="mx-1 {{ 'text-success' if app.containers.database_status == 'running' else 'text-muted' }}"
+                              title="Database: {{ app.containers.database_status|title }}">
+                            <i class="fas fa-database icon-md"></i>
+                        </span>
+                    </div>
+                </td>
+                
+                <!-- Ports -->
+                <td class="align-middle">
+                    <div class="port-info">
+                        <small class="d-block">
+                            <i class="fas fa-desktop mr-1"></i>{{ app.frontend_port }}
+                        </small>
+                        <small class="d-block">
+                            <i class="fas fa-server mr-1"></i>{{ app.backend_port }}
+                        </small>
+                    </div>
+                </td>
+                
+                <!-- Analysis Summary -->
+                <td class="align-middle">
+                    {% if app.analysis_summary %}
+                    <div class="d-flex justify-content-between analysis-compact">
+                        <span class="text-danger" title="High Issues">
+                            <i class="fas fa-exclamation-triangle"></i> {{ app.analysis_summary.high_issues }}
+                        </span>
+                        <span class="text-warning" title="Medium Issues">
+                            <i class="fas fa-exclamation-circle"></i> {{ app.analysis_summary.medium_issues }}
+                        </span>
+                        <span class="text-success" title="Low Issues">
+                            <i class="fas fa-info-circle"></i> {{ app.analysis_summary.low_issues }}
+                        </span>
+                    </div>
+                    {% if app.performance_summary %}
+                    <div class="mt-1">
+                        <small class="text-muted">
+                            {{ '%.0f'|format(app.performance_summary.avg_response_time) }}ms | 
+                            {{ '%.1f'|format(app.performance_summary.success_rate) }}%
+                        </small>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <small class="text-muted">No analysis</small>
+                    {% endif %}
+                </td>
+                
+                <!-- Actions -->
+                <td class="align-middle">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <!-- Primary Actions -->
+                        {% if app.status.lower() == 'stopped' %}
+                        <button class="btn btn-outline-success btn-xs" 
+                                hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/start"
+                                hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                                hx-swap="outerHTML"
+                                title="Start containers">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        {% elif app.status.lower() == 'running' %}
+                        <button class="btn btn-outline-warning btn-xs" 
+                                hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/restart"
+                                hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                                hx-swap="outerHTML"
+                                title="Restart containers">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-xs" 
+                                hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/stop"
+                                hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                                hx-swap="outerHTML"
+                                title="Stop containers">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        {% elif app.status.lower() == 'error' %}
+                        <button class="btn btn-outline-warning btn-xs" 
+                                hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/restart"
+                                hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                                hx-swap="outerHTML"
+                                title="Restart containers">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        {% endif %}
+                        
+                        <!-- Open App -->
+                        {% if app.status.lower() == 'running' %}
+                        <button class="btn btn-outline-primary btn-xs" 
+                                onclick="window.open('http://localhost:{{ app.frontend_port }}', '_blank')"
+                                title="Open app">
+                            <i class="fas fa-external-link-alt"></i>
+                        </button>
+                        {% endif %}
+                        
+                        <!-- Dropdown for Additional Actions -->
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-xs dropdown-toggle dropdown-toggle-split" 
+                                    data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <span class="sr-only">Toggle Dropdown</span>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-right">
+                                <a class="dropdown-item" href="#" 
+                                   onclick="showAppLogs('{{ model_slug|url_encode_model }}', {{ app.app_number }})">
+                                    <i class="fas fa-file-alt mr-2"></i>View Logs
+                                </a>
+                                <a class="dropdown-item" 
+                                   href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}/analysis">
+                                    <i class="fas fa-shield-alt mr-2"></i>Security Analysis
+                                </a>
+                                <a class="dropdown-item" 
+                                   href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}/performance">
+                                    <i class="fas fa-bolt mr-2"></i>Performance Test
+                                </a>
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item" 
+                                   href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}">
+                                    <i class="fas fa-info-circle mr-2"></i>View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- No Apps State -->
+{% if not apps %}
+<div class="text-center py-4">
+    <i class="fas fa-box-open fa-2x text-muted mb-2"></i>
+    <p class="text-muted mb-0">No applications found for this model</p>
+</div>
+{% endif %}
+
+<script>
+// Initialize tooltips for app table
+$(document).ready(function() {
+    $('[title]').tooltip();
+});
+</script>
+        ''', apps=apps_data, model_slug=decoded_model_slug)
         
     except Exception as e:
         logger.error(f"Error loading apps for model {model_slug}: {e}")
@@ -1213,7 +1558,89 @@ def api_model_details(model_slug: str):
         }
         
         if ResponseHandler.is_htmx_request():
-            return render_template('partials/model_details_modal.html', model=model, details=details)
+            return render_template_string('''
+<!-- Model Details Modal Content -->
+<div class="row">
+    <div class="col-md-6">
+        <h6>Basic Information</h6>
+        <table class="table table-sm">
+            <tr>
+                <td><strong>Provider:</strong></td>
+                <td>{{ model.provider }}</td>
+            </tr>
+            <tr>
+                <td><strong>Model Name:</strong></td>
+                <td>{{ model.model_name }}</td>
+            </tr>
+            <tr>
+                <td><strong>Canonical Slug:</strong></td>
+                <td><code>{{ model.canonical_slug }}</code></td>
+            </tr>
+            <tr>
+                <td><strong>Total Apps:</strong></td>
+                <td>{{ details.total_apps }}</td>
+            </tr>
+            {% if details.created_at %}
+            <tr>
+                <td><strong>Added:</strong></td>
+                <td>{{ details.created_at }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+    <div class="col-md-6">
+        <h6>Capabilities</h6>
+        {% if details.capabilities %}
+        <div class="small">
+            <pre>{{ details.capabilities | tojson(indent=2) }}</pre>
+        </div>
+        {% else %}
+        <p class="text-muted">No capability data available</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <h6>Quick Actions</h6>
+        <div class="btn-group w-100" role="group">
+            <button type="button" class="btn btn-success btn-sm"
+                    hx-post="/api/model/{{ model.canonical_slug }}/start-all"
+                    hx-target="#model-{{ model.canonical_slug }}"
+                    hx-swap="outerHTML"
+                    data-dismiss="modal">
+                <i class="fas fa-play"></i> Start All
+            </button>
+            <button type="button" class="btn btn-warning btn-sm"
+                    hx-post="/api/model/{{ model.canonical_slug }}/restart-all"
+                    hx-target="#model-{{ model.canonical_slug }}"
+                    hx-swap="outerHTML"
+                    data-dismiss="modal">
+                <i class="fas fa-redo"></i> Restart All
+            </button>
+            <button type="button" class="btn btn-danger btn-sm"
+                    hx-post="/api/model/{{ model.canonical_slug }}/stop-all"
+                    hx-target="#model-{{ model.canonical_slug }}"
+                    hx-swap="outerHTML"
+                    data-dismiss="modal">
+                <i class="fas fa-stop"></i> Stop All
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm"
+                    hx-post="/api/model/{{ model.canonical_slug }}/analyze-all"
+                    hx-target="#model-{{ model.canonical_slug }}"
+                    hx-swap="outerHTML"
+                    data-dismiss="modal">
+                <i class="fas fa-shield-alt"></i> Analyze All
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3 d-flex justify-content-end">
+    <button type="button" class="btn btn-secondary mr-2" data-dismiss="modal">Close</button>
+    <a href="/app/{{ model.canonical_slug }}/1" class="btn btn-primary">View Apps</a>
+</div>
+            ''', model=model, details=details)
         
         return ResponseHandler.success_response(data=details)
         
@@ -1504,8 +1931,170 @@ def container_action(model: str, app_num: int, action: str):
                 if 'dashboard' in referrer:
                     # Return updated dashboard row
                     app_data = AppDataProvider.get_app_for_dashboard(decoded_model, app_num)
-                    return render_template('partials/dashboard_app_row.html',
-                                         app=app_data, model_slug=decoded_model)
+                    return render_template_string('''
+<!-- Single App Table Row for Dashboard HTMX updates -->
+<tr id="app-{{ model_slug|safe_css_id }}-{{ app.app_number }}" class="app-row">
+    <!-- App Number -->
+    <td class="align-middle">
+        <span class="badge badge-outline-primary px-2">{{ app.app_number }}</span>
+    </td>
+    
+    <!-- App Name -->
+    <td class="align-middle">
+        <div class="app-info">
+            <div class="font-weight-medium">{{ app.app_name }}</div>
+            <small class="text-muted d-block">{{ app.description[:40] }}{% if app.description|length > 40 %}...{% endif %}</small>
+        </div>
+    </td>
+    
+    <!-- Status -->
+    <td class="align-middle">
+        {% if show_error %}
+        <div class="text-danger">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            <small>{{ app.error_message }}</small>
+        </div>
+        {% else %}
+        <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }} badge-pill">
+            <i class="fas fa-circle mr-1 icon-sm"></i>
+            {{ app.status|title }}
+        </span>
+        {% endif %}
+    </td>
+    
+    <!-- Container Status -->
+    <td class="align-middle">
+        <div class="d-flex justify-content-start">
+            <span class="mx-1 {{ 'text-success' if app.containers.frontend_status == 'running' else 'text-muted' }}"
+                  title="Frontend: {{ app.containers.frontend_status|title }}">
+                <i class="fas fa-globe-americas icon-md"></i>
+            </span>
+            <span class="mx-1 {{ 'text-success' if app.containers.backend_status == 'running' else 'text-muted' }}"
+                  title="Backend: {{ app.containers.backend_status|title }}">
+                <i class="fas fa-cogs icon-md"></i>
+            </span>
+            <span class="mx-1 {{ 'text-success' if app.containers.database_status == 'running' else 'text-muted' }}"
+                  title="Database: {{ app.containers.database_status|title }}">
+                <i class="fas fa-database icon-md"></i>
+            </span>
+        </div>
+    </td>
+    
+    <!-- Ports -->
+    <td class="align-middle">
+        <div class="port-info">
+            <small class="d-block">
+                <i class="fas fa-desktop mr-1"></i>{{ app.frontend_port }}
+            </small>
+            <small class="d-block">
+                <i class="fas fa-server mr-1"></i>{{ app.backend_port }}
+            </small>
+        </div>
+    </td>
+    
+    <!-- Analysis Summary -->
+    <td class="align-middle">
+        {% if app.analysis_summary %}
+        <div class="d-flex justify-content-between analysis-compact">
+            <span class="text-danger" title="High Issues">
+                <i class="fas fa-exclamation-triangle"></i> {{ app.analysis_summary.high_issues }}
+            </span>
+            <span class="text-warning" title="Medium Issues">
+                <i class="fas fa-exclamation-circle"></i> {{ app.analysis_summary.medium_issues }}
+            </span>
+            <span class="text-success" title="Low Issues">
+                <i class="fas fa-info-circle"></i> {{ app.analysis_summary.low_issues }}
+            </span>
+        </div>
+        {% if app.performance_summary %}
+        <div class="mt-1">
+            <small class="text-muted">
+                {{ '%.0f'|format(app.performance_summary.avg_response_time) }}ms | 
+                {{ '%.1f'|format(app.performance_summary.success_rate) }}%
+            </small>
+        </div>
+        {% endif %}
+        {% else %}
+        <small class="text-muted">No analysis</small>
+        {% endif %}
+    </td>
+    
+    <!-- Actions -->
+    <td class="align-middle">
+        <div class="btn-group btn-group-sm" role="group">
+            <!-- Primary Actions -->
+            {% if app.status.lower() == 'stopped' %}
+            <button class="btn btn-outline-success btn-xs" 
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/start"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                    hx-swap="outerHTML"
+                    title="Start containers">
+                <i class="fas fa-play"></i>
+            </button>
+            {% elif app.status.lower() == 'running' %}
+            <button class="btn btn-outline-warning btn-xs" 
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/restart"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                    hx-swap="outerHTML"
+                    title="Restart containers">
+                <i class="fas fa-redo"></i>
+            </button>
+            <button class="btn btn-outline-danger btn-xs" 
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/stop"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                    hx-swap="outerHTML"
+                    title="Stop containers">
+                <i class="fas fa-stop"></i>
+            </button>
+            {% elif app.status.lower() == 'error' %}
+            <button class="btn btn-outline-warning btn-xs" 
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/restart"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                    hx-swap="outerHTML"
+                    title="Restart containers">
+                <i class="fas fa-redo"></i>
+            </button>
+            {% endif %}
+            
+            <!-- Open App -->
+            {% if app.status.lower() == 'running' %}
+            <button class="btn btn-outline-primary btn-xs" 
+                    onclick="window.open('http://localhost:{{ app.frontend_port }}', '_blank')"
+                    title="Open app">
+                <i class="fas fa-external-link-alt"></i>
+            </button>
+            {% endif %}
+            
+            <!-- Dropdown for Additional Actions -->
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary btn-xs dropdown-toggle dropdown-toggle-split" 
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <span class="sr-only">Toggle Dropdown</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                    <a class="dropdown-item" href="#" 
+                       onclick="showAppLogs('{{ model_slug|url_encode_model }}', {{ app.app_number }})">
+                        <i class="fas fa-file-alt mr-2"></i>View Logs
+                    </a>
+                    <a class="dropdown-item" 
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}/analysis">
+                        <i class="fas fa-shield-alt mr-2"></i>Security Analysis
+                    </a>
+                    <a class="dropdown-item" 
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}/performance">
+                        <i class="fas fa-bolt mr-2"></i>Performance Test
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" 
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}">
+                        <i class="fas fa-info-circle mr-2"></i>View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </td>
+</tr>
+                    ''', app=app_data, model_slug=decoded_model, show_error=False)
                 else:
                     # Return updated status badge for app list
                     statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
@@ -1527,8 +2116,170 @@ def container_action(model: str, app_num: int, action: str):
                     app_data = AppDataProvider.get_app_for_dashboard(decoded_model, app_num)
                     app_data['status'] = 'ERROR'
                     app_data['error_message'] = result.get('error')
-                    return render_template('partials/dashboard_app_row.html',
-                                         app=app_data, model_slug=decoded_model, show_error=True)
+                    return render_template_string('''
+<!-- Single App Table Row for Dashboard HTMX updates -->
+<tr id="app-{{ model_slug|safe_css_id }}-{{ app.app_number }}" class="app-row">
+    <!-- App Number -->
+    <td class="align-middle">
+        <span class="badge badge-outline-primary px-2">{{ app.app_number }}</span>
+    </td>
+    
+    <!-- App Name -->
+    <td class="align-middle">
+        <div class="app-info">
+            <div class="font-weight-medium">{{ app.app_name }}</div>
+            <small class="text-muted d-block">{{ app.description[:40] }}{% if app.description|length > 40 %}...{% endif %}</small>
+        </div>
+    </td>
+    
+    <!-- Status -->
+    <td class="align-middle">
+        {% if show_error %}
+        <div class="text-danger">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            <small>{{ app.error_message }}</small>
+        </div>
+        {% else %}
+        <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }} badge-pill">
+            <i class="fas fa-circle mr-1 icon-sm"></i>
+            {{ app.status|title }}
+        </span>
+        {% endif %}
+    </td>
+    
+    <!-- Container Status -->
+    <td class="align-middle">
+        <div class="d-flex justify-content-start">
+            <span class="mx-1 {{ 'text-success' if app.containers.frontend_status == 'running' else 'text-muted' }}"
+                  title="Frontend: {{ app.containers.frontend_status|title }}">
+                <i class="fas fa-globe-americas icon-md"></i>
+            </span>
+            <span class="mx-1 {{ 'text-success' if app.containers.backend_status == 'running' else 'text-muted' }}"
+                  title="Backend: {{ app.containers.backend_status|title }}">
+                <i class="fas fa-cogs icon-md"></i>
+            </span>
+            <span class="mx-1 {{ 'text-success' if app.containers.database_status == 'running' else 'text-muted' }}"
+                  title="Database: {{ app.containers.database_status|title }}">
+                <i class="fas fa-database icon-md"></i>
+            </span>
+        </div>
+    </td>
+    
+    <!-- Ports -->
+    <td class="align-middle">
+        <div class="port-info">
+            <small class="d-block">
+                <i class="fas fa-desktop mr-1"></i>{{ app.frontend_port }}
+            </small>
+            <small class="d-block">
+                <i class="fas fa-server mr-1"></i>{{ app.backend_port }}
+            </small>
+        </div>
+    </td>
+    
+    <!-- Analysis Summary -->
+    <td class="align-middle">
+        {% if app.analysis_summary %}
+        <div class="d-flex justify-content-between analysis-compact">
+            <span class="text-danger" title="High Issues">
+                <i class="fas fa-exclamation-triangle"></i> {{ app.analysis_summary.high_issues }}
+            </span>
+            <span class="text-warning" title="Medium Issues">
+                <i class="fas fa-exclamation-circle"></i> {{ app.analysis_summary.medium_issues }}
+            </span>
+            <span class="text-success" title="Low Issues">
+                <i class="fas fa-info-circle"></i> {{ app.analysis_summary.low_issues }}
+            </span>
+        </div>
+        {% if app.performance_summary %}
+        <div class="mt-1">
+            <small class="text-muted">
+                {{ '%.0f'|format(app.performance_summary.avg_response_time) }}ms | 
+                {{ '%.1f'|format(app.performance_summary.success_rate) }}%
+            </small>
+        </div>
+        {% endif %}
+        {% else %}
+        <small class="text-muted">No analysis</small>
+        {% endif %}
+    </td>
+    
+    <!-- Actions -->
+    <td class="align-middle">
+        <div class="btn-group btn-group-sm" role="group">
+            <!-- Primary Actions -->
+            {% if app.status.lower() == 'stopped' %}
+            <button class="btn btn-outline-success btn-xs" 
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/start"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                    hx-swap="outerHTML"
+                    title="Start containers">
+                <i class="fas fa-play"></i>
+            </button>
+            {% elif app.status.lower() == 'running' %}
+            <button class="btn btn-outline-warning btn-xs" 
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/restart"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                    hx-swap="outerHTML"
+                    title="Restart containers">
+                <i class="fas fa-redo"></i>
+            </button>
+            <button class="btn btn-outline-danger btn-xs" 
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/stop"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                    hx-swap="outerHTML"
+                    title="Stop containers">
+                <i class="fas fa-stop"></i>
+            </button>
+            {% elif app.status.lower() == 'error' %}
+            <button class="btn btn-outline-warning btn-xs" 
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/restart"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                    hx-swap="outerHTML"
+                    title="Restart containers">
+                <i class="fas fa-redo"></i>
+            </button>
+            {% endif %}
+            
+            <!-- Open App -->
+            {% if app.status.lower() == 'running' %}
+            <button class="btn btn-outline-primary btn-xs" 
+                    onclick="window.open('http://localhost:{{ app.frontend_port }}', '_blank')"
+                    title="Open app">
+                <i class="fas fa-external-link-alt"></i>
+            </button>
+            {% endif %}
+            
+            <!-- Dropdown for Additional Actions -->
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary btn-xs dropdown-toggle dropdown-toggle-split" 
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <span class="sr-only">Toggle Dropdown</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                    <a class="dropdown-item" href="#" 
+                       onclick="showAppLogs('{{ model_slug|url_encode_model }}', {{ app.app_number }})">
+                        <i class="fas fa-file-alt mr-2"></i>View Logs
+                    </a>
+                    <a class="dropdown-item" 
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}/analysis">
+                        <i class="fas fa-shield-alt mr-2"></i>Security Analysis
+                    </a>
+                    <a class="dropdown-item" 
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}/performance">
+                        <i class="fas fa-bolt mr-2"></i>Performance Test
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" 
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}">
+                        <i class="fas fa-info-circle mr-2"></i>View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </td>
+</tr>
+                    ''', app=app_data, model_slug=decoded_model, show_error=True)
                 else:
                     # Return error status badge for app list
                     return render_template("partials/app_status_badge.html",
