@@ -2,8 +2,6 @@
 
 {% block title %}{{ app_info.app_type|title }} - {{ model|replace('_', ' ')|title }} App {{ app_num }}{% endblock %}
 
-{% endblock %}
-
 {% block content %}
 <div class="container-fluid px-4 py-3">
     <!-- App Header -->
@@ -15,10 +13,10 @@
                     <p class="mb-0 opacity-75">{{ model|replace('_', ' ')|title }} • App {{ app_num }}</p>
                 </div>
                 <div class="col-md-4 text-md-end">
-                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm me-2">
+                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm mr-2">
                         <i class="fas fa-arrow-left me-1"></i>Dashboard
                     </a>
-                    <span class="badge bg-success fs-6" id="app-status">
+                    <span class="badge badge-success" id="app-status">
                         <span class="status-indicator status-{{ status|default('unknown')|lower }}"></span>
                         {{ status|default('Unknown')|title }}
                     </span>
@@ -29,38 +27,38 @@
 
     <!-- Navigation Tabs -->
     <ul class="nav nav-tabs" id="appDetailsTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
-                <i class="fas fa-info-circle me-2"></i>Overview
-            </button>
+        <li class="nav-item">
+            <a class="nav-link active" id="overview-tab" data-toggle="tab" href="#overview" role="tab" aria-controls="overview" aria-selected="true">
+                <i class="fas fa-info-circle mr-2"></i>Overview
+            </a>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="docker-tab" data-bs-toggle="tab" data-bs-target="#docker" type="button" role="tab">
-                <i class="fas fa-cube me-2"></i>Docker Containers
-            </button>
+        <li class="nav-item">
+            <a class="nav-link" id="docker-tab" data-toggle="tab" href="#docker" role="tab" aria-controls="docker" aria-selected="false">
+                <i class="fas fa-cube mr-2"></i>Docker Containers
+            </a>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis" type="button" role="tab">
-                <i class="fas fa-shield-alt me-2"></i>Security Analysis
-            </button>
+        <li class="nav-item">
+            <a class="nav-link" id="analysis-tab" data-toggle="tab" href="#analysis" role="tab" aria-controls="analysis" aria-selected="false">
+                <i class="fas fa-shield-alt mr-2"></i>Security Analysis
+            </a>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab">
-                <i class="fas fa-tachometer-alt me-2"></i>Performance
-            </button>
+        <li class="nav-item">
+            <a class="nav-link" id="performance-tab" data-toggle="tab" href="#performance" role="tab" aria-controls="performance" aria-selected="false">
+                <i class="fas fa-tachometer-alt mr-2"></i>Performance
+            </a>
         </li>
     </ul>
 
     <!-- Tab Content -->
     <div class="tab-content" id="appDetailsTabContent">
         <!-- Overview Tab -->
-        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+        <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
             <div class="row">
                 <div class="col-lg-6">
                     <div class="card info-card h-100">
                         <div class="card-header">
                             <h5 class="card-title mb-0">
-                                <i class="fas fa-info-circle me-2"></i>Application Information
+                                <i class="fas fa-info-circle mr-2"></i>Application Information
                             </h5>
                         </div>
                         <div class="card-body">
@@ -96,7 +94,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h5 class="card-title mb-0">
-                                <i class="fas fa-bolt me-2"></i>Quick Actions
+                                <i class="fas fa-bolt mr-2"></i>Quick Actions
                             </h5>
                         </div>
                         <div class="card-body">
@@ -105,20 +103,20 @@
                                 <button hx-post="/app/start/{{ model }}/{{ app_num }}" 
                                         hx-target="#app-status"
                                         class="btn btn-success btn-app-action">
-                                    <i class="fas fa-play me-2"></i>Start Application
+                                    <i class="fas fa-play mr-2"></i>Start Application
                                 </button>
                                 {% else %}
                                 <button hx-post="/app/stop/{{ model }}/{{ app_num }}" 
                                         hx-target="#app-status"
                                         class="btn btn-danger btn-app-action">
-                                    <i class="fas fa-stop me-2"></i>Stop Application
+                                    <i class="fas fa-stop mr-2"></i>Stop Application
                                 </button>
                                 {% endif %}
 
                                 <button hx-post="/app/restart/{{ model }}/{{ app_num }}" 
                                         hx-target="#app-status"
                                         class="btn btn-primary btn-app-action">
-                                    <i class="fas fa-redo me-2"></i>Restart Application
+                                    <i class="fas fa-redo mr-2"></i>Restart Application
                                 </button>
 
                                 {% if status == 'running' and port_info %}
@@ -145,11 +143,11 @@
         </div>
 
         <!-- Docker Tab -->
-        <div class="tab-pane fade" id="docker" role="tabpanel">
+        <div class="tab-pane fade" id="docker" role="tabpanel" aria-labelledby="docker-tab">
             <div class="row">
                 <div class="col-12">
                     <h4 class="mb-4">
-                        <i class="fas fa-cube me-2"></i>Container Status
+                        <i class="fas fa-cube mr-2"></i>Container Status
                     </h4>
                     
                     {% if containers %}
@@ -158,7 +156,7 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <strong>{{ container.name }}</strong>
-                                    <span class="badge bg-{% if container.status == 'running' %}success{% else %}danger{% endif %} ms-2">
+                                    <span class="badge {% if container.status == 'running' %}badge-success{% else %}badge-danger{% endif %} ml-2">
                                         {{ container.status|title }}
                                     </span>
                                 </div>
@@ -172,7 +170,7 @@
                         {% endfor %}
                     {% else %}
                         <div class="alert alert-info alert-custom">
-                            <i class="fas fa-info-circle me-2"></i>
+                            <i class="fas fa-info-circle mr-2"></i>
                             No containers found for this application.
                         </div>
                     {% endif %}
@@ -183,7 +181,7 @@
             <div class="row mt-4">
                 <div class="col-12">
                     <h4 class="mb-3">
-                        <i class="fas fa-file-alt me-2"></i>Container Logs
+                        <i class="fas fa-file-alt mr-2"></i>Container Logs
                     </h4>
                     <div class="log-viewer">
                         <pre>{{ logs }}</pre>
@@ -194,26 +192,26 @@
         </div>
 
         <!-- Security Analysis Tab -->
-        <div class="tab-pane fade" id="analysis" role="tabpanel">
+        <div class="tab-pane fade" id="analysis" role="tabpanel" aria-labelledby="analysis-tab">
             <div class="row">
                 <div class="col-12">
                     <div class="test-controls">
                         <h4 class="mb-3">
-                            <i class="fas fa-shield-alt me-2"></i>Security Analysis Controls
+                            <i class="fas fa-shield-alt mr-2"></i>Security Analysis Controls
                         </h4>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <button hx-post="/analysis/start/{{ model }}/{{ app_num }}"
                                         hx-target="#analysis-results" 
                                         class="btn btn-primary btn-app-action w-100">
-                                    <i class="fas fa-play me-2"></i>Start Security Scan
+                                    <i class="fas fa-play mr-2"></i>Start Security Scan
                                 </button>
                             </div>
                             <div class="col-md-6">
                                 <button hx-get="/analysis/status/{{ model }}/{{ app_num }}"
                                         hx-target="#analysis-status" 
                                         class="btn btn-outline-primary btn-app-action w-100">
-                                    <i class="fas fa-sync me-2"></i>Check Status
+                                    <i class="fas fa-sync mr-2"></i>Check Status
                                 </button>
                             </div>
                         </div>
@@ -222,7 +220,7 @@
                     <div id="analysis-status" class="mb-3">
                         {% if analysis_status %}
                             <div class="alert alert-{% if analysis_status == 'completed' %}success{% elif analysis_status == 'running' %}warning{% else %}info{% endif %} alert-custom">
-                                <i class="fas fa-info-circle me-2"></i>
+                                <i class="fas fa-info-circle mr-2"></i>
                                 Analysis Status: <strong>{{ analysis_status|title }}</strong>
                             </div>
                         {% endif %}
@@ -233,7 +231,7 @@
                             <div class="card">
                                 <div class="card-header">
                                     <h5 class="card-title mb-0">
-                                        <i class="fas fa-clipboard-list me-2"></i>Security Analysis Results
+                                        <i class="fas fa-clipboard-list mr-2"></i>Security Analysis Results
                                     </h5>
                                 </div>
                                 <div class="card-body">
@@ -244,7 +242,7 @@
                             </div>
                         {% else %}
                             <div class="alert alert-info alert-custom">
-                                <i class="fas fa-info-circle me-2"></i>
+                                <i class="fas fa-info-circle mr-2"></i>
                                 No analysis results available. Start a security scan to see results.
                             </div>
                         {% endif %}
@@ -254,33 +252,33 @@
         </div>
 
         <!-- Performance Tab -->
-        <div class="tab-pane fade" id="performance" role="tabpanel">
+        <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
             <div class="row">
                 <div class="col-12">
                     <div class="test-controls">
                         <h4 class="mb-3">
-                            <i class="fas fa-tachometer-alt me-2"></i>Performance Testing
+                            <i class="fas fa-tachometer-alt mr-2"></i>Performance Testing
                         </h4>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <button hx-post="/performance/start/{{ model }}/{{ app_num }}"
                                         hx-target="#performance-results" 
                                         class="btn btn-success btn-app-action w-100">
-                                    <i class="fas fa-play me-2"></i>Start Performance Test
+                                    <i class="fas fa-play mr-2"></i>Start Performance Test
                                 </button>
                             </div>
                             <div class="col-md-4">
                                 <button hx-get="/performance/status/{{ model }}/{{ app_num }}"
                                         hx-target="#performance-status" 
                                         class="btn btn-outline-primary btn-app-action w-100">
-                                    <i class="fas fa-sync me-2"></i>Check Status
+                                    <i class="fas fa-sync mr-2"></i>Check Status
                                 </button>
                             </div>
                             <div class="col-md-4">
                                 <button hx-get="/performance/report/{{ model }}/{{ app_num }}"
                                         hx-target="#performance-results" 
                                         class="btn btn-info btn-app-action w-100">
-                                    <i class="fas fa-chart-line me-2"></i>Generate Report
+                                    <i class="fas fa-chart-line mr-2"></i>Generate Report
                                 </button>
                             </div>
                         </div>
@@ -289,7 +287,7 @@
                     <div id="performance-status" class="mb-3">
                         {% if performance_status %}
                             <div class="alert alert-{% if performance_status == 'completed' %}success{% elif performance_status == 'running' %}warning{% else %}info{% endif %} alert-custom">
-                                <i class="fas fa-info-circle me-2"></i>
+                                <i class="fas fa-info-circle mr-2"></i>
                                 Performance Test Status: <strong>{{ performance_status|title }}</strong>
                             </div>
                         {% endif %}
@@ -300,7 +298,7 @@
                             <div class="card">
                                 <div class="card-header">
                                     <h5 class="card-title mb-0">
-                                        <i class="fas fa-chart-bar me-2"></i>Performance Test Results
+                                        <i class="fas fa-chart-bar mr-2"></i>Performance Test Results
                                     </h5>
                                 </div>
                                 <div class="card-body">
@@ -311,7 +309,7 @@
                             </div>
                         {% else %}
                             <div class="alert alert-info alert-custom">
-                                <i class="fas fa-info-circle me-2"></i>
+                                <i class="fas fa-info-circle mr-2"></i>
                                 No performance test results available. Start a performance test to see results.
                             </div>
                         {% endif %}
