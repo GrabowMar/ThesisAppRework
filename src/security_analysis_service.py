@@ -304,10 +304,10 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
         
     def _find_app_path(self, model: str, app_num: int) -> Optional[Path]:
         """Find application backend directory path."""
-        workspace_root = self.base_path.parent
+        workspace_root = self.base_path.parent if self.base_path.name == "src" else self.base_path
         candidates = [
-            workspace_root / "models" / model / f"app{app_num}" / "backend",
-            self.base_path / "models" / model / f"app{app_num}" / "backend",
+            workspace_root / "misc" / "models" / model / f"app{app_num}" / "backend",
+            self.base_path / "misc" / "models" / model / f"app{app_num}" / "backend",
         ]
         
         for candidate in candidates:
@@ -562,11 +562,11 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
         
     def _find_app_path(self, model: str, app_num: int) -> Optional[Path]:
         """Find application frontend directory path."""
-        workspace_root = self.base_path.parent
-        base_app_dir = workspace_root / "models" / model / f"app{app_num}"
+        workspace_root = self.base_path.parent if self.base_path.name == "src" else self.base_path
+        base_app_dir = workspace_root / "misc" / "models" / model / f"app{app_num}"
 
         if not base_app_dir.is_dir():
-            base_app_dir = self.base_path / "models" / model / f"app{app_num}"
+            base_app_dir = self.base_path / "misc" / "models" / model / f"app{app_num}"
             if not base_app_dir.is_dir():
                 return None
 
@@ -1051,10 +1051,10 @@ class BackendQualityAnalyzer(BaseAnalyzer):
         
     def _find_app_path(self, model: str, app_num: int) -> Optional[Path]:
         """Find application backend directory path."""
-        workspace_root = self.base_path.parent
+        workspace_root = self.base_path.parent if self.base_path.name == "src" else self.base_path
         candidates = [
-            workspace_root / "models" / model / f"app{app_num}" / "backend",
-            self.base_path / "models" / model / f"app{app_num}" / "backend",
+            workspace_root / "misc" / "models" / model / f"app{app_num}" / "backend",
+            self.base_path / "misc" / "models" / model / f"app{app_num}" / "backend",
         ]
         
         for candidate in candidates:
@@ -1338,11 +1338,11 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
         
     def _find_app_path(self, model: str, app_num: int) -> Optional[Path]:
         """Find application frontend directory path."""
-        workspace_root = self.base_path.parent
-        base_app_dir = workspace_root / "models" / model / f"app{app_num}"
+        workspace_root = self.base_path.parent if self.base_path.name == "src" else self.base_path
+        base_app_dir = workspace_root / "misc" / "models" / model / f"app{app_num}"
 
         if not base_app_dir.is_dir():
-            base_app_dir = self.base_path / "models" / model / f"app{app_num}"
+            base_app_dir = self.base_path / "misc" / "models" / model / f"app{app_num}"
             if not base_app_dir.is_dir():
                 return None
 

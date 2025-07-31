@@ -127,6 +127,8 @@ class PortConfiguration(db.Model):
     __tablename__ = 'port_configurations'
     
     id = db.Column(db.Integer, primary_key=True)
+    model = db.Column(db.String(200), nullable=False, index=True)  # Model name/ID
+    app_num = db.Column(db.Integer, nullable=False, index=True)    # App number
     frontend_port = db.Column(db.Integer, unique=True, nullable=False, index=True)
     backend_port = db.Column(db.Integer, unique=True, nullable=False, index=True)
     is_available = db.Column(db.Boolean, default=True, index=True)
@@ -137,6 +139,9 @@ class PortConfiguration(db.Model):
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Unique constraint for model + app combination
+    __table_args__ = (db.UniqueConstraint('model', 'app_num', name='unique_model_app_port'),)
     
     def get_metadata(self):
         """Get metadata as dictionary."""

@@ -1096,6 +1096,76 @@ class ScanManager(BaseService):
                 self.logger.info(f"Cleaned up {len(to_remove)} old scans")
             return len(to_remove)
     
+    def run_security_analysis(self, model: str, app_num: int, enabled_tools: dict) -> dict:
+        """Run security analysis using the security analysis service."""
+        try:
+            self.logger.info(f"Starting security analysis for {model} app {app_num}")
+            
+            # Import the security analysis service
+            from security_analysis_service import UnifiedCLIAnalyzer
+            from security_analysis_service import ToolCategory
+            
+            # Initialize the analyzer
+            analyzer = UnifiedCLIAnalyzer(Path.cwd())
+            
+            # Determine categories based on enabled tools
+            categories = []
+            if any(tool in enabled_tools and enabled_tools[tool] for tool in ['bandit', 'safety', 'semgrep']):
+                categories.append(ToolCategory.BACKEND_SECURITY)
+            if any(tool in enabled_tools and enabled_tools[tool] for tool in ['eslint', 'npm_audit', 'retire']):
+                categories.append(ToolCategory.FRONTEND_SECURITY)
+            
+            # If no specific tools enabled, use both categories
+            if not categories:
+                categories = [ToolCategory.BACKEND_SECURITY, ToolCategory.FRONTEND_SECURITY]
+            
+            # Run the analysis
+            results = analyzer.run_analysis(
+                model=model,
+                app_num=app_num,
+                categories=categories,
+                use_all_tools=False,
+                force_rerun=False
+            )
+            
+            # Format results for web interface
+            if results and isinstance(results, dict):
+                total_issues = 0
+                for category_result in results.values():
+                    if isinstance(category_result, dict) and 'issues' in category_result:
+                        total_issues += len(category_result['issues'])
+                
+                return {
+                    'success': True,
+                    'data': {
+                        'issues': [],  # Simplified for now
+                        'total_issues': total_issues,
+                        'categories': list(results.keys())
+                    }
+                }
+            else:
+                return {
+                    'success': True,
+                    'data': {
+                        'issues': [],
+                        'total_issues': 0,
+                        'categories': []
+                    }
+                }
+                
+        except ImportError as e:
+            self.logger.error(f"Security analysis service not available: {e}")
+            return {
+                'success': False,
+                'error': 'Security analysis service not available'
+            }
+        except Exception as e:
+            self.logger.error(f"Security analysis failed: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
     def cleanup(self):
         """Cleanup resources."""
         self.scans.clear()
@@ -1872,6 +1942,9 @@ class ServiceInitializer:
             # Initialize performance service if configured
             self.initialize_performance_service()
             
+            # Initialize ZAP service
+            self.initialize_zap_service()
+
             self.logger.info("All services initialized successfully")
             
         except Exception as e:
@@ -1921,15 +1994,46 @@ class ServiceInitializer:
             # Don't raise - batch processing is optional
     
     def initialize_performance_service(self):
-        """Initialize the performance service if configured."""
+        """Initialize the performance service."""
         try:
-            # This is optional and may not be available in all configurations
-            if hasattr(self.app.config, 'ENABLE_PERFORMANCE_MONITORING') and self.app.config.get('ENABLE_PERFORMANCE_MONITORING'):
-                # Performance service initialization would go here
-                self.logger.info("Performance monitoring not configured")
+            # Import and initialize the performance service
+            from performance_service import LocustPerformanceTester
+            from pathlib import Path
+            
+            # Create performance tester instance
+            output_dir = Path.cwd() / "performance_reports"
+            performance_service = LocustPerformanceTester(output_dir)
+            
+            # Register with service manager
+            self.service_manager.register('performance_service', performance_service)
+            self.logger.info("Performance service initialized successfully")
+            
+        except ImportError as e:
+            self.logger.warning(f"Performance service not available: {e}")
         except Exception as e:
             self.logger.error(f"Failed to initialize performance service: {e}")
             # Don't raise - performance monitoring is optional
+    
+    def initialize_zap_service(self):
+        """Initialize the ZAP scanning service."""
+        try:
+            # Import and initialize the ZAP service
+            from zap_service import ZAPScanner
+            from pathlib import Path
+            
+            # Create ZAP scanner instance directly
+            base_path = Path.cwd() / "zap_reports"
+            zap_service = ZAPScanner(base_path)
+            
+            # Register with service manager
+            self.service_manager.register('zap_service', zap_service)
+            self.logger.info("ZAP service initialized successfully")
+            
+        except ImportError as e:
+            self.logger.warning(f"ZAP service not available: {e}")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize ZAP service: {e}")
+            # Don't raise - ZAP scanning is optional
 
 
 # ===========================

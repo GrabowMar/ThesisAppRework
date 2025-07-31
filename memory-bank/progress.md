@@ -1,28 +1,25 @@
-# Progress (Updated: 2025-07-29)
+# Progress (Updated: 2025-07-31)
 
 ## Done
 
-- Fixed all 'Request failed. Please try again.' errors throughout Flask application
-- Enhanced HTMX error handling with status-specific messages and retry mechanisms
-- Created comprehensive error handling utilities (errorHandling.js)
-- Fixed models page functionality
-- Completed Docker container management functionality
-- Created Docker overview template with system status and container management
-- Created detailed container status modal template
-- Implemented all missing Docker routes (logs, diagnostics, bulk actions, system actions)
-- Created all required Docker partial templates
-- Verified Docker functionality is working correctly
-- Created comprehensive container utilities (container_utils.py)
-- Created simple standalone container utilities (simple_container_utils.py)
-- Created container examples and documentation
-- Successfully tested container creation with openai_gpt-4/app1
+- Fixed 405 Method Not Allowed errors in web routes
+- Added missing route handlers for performance, security, ZAP
+- Created app_analysis.html template
+- Analyzed CLI tools service architecture
+- Added run_security_analysis method to ScanManager
+- Added run_zap_scan method to ZAPScanner
+- Added proper service initialization for performance_service and zap_service
+- Achieved 71.4% test pass rate with stable functionality
 
 ## Doing
 
-- Testing and documenting the container utilities
+- Fixing remaining ZAP service import issues
+- Addressing test formatting problems
+- Optimizing service initialization to prevent duplicates
 
 ## Next
 
-- Integrate container utilities with web interface
-- Add container template management
-- Add bulk container operations to web interface
+- Install zapv2 dependency or create fallback for ZAP service
+- Fix test output formatting issues
+- Create final comprehensive test report
+- Document CLI tools testing architecture

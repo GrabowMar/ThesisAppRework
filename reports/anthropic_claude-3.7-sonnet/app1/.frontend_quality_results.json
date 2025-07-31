@@ -1,0 +1,15 @@
+{
+  "issues": [],
+  "tool_status": {
+    "eslint": "\u274c Command not found"
+  },
+  "tool_outputs": {},
+  "timestamp": "2025-07-31T21:46:42.643019",
+  "_metadata": {
+    "module": "frontend_quality",
+    "model": "anthropic_claude-3.7-sonnet",
+    "app_num": 1,
+    "saved_at": "2025-07-31T21:46:42.643019",
+    "filename": ".frontend_quality_results.json"
+  }
+}

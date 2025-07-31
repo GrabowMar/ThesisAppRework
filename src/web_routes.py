@@ -633,6 +633,31 @@ def dashboard():
         return render_template("pages/error.html", error=str(e))
 
 
+@main_bp.route("/dashboard")
+def dashboard_redirect():
+    """Dashboard page - serve dashboard content directly."""
+    # Call the dashboard function directly to avoid redirect
+    return dashboard()
+
+
+@main_bp.route("/docker")
+def docker_redirect():
+    """Docker management page - serve docker content directly."""
+    # Call docker_overview function directly to serve content instead of redirecting
+    try:
+        docker_manager = ServiceLocator.get_docker_manager()
+        
+        context = {
+            'title': 'Docker Management',
+            'active_page': 'docker',
+            'docker_status': 'available' if docker_manager else 'unavailable'
+        }
+        return ResponseHandler.render_response("docker_overview.html", **context)
+    except Exception as e:
+        logger.error(f"Docker overview error: {e}")
+        return f"Error: Docker management unavailable - {str(e)}", 500
+
+
 @main_bp.route("/app/<model>/<int:app_num>")
 def app_details(model: str, app_num: int):
     """Application details page - redirects to overview sub-page."""
@@ -2521,6 +2546,74 @@ def download_app_file(model: str, app_num: int):
 # API ROUTES - Models
 # ===========================
 
+@api_bp.route("/models")
+def get_models():
+    """Get all models data for API requests."""
+    try:
+        models = ModelCapability.query.all()
+        models_data = []
+        
+        for model in models:
+            model_data = {
+                'id': model.id,
+                'model_id': model.model_id,
+                'model_name': model.model_name,
+                'provider': model.provider,
+                'context_window': model.context_window,
+                'max_output_tokens': model.max_output_tokens,
+                'input_price_per_token': model.input_price_per_token,
+                'output_price_per_token': model.output_price_per_token,
+                'created_at': model.created_at.isoformat() if model.created_at else None
+            }
+            models_data.append(model_data)
+        
+        return ResponseHandler.success_response({
+            'models': models_data,
+            'total': len(models_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting models: {e}", exc_info=True)
+        return ResponseHandler.error_response(f"Failed to get models: {str(e)}")
+
+
+@api_bp.route("/app/<model>/<int:app_num>")
+def get_app_info(model: str, app_num: int):
+    """Get application information for a specific model and app number."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        # Check if the model exists
+        model_capability = ModelCapability.query.filter_by(model_id=decoded_model).first()
+        if not model_capability:
+            return ResponseHandler.error_response("Model not found", 404)
+        
+        # Get port configuration
+        port_config = PortConfiguration.query.filter_by(
+            model=decoded_model, 
+            app_num=app_num
+        ).first()
+        
+        if not port_config:
+            return ResponseHandler.error_response("App configuration not found", 404)
+        
+        app_data = {
+            'model': decoded_model,
+            'app_num': app_num,
+            'backend_port': port_config.backend_port,
+            'frontend_port': port_config.frontend_port,
+            'model_name': model_capability.model_name,
+            'provider': model_capability.provider
+        }
+        
+        return ResponseHandler.success_response(app_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting app info: {e}", exc_info=True)
+        return ResponseHandler.error_response(f"Failed to get app info: {str(e)}")
+
+
 @api_bp.route("/models/export")
 def export_models_data():
     """Export models data in various formats."""
@@ -3571,6 +3664,227 @@ def register_template_helpers(app):
             return f"http://localhost:{port_config['frontend_port']}"
         except Exception:
             return None
+
+
+# ===========================
+# PERFORMANCE & SECURITY ANALYSIS ROUTES
+# ===========================
+
+@api_bp.route("/performance/<model>/<int:app_num>/run", methods=["POST"])
+def run_performance_test(model, app_num):
+    """Run performance test on specified app."""
+    try:
+        logger.info(f"Starting performance test for {model} app {app_num}")
+        
+        # Get form data
+        duration = int(request.form.get('duration', 60))
+        users = int(request.form.get('users', 10))
+        spawn_rate = float(request.form.get('spawn_rate', 1.0))
+        
+        # Get performance service
+        performance_service = ServiceLocator.get_service('performance_service')
+        if not performance_service:
+            return jsonify({'error': 'Performance service not available'}), 503
+        
+        # Run the test
+        results = performance_service.run_performance_test(
+            model=model,
+            app_num=app_num,
+            duration=duration,
+            users=users,
+            spawn_rate=spawn_rate
+        )
+        
+        if results['success']:
+            return render_template_string("""
+            <div class="alert alert-success">
+                <h6>Performance Test Completed</h6>
+                <p>Average Response Time: {{ results.avg_response_time }}ms</p>
+                <p>Total Requests: {{ results.total_requests }}</p>
+                <p>Success Rate: {{ results.success_rate }}%</p>
+            </div>
+            """, results=results.get('data', {}))
+        else:
+            return render_template_string("""
+            <div class="alert alert-danger">
+                <h6>Performance Test Failed</h6>
+                <p>{{ error }}</p>
+            </div>
+            """, error=results.get('error', 'Unknown error'))
+            
+    except Exception as e:
+        logger.error(f"Performance test error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route("/analysis/<model>/<int:app_num>/security", methods=["POST"])
+def run_security_analysis(model, app_num):
+    """Run security analysis on specified app."""
+    try:
+        logger.info(f"Starting security analysis for {model} app {app_num}")
+        
+        # Get enabled tools from form
+        enabled_tools = {
+            'bandit': request.form.get('bandit') == 'on',
+            'safety': request.form.get('safety') == 'on',
+            'semgrep': request.form.get('semgrep') == 'on',
+            'eslint': request.form.get('eslint') == 'on'
+        }
+        
+        # Get scan service
+        scan_service = ServiceLocator.get_scan_manager()
+        if not scan_service:
+            return jsonify({'error': 'Scan service not available'}), 503
+        
+        # Run the analysis
+        results = scan_service.run_security_analysis(
+            model=model,
+            app_num=app_num,
+            enabled_tools=enabled_tools
+        )
+        
+        if results['success']:
+            issues = results.get('data', {}).get('issues', [])
+            return render_template_string("""
+            <div class="alert alert-info">
+                <h6>Security Analysis Completed</h6>
+                <p>Found {{ issues|length }} issues</p>
+                {% if issues %}
+                <ul class="mt-2">
+                {% for issue in issues[:5] %}
+                    <li><span class="badge badge-{{ 'danger' if issue.severity == 'HIGH' else 'warning' if issue.severity == 'MEDIUM' else 'info' }}">{{ issue.severity }}</span> {{ issue.title }}</li>
+                {% endfor %}
+                {% if issues|length > 5 %}
+                    <li><em>... and {{ issues|length - 5 }} more</em></li>
+                {% endif %}
+                </ul>
+                {% endif %}
+            </div>
+            """, issues=issues)
+        else:
+            return render_template_string("""
+            <div class="alert alert-danger">
+                <h6>Security Analysis Failed</h6>
+                <p>{{ error }}</p>
+            </div>
+            """, error=results.get('error', 'Unknown error'))
+            
+    except Exception as e:
+        logger.error(f"Security analysis error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route("/analysis/<model>/<int:app_num>/zap", methods=["POST"])
+def run_zap_scan(model, app_num):
+    """Run ZAP security scan on specified app."""
+    try:
+        logger.info(f"Starting ZAP scan for {model} app {app_num}")
+        
+        # Get scan type
+        scan_type = request.form.get('scan_type', 'spider')
+        
+        # Get ZAP service
+        zap_service = ServiceLocator.get_service('zap_service')
+        if not zap_service:
+            return jsonify({'error': 'ZAP service not available'}), 503
+        
+        # Run the scan
+        results = zap_service.run_zap_scan(
+            model=model,
+            app_num=app_num,
+            scan_type=scan_type
+        )
+        
+        if results['success']:
+            vulnerabilities = results.get('data', {}).get('vulnerabilities', [])
+            return render_template_string("""
+            <div class="alert alert-info">
+                <h6>ZAP Scan Completed</h6>
+                <p>Found {{ vulnerabilities|length }} vulnerabilities</p>
+                {% if vulnerabilities %}
+                <ul class="mt-2">
+                {% for vuln in vulnerabilities[:5] %}
+                    <li><span class="badge badge-{{ 'danger' if vuln.risk == 'High' else 'warning' if vuln.risk == 'Medium' else 'info' }}">{{ vuln.risk }}</span> {{ vuln.name }}</li>
+                {% endfor %}
+                {% if vulnerabilities|length > 5 %}
+                    <li><em>... and {{ vulnerabilities|length - 5 }} more</em></li>
+                {% endif %}
+                </ul>
+                {% endif %}
+            </div>
+            """, vulnerabilities=vulnerabilities)
+        else:
+            return render_template_string("""
+            <div class="alert alert-danger">
+                <h6>ZAP Scan Failed</h6>
+                <p>{{ error }}</p>
+            </div>
+            """, error=results.get('error', 'Unknown error'))
+            
+    except Exception as e:
+        logger.error(f"ZAP scan error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route("/status/<model>/<int:app_num>")
+def get_app_status_api(model, app_num):
+    """Get app status for HTMX updates."""
+    try:
+        # Get container status
+        docker_service = ServiceLocator.get_docker_manager()
+        if not docker_service:
+            return render_template_string("""
+            <div class="text-muted">
+                <i class="fas fa-exclamation-triangle"></i>
+                Docker service unavailable
+            </div>
+            """)
+        
+        # Get port configuration
+        app_info = AppDataProvider.get_app_info(model, app_num)
+        if not app_info:
+            return render_template_string("""
+            <div class="text-muted">
+                <i class="fas fa-question-circle"></i>
+                App information not found
+            </div>
+            """)
+        
+        # Check container status
+        frontend_status = docker_service.get_container_status(
+            model, app_num, 'frontend', app_info['frontend_port']
+        )
+        backend_status = docker_service.get_container_status(
+            model, app_num, 'backend', app_info['backend_port']
+        )
+        
+        return render_template_string("""
+        <div class="container-status">
+            <div class="row">
+                <div class="col-6">
+                    <div class="d-flex align-items-center">
+                        <span class="status-indicator status-{{ 'running' if frontend_status.get('running') else 'stopped' }}"></span>
+                        <small class="text-muted ml-2">Frontend</small>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="d-flex align-items-center">
+                        <span class="status-indicator status-{{ 'running' if backend_status.get('running') else 'stopped' }}"></span>
+                        <small class="text-muted ml-2">Backend</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, frontend_status=frontend_status, backend_status=backend_status)
+        
+    except Exception as e:
+        logger.error(f"Status check error: {e}")
+        return render_template_string("""
+        <div class="text-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            Status check failed
+        </div>
+        """)
 
 
 # ===========================

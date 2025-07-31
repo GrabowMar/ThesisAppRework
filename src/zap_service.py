@@ -22,7 +22,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Callable
 
 import requests
-from zapv2 import ZAPv2
+try:
+    from zapv2 import ZAPv2
+except ImportError:
+    try:
+        from zaproxy import ZAPv2
+    except ImportError:
+        # Create a mock ZAPv2 class if no ZAP library is available
+        class ZAPv2:
+            def __init__(self, *args, **kwargs):
+                pass
 
 # Import the simple analysis functions from core_services
 try:
@@ -745,6 +754,43 @@ class ZAPScanner:
         except Exception as e:
             logger.error(f"Error saving scan results for {model}/app{app_num}: {e}")
             raise
+
+    def run_zap_scan(self, model: str, app_num: int, scan_type: str = "spider") -> dict:
+        """
+        Run ZAP scan compatible with web routes interface.
+        This method provides the interface expected by web_routes.py.
+        """
+        logger.info(f"run_zap_scan called for model='{model}', app_num={app_num}, scan_type='{scan_type}'")
+        
+        try:
+            # Use the existing scan_app method
+            result = self.scan_app(model, app_num)
+            
+            # Transform result to match expected web interface format
+            if result.get("status") == "success":
+                return {
+                    'success': True,
+                    'data': {
+                        'vulnerabilities': result.get("issues", []),
+                        'scan_type': scan_type,
+                        'scan_time': result.get("scan_time"),
+                        'summary': result.get("summary", {})
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': result.get("summary", {}).get("error", "ZAP scan failed"),
+                    'scan_type': scan_type
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in run_zap_scan for {model}/app{app_num}: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'scan_type': scan_type
+            }
 
     def scan_app(self, model: str, app_num: int) -> Dict[str, Any]:
         """

@@ -265,7 +265,8 @@ def populate_ports_from_json(app, port_data):
                 
                 # Check if port configuration already exists
                 existing = PortConfiguration.query.filter_by(
-                    frontend_port=frontend_port
+                    model=port_entry.get('model_name', ''),
+                    app_num=port_entry.get('app_number', 0)
                 ).first()
                 
                 if existing:
@@ -273,12 +274,12 @@ def populate_ports_from_json(app, port_data):
                 
                 # Create new port configuration
                 port_config = PortConfiguration(
+                    model=port_entry.get('model_name', ''),
+                    app_num=port_entry.get('app_number', 0),
                     frontend_port=frontend_port,
                     backend_port=backend_port,
                     is_available=True,
                     metadata_json=json.dumps({
-                        'model_name': port_entry.get('model_name', ''),
-                        'app_number': port_entry.get('app_number', 0),
                         'app_type': port_entry.get('app_type', ''),
                         'source': 'initial_load'
                     })

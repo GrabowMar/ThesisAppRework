@@ -1,0 +1,277 @@
+{% extends "pages/app_base.html" %}
+
+{% block page_content %}
+<div class="row">
+    <!-- Security Analysis Controls -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-shield-alt text-primary mr-2"></i>
+                    Security Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Security Analysis Form -->
+                <form id="security-analysis-form" 
+                      hx-post="/api/analysis/{{ model }}/{{ app_num }}/security"
+                      hx-target="#security-analysis-results"
+                      hx-indicator="#security-analysis-spinner"
+                      class="mb-4">
+                    <div class="form-group">
+                        <label class="form-label">Enabled Tools</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="bandit" id="bandit" checked>
+                            <label class="form-check-label" for="bandit">
+                                Bandit (Python Security)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="safety" id="safety" checked>
+                            <label class="form-check-label" for="safety">
+                                Safety (Dependency Check)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="semgrep" id="semgrep">
+                            <label class="form-check-label" for="semgrep">
+                                Semgrep (Code Patterns)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="eslint" id="eslint" checked>
+                            <label class="form-check-label" for="eslint">
+                                ESLint (JavaScript Security)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-play mr-2"></i>
+                        Run Security Analysis
+                    </button>
+                </form>
+                
+                <!-- Loading Indicator -->
+                <div id="security-analysis-spinner" class="htmx-indicator text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Analyzing...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Running security analysis...</p>
+                </div>
+                
+                <!-- Security Analysis Results -->
+                <div id="security-analysis-results">
+                    <!-- Results will be loaded here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- ZAP Security Scan -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bug text-danger mr-2"></i>
+                    ZAP Security Scan
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- ZAP Scan Form -->
+                <form id="zap-scan-form" 
+                      hx-post="/api/analysis/{{ model }}/{{ app_num }}/zap"
+                      hx-target="#zap-scan-results"
+                      hx-indicator="#zap-scan-spinner"
+                      class="mb-4">
+                    <div class="form-group">
+                        <label for="scan_type" class="form-label">Scan Type</label>
+                        <select class="form-control" name="scan_type" id="scan_type">
+                            <option value="spider">Spider Scan (Fast)</option>
+                            <option value="active">Active Scan (Thorough)</option>
+                            <option value="baseline">Baseline Scan (Balanced)</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-danger btn-block">
+                        <i class="fas fa-search mr-2"></i>
+                        Start ZAP Scan
+                    </button>
+                </form>
+                
+                <!-- ZAP Loading Indicator -->
+                <div id="zap-scan-spinner" class="htmx-indicator text-center py-3">
+                    <div class="spinner-border text-danger" role="status">
+                        <span class="sr-only">Scanning...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Running ZAP security scan...</p>
+                </div>
+                
+                <!-- ZAP Scan Results -->
+                <div id="zap-scan-results">
+                    <!-- Results will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Results -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line text-success mr-2"></i>
+                    Analysis Results
+                </h5>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary" onclick="refreshResults()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="exportResults()">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Results Overview -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card bg-light border-left-primary">
+                            <div class="card-body py-3">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                            Security Issues
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            <span id="security-issues-count">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-shield-alt fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card bg-light border-left-warning">
+                            <div class="card-body py-3">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                            Vulnerabilities
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            <span id="vulnerabilities-count">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card bg-light border-left-success">
+                            <div class="card-body py-3">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                            Last Scan
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            <span id="last-scan-time">Never</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-clock fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Detailed Results -->
+                <div id="detailed-results">
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <h5>No Analysis Results</h5>
+                        <p>Run a security analysis or ZAP scan to see results here.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+
+.border-left-warning {
+    border-left: 0.25rem solid #f6c23e !important;
+}
+
+.text-xs {
+    font-size: 0.7rem;
+}
+
+.text-gray-800 {
+    color: #5a5c69 !important;
+}
+
+.text-gray-300 {
+    color: #dddfeb !important;
+}
+
+.htmx-indicator {
+    display: none;
+}
+
+.form-check {
+    margin-bottom: 0.5rem;
+}
+
+.card {
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+</style>
+
+<script>
+function refreshResults() {
+    // Reload the analysis results
+    location.reload();
+}
+
+function exportResults() {
+    // Export functionality can be implemented here
+    alert('Export functionality will be implemented');
+}
+
+// Update counts when analysis completes
+document.addEventListener('htmx:afterRequest', function(event) {
+    if (event.detail.target.id === 'security-analysis-results' || 
+        event.detail.target.id === 'zap-scan-results') {
+        // Update the counts based on the results
+        updateResultCounts();
+    }
+});
+
+function updateResultCounts() {
+    // This would be implemented to parse results and update counts
+    // For now, just placeholder functionality
+}
+</script>
+{% endblock %}

@@ -1,0 +1,69 @@
+{
+  "issues": [
+    {
+      "filename": "app.py",
+      "line_number": 7,
+      "issue_text": "expected 2 blank lines, found 1",
+      "severity": "ERROR",
+      "confidence": "HIGH",
+      "issue_type": "flake8_E302",
+      "category": "style",
+      "rule_id": "E302",
+      "line_range": [
+        7
+      ],
+      "code": "N/A",
+      "tool": "flake8",
+      "fix_suggestion": null,
+      "metrics": null
+    },
+    {
+      "filename": "app.py",
+      "line_number": 9,
+      "issue_text": "line too long (88 > 79 characters)",
+      "severity": "ERROR",
+      "confidence": "HIGH",
+      "issue_type": "flake8_E501",
+      "category": "style",
+      "rule_id": "E501",
+      "line_range": [
+        9
+      ],
+      "code": "N/A",
+      "tool": "flake8",
+      "fix_suggestion": null,
+      "metrics": null
+    },
+    {
+      "filename": "app.py",
+      "line_number": 11,
+      "issue_text": "expected 2 blank lines after class or function definition, found 1",
+      "severity": "ERROR",
+      "confidence": "HIGH",
+      "issue_type": "flake8_E305",
+      "category": "style",
+      "rule_id": "E305",
+      "line_range": [
+        11
+      ],
+      "code": "N/A",
+      "tool": "flake8",
+      "fix_suggestion": null,
+      "metrics": null
+    }
+  ],
+  "tool_status": {
+    "flake8": "\u2139\ufe0f Found 3 issues"
+  },
+  "tool_outputs": {
+    "flake8": "STDOUT:\napp.py:7:1: E302 expected 2 blank lines, found 1\napp.py:9:80: E501 line too long (88 > 79 characters)\napp.py:11:1: E305 expected 2 blank lines after class or function definition, found 1\n\n\nSTDERR:\n"
+  },
+  "timestamp": "2025-07-31T21:46:42.639755",
+  "_metadata": {
+    "module": "backend_quality",
+    "model": "anthropic_claude-3.7-sonnet",
+    "app_num": 1,
+    "saved_at": "2025-07-31T21:46:42.639755",
+    "filename": ".backend_quality_results.json"
+  }
+}

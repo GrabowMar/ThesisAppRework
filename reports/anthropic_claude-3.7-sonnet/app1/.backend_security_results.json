@@ -1,0 +1,35 @@
+{
+  "issues": [
+    {
+      "filename": ".\\app.py",
+      "line_number": 12,
+      "issue_text": "Possible binding to all interfaces.",
+      "severity": "MEDIUM",
+      "confidence": "MEDIUM",
+      "issue_type": "hardcoded_bind_all_interfaces",
+      "category": "security",
+      "rule_id": "B104",
+      "line_range": [
+        12
+      ],
+      "code": "11 if __name__ == \"__main__\":\n12     app.run(host='0.0.0.0', port=6051)\n",
+      "tool": "bandit",
+      "fix_suggestion": "https://bandit.readthedocs.io/en/1.7.5/plugins/b104_hardcoded_bind_all_interfaces.html",
+      "metrics": null
+    }
+  ],
+  "tool_status": {
+    "bandit": "\u2139\ufe0f Found 1 issues"
+  },
+  "tool_outputs": {
+    "bandit": "STDOUT:\n{\n  \"errors\": [],\n  \"generated_at\": \"2025-07-31T19:46:42Z\",\n  \"metrics\": {\n    \".\\\\app.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 1,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 1,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 9,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"_totals\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 1,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 1,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 9,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    }\n  },\n  \"results\": [\n    {\n      \"code\": \"11 if __name__ == \\\"__main__\\\":\\n12     app.run(host='0.0.0.0', port=6051)\\n\",\n      \"col_offset\": 17,\n      \"end_col_offset\": 26,\n      \"filename\": \".\\\\app.py\",\n      \"issue_confidence\": \"MEDIUM\",\n      \"issue_cwe\": {\n        \"id\": 605,\n        \"link\": \"https://cwe.mitre.org/data/definitions/605.html\"\n      },\n      \"issue_severity\": \"MEDIUM\",\n      \"issue_text\": \"Possible binding to all interfaces.\",\n      \"line_number\": 12,\n      \"line_range\": [\n        12\n      ],\n      \"more_info\": \"https://bandit.readthedocs.io/en/1.7.5/plugins/b104_hardcoded_bind_all_interfaces.html\",\n      \"test_id\": \"B104\",\n      \"test_name\": \"hardcoded_bind_all_interfaces\"\n    }\n  ]\n}\n\nSTDERR:\n[main]\tINFO\tprofile include tests: None\n[main]\tINFO\tprofile exclude tests: None\n[main]\tINFO\tcli include tests: None\n[main]\tINFO\tcli exclude tests: None\n"
+  },
+  "timestamp": "2025-07-31T21:46:42.412909",
+  "_metadata": {
+    "module": "backend_security",
+    "model": "anthropic_claude-3.7-sonnet",
+    "app_num": 1,
+    "saved_at": "2025-07-31T21:46:42.413427",
+    "filename": ".backend_security_results.json"
+  }
+}
