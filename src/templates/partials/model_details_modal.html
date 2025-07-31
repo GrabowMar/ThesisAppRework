@@ -1,0 +1,86 @@
+<!-- Model Details Modal Content -->
+<div class="modal-header">
+    <h5 class="modal-title">{{ model.model_name }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+    <div class="row">
+        <div class="col-md-6">
+            <h6>Basic Information</h6>
+            <table class="table table-sm">
+                <tr>
+                    <td><strong>Provider:</strong></td>
+                    <td>{{ model.provider }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Model Name:</strong></td>
+                    <td>{{ model.model_name }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Canonical Slug:</strong></td>
+                    <td><code>{{ model.canonical_slug }}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Total Apps:</strong></td>
+                    <td>{{ details.total_apps }}</td>
+                </tr>
+                {% if details.created_at %}
+                <tr>
+                    <td><strong>Added:</strong></td>
+                    <td>{{ details.created_at }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+        <div class="col-md-6">
+            <h6>Capabilities</h6>
+            {% if details.capabilities %}
+            <div class="small">
+                <pre>{{ details.capabilities | tojson(indent=2) }}</pre>
+            </div>
+            {% else %}
+            <p class="text-muted">No capability data available</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row mt-3">
+        <div class="col-12">
+            <h6>Quick Actions</h6>
+            <div class="btn-group w-100" role="group">
+                <button type="button" class="btn btn-success btn-sm"
+                        hx-post="/api/model/{{ model.canonical_slug }}/start-all"
+                        hx-target="#model-{{ model.canonical_slug }}"
+                        hx-swap="outerHTML"
+                        data-bs-dismiss="modal">
+                    <i class="fas fa-play"></i> Start All
+                </button>
+                <button type="button" class="btn btn-warning btn-sm"
+                        hx-post="/api/model/{{ model.canonical_slug }}/restart-all"
+                        hx-target="#model-{{ model.canonical_slug }}"
+                        hx-swap="outerHTML"
+                        data-bs-dismiss="modal">
+                    <i class="fas fa-redo"></i> Restart All
+                </button>
+                <button type="button" class="btn btn-danger btn-sm"
+                        hx-post="/api/model/{{ model.canonical_slug }}/stop-all"
+                        hx-target="#model-{{ model.canonical_slug }}"
+                        hx-swap="outerHTML"
+                        data-bs-dismiss="modal">
+                    <i class="fas fa-stop"></i> Stop All
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm"
+                        hx-post="/api/model/{{ model.canonical_slug }}/analyze-all"
+                        hx-target="#model-{{ model.canonical_slug }}"
+                        hx-swap="outerHTML"
+                        data-bs-dismiss="modal">
+                    <i class="fas fa-shield-alt"></i> Analyze All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    <a href="/app/{{ model.canonical_slug }}/1" class="btn btn-primary">View Apps</a>
+</div>

@@ -14,6 +14,7 @@ import os
 import io
 import csv
 import zipfile
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -29,6 +30,7 @@ from models import (
     ModelCapability, GeneratedApplication, PortConfiguration,
     BatchAnalysis, SecurityAnalysis, PerformanceTest
 )
+from core_services import get_container_names, get_docker_project_name
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -137,6 +139,114 @@ class ServiceLocator:
         return ServiceLocator.get_service('batch_service')
 
 
+class DockerCache:
+    """Thread-safe Docker container cache with automatic refresh."""
+    
+    def __init__(self, cache_duration: int = 10):  # 10 seconds cache
+        self._cache = {}
+        self._cache_timestamp = {}
+        self._cache_duration = cache_duration
+        self._lock = threading.RLock()
+    
+    def get_all_containers_cached(self, docker_manager) -> List:
+        """Get all containers with caching."""
+        with self._lock:
+            now = datetime.now().timestamp()
+            
+            # Check if cache is still valid
+            if ('all_containers' in self._cache and 
+                'all_containers' in self._cache_timestamp and
+                now - self._cache_timestamp['all_containers'] < self._cache_duration):
+                return self._cache['all_containers']
+            
+            # Refresh cache
+            try:
+                if docker_manager and docker_manager.client:
+                    containers = docker_manager.client.containers.list(all=True)
+                    self._cache['all_containers'] = containers
+                    self._cache_timestamp['all_containers'] = now
+                    logger.info(f"Docker cache refreshed: {len(containers)} containers found")
+                    return containers
+                else:
+                    return []
+            except Exception as e:
+                logger.warning(f"Failed to refresh Docker cache: {e}")
+                # Return stale cache if available
+                return self._cache.get('all_containers', [])
+    
+    def get_container_status_cached(self, docker_manager, container_name: str) -> str:
+        """Get container status with caching."""
+        with self._lock:
+            now = datetime.now().timestamp()
+            
+            # Check if this specific container status is cached
+            cache_key = f"status_{container_name}"
+            if (cache_key in self._cache and 
+                cache_key in self._cache_timestamp and
+                now - self._cache_timestamp[cache_key] < self._cache_duration):
+                return self._cache[cache_key]
+            
+            # Get status from all containers cache to avoid individual lookups
+            all_containers = self.get_all_containers_cached(docker_manager)
+            
+            # Find container in cached list
+            status = 'stopped'
+            for container in all_containers:
+                if container.name == container_name:
+                    status = container.status
+                    break
+            
+            # Cache the result
+            self._cache[cache_key] = status
+            self._cache_timestamp[cache_key] = now
+            return status
+    
+    def bulk_get_container_statuses(self, docker_manager, container_names: List[str]) -> Dict[str, str]:
+        """Get multiple container statuses efficiently."""
+        with self._lock:
+            # Get all containers once
+            all_containers = self.get_all_containers_cached(docker_manager)
+            
+            # Create name to status mapping
+            container_map = {container.name: container.status for container in all_containers}
+            
+            # Return statuses for requested containers
+            result = {}
+            for name in container_names:
+                result[name] = container_map.get(name, 'stopped')
+            
+            # Update individual caches
+            now = datetime.now().timestamp()
+            for name, status in result.items():
+                cache_key = f"status_{name}"
+                self._cache[cache_key] = status
+                self._cache_timestamp[cache_key] = now
+            
+            return result
+    
+    def invalidate(self):
+        """Invalidate all cached data."""
+        with self._lock:
+            self._cache.clear()
+            self._cache_timestamp.clear()
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics for debugging."""
+        with self._lock:
+            now = datetime.now().timestamp()
+            valid_entries = sum(1 for key, timestamp in self._cache_timestamp.items() 
+                              if now - timestamp < self._cache_duration)
+            return {
+                'total_entries': len(self._cache),
+                'valid_entries': valid_entries,
+                'cache_duration': self._cache_duration,
+                'last_refresh': max(self._cache_timestamp.values()) if self._cache_timestamp else None
+            }
+
+# Global Docker cache instance
+_docker_cache = DockerCache()
+
+
 class AppDataProvider:
     """Centralized app data access and utilities."""
     
@@ -216,21 +326,50 @@ class AppDataProvider:
     
     @staticmethod
     def get_container_statuses(model: str, app_num: int) -> Dict[str, str]:
-        """Get container statuses for an app."""
+        """Get container statuses for an app using optimized caching."""
         docker_manager = ServiceLocator.get_docker_manager()
         if not docker_manager:
             return {'backend': 'unknown', 'frontend': 'unknown'}
         
         try:
-            backend_name = f"{model.replace('-', '_')}_app{app_num}_backend"
-            frontend_name = f"{model.replace('-', '_')}_app{app_num}_frontend"
+            # First try the proper container naming function from core_services
+            container_names = get_container_names(model, app_num)
+            if container_names:
+                backend_name = container_names['backend']
+                frontend_name = container_names['frontend']
+            else:
+                # Fallback: Convert model slug to Docker container naming format
+                container_model_name = model.replace('-', '_').replace('.', '_')
+                
+                # Use cache to find containers by pattern
+                all_containers = _docker_cache.get_all_containers_cached(docker_manager)
+                backend_name = None
+                frontend_name = None
+                
+                pattern_prefix = f"{container_model_name}_app{app_num}_"
+                for container in all_containers:
+                    if container.name.startswith(pattern_prefix):
+                        if '_backend_' in container.name:
+                            backend_name = container.name
+                        elif '_frontend_' in container.name:
+                            frontend_name = container.name
+                
+                # Fallback names if not found
+                if not backend_name:
+                    backend_name = f"{container_model_name}_app{app_num}_backend"
+                if not frontend_name:
+                    frontend_name = f"{container_model_name}_app{app_num}_frontend"
+            
+            # Use bulk status lookup for better performance
+            container_names_list = [backend_name, frontend_name]
+            statuses = _docker_cache.bulk_get_container_statuses(docker_manager, container_names_list)
             
             return {
-                'backend': docker_manager.get_container_status(backend_name),
-                'frontend': docker_manager.get_container_status(frontend_name)
+                'backend': statuses.get(backend_name, 'stopped'),
+                'frontend': statuses.get(frontend_name, 'stopped')
             }
         except Exception as e:
-            logger.error(f"Error getting container statuses: {e}")
+            logger.error(f"Error getting container statuses for {model}/app{app_num}: {e}")
             return {'backend': 'error', 'frontend': 'error'}
     
     @staticmethod
@@ -349,7 +488,9 @@ class DockerOperations:
             return "Docker manager not available"
         
         try:
-            container_name = f"{model.replace('-', '_')}_app{app_num}_{container_type}"
+            # Convert model slug to Docker container naming format
+            container_model_name = model.replace('-', '_').replace('.', '_')
+            container_name = f"{container_model_name}_app{app_num}_{container_type}"
             return docker_manager.get_container_logs(container_name, tail=tail)
         except Exception as e:
             logger.error(f"Error getting logs: {e}")
@@ -732,6 +873,141 @@ def api_model_apps(model_slug: str):
         return ResponseHandler.error_response(str(e))
 
 
+@api_bp.route("/model/<model_slug>/stats")
+def api_model_stats(model_slug: str):
+    """Get container statistics for a specific model with optimized Docker lookups."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+        
+        docker_manager = ServiceLocator.get_docker_manager()
+        
+        # Initialize counters
+        running_count = 0
+        stopped_count = 0
+        error_count = 0
+        
+        # Optimized container status checking using bulk operations
+        if docker_manager:
+            try:
+                # Get all containers once via cache
+                all_containers = _docker_cache.get_all_containers_cached(docker_manager)
+                
+                # Create a mapping of container names to their statuses
+                container_map = {container.name: container.status for container in all_containers}
+                
+                # Convert model slug to Docker container naming format
+                container_model_name = model_slug.replace('-', '_').replace('.', '_')
+                
+                # Check all 30 apps efficiently
+                for app_num in range(1, 31):
+                    try:
+                        # Generate expected container names
+                        pattern_prefix = f"{container_model_name}_app{app_num}_"
+                        
+                        # Find actual container names from pattern
+                        backend_name = None
+                        frontend_name = None
+                        
+                        for container_name in container_map.keys():
+                            if container_name.startswith(pattern_prefix):
+                                if '_backend_' in container_name:
+                                    backend_name = container_name
+                                elif '_frontend_' in container_name:
+                                    frontend_name = container_name
+                        
+                        # Use fallback naming if not found
+                        if not backend_name:
+                            backend_name = f"{container_model_name}_app{app_num}_backend"
+                        if not frontend_name:
+                            frontend_name = f"{container_model_name}_app{app_num}_frontend"
+                        
+                        # Get statuses from cached mapping
+                        backend_status = container_map.get(backend_name, 'stopped')
+                        frontend_status = container_map.get(frontend_name, 'stopped')
+                        
+                        # Count containers by status
+                        for status in [backend_status, frontend_status]:
+                            if status == 'running':
+                                running_count += 1
+                            elif status in ['exited', 'stopped']:
+                                stopped_count += 1
+                            elif status in ['error', 'unhealthy']:
+                                error_count += 1
+                            else:
+                                # Unknown status, count as stopped
+                                stopped_count += 1
+                                
+                    except Exception as app_error:
+                        logger.debug(f"Error checking app {app_num} for model {model_slug}: {app_error}")
+                        # Count as error if we can't determine status
+                        error_count += 2  # Both frontend and backend
+                        
+            except Exception as docker_error:
+                logger.error(f"Docker error for model {model_slug}: {docker_error}")
+                # Docker not available, count all as stopped
+                stopped_count = 30 * 2  # 30 apps * 2 containers each
+        else:
+            # Docker not available, count all as stopped
+            stopped_count = 30 * 2  # 30 apps * 2 containers each
+        
+        stats = {
+            'running': running_count,
+            'stopped': stopped_count,
+            'error': error_count,
+            'total': 60  # 30 apps * 2 containers each
+        }
+        
+        logger.debug(f"Model {model_slug} stats: {stats}")
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting stats for model {model_slug}: {e}")
+        return jsonify({
+            'running': 0,
+            'stopped': 0,
+            'error': 0,
+            'total': 60
+        }), 500
+
+
+@api_bp.route("/docker/cache/refresh", methods=["POST"])
+def api_refresh_docker_cache():
+    """Manually refresh the Docker cache."""
+    try:
+        _docker_cache.invalidate()
+        return jsonify({
+            'success': True,
+            'message': 'Docker cache refreshed',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error refreshing Docker cache: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route("/docker/cache/stats")
+def api_docker_cache_stats():
+    """Get Docker cache statistics."""
+    try:
+        cache_stats = _docker_cache.get_cache_stats()
+        return jsonify({
+            'success': True,
+            'cache_stats': cache_stats,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @api_bp.route("/dashboard/stats")
 def dashboard_stats():
     """Get dashboard statistics."""
@@ -752,6 +1028,157 @@ def dashboard_stats():
         
     except Exception as e:
         logger.error(f"Stats error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/model/<model_slug>/details")
+def api_model_details(model_slug: str):
+    """Get detailed information about a model."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return ResponseHandler.error_response('Model not found', 404)
+        
+        # Get model capabilities and statistics
+        capabilities = model.get_capabilities() if hasattr(model, 'get_capabilities') else {}
+        
+        details = {
+            'model_name': model.model_name,
+            'display_name': model.model_name,  # Use model_name as display_name
+            'provider': model.provider,
+            'canonical_slug': model.canonical_slug,
+            'capabilities': capabilities,
+            'total_apps': 30,
+            'created_at': model.created_at.isoformat() if model.created_at else None
+        }
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template('partials/model_details_modal.html', model=model, details=details)
+        
+        return ResponseHandler.success_response(data=details)
+        
+    except Exception as e:
+        logger.error(f"Error getting model details for {model_slug}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/model/<model_slug>/start-all", methods=["POST"])
+def api_model_start_all(model_slug: str):
+    """Start all containers for a model."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return ResponseHandler.error_response('Model not found', 404)
+        
+        docker_manager = ServiceLocator.get_docker_manager()
+        if not docker_manager:
+            return ResponseHandler.error_response('Docker not available')
+        
+        # Start all 30 apps for this model
+        apps_to_start = [(model_slug, app_num) for app_num in range(1, 31)]
+        result = DockerOperations.bulk_action('start', apps_to_start, max_workers=3)
+        
+        if ResponseHandler.is_htmx_request():
+            # Return updated model card
+            return api_dashboard_models()
+        
+        return ResponseHandler.success_response(data=result, 
+                                               message=f"Started all apps for {model.model_name}")
+        
+    except Exception as e:
+        logger.error(f"Error starting all apps for model {model_slug}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/model/<model_slug>/stop-all", methods=["POST"])
+def api_model_stop_all(model_slug: str):
+    """Stop all containers for a model."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return ResponseHandler.error_response('Model not found', 404)
+        
+        docker_manager = ServiceLocator.get_docker_manager()
+        if not docker_manager:
+            return ResponseHandler.error_response('Docker not available')
+        
+        # Stop all 30 apps for this model
+        apps_to_stop = [(model_slug, app_num) for app_num in range(1, 31)]
+        result = DockerOperations.bulk_action('stop', apps_to_stop, max_workers=3)
+        
+        if ResponseHandler.is_htmx_request():
+            # Return updated model card
+            return api_dashboard_models()
+        
+        return ResponseHandler.success_response(data=result, 
+                                               message=f"Stopped all apps for {model.model_name}")
+        
+    except Exception as e:
+        logger.error(f"Error stopping all apps for model {model_slug}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/model/<model_slug>/restart-all", methods=["POST"])
+def api_model_restart_all(model_slug: str):
+    """Restart all containers for a model."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return ResponseHandler.error_response('Model not found', 404)
+        
+        docker_manager = ServiceLocator.get_docker_manager()
+        if not docker_manager:
+            return ResponseHandler.error_response('Docker not available')
+        
+        # Restart all 30 apps for this model
+        apps_to_restart = [(model_slug, app_num) for app_num in range(1, 31)]
+        result = DockerOperations.bulk_action('restart', apps_to_restart, max_workers=3)
+        
+        if ResponseHandler.is_htmx_request():
+            # Return updated model card
+            return api_dashboard_models()
+        
+        return ResponseHandler.success_response(data=result, 
+                                               message=f"Restarted all apps for {model.model_name}")
+        
+    except Exception as e:
+        logger.error(f"Error restarting all apps for model {model_slug}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/model/<model_slug>/analyze-all", methods=["POST"])
+def api_model_analyze_all(model_slug: str):
+    """Run security analysis on all apps for a model."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return ResponseHandler.error_response('Model not found', 404)
+        
+        scan_manager = ServiceLocator.get_scan_manager()
+        if not scan_manager:
+            return ResponseHandler.error_response('Scan manager not available')
+        
+        # Queue analysis for all 30 apps
+        analysis_jobs = []
+        for app_num in range(1, 31):
+            try:
+                job_id = scan_manager.queue_analysis(model_slug, app_num, 'backend_security')
+                if job_id:
+                    analysis_jobs.append(job_id)
+            except Exception as job_error:
+                logger.warning(f"Failed to queue analysis for {model_slug} app {app_num}: {job_error}")
+        
+        if ResponseHandler.is_htmx_request():
+            # Return updated model card
+            return api_dashboard_models()
+        
+        return ResponseHandler.success_response(
+            data={'queued_jobs': len(analysis_jobs), 'job_ids': analysis_jobs},
+            message=f"Queued {len(analysis_jobs)} analysis jobs for {model.model_name}"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error analyzing all apps for model {model_slug}: {e}")
         return ResponseHandler.error_response(str(e))
 
 

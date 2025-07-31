@@ -68,9 +68,14 @@ def setup_logging(app):
 
 
 def load_model_integration_data(app):
-    """Load model capabilities and port configurations from JSON files."""
+    """Load model capabilities and port configurations from JSON files with caching."""
     project_root = Path(__file__).parent.parent
     misc_dir = project_root / "misc"
+    
+    # Check if data is already loaded to avoid reloading on reloader restart
+    if hasattr(app, '_data_loaded') and app._data_loaded:
+        app.logger.info("Model integration data already loaded, skipping...")
+        return
     
     try:
         integration_data = {}
@@ -78,6 +83,7 @@ def load_model_integration_data(app):
         # Load model capabilities with lazy initialization
         capabilities_file = misc_dir / "model_capabilities.json"
         if capabilities_file.exists():
+            app.logger.info("Loading model capabilities...")
             with open(capabilities_file) as f:
                 capabilities_data = json.load(f)
                 models_count = len(capabilities_data.get('models', {}))
@@ -92,6 +98,7 @@ def load_model_integration_data(app):
         # Load port configurations with lazy initialization
         port_file = misc_dir / "port_config.json"
         if port_file.exists():
+            app.logger.info("Loading port configurations...")
             with open(port_file) as f:
                 port_data = json.load(f)
                 integration_data['PORT_CONFIG'] = port_data
@@ -116,6 +123,7 @@ def load_model_integration_data(app):
             
         # Apply the integration data
         app.config.update(integration_data)
+        app._data_loaded = True
         
         app.logger.info("Model integration data loaded successfully")
             
@@ -127,7 +135,6 @@ def load_model_integration_data(app):
 def ensure_database_populated(app):
     """Ensure database is populated with data on first access."""
     with app.app_context():
-        from models import ModelCapability, PortConfiguration
         
         # Check if we need to populate models
         if not getattr(app.config, '_capabilities_loaded', True):
@@ -150,7 +157,6 @@ def ensure_database_populated(app):
 
 def populate_models_from_json(app, capabilities_data):
     """Populate ModelCapability table from JSON data."""
-    from models import ModelCapability
     from extensions import db
     
     try:
@@ -245,7 +251,6 @@ def populate_models_from_json(app, capabilities_data):
 
 def populate_ports_from_json(app, port_data):
     """Populate PortConfiguration table from JSON data."""
-    from models import PortConfiguration
     from extensions import db
     
     try:
@@ -343,6 +348,11 @@ def create_app(config_name=None):
     # Initialize service manager and core services with deferred loading
     with app.app_context():
         try:
+            # Check if services are already initialized (prevents duplicate initialization on reloader)
+            if hasattr(app, '_services_initialized') and app._services_initialized:
+                app.logger.info("Services already initialized, skipping...")
+                return app
+            
             # Create service manager
             service_manager = ServiceManager(app)
             app.config['service_manager'] = service_manager
@@ -374,6 +384,7 @@ def create_app(config_name=None):
                 app.logger.warning(f"Batch service initialization deferred: {e}")
                 app.batch_service = None
             
+            app._services_initialized = True
             app.logger.info("Core services initialized successfully")
         except Exception as e:
             app.logger.error(f"Failed to initialize core services: {e}")
@@ -483,16 +494,17 @@ def main():
     # Get configuration from environment
     host = os.getenv('FLASK_HOST', '127.0.0.1')
     port = int(os.getenv('FLASK_PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # Default to False for faster startup
     
     print(f"""
     ╔════════════════════════════════════════════════════════════════════════════════════════╗
     ║                              Thesis Research App - HTMX Edition                        ║
     ║                                                                                        ║
-    ║  🚀 Application starting...                                                           ║
+    ║  🚀 Application starting... (Optimized for faster startup)                           ║
     ║  📡 Server: http://{host}:{port}                                                    ║
-    ║  🔧 Debug Mode: {'Enabled' if debug else 'Disabled'}                                                       ║
+    ║  🔧 Debug Mode: {'Enabled' if debug else 'Disabled (Faster startup)'}                                             ║
     ║  ⚡ HTMX Integration: Active                                                          ║
+    ║  🎯 Performance: {'Reloader Active' if debug else 'Single Process (Faster)'}                                         ║
     ║                                                                                        ║
     ║  📊 Features Available:                                                               ║
     ║  • Interactive Dashboard with live updates                                            ║
@@ -503,18 +515,19 @@ def main():
     ║  • Batch Processing                                                                    ║
     ║  • Docker Container Management                                                         ║
     ║                                                                                        ║
+    ║  💡 For development with auto-reload: set FLASK_DEBUG=True                           ║
     ║  🎯 Access the dashboard at: http://{host}:{port}                                   ║
     ╚════════════════════════════════════════════════════════════════════════════════════════╝
     """)
     
     try:
-        # Run the application
+        # Run the application with optimized settings
         app.run(
             host=host,
             port=port,
             debug=debug,
             threaded=True,
-            use_reloader=debug
+            use_reloader=debug  # Only use reloader in debug mode to avoid double startup
         )
     except KeyboardInterrupt:
         print("\n\n👋 Application stopped by user")
