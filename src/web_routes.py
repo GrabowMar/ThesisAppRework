@@ -637,19 +637,23 @@ def dashboard():
 def app_details(model: str, app_num: int):
     """Application details page with tabbed interface."""
     try:
-        app_info = AppDataProvider.get_app_info(model, app_num)
+        # Decode URL-encoded model name
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        app_info = AppDataProvider.get_app_info(decoded_model, app_num)
         if not app_info:
-            flash(f"Application {model}/app{app_num} not found", "error")
+            flash(f"Application {decoded_model}/app{app_num} not found", "error")
             return redirect(url_for("main.dashboard"))
         
-        container_statuses = AppDataProvider.get_container_statuses(model, app_num)
+        container_statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
         
         context = {
             'app_info': app_info,
             'app': app_info,  # Backward compatibility
             'statuses': container_statuses,
             'container_statuses': container_statuses,  # Backward compatibility
-            'model': model,
+            'model': decoded_model,
             'app_num': app_num
         }
         
@@ -850,17 +854,21 @@ def api_dashboard_models():
 def api_model_apps(model_slug: str):
     """Get applications for a specific model."""
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        # Decode URL-encoded model slug
+        import urllib.parse
+        decoded_model_slug = urllib.parse.unquote(model_slug)
+        
+        model = ModelCapability.query.filter_by(canonical_slug=decoded_model_slug).first()
         if not model:
             return ResponseHandler.error_response('Model not found', 404)
         
         apps_data = []
         for app_num in range(1, 31):
-            app_data = AppDataProvider.get_app_for_dashboard(model_slug, app_num)
+            app_data = AppDataProvider.get_app_for_dashboard(decoded_model_slug, app_num)
             apps_data.append(app_data)
         
         return render_template('partials/dashboard_model_apps.html', 
-                             apps=apps_data, model_slug=model_slug)
+                             apps=apps_data, model_slug=decoded_model_slug)
         
     except Exception as e:
         logger.error(f"Error loading apps for model {model_slug}: {e}")
@@ -871,7 +879,11 @@ def api_model_apps(model_slug: str):
 def api_model_stats(model_slug: str):
     """Get container statistics for a specific model with optimized Docker lookups."""
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        # Decode URL-encoded model slug
+        import urllib.parse
+        decoded_model_slug = urllib.parse.unquote(model_slug)
+        
+        model = ModelCapability.query.filter_by(canonical_slug=decoded_model_slug).first()
         if not model:
             return jsonify({'error': 'Model not found'}), 404
         
@@ -1029,7 +1041,11 @@ def dashboard_stats():
 def api_model_details(model_slug: str):
     """Get detailed information about a model."""
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        # Decode URL-encoded model slug
+        import urllib.parse
+        decoded_model_slug = urllib.parse.unquote(model_slug)
+        
+        model = ModelCapability.query.filter_by(canonical_slug=decoded_model_slug).first()
         if not model:
             return ResponseHandler.error_response('Model not found', 404)
         
@@ -1060,7 +1076,11 @@ def api_model_details(model_slug: str):
 def api_model_start_all(model_slug: str):
     """Start all containers for a model."""
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        # Decode URL-encoded model slug
+        import urllib.parse
+        decoded_model_slug = urllib.parse.unquote(model_slug)
+        
+        model = ModelCapability.query.filter_by(canonical_slug=decoded_model_slug).first()
         if not model:
             return ResponseHandler.error_response('Model not found', 404)
         
@@ -1069,7 +1089,7 @@ def api_model_start_all(model_slug: str):
             return ResponseHandler.error_response('Docker not available')
         
         # Start all 30 apps for this model
-        apps_to_start = [(model_slug, app_num) for app_num in range(1, 31)]
+        apps_to_start = [(decoded_model_slug, app_num) for app_num in range(1, 31)]
         result = DockerOperations.bulk_action('start', apps_to_start, max_workers=3)
         
         if ResponseHandler.is_htmx_request():
@@ -1088,7 +1108,11 @@ def api_model_start_all(model_slug: str):
 def api_model_stop_all(model_slug: str):
     """Stop all containers for a model."""
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        # Decode URL-encoded model slug
+        import urllib.parse
+        decoded_model_slug = urllib.parse.unquote(model_slug)
+        
+        model = ModelCapability.query.filter_by(canonical_slug=decoded_model_slug).first()
         if not model:
             return ResponseHandler.error_response('Model not found', 404)
         
@@ -1097,7 +1121,7 @@ def api_model_stop_all(model_slug: str):
             return ResponseHandler.error_response('Docker not available')
         
         # Stop all 30 apps for this model
-        apps_to_stop = [(model_slug, app_num) for app_num in range(1, 31)]
+        apps_to_stop = [(decoded_model_slug, app_num) for app_num in range(1, 31)]
         result = DockerOperations.bulk_action('stop', apps_to_stop, max_workers=3)
         
         if ResponseHandler.is_htmx_request():
@@ -1116,7 +1140,11 @@ def api_model_stop_all(model_slug: str):
 def api_model_restart_all(model_slug: str):
     """Restart all containers for a model."""
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        # Decode URL-encoded model slug
+        import urllib.parse
+        decoded_model_slug = urllib.parse.unquote(model_slug)
+        
+        model = ModelCapability.query.filter_by(canonical_slug=decoded_model_slug).first()
         if not model:
             return ResponseHandler.error_response('Model not found', 404)
         
@@ -1125,7 +1153,7 @@ def api_model_restart_all(model_slug: str):
             return ResponseHandler.error_response('Docker not available')
         
         # Restart all 30 apps for this model
-        apps_to_restart = [(model_slug, app_num) for app_num in range(1, 31)]
+        apps_to_restart = [(decoded_model_slug, app_num) for app_num in range(1, 31)]
         result = DockerOperations.bulk_action('restart', apps_to_restart, max_workers=3)
         
         if ResponseHandler.is_htmx_request():
@@ -1307,45 +1335,56 @@ def notifications_count():
 def container_action(model: str, app_num: int, action: str):
     """Execute container action."""
     try:
+        # Decode URL-encoded model name
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
         valid_actions = ['start', 'stop', 'restart', 'build']
         if action not in valid_actions:
             return ResponseHandler.error_response(f"Invalid action: {action}", 400)
         
-        result = DockerOperations.execute_action(action, model, app_num)
+        result = DockerOperations.execute_action(action, decoded_model, app_num)
         
         if result['success']:
             # For HTMX requests, return updated UI component
             if ResponseHandler.is_htmx_request():
-                # Get the context of the request to determine response type
-                if 'dashboard' in request.referrer:
+                # Check the request context to determine response type
+                referrer = request.referrer or ''
+                
+                if 'dashboard' in referrer:
                     # Return updated dashboard row
-                    app_data = AppDataProvider.get_app_for_dashboard(model, app_num)
+                    app_data = AppDataProvider.get_app_for_dashboard(decoded_model, app_num)
                     return render_template('partials/dashboard_app_row.html',
-                                         app=app_data, model_slug=model)
+                                         app=app_data, model_slug=decoded_model)
                 else:
-                    # Return updated container status
-                    statuses = AppDataProvider.get_container_statuses(model, app_num)
-                    return render_template("partials/container_status.html",
-                                         statuses=statuses, model=model, app_num=app_num,
-                                         success_message=result.get('message'))
+                    # Return updated status badge for app list
+                    statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
+                    return render_template("partials/app_status_badge.html",
+                                         statuses=statuses, model=decoded_model, app_num=app_num)
             
             # JSON response
             return ResponseHandler.success_response(
-                data={'statuses': AppDataProvider.get_container_statuses(model, app_num)},
+                data={'statuses': AppDataProvider.get_container_statuses(decoded_model, app_num)},
                 message=result.get('message', f'{action} successful')
             )
         else:
             # Handle errors
             if ResponseHandler.is_htmx_request():
-                if 'dashboard' in request.referrer:
+                referrer = request.referrer or ''
+                
+                if 'dashboard' in referrer:
                     # Return error row for dashboard
-                    app_data = AppDataProvider.get_app_for_dashboard(model, app_num)
+                    app_data = AppDataProvider.get_app_for_dashboard(decoded_model, app_num)
                     app_data['status'] = 'ERROR'
                     app_data['error_message'] = result.get('error')
                     return render_template('partials/dashboard_app_row.html',
-                                         app=app_data, model_slug=model, show_error=True)
+                                         app=app_data, model_slug=decoded_model, show_error=True)
                 else:
-                    return render_template("partials/error_message.html", error=result.get('error'))
+                    # Return error status badge for app list
+                    return render_template("partials/app_status_badge.html",
+                                         statuses={'backend': 'error', 'frontend': 'error'}, 
+                                         model=decoded_model, app_num=app_num, 
+                                         error_message=result.get('error'))
             
             return ResponseHandler.error_response(result.get('error', f'{action} failed'))
             
@@ -1358,11 +1397,24 @@ def container_action(model: str, app_num: int, action: str):
 def get_app_status(model: str, app_num: int):
     """Get container status."""
     try:
-        statuses = AppDataProvider.get_container_statuses(model, app_num)
+        # Decode URL-encoded model name
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
         
         if ResponseHandler.is_htmx_request():
-            return render_template("partials/container_status.html",
-                                 statuses=statuses, model=model, app_num=app_num)
+            # Check if this is a simple status badge request (from app list)
+            # or a full status page request (from app details)
+            referrer = request.referrer or ''
+            if 'dashboard' in referrer or 'app_details' in referrer:
+                # Full status page
+                return render_template("partials/container_status.html",
+                                     statuses=statuses, model=decoded_model, app_num=app_num)
+            else:
+                # Simple status badge (for app list)
+                return render_template("partials/app_status_badge.html",
+                                     statuses=statuses, model=decoded_model, app_num=app_num)
         
         return ResponseHandler.success_response(data=statuses)
         
@@ -1375,14 +1427,18 @@ def get_app_status(model: str, app_num: int):
 def get_container_logs(model: str, app_num: int, container_type: str):
     """Get container logs."""
     try:
+        # Decode URL-encoded model name
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
         if container_type not in ['backend', 'frontend']:
             return ResponseHandler.error_response("Invalid container type", 400)
         
-        logs = DockerOperations.get_logs(model, app_num, container_type)
+        logs = DockerOperations.get_logs(decoded_model, app_num, container_type)
         
         context = {
             'logs': logs,
-            'model': model,
+            'model': decoded_model,
             'app_num': app_num,
             'container_type': container_type
         }
@@ -1394,6 +1450,32 @@ def get_container_logs(model: str, app_num: int, container_type: str):
         
     except Exception as e:
         logger.error(f"Logs error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/containers/<model>/<int:app_num>/logs")
+def get_container_logs_api(model: str, app_num: int):
+    """Get container logs for both frontend and backend."""
+    try:
+        # Decode URL-encoded model name
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        # Get logs for both frontend and backend
+        backend_logs = DockerOperations.get_logs(decoded_model, app_num, 'backend')
+        frontend_logs = DockerOperations.get_logs(decoded_model, app_num, 'frontend')
+        
+        context = {
+            'backend_logs': backend_logs,
+            'frontend_logs': frontend_logs,
+            'model': decoded_model,
+            'app_num': app_num
+        }
+        
+        return render_template("partials/container_logs.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error getting container logs: {e}")
         return ResponseHandler.error_response(str(e))
 
 
@@ -2467,6 +2549,113 @@ def register_template_helpers(app):
             except ValueError:
                 return None
         return value
+    
+    @app.template_filter('url_encode_model')
+    def url_encode_model(model_name):
+        """Encode model name for safe use in URLs."""
+        if not model_name:
+            return ''
+        # For Flask routes, we need to ensure special characters are URL-encoded
+        import urllib.parse
+        return urllib.parse.quote(model_name, safe='')
+    
+    @app.template_filter('model_display_name')
+    def model_display_name(model_slug):
+        """Convert model slug to display name."""
+        if not model_slug:
+            return ''
+        
+        # Try to get the actual model from database for more accurate display name
+        try:
+            model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+            if model and model.model_name:
+                # Use the model_name from database and improve it
+                display_name = model.model_name
+                
+                # Common transformations for better display names
+                display_name = display_name.replace('-', ' ').replace('_', ' ')
+                
+                # Handle specific patterns
+                if 'claude' in display_name.lower():
+                    # Claude models: claude-3.7-sonnet -> Claude 3.7 Sonnet
+                    if 'claude' in display_name and not display_name.startswith('Claude'):
+                        display_name = display_name.replace('claude', 'Claude')
+                
+                # Handle version patterns like gpt-4.1 -> GPT-4.1
+                if 'gpt' in display_name.lower():
+                    display_name = display_name.upper().replace('GPT', 'GPT-')
+                    if 'GPT--' in display_name:
+                        display_name = display_name.replace('GPT--', 'GPT-')
+                
+                # Handle other common patterns
+                display_name = display_name.replace('gemini', 'Gemini')
+                display_name = display_name.replace('qwen', 'Qwen')
+                display_name = display_name.replace('deepseek', 'DeepSeek')
+                display_name = display_name.replace('mistral', 'Mistral')
+                
+                # Title case each word but preserve version numbers
+                words = display_name.split()
+                result_words = []
+                for word in words:
+                    if any(char.isdigit() for char in word) and ('.' in word or '-' in word):
+                        # Keep version numbers as-is
+                        result_words.append(word)
+                    else:
+                        # Title case regular words
+                        result_words.append(word.capitalize())
+                
+                return ' '.join(result_words)
+        except Exception:
+            # Fall back to simple transformation if database lookup fails
+            pass
+        
+        # Fallback: Simple transformation of the slug
+        # Convert underscores to spaces, handle hyphens carefully
+        display_name = model_slug.replace('_', ' ')
+        
+        # Split on spaces and improve each part
+        parts = display_name.split(' ')
+        result_parts = []
+        
+        for part in parts:
+            if 'claude' in part.lower():
+                part = part.replace('claude', 'Claude').replace('-', ' ')
+            elif 'gpt' in part.lower():
+                part = part.upper().replace('-', ' ')
+            elif 'gemini' in part.lower():
+                part = part.replace('gemini', 'Gemini').replace('-', ' ')
+            elif 'qwen' in part.lower():
+                part = part.replace('qwen', 'Qwen').replace('-', ' ')
+            elif 'deepseek' in part.lower():
+                part = part.replace('deepseek', 'DeepSeek').replace('-', ' ')
+            else:
+                part = part.title().replace('-', ' ')
+            
+            result_parts.append(part)
+        
+        return ' '.join(result_parts)
+    
+    @app.template_filter('safe_css_id')
+    def safe_css_id(value):
+        """Convert any string to a safe CSS ID by replacing problematic characters."""
+        if not value:
+            return ''
+        # Replace dots, hyphens, and other problematic characters with underscores
+        import re
+        # Replace any non-alphanumeric character (except underscore) with underscore
+        safe_id = re.sub(r'[^a-zA-Z0-9_]', '_', str(value))
+        # Ensure it starts with a letter or underscore (CSS requirement)
+        if safe_id and not safe_id[0].isalpha() and safe_id[0] != '_':
+            safe_id = 'id_' + safe_id
+        return safe_id
+    
+    @app.template_global()
+    def url_decode_model(encoded_model):
+        """Decode URL-encoded model name."""
+        if not encoded_model:
+            return ''
+        import urllib.parse
+        return urllib.parse.unquote(encoded_model)
     
     @app.template_global()
     def is_htmx():

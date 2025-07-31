@@ -1,5 +1,5 @@
 <!-- Single App Table Row for Dashboard HTMX updates -->
-<tr id="app-{{ model_slug }}-{{ app.app_number }}" class="app-row">
+<tr id="app-{{ model_slug|safe_css_id }}-{{ app.app_number }}" class="app-row">
     <!-- App Number -->
     <td class="align-middle">
         <span class="badge badge-outline-primary px-2">{{ app.app_number }}</span>
@@ -91,31 +91,31 @@
             <!-- Primary Actions -->
             {% if app.status.lower() == 'stopped' %}
             <button class="btn btn-outline-success btn-xs" 
-                    hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/start"
-                    hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/start"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
                     hx-swap="outerHTML"
                     title="Start containers">
                 <i class="fas fa-play"></i>
             </button>
             {% elif app.status.lower() == 'running' %}
             <button class="btn btn-outline-warning btn-xs" 
-                    hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/restart"
-                    hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/restart"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
                     hx-swap="outerHTML"
                     title="Restart containers">
                 <i class="fas fa-redo"></i>
             </button>
             <button class="btn btn-outline-danger btn-xs" 
-                    hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/stop"
-                    hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/stop"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
                     hx-swap="outerHTML"
                     title="Stop containers">
                 <i class="fas fa-stop"></i>
             </button>
             {% elif app.status.lower() == 'error' %}
             <button class="btn btn-outline-warning btn-xs" 
-                    hx-post="/api/containers/{{ model_slug }}/{{ app.app_number }}/restart"
-                    hx-target="#app-{{ model_slug }}-{{ app.app_number }}"
+                    hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/restart"
+                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
                     hx-swap="outerHTML"
                     title="Restart containers">
                 <i class="fas fa-redo"></i>
@@ -139,20 +139,20 @@
                 </button>
                 <div class="dropdown-menu dropdown-menu-right">
                     <a class="dropdown-item" href="#" 
-                       onclick="showAppLogs('{{ model_slug }}', {{ app.app_number }})">
+                       onclick="showAppLogs('{{ model_slug|url_encode_model }}', {{ app.app_number }})">
                         <i class="fas fa-file-alt mr-2"></i>View Logs
                     </a>
                     <a class="dropdown-item" 
-                       href="/app/{{ model_slug }}/{{ app.app_number }}?tab=analysis">
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}?tab=analysis">
                         <i class="fas fa-shield-alt mr-2"></i>Security Analysis
                     </a>
                     <a class="dropdown-item" 
-                       href="/app/{{ model_slug }}/{{ app.app_number }}?tab=performance">
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}?tab=performance">
                         <i class="fas fa-bolt mr-2"></i>Performance Test
                     </a>
                     <div class="dropdown-divider"></div>
                     <a class="dropdown-item" 
-                       href="/app/{{ model_slug }}/{{ app.app_number }}">
+                       href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}">
                         <i class="fas fa-info-circle mr-2"></i>View Details
                     </a>
                 </div>

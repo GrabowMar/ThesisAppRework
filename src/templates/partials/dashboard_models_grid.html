@@ -12,15 +12,15 @@
                 </div>
                 <div class="btn-group btn-group-sm" role="group">
                     <button type="button" class="btn btn-outline-secondary btn-sm"
-                            onclick="testLoadApps('{{ model.canonical_slug }}')"
+                            onclick="testLoadApps('{{ model.canonical_slug|url_encode_model }}')"
                             data-toggle="collapse" 
-                            data-target="#apps-{{ model.canonical_slug }}"
+                            data-target="#apps-{{ model.canonical_slug|replace('.', '_')|replace('-', '_')|replace('/', '_') }}"
                             aria-expanded="false"
-                            id="toggle-{{ model.canonical_slug }}">
+                            id="toggle-{{ model.canonical_slug|replace('.', '_')|replace('-', '_')|replace('/', '_') }}">
                         <i class="fas fa-chevron-down"></i>
                     </button>
                     <button type="button" class="btn btn-outline-info btn-sm"
-                            onclick="showModelDetails('{{ model.canonical_slug }}')"
+                            onclick="showModelDetails('{{ model.canonical_slug|url_encode_model }}')"
                             data-toggle="tooltip" title="Model Details">
                         <i class="fas fa-info-circle"></i>
                     </button>
@@ -79,7 +79,7 @@
                 <!-- Quick Actions -->
                 <div class="btn-group btn-group-sm w-100" role="group">
                     <button type="button" class="btn btn-success"
-                            hx-post="/api/model/{{ model.canonical_slug }}/start-all"
+                            hx-post="/api/model/{{ model.canonical_slug|url_encode_model }}/start-all"
                             hx-target="#model-{{ model.canonical_slug }}"
                             hx-swap="outerHTML"
                             hx-confirm="Start all containers for {{ model.model_name or model.display_name }}?"
@@ -87,7 +87,7 @@
                         <i class="fas fa-play"></i>
                     </button>
                     <button type="button" class="btn btn-warning"
-                            hx-post="/api/model/{{ model.canonical_slug }}/restart-all"
+                            hx-post="/api/model/{{ model.canonical_slug|url_encode_model }}/restart-all"
                             hx-target="#model-{{ model.canonical_slug }}"
                             hx-swap="outerHTML"
                             hx-confirm="Restart all containers for {{ model.model_name or model.display_name }}?"
@@ -95,7 +95,7 @@
                         <i class="fas fa-redo"></i>
                     </button>
                     <button type="button" class="btn btn-danger"
-                            hx-post="/api/model/{{ model.canonical_slug }}/stop-all"
+                            hx-post="/api/model/{{ model.canonical_slug|url_encode_model }}/stop-all"
                             hx-target="#model-{{ model.canonical_slug }}"
                             hx-swap="outerHTML"
                             hx-confirm="Stop all containers for {{ model.model_name or model.display_name }}?"
@@ -103,7 +103,7 @@
                         <i class="fas fa-stop"></i>
                     </button>
                     <button type="button" class="btn btn-secondary"
-                            hx-post="/api/model/{{ model.canonical_slug }}/analyze-all"
+                            hx-post="/api/model/{{ model.canonical_slug|url_encode_model }}/analyze-all"
                             hx-target="#model-{{ model.canonical_slug }}"
                             hx-swap="outerHTML"
                             hx-confirm="Run security analysis on all apps for {{ model.model_name or model.display_name }}?"
@@ -114,9 +114,9 @@
             </div>
 
             <!-- Collapsible Apps List -->
-            <div class="collapse" id="apps-{{ model.canonical_slug }}">
-                <div class="card-footer p-0" id="apps-content-{{ model.canonical_slug }}">
-                    <div class="text-center p-3" id="loading-{{ model.canonical_slug }}">
+            <div class="collapse" id="apps-{{ model.canonical_slug|replace('.', '_')|replace('-', '_')|replace('/', '_') }}">
+                <div class="card-footer p-0" id="apps-content-{{ model.canonical_slug|replace('.', '_')|replace('-', '_')|replace('/', '_') }}">
+                    <div class="text-center p-3" id="loading-{{ model.canonical_slug|replace('.', '_')|replace('-', '_')|replace('/', '_') }}">
                         <div class="spinner-border spinner-border-sm" role="status">
                             <span class="sr-only">Loading...</span>
                         </div>
@@ -171,8 +171,9 @@
 <script>
 // Model interaction functions with Bootstrap 4.1 compatibility
 function showModelDetails(modelSlug) {
-    // Load model details into modal
-    htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
+    // Load model details into modal with URL encoding
+    const encodedModelSlug = encodeURIComponent(modelSlug);
+    htmx.ajax('GET', `/api/model/${encodedModelSlug}/details`, {
         target: '#model-details-modal .modal-body',
         swap: 'innerHTML'
     });
@@ -182,17 +183,40 @@ function showModelDetails(modelSlug) {
 }
 
 // Test function to load apps
+function safeCssId(value) {
+    if (!value) return '';
+    // Replace any problematic characters with underscores for CSS IDs
+    let safeId = value.toString().replace(/[^a-zA-Z0-9_]/g, '_');
+    // Ensure it starts with a letter or underscore (CSS requirement)
+    if (safeId && !safeId[0].match(/[a-zA-Z_]/)) {
+        safeId = 'id_' + safeId;
+    }
+    return safeId;
+}
+
 function testLoadApps(modelSlug) {
     console.log('Loading apps for model:', modelSlug);
-    const content = document.getElementById(`apps-content-${modelSlug}`);
-    const loading = document.getElementById(`loading-${modelSlug}`);
+    
+    // Convert model slug to safe CSS ID format
+    const safeModelSlug = safeCssId(modelSlug);
+    
+    // Use the safe ID format to find elements
+    const content = document.getElementById(`apps-content-${safeModelSlug}`);
+    const loading = document.getElementById(`loading-${safeModelSlug}`);
+    
+    if (!content || !loading) {
+        console.error('Could not find elements for model:', modelSlug);
+        console.error('Looking for safe ID:', `apps-content-${safeModelSlug}`);
+        return;
+    }
     
     // Show loading state
     loading.classList.remove('d-hidden');
     
-    // Use HTMX to load apps properly
-    htmx.ajax('GET', `/api/model/${modelSlug}/apps`, {
-        target: `#apps-content-${modelSlug}`,
+    // Use HTMX to load apps properly with URL encoding
+    const encodedModelSlug = encodeURIComponent(modelSlug);
+    htmx.ajax('GET', `/api/model/${encodedModelSlug}/apps`, {
+        target: `#apps-content-${safeModelSlug}`,
         swap: 'innerHTML'
     }).then(() => {
         // Hide loading after successful load
@@ -200,7 +224,7 @@ function testLoadApps(modelSlug) {
         console.log('Apps loaded successfully for:', modelSlug);
         
         // Initialize tooltips for newly loaded content
-        $(`#apps-content-${modelSlug} [title]`).tooltip();
+        $(`#apps-content-${safeModelSlug} [title]`).tooltip();
     }).catch((error) => {
         console.error('Error loading apps:', error);
         loading.classList.add('d-hidden');
@@ -221,8 +245,9 @@ function escapeSelector(str) {
 // Global function for showing app logs (used in loaded app tables)
 function showAppLogs(modelSlug, appNum) {
     console.log('Loading logs for:', modelSlug, appNum);
-    // Load logs via HTMX
-    htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
+    // Load logs via HTMX with URL encoding
+    const encodedModelSlug = encodeURIComponent(modelSlug);
+    htmx.ajax('GET', `/api/containers/${encodedModelSlug}/${appNum}/logs`, {
         target: '#container-logs-content',
         swap: 'innerHTML'
     });
@@ -242,7 +267,9 @@ setInterval(() => {
         const errorElement = card.querySelector('[data-stat="error"][data-model="' + modelSlug + '"]');
         
         if (runningElement || stoppedElement || errorElement) {
-            fetch(`/api/model/${encodeURIComponent(modelSlug)}/stats`)
+            // URL encode the model slug for the API call
+            const encodedModelSlug = encodeURIComponent(modelSlug);
+            fetch(`/api/model/${encodedModelSlug}/stats`)
                 .then(response => response.json())
                 .then(data => {
                     if (runningElement) runningElement.textContent = data.running || 0;

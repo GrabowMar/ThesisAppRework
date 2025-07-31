@@ -211,7 +211,9 @@
 
     window.showContainerLogs = function(modelSlug, appNum) {
         if (typeof htmx !== 'undefined') {
-            htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
+            // URL encode the model slug for the API call
+            const encodedModelSlug = encodeURIComponent(modelSlug);
+            htmx.ajax('GET', `/api/containers/${encodedModelSlug}/${appNum}/logs`, {
                 target: '#container-logs-content',
                 swap: 'innerHTML'
             });
@@ -222,6 +224,17 @@
     };
 
     // Container control functions
+    function safeCssId(value) {
+        if (!value) return '';
+        // Replace any problematic characters with underscores for CSS IDs
+        let safeId = value.toString().replace(/[^a-zA-Z0-9_]/g, '_');
+        // Ensure it starts with a letter or underscore (CSS requirement)
+        if (safeId && !safeId[0].match(/[a-zA-Z_]/)) {
+            safeId = 'id_' + safeId;
+        }
+        return safeId;
+    }
+    
     function handleContainerAction(action, modelSlug, appNum, element) {
         if (!element || typeof htmx === 'undefined') return;
         
@@ -231,8 +244,13 @@
         element.innerHTML = `<span class="spinner-border spinner-border-sm mr-1"></span>${actionText}`;
         element.disabled = true;
         
-        htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/${action}`, {
-            target: `#app-${modelSlug}-${appNum}`,
+        // URL encode the model slug for the API call
+        const encodedModelSlug = encodeURIComponent(modelSlug);
+        // Convert model slug to safe CSS ID format (same as template)
+        const safeModelSlug = safeCssId(modelSlug);
+        
+        htmx.ajax('POST', `/api/containers/${encodedModelSlug}/${appNum}/${action}`, {
+            target: `#app-${safeModelSlug}-${appNum}`,
             swap: 'outerHTML'
         }).then(() => {
             element.innerHTML = originalHtml;
@@ -263,13 +281,19 @@
         
         autoRefreshInterval = setInterval(() => {
             if (!document.hidden && typeof htmx !== 'undefined') {
-                // Light refresh every 30 seconds
+                // Light refresh every 30 seconds with null checks
                 try {
-                    htmx.trigger('#summary-stats', 'load');
+                    const summaryStats = document.getElementById('summary-stats');
+                    if (summaryStats) {
+                        htmx.trigger(summaryStats, 'load');
+                    }
                     
                     // Full refresh less frequently (every 2 minutes)
                     if (Math.random() < 0.1) {
-                        htmx.trigger('#dashboard-models', 'load');
+                        const dashboardModels = document.getElementById('dashboard-models');
+                        if (dashboardModels) {
+                            htmx.trigger(dashboardModels, 'load');
+                        }
                     }
                 } catch (e) {
                     console.warn('Auto-refresh failed:', e);
@@ -293,7 +317,10 @@
             if (e.ctrlKey && e.key === 'r') {
                 e.preventDefault();
                 if (typeof htmx !== 'undefined') {
-                    htmx.trigger('#dashboard-models', 'load');
+                    const dashboardModels = document.getElementById('dashboard-models');
+                    if (dashboardModels) {
+                        htmx.trigger(dashboardModels, 'load');
+                    }
                 }
             }
         });
@@ -308,7 +335,10 @@
             // Refresh immediately when page becomes visible
             if (typeof htmx !== 'undefined') {
                 setTimeout(() => {
-                    htmx.trigger('#summary-stats', 'load');
+                    const summaryStats = document.getElementById('summary-stats');
+                    if (summaryStats) {
+                        htmx.trigger(summaryStats, 'load');
+                    }
                 }, 100);
             }
         }
@@ -318,9 +348,12 @@
     document.addEventListener('htmx:afterRequest', function(evt) {
         if (evt.detail.successful && typeof htmx !== 'undefined') {
             // Auto-refresh stats after successful container operations
-            if (evt.detail.pathInfo && evt.detail.pathInfo.xhr.responseURL.includes('/containers/')) {
+            if (evt.detail.xhr && evt.detail.xhr.responseURL && evt.detail.xhr.responseURL.includes('/containers/')) {
                 setTimeout(() => {
-                    htmx.trigger('#summary-stats', 'load');
+                    const summaryStats = document.getElementById('summary-stats');
+                    if (summaryStats) {
+                        htmx.trigger(summaryStats, 'load');
+                    }
                 }, 1000);
             }
         }

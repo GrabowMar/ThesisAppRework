@@ -83,50 +83,41 @@
             </div>
             
             <!-- Logs Content -->
-            <div class="logs-content"
-                 {% if follow_enabled %}
-                 hx-get="/docker/logs/{{ model }}/{{ app_num }}"
-                 hx-trigger="every 2s"
-                 hx-include="[name='service'], [name='lines'], [name='follow']"
-                 {% endif %}>
+            <div class="logs-content">
                 
-                {% if logs %}
+                {% if backend_logs or frontend_logs %}
                 <div class="logs-container">
-                    {% for log_entry in logs %}
-                    <div class="log-line log-{{ log_entry.level|lower }} log-{{ log_entry.service|lower }}"
-                         data-timestamp="{{ log_entry.timestamp }}"
-                         data-service="{{ log_entry.service }}"
-                         data-level="{{ log_entry.level }}">
-                        
-                        <span class="log-timestamp">{{ log_entry.timestamp }}</span>
-                        <span class="log-service service-{{ log_entry.service|lower }}">{{ log_entry.service|upper }}</span>
-                        <span class="log-level level-{{ log_entry.level|lower }}">{{ log_entry.level|upper }}</span>
-                        <span class="log-message">{{ log_entry.message }}</span>
-                        
-                        {% if log_entry.details %}
-                        <div class="log-details">
-                            <pre>{{ log_entry.details }}</pre>
+                    {% if backend_logs %}
+                    <div class="log-section">
+                        <h4 class="log-section-title">Backend Logs</h4>
+                        <div class="log-lines">
+                            {% for line in backend_logs.split('\n') %}
+                            {% if line.strip() %}
+                            <div class="log-line log-backend">
+                                <span class="log-service service-backend">BACKEND</span>
+                                <span class="log-message">{{ line }}</span>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
                         </div>
-                        {% endif %}
                     </div>
-                    {% endfor %}
-                </div>
-                
-                <!-- Auto-scroll indicator -->
-                <div class="scroll-indicator" 
-                     _="init hide me
-                        on scroll from .logs-container
-                          if .logs-container.scrollTop + .logs-container.clientHeight < .logs-container.scrollHeight - 50
-                            show me
-                          else
-                            hide me
-                          end">
-                    <button _="on click
-                               set .logs-container.scrollTop to .logs-container.scrollHeight
-                               hide me"
-                            class="scroll-to-bottom">
-                        ↓ Scroll to bottom
-                    </button>
+                    {% endif %}
+                    
+                    {% if frontend_logs %}
+                    <div class="log-section">
+                        <h4 class="log-section-title">Frontend Logs</h4>
+                        <div class="log-lines">
+                            {% for line in frontend_logs.split('\n') %}
+                            {% if line.strip() %}
+                            <div class="log-line log-frontend">
+                                <span class="log-service service-frontend">FRONTEND</span>
+                                <span class="log-message">{{ line }}</span>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 
                 {% else %}
@@ -134,11 +125,7 @@
                     <div class="no-logs-icon">📋</div>
                     <div class="no-logs-text">No logs available</div>
                     <div class="no-logs-subtitle">
-                        {% if not container_running %}
-                        Container is not running
-                        {% else %}
-                        Logs may not be generated yet
-                        {% endif %}
+                        Container may not be running or logs not generated yet
                     </div>
                 </div>
                 {% endif %}

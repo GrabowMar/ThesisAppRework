@@ -1,18 +1,18 @@
 <div class="apps-grid">
     {% for app in apps %}
     <div class="app-card" 
-         id="app-{{ app.model }}-{{ app.app_num }}"
-         hx-get="{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}"
-         _="on click go to url '{{ url_for('main.app_details', model=app.model, app_num=app.app_num) }}'">
+         id="app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+         hx-get="{{ url_for('main.app_details', model=model_slug|url_encode_model, app_num=app.app_number) }}"
+         _="on click go to url '{{ url_for('main.app_details', model=model_slug|url_encode_model, app_num=app.app_number) }}'">
         
         <div class="app-card-header">
             <div>
-                <div class="app-title">{{ app.model|replace('_', ' ')|title }}</div>
-                <div class="app-subtitle">App {{ app.app_num }} - {{ app.app_type|title }}</div>
+                <div class="app-title">{{ model_slug|model_display_name }}</div>
+                <div class="app-subtitle">App {{ app.app_number }} - {{ app.app_type|title }}</div>
             </div>
             
             <div class="app-status"
-                 hx-get="/api/status/{{ app.model }}/{{ app.app_num }}"
+                 hx-get="/api/status/{{ model_slug|url_encode_model }}/{{ app.app_number }}"
                  hx-trigger="load, every 10s"
                  hx-target="this">
                 <span class="status-badge status-indicator pending">
@@ -36,17 +36,17 @@
             </div>
             
             <div class="app-actions">
-                <button hx-post="/docker/start/{{ app.model }}/{{ app.app_num }}"
+                <button hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/start"
                         hx-target="closest .app-card .app-status"
-                        hx-confirm="Start containers for {{ app.model }}/app{{ app.app_num }}?"
+                        hx-confirm="Start containers for {{ model_slug|model_display_name }}/app{{ app.app_number }}?"
                         class="btn btn-success btn-sm"
                         onclick="event.stopPropagation()">
                     <i class="fas fa-play mr-1"></i>Start
                 </button>
                 
-                <button hx-post="/docker/stop/{{ app.model }}/{{ app.app_num }}"
+                <button hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/stop"
                         hx-target="closest .app-card .app-status"
-                        hx-confirm="Stop containers for {{ app.model }}/app{{ app.app_num }}?"
+                        hx-confirm="Stop containers for {{ model_slug|model_display_name }}/app{{ app.app_number }}?"
                         class="btn btn-danger btn-sm"
                         onclick="event.stopPropagation()">
                     <i class="fas fa-stop mr-1"></i>Stop
