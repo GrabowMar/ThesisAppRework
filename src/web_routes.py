@@ -299,26 +299,21 @@ class AppDataProvider:
     
     @staticmethod
     def get_port_config(model: str, app_num: int) -> Dict[str, int]:
-        """Get port configuration for an app."""
+        """Get port configuration for an app - DIRECT DB QUERY."""
         try:
-            # Try from GeneratedApplication first
-            app = GeneratedApplication.query.filter_by(
-                model_slug=model.replace('-', '_'),
-                app_number=app_num
-            ).first()
-            
-            if app:
-                metadata = app.get_metadata()
-                ports = metadata.get('ports', {})
-                if ports:
+            # Simple approach: get all configs and filter in Python
+            configs = PortConfiguration.query.all()
+            for config in configs:
+                metadata = config.get_metadata()
+                if metadata.get("model_name") == model and metadata.get("app_number") == app_num:
                     return {
-                        'backend_port': ports.get('backend_port', 6000 + (app_num * 10)),
-                        'frontend_port': ports.get('frontend_port', 9000 + (app_num * 10))
+                        'backend_port': config.backend_port,
+                        'frontend_port': config.frontend_port
                     }
         except Exception as e:
-            logger.warning(f"Error getting port config: {e}")
+            logger.warning(f"Error querying port config from DB: {e}")
         
-        # Default calculation
+        # Default calculation fallback
         return {
             'backend_port': 6000 + (app_num * 10),
             'frontend_port': 9000 + (app_num * 10)
