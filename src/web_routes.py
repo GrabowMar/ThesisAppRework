@@ -3719,58 +3719,327 @@ def run_performance_test(model, app_num):
 
 @api_bp.route("/analysis/<model>/<int:app_num>/security", methods=["POST"])
 def run_security_analysis(model, app_num):
-    """Run security analysis on specified app."""
+    """Run CLI security analysis on specified app."""
     try:
-        logger.info(f"Starting security analysis for {model} app {app_num}")
+        logger.info(f"Starting CLI security analysis for {model} app {app_num}")
         
-        # Get enabled tools from form
-        enabled_tools = {
-            'bandit': request.form.get('bandit') == 'on',
-            'safety': request.form.get('safety') == 'on',
-            'semgrep': request.form.get('semgrep') == 'on',
-            'eslint': request.form.get('eslint') == 'on'
-        }
+        # Check for "use all tools" option
+        use_all_tools = request.form.get('use_all_tools') == 'on'
+        include_quality = request.form.get('include_quality') == 'on'
         
-        # Get scan service
+        # Get individual tool selections
+        enabled_tools = {}
+        if not use_all_tools:
+            # Backend security tools
+            enabled_tools['bandit'] = request.form.get('bandit') == 'on'
+            enabled_tools['safety'] = request.form.get('safety') == 'on'
+            enabled_tools['pylint'] = request.form.get('pylint') == 'on'
+            enabled_tools['vulture'] = request.form.get('vulture') == 'on'
+            
+            # Frontend security tools
+            enabled_tools['eslint'] = request.form.get('eslint') == 'on'
+            enabled_tools['retire'] = request.form.get('retire') == 'on'
+            enabled_tools['snyk'] = request.form.get('snyk') == 'on'
+            enabled_tools['jshint'] = request.form.get('jshint') == 'on'
+        
+        # Get CLI analyzer service
         scan_service = ServiceLocator.get_scan_manager()
         if not scan_service:
-            return jsonify({'error': 'Scan service not available'}), 503
+            return jsonify({'error': 'CLI Analysis service not available'}), 503
         
-        # Run the analysis
-        results = scan_service.run_security_analysis(
-            model=model,
-            app_num=app_num,
-            enabled_tools=enabled_tools
-        )
+        # Get the CLI analyzer
+        from pathlib import Path
+        from security_analysis_service import UnifiedCLIAnalyzer
         
-        if results['success']:
-            issues = results.get('data', {}).get('issues', [])
+        # Initialize with base path (misc/models directory)
+        base_path = Path(current_app.root_path).parent / "misc" / "models"
+        cli_analyzer = UnifiedCLIAnalyzer(base_path)
+        
+        # Get application info
+        app_info = AppDataProvider.get_app_info(model, app_num)
+        if not app_info['exists']:
             return render_template_string("""
-            <div class="alert alert-info">
-                <h6>Security Analysis Completed</h6>
-                <p>Found {{ issues|length }} issues</p>
-                {% if issues %}
-                <ul class="mt-2">
-                {% for issue in issues[:5] %}
-                    <li><span class="badge badge-{{ 'danger' if issue.severity == 'HIGH' else 'warning' if issue.severity == 'MEDIUM' else 'info' }}">{{ issue.severity }}</span> {{ issue.title }}</li>
-                {% endfor %}
-                {% if issues|length > 5 %}
-                    <li><em>... and {{ issues|length - 5 }} more</em></li>
-                {% endif %}
-                </ul>
-                {% endif %}
+            <div class="alert alert-warning">
+                <h6>Application Not Found</h6>
+                <p>Cannot find application directory for {{ model }} app {{ app_num }}</p>
             </div>
-            """, issues=issues)
+            """, model=model, app_num=app_num)
+        
+        # Run comprehensive CLI analysis
+        if use_all_tools:
+            analysis_results = cli_analyzer.run_full_analysis(
+                model=model,
+                app_num=app_num,
+                use_all_tools=True,
+                save_to_db=True
+            )
+        else:
+            # Run selective analysis
+            from security_analysis_service import ToolCategory
+            categories = [ToolCategory.BACKEND_SECURITY, ToolCategory.FRONTEND_SECURITY]
+            if include_quality:
+                categories.extend([ToolCategory.BACKEND_QUALITY, ToolCategory.FRONTEND_QUALITY])
+            
+            analysis_results = cli_analyzer.run_analysis(
+                model=model,
+                app_num=app_num,
+                categories=categories,
+                use_all_tools=False
+            )
+        
+        if analysis_results['success']:
+            total_issues = analysis_results['total_issues']
+            categories = analysis_results['results']
+            
+            # Generate detailed results HTML
+            results_html = []
+            
+            for category, data in categories.items():
+                if data['issues']:
+                    category_name = category.replace('_', ' ').title()
+                    results_html.append(f"""
+                    <div class="analysis-category mb-3">
+                        <h6 class="text-primary">
+                            <i class="fas fa-{'server' if 'backend' in category else 'desktop' if 'frontend' in category else 'code'} mr-1"></i>
+                            {category_name} ({len(data['issues'])} issues)
+                        </h6>
+                        <div class="issues-list">
+                    """)
+                    
+                    for issue in data['issues'][:10]:  # Show first 10 issues
+                        severity_class = {
+                            'HIGH': 'severity-high',
+                            'MEDIUM': 'severity-medium', 
+                            'LOW': 'severity-low'
+                        }.get(issue.severity, 'severity-low')
+                        
+                        results_html.append(f"""
+                        <div class="analysis-result-item {severity_class} mb-2">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{issue.tool}</strong>: {issue.issue_text[:100]}{'...' if len(issue.issue_text) > 100 else ''}
+                                    <br><small class="text-muted">{issue.filename}:{issue.line_number}</small>
+                                </div>
+                                <span class="badge badge-{'danger' if issue.severity == 'HIGH' else 'warning' if issue.severity == 'MEDIUM' else 'info'}">{issue.severity}</span>
+                            </div>
+                        </div>
+                        """)
+                    
+                    if len(data['issues']) > 10:
+                        results_html.append(f"""
+                        <div class="text-muted text-center py-2">
+                            <small>... and {len(data['issues']) - 10} more issues</small>
+                        </div>
+                        """)
+                    
+                    results_html.append("</div></div>")
+            
+            if not results_html:
+                results_html.append("""
+                <div class="alert alert-success text-center">
+                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                    <h6>No Issues Found</h6>
+                    <p>All enabled tools completed successfully with no security or quality issues detected.</p>
+                </div>
+                """)
+            
+            return render_template_string("""
+            <div class="alert alert-success mb-3">
+                <h6><i class="fas fa-check mr-2"></i>CLI Analysis Completed</h6>
+                <p class="mb-0">
+                    <span class="issue-count-badge mr-2">{{ total_issues }} total issues</span>
+                    <span class="text-muted">Analysis completed at {{ timestamp }}</span>
+                </p>
+            </div>
+            <div id="analysis-details">
+                {{ results_html|safe }}
+            </div>
+            <script>
+            // Update the main counters
+            document.getElementById('security-issues-count').textContent = '{{ total_issues }}';
+            document.getElementById('last-scan-time').textContent = '{{ timestamp }}';
+            
+            // Update vulnerability count (HIGH + MEDIUM)
+            const vulnCount = {{ vulnerability_count }};
+            document.getElementById('vulnerabilities-count').textContent = vulnCount;
+            </script>
+            """, 
+            total_issues=total_issues,
+            results_html=''.join(results_html),
+            timestamp=datetime.now().strftime('%H:%M:%S'),
+            vulnerability_count=sum(1 for cat in categories.values() for issue in cat['issues'] if issue.severity in ['HIGH', 'MEDIUM'])
+            )
         else:
             return render_template_string("""
             <div class="alert alert-danger">
-                <h6>Security Analysis Failed</h6>
+                <h6><i class="fas fa-exclamation-triangle mr-2"></i>CLI Analysis Failed</h6>
                 <p>{{ error }}</p>
+                <details class="mt-2">
+                    <summary>Error Details</summary>
+                    <pre class="mt-2 text-muted">{{ details }}</pre>
+                </details>
             </div>
-            """, error=results.get('error', 'Unknown error'))
+            """, 
+            error=analysis_results.get('error', 'Unknown error'),
+            details=analysis_results.get('details', 'No additional details available')
+            )
             
     except Exception as e:
         logger.error(f"Security analysis error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route("/analysis/<model>/<int:app_num>/results", methods=["GET"])
+def get_analysis_results(model, app_num):
+    """Get stored analysis results for an application."""
+    try:
+        # Get the most recent SecurityAnalysis record
+        analysis = db.session.query(SecurityAnalysis)\
+            .join(GeneratedApplication)\
+            .filter(GeneratedApplication.model_slug == model,
+                   GeneratedApplication.app_number == app_num)\
+            .order_by(SecurityAnalysis.created_at.desc())\
+            .first()
+        
+        if not analysis:
+            return render_template_string("""
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-search fa-3x mb-3"></i>
+                <h5>No Analysis Results</h5>
+                <p>Run a security analysis to see results here.</p>
+            </div>
+            """)
+        
+        # Parse the stored results
+        results_data = analysis.get_results()
+        if not results_data:
+            return render_template_string("""
+            <div class="alert alert-warning">
+                <h6>Results Not Available</h6>
+                <p>Analysis completed but results could not be loaded.</p>
+            </div>
+            """)
+        
+        # Generate HTML for the results
+        results_html = []
+        total_issues = 0
+        
+        for category, data in results_data.items():
+            if isinstance(data, dict) and 'issues' in data and data['issues']:
+                category_name = category.replace('_', ' ').title()
+                issue_count = len(data['issues'])
+                total_issues += issue_count
+                
+                results_html.append(f"""
+                <div class="analysis-category mb-3">
+                    <h6 class="text-primary">
+                        <i class="fas fa-{'server' if 'backend' in category else 'desktop' if 'frontend' in category else 'code'} mr-1"></i>
+                        {category_name} ({issue_count} issues)
+                    </h6>
+                    <div class="issues-list">
+                """)
+                
+                for issue in data['issues'][:10]:
+                    severity_class = {
+                        'HIGH': 'severity-high',
+                        'MEDIUM': 'severity-medium', 
+                        'LOW': 'severity-low'
+                    }.get(issue.get('severity', 'LOW'), 'severity-low')
+                    
+                    results_html.append(f"""
+                    <div class="analysis-result-item {severity_class} mb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>{issue.get('tool', 'Unknown')}</strong>: {issue.get('issue_text', '')[:100]}{'...' if len(issue.get('issue_text', '')) > 100 else ''}
+                                <br><small class="text-muted">{issue.get('filename', '')}:{issue.get('line_number', 0)}</small>
+                            </div>
+                            <span class="badge badge-{'danger' if issue.get('severity') == 'HIGH' else 'warning' if issue.get('severity') == 'MEDIUM' else 'info'}">{issue.get('severity', 'LOW')}</span>
+                        </div>
+                    </div>
+                    """)
+                
+                if issue_count > 10:
+                    results_html.append(f"""
+                    <div class="text-muted text-center py-2">
+                        <small>... and {issue_count - 10} more issues</small>
+                    </div>
+                    """)
+                
+                results_html.append("</div></div>")
+        
+        if not results_html:
+            results_html.append("""
+            <div class="alert alert-success text-center">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h6>No Issues Found</h6>
+                <p>All analysis tools completed successfully with no issues detected.</p>
+            </div>
+            """)
+        
+        return render_template_string("""
+        <div class="analysis-summary mb-3">
+            <span class="issue-count-badge mr-2">{{ total_issues }} total issues</span>
+            <span class="text-muted">Last updated: {{ last_updated }}</span>
+        </div>
+        {{ results_html|safe }}
+        <script>
+        // Update counters
+        document.getElementById('security-issues-count').textContent = '{{ total_issues }}';
+        document.getElementById('last-scan-time').textContent = '{{ last_scan_time }}';
+        </script>
+        """, 
+        total_issues=total_issues,
+        results_html=''.join(results_html),
+        last_updated=analysis.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        last_scan_time=analysis.created_at.strftime('%H:%M:%S')
+        )
+        
+    except Exception as e:
+        logger.error(f"Error loading analysis results: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route("/analysis/<model>/<int:app_num>/export", methods=["GET"])
+def export_analysis_results(model, app_num):
+    """Export analysis results as JSON."""
+    try:
+        # Get the most recent SecurityAnalysis record
+        analysis = db.session.query(SecurityAnalysis)\
+            .join(GeneratedApplication)\
+            .filter(GeneratedApplication.model_slug == model,
+                   GeneratedApplication.app_number == app_num)\
+            .order_by(SecurityAnalysis.created_at.desc())\
+            .first()
+        
+        if not analysis:
+            return jsonify({'error': 'No analysis results found'}), 404
+        
+        # Prepare export data
+        export_data = {
+            'model': model,
+            'app_number': app_num,
+            'analysis_id': analysis.id,
+            'created_at': analysis.created_at.isoformat(),
+            'status': analysis.status,
+            'total_issues': analysis.total_issues,
+            'severity_counts': {
+                'critical': analysis.critical_severity_count,
+                'high': analysis.high_severity_count,
+                'medium': analysis.medium_severity_count,
+                'low': analysis.low_severity_count
+            },
+            'enabled_tools': analysis.get_enabled_tools(),
+            'results': analysis.get_results()
+        }
+        
+        # Create response with JSON download
+        response = make_response(jsonify(export_data))
+        response.headers['Content-Disposition'] = f'attachment; filename=analysis_{model}_app{app_num}_{analysis.created_at.strftime("%Y%m%d_%H%M%S")}.json'
+        response.headers['Content-Type'] = 'application/json'
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error exporting analysis results: {e}")
         return jsonify({'error': str(e)}), 500
 
 

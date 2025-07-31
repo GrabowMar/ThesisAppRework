@@ -25,11 +25,6 @@ src_dir = project_root / "src"
 # Add source directory to Python path
 sys.path.insert(0, str(src_dir))
 
-# Import Flask components
-from app import create_app
-from models import ModelCapability, GeneratedApplication, PortConfiguration
-from extensions import db
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +38,11 @@ def main():
     logger.info("=== Thesis Research App Database Initialization ===")
     
     try:
+        # Import Flask components
+        from app import create_app
+        from models import *
+        from extensions import db
+        
         logger.info("Creating Flask application...")
         app = create_app()
         
@@ -146,8 +146,8 @@ def main():
                         backend_port = 6000 + (models_created * 10) + app_num
                         
                         port_config = PortConfiguration(
-                            model=canonical_slug,
-                            app_num=app_num,
+                            model_slug=canonical_slug,
+                            app_number=app_num,
                             frontend_port=frontend_port,
                             backend_port=backend_port,
                             is_available=True,

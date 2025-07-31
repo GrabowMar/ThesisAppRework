@@ -216,17 +216,17 @@
   "tool_outputs": {
     "flake8": "STDOUT:\napp.py:7:1: E302 expected 2 blank lines, found 1\napp.py:9:80: E501 line too long (88 > 79 characters)\napp.py:11:1: E305 expected 2 blank lines after class or function definition, found 1\n\n\nSTDERR:\n",
     "pylint": "STDOUT:\n[\n    {\n        \"type\": \"convention\",\n        \"module\": \"app\",\n        \"obj\": \"\",\n        \"line\": 1,\n        \"column\": 0,\n        \"endLine\": null,\n        \"endColumn\": null,\n        \"path\": \"app.py\",\n        \"symbol\": \"missing-module-docstring\",\n        \"message\": \"Missing module docstring\",\n        \"message-id\": \"C0114\"\n    },\n    {\n        \"type\": \"convention\",\n        \"module\": \"app\",\n        \"obj\": \"home\",\n        \"line\": 8,\n        \"column\": 0,\n        \"endLine\": 8,\n        \"endColumn\": 8,\n        \"path\": \"app.py\",\n        \"symbol\": \"missing-function-docstring\",\n        \"message\": \"Missing function or method docstring\",\n        \"message-id\": \"C0116\"\n    }\n]\n\n\nSTDERR:\n",
-    "radon": "STDOUT:\n{\"app.py\": [{\"type\": \"function\", \"rank\": \"A\", \"name\": \"home\", \"lineno\": 8, \"endline\": 9, \"complexity\": 1, \"col_offset\": 0, \"closures\": []}]}\n\n\nSTDERR:\n",
+    "radon": "STDOUT:\n{\"app.py\": [{\"type\": \"function\", \"rank\": \"A\", \"complexity\": 1, \"col_offset\": 0, \"endline\": 9, \"lineno\": 8, \"name\": \"home\", \"closures\": []}]}\n\n\nSTDERR:\n",
     "mypy": "STDOUT:\napp.py:2: error: Library stubs not installed for \"flask_cors\"  [import-untyped]\napp.py:2: note: Hint: \"python3 -m pip install types-Flask-Cors\"\napp.py:2: note: (or run \"mypy --install-types\" to install all missing stub packages)\napp.py:2: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports\n\n\nSTDERR:\n",
     "pycodestyle": "STDOUT:\napp.py:7:1: E302 expected 2 blank lines, found 1\napp.py:9:80: E501 line too long (88 > 79 characters)\napp.py:11:1: E305 expected 2 blank lines after class or function definition, found 1\n\n\nSTDERR:\n",
     "pydocstyle": "STDOUT:\napp.py:1 at module level:\n        D100: Missing docstring in public module\napp.py:8 in public function `home`:\n        D103: Missing docstring in public function\n\n\nSTDERR:\n"
   },
-  "timestamp": "2025-07-31T22:15:38.516527",
+  "timestamp": "2025-07-31T23:28:53.648942",
   "_metadata": {
     "module": "backend_quality",
     "model": "anthropic_claude-3.7-sonnet",
     "app_num": 1,
-    "saved_at": "2025-07-31T22:15:38.516686",
+    "saved_at": "2025-07-31T23:28:53.648942",
     "filename": ".backend_quality_results.json"
   }
 }

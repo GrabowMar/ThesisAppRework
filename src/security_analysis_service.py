@@ -184,12 +184,25 @@ class BaseAnalyzer(ABC):
                 )
                 return result.returncode == 0
             elif tool_config.get("npx_tool"):
-                # Check npx availability
-                result = subprocess.run(
-                    ["npx", "--version"],
-                    capture_output=True, timeout=5, check=False
-                )
-                return result.returncode == 0
+                # Check npx availability and the specific tool
+                try:
+                    # First check if npx is available (need shell=True on Windows)
+                    npx_result = subprocess.run(
+                        ["npx", "--version"],
+                        capture_output=True, timeout=5, check=False, shell=True
+                    )
+                    if npx_result.returncode != 0:
+                        return False
+                    
+                    # Then check if the specific tool can be found by npx
+                    tool_cmd = cmd[1] if len(cmd) > 1 else tool_name
+                    tool_result = subprocess.run(
+                        ["npx", tool_cmd, "--version"],
+                        capture_output=True, timeout=10, check=False, shell=True
+                    )
+                    return tool_result.returncode == 0
+                except Exception:
+                    return False
             else:
                 # Check system command
                 return bool(get_executable_path(cmd[0]))
@@ -204,6 +217,9 @@ class BaseAnalyzer(ABC):
         try:
             logger.info(f"Running {tool_name} with command: {' '.join(command)}")
             
+            # Use shell=True for NPX commands on Windows
+            use_shell = IS_WINDOWS and len(command) > 0 and (command[0] == "npx" or command[0] == "npm")
+            
             result = subprocess.run(
                 command,
                 cwd=working_dir,
@@ -213,7 +229,8 @@ class BaseAnalyzer(ABC):
                 check=False,
                 input=input_data,
                 encoding='utf-8',
-                errors='replace'
+                errors='replace',
+                shell=use_shell
             )
             
             output = f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
@@ -536,33 +553,27 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
         
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         return {
-            "npm-audit": {
-                "cmd": ["npm"],
-                "npx_tool": False,
-                "requires_files": False,
-                "timeout": 45
-            },
             "eslint": {
-                "cmd": ["npx"],
+                "cmd": ["npx", "eslint"],
                 "npx_tool": True,
                 "requires_files": True,
                 "timeout": 45
             },
             "jshint": {
-                "cmd": ["npx"],
+                "cmd": ["npx", "jshint"],
                 "npx_tool": True,
                 "requires_files": True,
                 "timeout": 45,
                 "max_files": 30
             },
             "snyk": {
-                "cmd": ["npx"],
+                "cmd": ["npx", "snyk"],
                 "npx_tool": True,
                 "requires_files": False,
                 "timeout": 90
             },
             "retire": {
-                "cmd": ["npx"],
+                "cmd": ["npx", "retire"],
                 "npx_tool": True,
                 "requires_files": True,
                 "timeout": 60
@@ -588,50 +599,6 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
         
         return base_app_dir
         
-    def _parse_npm_audit(self, stdout: str) -> List[AnalysisIssue]:
-        """Parse npm audit JSON output."""
-        issues = []
-        data = safe_json_loads(stdout.strip())
-        if not data:
-            return issues
-
-        severity_map = {"critical": "HIGH", "high": "HIGH", "moderate": "MEDIUM", "low": "LOW"}
-
-        # Handle both dict and list cases
-        if isinstance(data, dict):
-            vulnerabilities = data.get("vulnerabilities", {})
-            items = vulnerabilities.items() if isinstance(vulnerabilities, dict) else []
-        elif isinstance(data, list):
-            items = []
-            for entry in data:
-                if isinstance(entry, dict):
-                    items.extend(entry.get("vulnerabilities", {}).items())
-        else:
-            items = []
-
-        for key, vuln in items:
-            if not isinstance(vuln, dict):
-                continue
-            severity = severity_map.get(vuln.get("severity", "info").lower(), "LOW")
-            name = vuln.get("name", key)
-            title = vuln.get("title", "N/A")
-            
-            issues.append(AnalysisIssue(
-                filename="package-lock.json",
-                line_number=0,
-                issue_text=f"{title} (Package: {name})",
-                severity=severity,
-                confidence="HIGH",
-                issue_type=f"dependency_vuln_{name}",
-                category="dependency",
-                rule_id=f"npm_{name}",
-                line_range=[0],
-                code=name,
-                tool="npm-audit",
-                fix_suggestion="Fix available via npm audit fix" if vuln.get("fixAvailable") else None
-            ))
-        return issues
-        
     def _parse_eslint(self, stdout: str) -> List[AnalysisIssue]:
         """Parse ESLint JSON output for security issues."""
         issues = []
@@ -650,11 +617,12 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                 if not isinstance(msg, dict):
                     continue
                     
-                rule_id = msg.get("ruleId", "unknown")
-                message = msg.get("message", "Unknown issue")
+                rule_id = msg.get("ruleId", "unknown") or "unknown"
+                message = msg.get("message", "Unknown issue") or "Unknown issue"
                 
                 # Only include security-related issues
-                if any(pattern in f"{rule_id} {message}".lower() for pattern in security_patterns):
+                search_text = f"{rule_id} {message}".lower()
+                if any(pattern in search_text for pattern in security_patterns):
                     severity = "HIGH" if msg.get("severity", 1) >= 2 else "MEDIUM"
                     
                     issues.append(AnalysisIssue(
@@ -827,19 +795,6 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
         
         return issues
         
-    def _run_npm_audit(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
-        """Run npm audit."""
-        if not (app_path / "package.json").exists():
-            return [], ToolStatus.NO_FILES.value, "No package.json found"
-        
-        # Generate package-lock.json if missing
-        if not (app_path / "package-lock.json").exists():
-            self._run_tool("npm-install", ["npm", "install", "--package-lock-only"], 
-                          None, app_path, timeout=120)
-        
-        command = ["npm", "audit", "--json"]
-        return self._run_tool("npm-audit", command, self._parse_npm_audit, working_dir=app_path)
-        
     def _run_eslint(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
         """Run ESLint with security rules."""
         scan_dir = "src" if (app_path / "src").is_dir() else "."
@@ -961,16 +916,14 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
             tool_status = {}
             tool_outputs = {}
             
-            tools_to_run = ["npm-audit", "eslint", "retire", "jshint", "snyk"] if use_all_tools else ["eslint", "retire"]
+            tools_to_run = ["eslint", "retire", "jshint", "snyk"] if use_all_tools else ["eslint", "retire"]
             
             for tool_name in tools_to_run:
                 if not self.available_tools.get(tool_name):
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
-                if tool_name == "npm-audit":
-                    issues, status, output = self._run_npm_audit(app_path)
-                elif tool_name == "eslint":
+                if tool_name == "eslint":
                     issues, status, output = self._run_eslint(app_path)
                 elif tool_name == "retire":
                     issues, status, output = self._run_retire(app_path)
@@ -1490,19 +1443,19 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         return {
             "eslint": {
-                "cmd": ["npx"],
+                "cmd": ["npx", "eslint"],
                 "npx_tool": True,
                 "requires_files": True,
                 "timeout": 60
             },
             "prettier": {
-                "cmd": ["npx"],
+                "cmd": ["npx", "prettier"],
                 "npx_tool": True,
                 "requires_files": True,
                 "timeout": 30
             },
             "jshint": {
-                "cmd": ["npx"],
+                "cmd": ["npx", "jshint"],
                 "npx_tool": True,
                 "requires_files": True,
                 "timeout": 45
@@ -1567,8 +1520,8 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                 if not isinstance(msg, dict):
                     continue
                     
-                rule_id = msg.get("ruleId", "unknown")
-                message = msg.get("message", "Unknown issue")
+                rule_id = msg.get("ruleId", "unknown") or "unknown"
+                message = msg.get("message", "Unknown issue") or "Unknown issue"
                 
                 # Only include quality-related issues (not security)
                 if any(pattern in rule_id for pattern in quality_patterns) or "style" in rule_id.lower():

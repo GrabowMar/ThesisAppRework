@@ -1,21 +1,23 @@
 {
   "issues": [],
   "tool_status": {
-    "npm-audit": "\u274c Command not found",
-    "eslint": "\u274c Command not found",
-    "retire": "\u274c Command not found",
-    "jshint": "\u274c Command not found",
-    "snyk": "\u274c Command not found"
+    "eslint": "\u2705 No issues found",
+    "retire": "\u2705 No issues found",
+    "jshint": "\u2705 No issues found",
+    "snyk": "\u2705 No issues found"
   },
   "tool_outputs": {
-    "npm-audit": "Command not found"
+    "eslint": "STDOUT:\n[{\"filePath\":\"C:\\\\Users\\\\grabowmar\\\\Desktop\\\\ThesisAppRework\\\\misc\\\\models\\\\anthropic_claude-3.7-sonnet\\\\app1\\\\frontend\\\\src\\\\App.jsx\",\"messages\":[{\"ruleId\":null,\"nodeType\":null,\"fatal\":true,\"severity\":2,\"message\":\"Parsing error: Unexpected token <\",\"line\":25,\"column\":5}],\"suppressedMessages\":[],\"errorCount\":1,\"fatalErrorCount\":1,\"warningCount\":0,\"fixableErrorCount\":0,\"fixableWarningCount\":0,\"source\":\"import React, { useState, useEffect } from 'react';\\r\\nimport ReactDOM from 'react-dom/client';\\r\\n\\r\\nconst App = () => {\\r\\n  const [message, setMessage] = useState('Loading...');\\r\\n\\r\\n  useEffect(() => {\\r\\n    // Fetch the message from the backend server running on port 6051\\r\\n    fetch('http://localhost:6051')\\r\\n      .then((response) => {\\r\\n        if (!response.ok) {\\r\\n          throw new Error(`HTTP error! status: ${response.status}`);\\r\\n        }\\r\\n        return response.json();\\r\\n      })\\r\\n      .then((data) => {\\r\\n        setMessage(data.message || 'No message received');\\r\\n      })\\r\\n      .catch((error) => {\\r\\n        setMessage(`Error fetching message: ${error.message}`);\\r\\n      });\\r\\n  }, []);\\r\\n\\r\\n  return (\\r\\n    <main>\\r\\n      <h1>{message}</h1>\\r\\n    </main>\\r\\n  );\\r\\n};\\r\\n\\r\\nconst container = document.getElementById('root');\\r\\nif (container) {\\r\\n  const root = ReactDOM.createRoot(container);\\r\\n  root.render(<App />);\\r\\n}\\r\\n\\r\\nexport default App;\\r\\n\",\"usedDeprecatedRules\":[]}]\n\n\nSTDERR:\n",
+    "retire": "STDOUT:\nretire.js v5.2.7\nLoading from cache: https://raw.githubusercontent.com/RetireJS/retire.js/master/repository/jsrepository-v4.json\n\n\nSTDERR:\n",
+    "jshint": "STDOUT:\n\n\nSTDERR:\n",
+    "snyk": "STDOUT:\n{\n  \"vulnerabilities\": [],\n  \"ok\": true,\n  \"dependencyCount\": 5,\n  \"org\": \"dump.fakeowski\",\n  \"policy\": \"# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.\\nversion: v1.25.1\\nignore: {}\\npatch: {}\\n\",\n  \"isPrivate\": true,\n  \"licensesPolicy\": {\n    \"severities\": {},\n    \"orgLicenseRules\": {\n      \"AGPL-1.0\": {\n        \"licenseType\": \"AGPL-1.0\",\n        \"severity\": \"high\",\n        \"instructions\": \"\"\n      },\n      \"AGPL-3.0\": {\n        \"licenseType\": \"AGPL-3.0\",\n        \"severity\": \"high\",\n        \"instructions\": \"\"\n      },\n      \"Artistic-1.0\": {\n        \"licenseType\": \"Artistic-1.0\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"Artistic-2.0\": {\n        \"licenseType\": \"Artistic-2.0\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"CDDL-1.0\": {\n        \"licenseType\": \"CDDL-1.0\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"CPOL-1.02\": {\n        \"licenseType\": \"CPOL-1.02\",\n        \"severity\": \"high\",\n        \"instructions\": \"\"\n      },\n      \"EPL-1.0\": {\n        \"licenseType\": \"EPL-1.0\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"GPL-2.0\": {\n        \"licenseType\": \"GPL-2.0\",\n        \"severity\": \"high\",\n        \"instructions\": \"\"\n      },\n      \"GPL-3.0\": {\n        \"licenseType\": \"GPL-3.0\",\n        \"severity\": \"high\",\n        \"instructions\": \"\"\n      },\n      \"LGPL-2.0\": {\n        \"licenseType\": \"LGPL-2.0\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"LGPL-2.1\": {\n        \"licenseType\": \"LGPL-2.1\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"LGPL-3.0\": {\n        \"licenseType\": \"LGPL-3.0\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"MPL-1.1\": {\n        \"licenseType\": \"MPL-1.1\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"MPL-2.0\": {\n        \"licenseType\": \"MPL-2.0\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"MS-RL\": {\n        \"licenseType\": \"MS-RL\",\n        \"severity\": \"medium\",\n        \"instructions\": \"\"\n      },\n      \"SimPL-2.0\": {\n        \"licenseType\": \"SimPL-2.0\",\n        \"severity\": \"high\",\n        \"instructions\": \"\"\n      }\n    }\n  },\n  \"packageManager\": \"npm\",\n  \"ignoreSettings\": {\n    \"adminOnly\": false,\n    \"reasonRequired\": false,\n    \"disregardFilesystemIgnores\": false\n  },\n  \"summary\": \"No known vulnerabilities\",\n  \"filesystemPolicy\": false,\n  \"uniqueCount\": 0,\n  \"projectName\": \"react-anthropic_claude-3_7-sonnet-app\",\n  \"displayTargetFile\": \"package-lock.json\",\n  \"hasUnknownVersions\": false,\n  \"path\": \"C:\\\\Users\\\\grabowmar\\\\Desktop\\\\ThesisAppRework\\\\misc\\\\models\\\\anthropic_claude-3.7-sonnet\\\\app1\\\\frontend\"\n}\n\n\nSTDERR:\n"
   },
-  "timestamp": "2025-07-31T22:15:23.988146",
+  "timestamp": "2025-07-31T23:28:23.363645",
   "_metadata": {
     "module": "frontend_security",
     "model": "anthropic_claude-3.7-sonnet",
     "app_num": 1,
-    "saved_at": "2025-07-31T22:15:23.988146",
+    "saved_at": "2025-07-31T23:28:23.364638",
     "filename": ".frontend_security_results.json"
   }
 }

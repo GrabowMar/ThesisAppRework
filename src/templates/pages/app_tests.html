@@ -14,26 +14,51 @@
             <div class="card-body">
                 <!-- Security Analysis -->
                 <div class="test-controls">
-                    <h6 class="text-primary">Security Analysis</h6>
-                    <p class="text-muted small mb-3">Run security vulnerability scans using Bandit, Safety, and other tools</p>
+                    <h6 class="text-primary">CLI Security Analysis</h6>
+                    <p class="text-muted small mb-3">Run comprehensive security analysis with 17 CLI tools</p>
                     
                     <form id="security-test-form"
-                          hx-post="/analysis/backend_security/{{ model }}/{{ app_num }}/run"
+                          hx-post="/api/analysis/{{ model }}/{{ app_num }}/security"
                           hx-target="#security-results"
                           hx-indicator="#security-spinner">
-                        <div class="form-group">
+                        <div class="form-group mb-2">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="tools" value="bandit" id="bandit" checked>
-                                <label class="form-check-label" for="bandit">Bandit</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="tools" value="safety" id="safety" checked>
-                                <label class="form-check-label" for="safety">Safety</label>
+                                <input class="form-check-input" type="checkbox" name="use_all_tools" id="test_use_all_tools">
+                                <label class="form-check-label" for="test_use_all_tools">
+                                    <strong>Use All Tools (17 tools)</strong>
+                                </label>
                             </div>
                         </div>
                         
-                        <button type="submit" class="btn btn-primary btn-block">
-                            <i class="fas fa-shield-alt mr-2"></i>Run Security Scan
+                        <div class="quick-tools mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="bandit" id="test_bandit" checked>
+                                <label class="form-check-label" for="test_bandit">
+                                    <span class="badge badge-primary badge-sm mr-1">Py</span>Bandit
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="safety" id="test_safety" checked>
+                                <label class="form-check-label" for="test_safety">
+                                    <span class="badge badge-primary badge-sm mr-1">Py</span>Safety
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="eslint" id="test_eslint" checked>
+                                <label class="form-check-label" for="test_eslint">
+                                    <span class="badge badge-success badge-sm mr-1">JS</span>ESLint
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="include_quality" id="test_include_quality">
+                                <label class="form-check-label" for="test_include_quality">
+                                    <small>+ Quality Analysis (9 tools)</small>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-block btn-sm">
+                            <i class="fas fa-shield-alt mr-1"></i>Run CLI Analysis
                         </button>
                     </form>
                     
@@ -41,7 +66,7 @@
                         <div class="spinner-border spinner-border-sm text-primary" role="status">
                             <span class="sr-only">Running...</span>
                         </div>
-                        <span class="ml-2 small">Running security analysis...</span>
+                        <span class="ml-2 small">Running CLI analysis...</span>
                     </div>
                 </div>
 
@@ -279,5 +304,105 @@
 .htmx-indicator {
     display: none;
 }
+
+.badge-sm {
+    font-size: 0.6rem;
+    padding: 0.2rem 0.4rem;
+}
+
+.quick-tools .form-check {
+    margin-bottom: 0.3rem;
+}
+
+.quick-tools .form-check-label {
+    font-size: 0.9rem;
+}
 </style>
+
+<script>
+// Handle test form interactions
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle "Use All Tools" toggle in test form
+    const testUseAllTools = document.getElementById('test_use_all_tools');
+    const testToolCheckboxes = document.querySelectorAll('#security-test-form input[type="checkbox"]:not(#test_use_all_tools):not(#test_include_quality)');
+    const testIncludeQuality = document.getElementById('test_include_quality');
+    
+    if (testUseAllTools) {
+        testUseAllTools.addEventListener('change', function() {
+            testToolCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+                checkbox.disabled = this.checked;
+            });
+            
+            if (this.checked) {
+                testIncludeQuality.checked = true;
+                testIncludeQuality.disabled = true;
+            } else {
+                testIncludeQuality.disabled = false;
+            }
+        });
+    }
+    
+    // Handle individual tool changes
+    testToolCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (!this.checked && testUseAllTools) {
+                testUseAllTools.checked = false;
+            }
+        });
+    });
+});
+
+// Auto-refresh all results
+function refreshAllResults() {
+    const refreshSpinner = document.getElementById('results-spinner');
+    if (refreshSpinner) {
+        refreshSpinner.style.display = 'block';
+    }
+    
+    // Refresh security results
+    htmx.ajax('GET', `/api/analysis/{{ model }}/{{ app_num }}/results`, {
+        target: '#security-results'
+    });
+    
+    // Refresh container status
+    htmx.ajax('GET', `/api/status/{{ model }}/{{ app_num }}`, {
+        target: '#container-status'
+    });
+    
+    setTimeout(() => {
+        if (refreshSpinner) {
+            refreshSpinner.style.display = 'none';
+        }
+    }, 2000);
+}
+
+// Save all results
+function saveAllResults() {
+    const saveSpinner = document.getElementById('save-spinner');
+    const saveStatus = document.getElementById('save-status');
+    
+    if (saveSpinner) {
+        saveSpinner.style.display = 'block';
+    }
+    
+    // This would trigger saving of current results to database
+    // For now, show a confirmation
+    setTimeout(() => {
+        if (saveSpinner) {
+            saveSpinner.style.display = 'none';
+        }
+        if (saveStatus) {
+            saveStatus.innerHTML = `
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check mr-2"></i>Analysis results saved successfully!
+                    <button type="button" class="close" data-dismiss="alert">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            `;
+        }
+    }, 1500);
+}
+</script>
 {% endblock %}

@@ -18,37 +18,93 @@
                       hx-target="#security-analysis-results"
                       hx-indicator="#security-analysis-spinner"
                       class="mb-4">
-                    <div class="form-group">
-                        <label class="form-label">Enabled Tools</label>
+                    
+                    <div class="form-group mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="use_all_tools" id="use_all_tools">
+                            <label class="form-check-label font-weight-bold" for="use_all_tools">
+                                <i class="fas fa-rocket mr-1"></i>Use All Available Tools (17 tools)
+                            </label>
+                        </div>
+                        <small class="text-muted">Enable comprehensive analysis with all security and quality tools</small>
+                    </div>
+
+                    <!-- Backend Security Tools -->
+                    <div class="tool-category mb-3">
+                        <h6 class="text-primary mb-2">
+                            <i class="fas fa-server mr-1"></i>Backend Security (4 tools)
+                        </h6>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="bandit" id="bandit" checked>
                             <label class="form-check-label" for="bandit">
-                                Bandit (Python Security)
+                                <span class="badge badge-primary mr-1">Python</span>Bandit - Security Linter
                             </label>
                         </div>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="safety" id="safety" checked>
                             <label class="form-check-label" for="safety">
-                                Safety (Dependency Check)
+                                <span class="badge badge-primary mr-1">Python</span>Safety - Dependency Vulnerabilities
                             </label>
                         </div>
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="semgrep" id="semgrep">
-                            <label class="form-check-label" for="semgrep">
-                                Semgrep (Code Patterns)
+                            <input class="form-check-input" type="checkbox" name="pylint" id="pylint">
+                            <label class="form-check-label" for="pylint">
+                                <span class="badge badge-primary mr-1">Python</span>Pylint - Code Analysis
                             </label>
                         </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="vulture" id="vulture">
+                            <label class="form-check-label" for="vulture">
+                                <span class="badge badge-primary mr-1">Python</span>Vulture - Dead Code Detection
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Frontend Security Tools -->
+                    <div class="tool-category mb-3">
+                        <h6 class="text-success mb-2">
+                            <i class="fas fa-desktop mr-1"></i>Frontend Security (4 tools)
+                        </h6>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="eslint" id="eslint" checked>
                             <label class="form-check-label" for="eslint">
-                                ESLint (JavaScript Security)
+                                <span class="badge badge-success mr-1">JS/TS</span>ESLint - Security Rules
                             </label>
                         </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="retire" id="retire">
+                            <label class="form-check-label" for="retire">
+                                <span class="badge badge-success mr-1">JS</span>Retire.js - Vulnerable Libraries
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="snyk" id="snyk">
+                            <label class="form-check-label" for="snyk">
+                                <span class="badge badge-success mr-1">Multi</span>Snyk - Vulnerability Scanner
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="jshint" id="jshint">
+                            <label class="form-check-label" for="jshint">
+                                <span class="badge badge-success mr-1">JS</span>JSHint - Code Quality
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Quality Analysis Toggle -->
+                    <div class="form-group mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="include_quality" id="include_quality">
+                            <label class="form-check-label font-weight-bold" for="include_quality">
+                                <i class="fas fa-code mr-1"></i>Include Code Quality Analysis (9 additional tools)
+                            </label>
+                        </div>
+                        <small class="text-muted">Add backend quality (6 tools) and frontend quality (3 tools) analysis</small>
                     </div>
                     
                     <button type="submit" class="btn btn-primary btn-block">
                         <i class="fas fa-play mr-2"></i>
-                        Run Security Analysis
+                        Run CLI Analysis
                     </button>
                 </form>
                 
@@ -240,6 +296,27 @@
     margin-bottom: 0.5rem;
 }
 
+.tool-category {
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    border-left: 4px solid #007bff;
+}
+
+.tool-category:nth-child(3) {
+    border-left-color: #28a745;
+}
+
+.tool-category h6 {
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
 .card {
     transition: all 0.3s ease;
 }
@@ -247,31 +324,155 @@
 .card:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
+
+.analysis-result-item {
+    border-left: 4px solid #6c757d;
+    background: #f8f9fa;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border-radius: 0.375rem;
+}
+
+.analysis-result-item.severity-high {
+    border-left-color: #dc3545;
+    background: #f8d7da;
+}
+
+.analysis-result-item.severity-medium {
+    border-left-color: #ffc107;
+    background: #fff3cd;
+}
+
+.analysis-result-item.severity-low {
+    border-left-color: #17a2b8;
+    background: #d1ecf1;
+}
+
+.issue-count-badge {
+    background: #e9ecef;
+    color: #495057;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
 </style>
 
 <script>
+// Tool selection management
+document.addEventListener('DOMContentLoaded', function() {
+    const useAllTools = document.getElementById('use_all_tools');
+    const includeQuality = document.getElementById('include_quality');
+    const toolCheckboxes = document.querySelectorAll('input[type="checkbox"]:not(#use_all_tools):not(#include_quality)');
+    
+    // Handle "Use All Tools" toggle
+    useAllTools.addEventListener('change', function() {
+        toolCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+            checkbox.disabled = this.checked;
+        });
+        
+        if (this.checked) {
+            includeQuality.checked = true;
+            includeQuality.disabled = true;
+        } else {
+            includeQuality.disabled = false;
+        }
+    });
+    
+    // Handle individual tool changes
+    toolCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (!this.checked) {
+                useAllTools.checked = false;
+            }
+        });
+    });
+    
+    // Update tool count display
+    function updateToolCount() {
+        const checkedTools = document.querySelectorAll('input[type="checkbox"]:checked:not(#use_all_tools):not(#include_quality)').length;
+        const qualityBonus = includeQuality.checked ? 9 : 0;
+        const totalTools = useAllTools.checked ? 17 : checkedTools + qualityBonus;
+        
+        const button = document.querySelector('#security-analysis-form button[type="submit"]');
+        button.innerHTML = `<i class="fas fa-play mr-2"></i>Run CLI Analysis (${totalTools} tools)`;
+    }
+    
+    // Listen for changes
+    document.addEventListener('change', updateToolCount);
+    updateToolCount(); // Initial count
+});
+
 function refreshResults() {
-    // Reload the analysis results
-    location.reload();
+    // Refresh both the main results and update counts
+    htmx.ajax('GET', `/api/analysis/{{ model }}/{{ app_num }}/results`, {
+        target: '#detailed-results'
+    }).then(() => {
+        updateResultCounts();
+    });
 }
 
 function exportResults() {
-    // Export functionality can be implemented here
-    alert('Export functionality will be implemented');
+    // Export the current analysis results
+    window.location.href = `/api/analysis/{{ model }}/{{ app_num }}/export`;
 }
 
 // Update counts when analysis completes
 document.addEventListener('htmx:afterRequest', function(event) {
     if (event.detail.target.id === 'security-analysis-results' || 
         event.detail.target.id === 'zap-scan-results') {
-        // Update the counts based on the results
-        updateResultCounts();
+        setTimeout(updateResultCounts, 500); // Small delay to ensure DOM is updated
     }
 });
 
 function updateResultCounts() {
-    // This would be implemented to parse results and update counts
-    // For now, just placeholder functionality
+    // Try to extract counts from the results
+    const resultsContainer = document.getElementById('security-analysis-results');
+    
+    if (resultsContainer && resultsContainer.innerHTML.trim()) {
+        // Count issues from the results
+        const issueElements = resultsContainer.querySelectorAll('.analysis-result-item, .issue-item');
+        const securityCount = issueElements.length;
+        
+        // Count vulnerabilities (high and medium severity)
+        const vulnerabilityElements = resultsContainer.querySelectorAll('.severity-high, .severity-medium');
+        const vulnerabilityCount = vulnerabilityElements.length;
+        
+        // Update the counters
+        document.getElementById('security-issues-count').textContent = securityCount;
+        document.getElementById('vulnerabilities-count').textContent = vulnerabilityCount;
+        document.getElementById('last-scan-time').textContent = new Date().toLocaleTimeString();
+    }
 }
+
+// Auto-refresh functionality
+let autoRefreshInterval;
+
+function toggleAutoRefresh() {
+    const refreshBtn = document.querySelector('button[onclick="refreshResults()"]');
+    
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+        refreshBtn.classList.remove('btn-success');
+        refreshBtn.classList.add('btn-outline-secondary');
+    } else {
+        autoRefreshInterval = setInterval(refreshResults, 30000); // Refresh every 30 seconds
+        refreshBtn.innerHTML = '<i class="fas fa-pause"></i> Auto-Refresh';
+        refreshBtn.classList.remove('btn-outline-secondary');
+        refreshBtn.classList.add('btn-success');
+    }
+}
+
+// Add double-click for auto-refresh toggle
+document.addEventListener('DOMContentLoaded', function() {
+    const refreshBtn = document.querySelector('button[onclick="refreshResults()"]');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('dblclick', toggleAutoRefresh);
+        refreshBtn.title = 'Click to refresh, double-click for auto-refresh';
+    }
+});
 </script>
 {% endblock %}
