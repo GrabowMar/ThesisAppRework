@@ -1,0 +1,269 @@
+{% extends "pages/app_base.html" %}
+
+{% block page_content %}
+<div class="row mb-4">
+    <!-- App Information Card -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle text-primary mr-2"></i>
+                    Application Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong class="text-muted">Model Provider:</strong>
+                        <div class="mt-1">{{ model.split('_')[0]|title }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong class="text-muted">Model Name:</strong>
+                        <div class="mt-1">{{ model|replace('_', ' ')|title }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong class="text-muted">Application Type:</strong>
+                        <div class="mt-1">{{ app_info.app_type|title }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong class="text-muted">Generation Date:</strong>
+                        <div class="mt-1">{{ app_info.created_at.strftime('%Y-%m-%d %H:%M') if app_info.created_at else 'Unknown' }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong class="text-muted">Frontend Port:</strong>
+                        <div class="mt-1">
+                            <span class="badge badge-info">{{ 9000 + (app_num * 10) }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong class="text-muted">Backend Port:</strong>
+                        <div class="mt-1">
+                            <span class="badge badge-info">{{ 6000 + (app_num * 10) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Overview -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-heartbeat text-success mr-2"></i>
+                    Current Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="status-grid"
+                     hx-get="/api/status/{{ model }}/{{ app_num }}"
+                     hx-trigger="load, every 10s"
+                     hx-target="this">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-success" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading status...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt text-warning mr-2"></i>
+                    Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <button hx-post="/docker/start/{{ model }}/{{ app_num }}"
+                                hx-target="#app-status"
+                                hx-indicator="#start-spinner"
+                                class="btn btn-success btn-block">
+                            <i class="fas fa-play mr-2"></i>Start Application
+                            <div id="start-spinner" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                        </button>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <button hx-post="/docker/stop/{{ model }}/{{ app_num }}"
+                                hx-target="#app-status"
+                                hx-indicator="#stop-spinner"
+                                class="btn btn-danger btn-block">
+                            <i class="fas fa-stop mr-2"></i>Stop Application
+                            <div id="stop-spinner" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                        </button>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <button hx-post="/docker/restart/{{ model }}/{{ app_num }}"
+                                hx-target="#app-status"
+                                hx-indicator="#restart-spinner"
+                                class="btn btn-primary btn-block">
+                            <i class="fas fa-redo mr-2"></i>Restart Application
+                            <div id="restart-spinner" class="htmx-indicator spinner-border spinner-border-sm ml-2"></div>
+                        </button>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="btn-group btn-block" role="group">
+                            <a href="http://localhost:{{ 9000 + (app_num * 10) }}" target="_blank"
+                               class="btn btn-outline-primary">
+                                <i class="fas fa-external-link-alt mr-1"></i>Frontend
+                            </a>
+                            <a href="http://localhost:{{ 6000 + (app_num * 10) }}" target="_blank"
+                               class="btn btn-outline-secondary">
+                                <i class="fas fa-external-link-alt mr-1"></i>Backend
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock text-info mr-2"></i>
+                    Recent Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="activity-list"
+                     hx-get="/api/recent-activity?model={{ model }}&app_num={{ app_num }}"
+                     hx-trigger="load, every 30s"
+                     hx-target="this">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-info" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading activity...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Summary Cards -->
+<div class="row">
+    <div class="col-lg-4 mb-3">
+        <div class="card border-left-primary h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Security Analysis
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            <span id="security-status">Not Run</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-shield-alt fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('main.app_analysis', model=model, app_num=app_num) }}" 
+                       class="btn btn-primary btn-sm">
+                        <i class="fas fa-arrow-right mr-1"></i>View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 mb-3">
+        <div class="card border-left-success h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Performance Test
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            <span id="performance-status">Not Run</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-tachometer-alt fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('main.app_performance', model=model, app_num=app_num) }}" 
+                       class="btn btn-success btn-sm">
+                        <i class="fas fa-arrow-right mr-1"></i>View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 mb-3">
+        <div class="card border-left-warning h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Container Status
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            <span id="container-status">Checking...</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-cube fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('main.app_docker', model=model, app_num=app_num) }}" 
+                       class="btn btn-warning btn-sm">
+                        <i class="fas fa-arrow-right mr-1"></i>View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+
+.border-left-warning {
+    border-left: 0.25rem solid #f6c23e !important;
+}
+
+.text-xs {
+    font-size: 0.7rem;
+}
+
+.text-gray-800 {
+    color: #5a5c69 !important;
+}
+
+.text-gray-300 {
+    color: #dddfeb !important;
+}
+
+.htmx-indicator {
+    display: none;
+}
+</style>
+{% endblock %}

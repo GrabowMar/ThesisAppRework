@@ -1,0 +1,292 @@
+{% extends "pages/app_base.html" %}
+
+{% block page_content %}
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tachometer-alt text-success mr-2"></i>
+                    Performance Testing
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Performance Test Form -->
+                <form id="detailed-performance-form" 
+                      hx-post="/performance/{{ model }}/{{ app_num }}/run"
+                      hx-target="#detailed-performance-results"
+                      hx-indicator="#detailed-performance-spinner"
+                      class="mb-4">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="users" class="font-weight-bold">Concurrent Users:</label>
+                                <input type="number" class="form-control" id="users" name="users" value="10" min="1" max="100">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="duration" class="font-weight-bold">Duration (seconds):</label>
+                                <input type="number" class="form-control" id="duration" name="duration" value="60" min="10" max="600">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="spawn_rate" class="font-weight-bold">Spawn Rate:</label>
+                                <input type="number" class="form-control" id="spawn_rate" name="spawn_rate" value="2" min="1" max="10">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="target" class="font-weight-bold">Target:</label>
+                                <select class="form-control" id="target" name="target">
+                                    <option value="frontend">Frontend ({{ 9000 + (app_num * 10) }})</option>
+                                    <option value="backend">Backend ({{ 6000 + (app_num * 10) }})</option>
+                                    <option value="both">Both</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-play mr-2"></i>Run Performance Test
+                        </button>
+                        
+                        <div class="btn-group" role="group">
+                            <button type="button" 
+                                    hx-get="/performance/{{ model }}/{{ app_num }}/report"
+                                    hx-target="#detailed-performance-results"
+                                    class="btn btn-outline-info btn-sm">
+                                <i class="fas fa-chart-line mr-1"></i>View Report
+                            </button>
+                            <button type="button" 
+                                    hx-delete="/performance/{{ model }}/{{ app_num }}/results"
+                                    hx-target="#detailed-performance-results"
+                                    hx-confirm="Are you sure you want to clear all performance test results?"
+                                    class="btn btn-outline-danger btn-sm">
+                                <i class="fas fa-trash mr-1"></i>Clear Results
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                <!-- Loading Indicator -->
+                <div id="detailed-performance-spinner" class="htmx-indicator text-center py-4">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="sr-only">Running performance test...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Running performance test, this may take a few minutes...</p>
+                </div>
+                
+                <!-- Performance Results -->
+                <div id="detailed-performance-results">
+                    {% if existing_results %}
+                        <div class="alert alert-success" role="alert">
+                            <h6 class="alert-heading">
+                                <i class="fas fa-check-circle mr-1"></i>Performance Test Completed
+                            </h6>
+                            <p class="mb-0">Latest test completed successfully. View results below.</p>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-light border text-center" role="alert">
+                            <i class="fas fa-chart-line fa-2x text-muted mb-3"></i>
+                            <h6>No Performance Test Results</h6>
+                            <p class="mb-0 text-muted">Run a performance test to see detailed results and metrics.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance Metrics Summary -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar text-primary mr-2"></i>
+                    Performance Summary
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if existing_results %}
+                    <div class="performance-metric mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">Average Response Time</small>
+                            <strong>{{ existing_results.avg_response_time|round(2) }}ms</strong>
+                        </div>
+                        <div class="progress mt-2" style="height: 6px;">
+                            <div class="progress-bar bg-success" 
+                                 style="width: {{ (existing_results.avg_response_time / 1000 * 100)|min(100) }}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="performance-metric mb-3">
+                        <small class="text-muted">Response Time Distribution</small>
+                        <div class="mt-2">
+                            <div class="d-flex justify-content-between">
+                                <span class="small">95th percentile:</span>
+                                <span class="small font-weight-bold">{{ existing_results.p95_response_time|round(2) }}ms</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="small">99th percentile:</span>
+                                <span class="small font-weight-bold">{{ existing_results.p99_response_time|round(2) }}ms</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="performance-metric mb-3">
+                        <small class="text-muted">Throughput</small>
+                        <div class="mt-1">
+                            <strong>{{ existing_results.requests_per_second|round(2) }}</strong> req/sec
+                        </div>
+                    </div>
+                    
+                    <div class="performance-metric">
+                        <small class="text-muted">Error Rate</small>
+                        <div class="mt-1">
+                            <strong class="{% if existing_results.error_rate > 5 %}text-danger{% elif existing_results.error_rate > 1 %}text-warning{% else %}text-success{% endif %}">
+                                {{ existing_results.error_rate|round(2) }}%
+                            </strong>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-chart-line fa-2x mb-3"></i>
+                        <p>Run a performance test to see metrics</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Performance History -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-history text-info mr-2"></i>
+                    Recent Tests
+                </h6>
+            </div>
+            <div class="card-body p-0" id="performance-history">
+                <div class="list-group list-group-flush">
+                    {% if has_results %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="font-weight-bold">Latest Test</div>
+                                <small class="text-muted">{{ existing_results.timestamp.strftime('%Y-%m-%d %H:%M') if existing_results.timestamp else 'Recent' }}</small>
+                            </div>
+                            <span class="badge badge-success badge-pill">{{ existing_results.requests_per_second|round(1) }} req/s</span>
+                        </div>
+                    {% else %}
+                        <div class="list-group-item text-center text-muted">
+                            <small>No recent tests</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Performance Charts -->
+{% if existing_results %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-area text-primary mr-2"></i>
+                    Performance Charts
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Response Time Trend</h6>
+                        <div class="chart-placeholder bg-light p-4 text-center rounded">
+                            <i class="fas fa-chart-line fa-3x text-muted mb-2"></i>
+                            <p class="text-muted mb-0">Response time chart would be displayed here</p>
+                            <small class="text-muted">Average: {{ existing_results.avg_response_time|round(2) }}ms</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Throughput Over Time</h6>
+                        <div class="chart-placeholder bg-light p-4 text-center rounded">
+                            <i class="fas fa-chart-bar fa-3x text-muted mb-2"></i>
+                            <p class="text-muted mb-0">Throughput chart would be displayed here</p>
+                            <small class="text-muted">Peak: {{ existing_results.requests_per_second|round(2) }} req/s</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Performance Summary Table -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6>Test Summary</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th>Value</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Total Requests</td>
+                                        <td>{{ existing_results.total_requests }}</td>
+                                        <td><span class="badge badge-info">Completed</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Failed Requests</td>
+                                        <td>{{ existing_results.failed_requests }}</td>
+                                        <td><span class="badge {% if existing_results.failed_requests > 0 %}badge-warning{% else %}badge-success{% endif %}">
+                                            {% if existing_results.failed_requests > 0 %}Some Failures{% else %}All Success{% endif %}
+                                        </span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Test Duration</td>
+                                        <td>{{ existing_results.duration|round(1) }}s</td>
+                                        <td><span class="badge badge-info">Completed</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Concurrent Users</td>
+                                        <td>{{ existing_results.concurrent_users }}</td>
+                                        <td><span class="badge badge-secondary">Peak Load</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.performance-metric {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e3e6f0;
+}
+
+.performance-metric:last-child {
+    border-bottom: none;
+}
+
+.chart-placeholder {
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.htmx-indicator {
+    display: none;
+}
+</style>
+{% endblock %}

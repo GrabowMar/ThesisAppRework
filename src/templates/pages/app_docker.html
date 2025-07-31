@@ -1,0 +1,231 @@
+{% extends "pages/app_base.html" %}
+
+{% block page_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-cube text-primary mr-2"></i>
+                    Container Management
+                </h5>
+                <div class="btn-group" role="group">
+                    <button hx-post="/docker/start/{{ model }}/{{ app_num }}"
+                            hx-target="#container-status"
+                            hx-indicator="#start-spinner"
+                            class="btn btn-success btn-sm">
+                        <i class="fas fa-play mr-1"></i>Start All
+                        <div id="start-spinner" class="htmx-indicator spinner-border spinner-border-sm ml-1"></div>
+                    </button>
+                    <button hx-post="/docker/stop/{{ model }}/{{ app_num }}"
+                            hx-target="#container-status"
+                            hx-indicator="#stop-spinner"
+                            class="btn btn-danger btn-sm">
+                        <i class="fas fa-stop mr-1"></i>Stop All
+                        <div id="stop-spinner" class="htmx-indicator spinner-border spinner-border-sm ml-1"></div>
+                    </button>
+                    <button hx-post="/docker/restart/{{ model }}/{{ app_num }}"
+                            hx-target="#container-status"
+                            hx-indicator="#restart-spinner"
+                            class="btn btn-primary btn-sm">
+                        <i class="fas fa-redo mr-1"></i>Restart All
+                        <div id="restart-spinner" class="htmx-indicator spinner-border spinner-border-sm ml-1"></div>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="container-status"
+                     hx-get="/api/status/{{ model }}/{{ app_num }}"
+                     hx-trigger="load, every 5s"
+                     hx-target="this">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading container status...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Container Details -->
+<div class="row">
+    <!-- Frontend Container -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0 font-weight-bold text-success">
+                    <i class="fas fa-desktop mr-2"></i>Frontend Container
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Port:</strong></div>
+                        <div class="col-sm-8">
+                            <span class="badge badge-info">{{ 9000 + (app_num * 10) }}</span>
+                            <a href="http://localhost:{{ 9000 + (app_num * 10) }}" target="_blank" class="btn btn-outline-primary btn-sm ml-2">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Technology:</strong></div>
+                        <div class="col-sm-8">React + Vite</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Status:</strong></div>
+                        <div class="col-sm-8">
+                            <span id="frontend-status" class="badge badge-secondary">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Frontend Logs -->
+                <div class="mt-3">
+                    <h6 class="font-weight-bold mb-2">Recent Logs</h6>
+                    <div id="frontend-logs"
+                         hx-get="/api/logs/{{ model }}/{{ app_num }}/frontend"
+                         hx-trigger="load, every 10s"
+                         hx-target="this">
+                        <div class="log-viewer bg-dark text-light p-3 rounded">
+                            <div class="text-center">
+                                <div class="spinner-border text-light spinner-border-sm" role="status"></div>
+                                <span class="ml-2">Loading logs...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backend Container -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0 font-weight-bold text-primary">
+                    <i class="fas fa-server mr-2"></i>Backend Container
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Port:</strong></div>
+                        <div class="col-sm-8">
+                            <span class="badge badge-info">{{ 6000 + (app_num * 10) }}</span>
+                            <a href="http://localhost:{{ 6000 + (app_num * 10) }}" target="_blank" class="btn btn-outline-primary btn-sm ml-2">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Technology:</strong></div>
+                        <div class="col-sm-8">Python Flask</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Status:</strong></div>
+                        <div class="col-sm-8">
+                            <span id="backend-status" class="badge badge-secondary">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Backend Logs -->
+                <div class="mt-3">
+                    <h6 class="font-weight-bold mb-2">Recent Logs</h6>
+                    <div id="backend-logs"
+                         hx-get="/api/logs/{{ model }}/{{ app_num }}/backend"
+                         hx-trigger="load, every 10s"
+                         hx-target="this">
+                        <div class="log-viewer bg-dark text-light p-3 rounded">
+                            <div class="text-center">
+                                <div class="spinner-border text-light spinner-border-sm" role="status"></div>
+                                <span class="ml-2">Loading logs...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Docker Compose Information -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0 font-weight-bold">
+                    <i class="fas fa-file-code mr-2"></i>Docker Compose Configuration
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Project Information</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Project Name:</strong> {{ model.replace('_', '-') }}-app{{ app_num }}</li>
+                            <li><strong>Network:</strong> {{ model.replace('_', '-') }}-app{{ app_num }}_default</li>
+                            <li><strong>Compose File:</strong> docker-compose.yml</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Port Mappings</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Frontend:</strong> {{ 9000 + (app_num * 10) }}:3000</li>
+                            <li><strong>Backend:</strong> {{ 6000 + (app_num * 10) }}:5000</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <button hx-get="/api/files/{{ model }}/{{ app_num }}/docker-compose"
+                            hx-target="#compose-content"
+                            hx-indicator="#compose-spinner"
+                            class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-eye mr-1"></i>View Compose File
+                        <div id="compose-spinner" class="htmx-indicator spinner-border spinner-border-sm ml-1"></div>
+                    </button>
+                </div>
+                
+                <div id="compose-content" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.log-viewer {
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    line-height: 1.2;
+}
+
+.log-viewer pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.htmx-indicator {
+    display: none;
+}
+
+.card-header h6 {
+    margin: 0;
+}
+</style>
+{% endblock %}

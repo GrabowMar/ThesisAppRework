@@ -635,9 +635,24 @@ def dashboard():
 
 @main_bp.route("/app/<model>/<int:app_num>")
 def app_details(model: str, app_num: int):
-    """Application details page with tabbed interface."""
+    """Application details page - redirects to overview sub-page."""
     try:
         # Decode URL-encoded model name
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        # Redirect to overview sub-page by default
+        return redirect(url_for("main.app_overview", model=decoded_model, app_num=app_num))
+        
+    except Exception as e:
+        logger.error(f"Error redirecting to app overview: {e}")
+        return ResponseHandler.error_response(f"Failed to redirect to app overview: {str(e)}")
+
+
+@main_bp.route("/app/<model>/<int:app_num>/overview")
+def app_overview(model: str, app_num: int):
+    """Application overview sub-page."""
+    try:
         import urllib.parse
         decoded_model = urllib.parse.unquote(model)
         
@@ -650,36 +665,171 @@ def app_details(model: str, app_num: int):
         
         context = {
             'app_info': app_info,
-            'app': app_info,  # Backward compatibility
-            'statuses': container_statuses,
-            'container_statuses': container_statuses,  # Backward compatibility
+            'container_statuses': container_statuses,
             'model': decoded_model,
-            'app_num': app_num
+            'app_num': app_num,
+            'current_page': 'overview'
         }
         
-        # Handle tab requests
-        tab = request.args.get('tab')
-        if ResponseHandler.is_htmx_request() and tab:
-            if tab == 'performance':
-                # Add performance-specific data
-                try:
-                    from performance_service import LocustPerformanceTester
-                    tester = LocustPerformanceTester(Path.cwd() / "performance_reports")
-                    context['existing_results'] = tester.load_performance_results(model, app_num)
-                    context['has_results'] = context['existing_results'] is not None
-                    context['performance_available'] = True
-                except ImportError:
-                    context['performance_available'] = False
-                    context['existing_results'] = None
-                    context['has_results'] = False
-            
-            return render_template(f"partials/app_tab_{tab}.html", **context)
-        
-        return render_template("pages/app_details.html", **context)
+        return render_template("pages/app_overview.html", **context)
         
     except Exception as e:
-        logger.error(f"Error loading app details: {e}")
-        return ResponseHandler.error_response(f"Failed to load app details: {str(e)}")
+        logger.error(f"Error loading app overview: {e}")
+        return ResponseHandler.error_response(f"Failed to load app overview: {str(e)}")
+
+
+@main_bp.route("/app/<model>/<int:app_num>/docker")
+def app_docker(model: str, app_num: int):
+    """Application Docker containers sub-page."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        app_info = AppDataProvider.get_app_info(decoded_model, app_num)
+        if not app_info:
+            flash(f"Application {decoded_model}/app{app_num} not found", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        container_statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
+        
+        context = {
+            'app_info': app_info,
+            'container_statuses': container_statuses,
+            'model': decoded_model,
+            'app_num': app_num,
+            'current_page': 'docker'
+        }
+        
+        return render_template("pages/app_docker.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error loading app docker page: {e}")
+        return ResponseHandler.error_response(f"Failed to load app docker page: {str(e)}")
+
+
+@main_bp.route("/app/<model>/<int:app_num>/analysis")
+def app_analysis(model: str, app_num: int):
+    """Application security analysis sub-page."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        app_info = AppDataProvider.get_app_info(decoded_model, app_num)
+        if not app_info:
+            flash(f"Application {decoded_model}/app{app_num} not found", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        container_statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
+        
+        context = {
+            'app_info': app_info,
+            'container_statuses': container_statuses,
+            'model': decoded_model,
+            'app_num': app_num,
+            'current_page': 'analysis'
+        }
+        
+        return render_template("pages/app_analysis.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error loading app analysis page: {e}")
+        return ResponseHandler.error_response(f"Failed to load app analysis page: {str(e)}")
+
+
+@main_bp.route("/app/<model>/<int:app_num>/performance")
+def app_performance(model: str, app_num: int):
+    """Application performance testing sub-page."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        app_info = AppDataProvider.get_app_info(decoded_model, app_num)
+        if not app_info:
+            flash(f"Application {decoded_model}/app{app_num} not found", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        container_statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
+        
+        # Add performance-specific data
+        context = {
+            'app_info': app_info,
+            'container_statuses': container_statuses,
+            'model': decoded_model,
+            'app_num': app_num,
+            'current_page': 'performance'
+        }
+        
+        try:
+            from performance_service import LocustPerformanceTester
+            tester = LocustPerformanceTester(Path.cwd() / "performance_reports")
+            context['existing_results'] = tester.load_performance_results(decoded_model, app_num)
+            context['has_results'] = context['existing_results'] is not None
+            context['performance_available'] = True
+        except ImportError:
+            context['performance_available'] = False
+            context['existing_results'] = None
+            context['has_results'] = False
+        
+        return render_template("pages/app_performance.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error loading app performance page: {e}")
+        return ResponseHandler.error_response(f"Failed to load app performance page: {str(e)}")
+
+
+@main_bp.route("/app/<model>/<int:app_num>/files")
+def app_files(model: str, app_num: int):
+    """Application files browser sub-page."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        app_info = AppDataProvider.get_app_info(decoded_model, app_num)
+        if not app_info:
+            flash(f"Application {decoded_model}/app{app_num} not found", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        context = {
+            'app_info': app_info,
+            'model': decoded_model,
+            'app_num': app_num,
+            'current_page': 'files'
+        }
+        
+        return render_template("pages/app_files.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error loading app files page: {e}")
+        return ResponseHandler.error_response(f"Failed to load app files page: {str(e)}")
+
+
+@main_bp.route("/app/<model>/<int:app_num>/tests")
+def app_tests(model: str, app_num: int):
+    """Application tests runner sub-page."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        app_info = AppDataProvider.get_app_info(decoded_model, app_num)
+        if not app_info:
+            flash(f"Application {decoded_model}/app{app_num} not found", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        container_statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
+        
+        context = {
+            'app_info': app_info,
+            'container_statuses': container_statuses,
+            'model': decoded_model,
+            'app_num': app_num,
+            'current_page': 'tests'
+        }
+        
+        return render_template("pages/app_tests.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error loading app tests page: {e}")
+        return ResponseHandler.error_response(f"Failed to load app tests page: {str(e)}")
 
 
 @main_bp.route("/models")
