@@ -3,146 +3,123 @@
 {% block title %}AI Models Overview - Thesis Research App{% endblock %}
 
 {% block content %}
-<!-- Models overview content uses container from base.html -->
-<!-- Page Header -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="text-center">
-            <h1 class="display-4 text-primary">
-                <i class="fas fa-robot mr-3"></i>AI Models Overview
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="page-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-robot text-primary mr-2"></i>
+                AI Models Overview
             </h1>
-            <p class="lead text-muted">
+            <p class="text-muted mb-0">
                 Comprehensive analysis of {{ summary_stats.total_models }} AI models across {{ summary_stats.total_providers }} providers
             </p>
         </div>
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left mr-1"></i>Dashboard
+            </a>
+            <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#export-modal">
+                <i class="fas fa-download mr-1"></i>Export Data
+            </button>
+        </div>
     </div>
-</div>
 
-<!-- Summary Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-            <div class="card border-left-primary h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Models</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ summary_stats.total_models }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-robot fa-2x text-gray-300"></i>
-                        </div>
+    <!-- Statistics Grid -->
+    <div class="stats-grid mb-4">
+        <div class="row">
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">{{ summary_stats.total_models }}</div>
+                        <div class="stat-label">Total Models</div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-            <div class="card border-left-success h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Providers</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ summary_stats.total_providers }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-building fa-2x text-gray-300"></i>
-                        </div>
+            
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">{{ summary_stats.total_providers }}</div>
+                        <div class="stat-label">Providers</div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-            <div class="card border-left-info h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Generated Apps</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ summary_stats.total_apps }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-mobile-alt fa-2x text-gray-300"></i>
-                        </div>
+            
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">{{ summary_stats.total_apps }}</div>
+                        <div class="stat-label">Generated Apps</div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-            <div class="card border-left-warning h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Running Containers</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ summary_stats.total_running }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-rocket fa-2x text-gray-300"></i>
-                        </div>
+            
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">{{ summary_stats.total_running }}</div>
+                        <div class="stat-label">Running Containers</div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-            <div class="card border-left-secondary h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">Vision Models</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ summary_stats.vision_models }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-eye fa-2x text-gray-300"></i>
-                        </div>
+            
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">{{ summary_stats.vision_models }}</div>
+                        <div class="stat-label">Vision Models</div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-            <div class="card border-left-dark h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-dark text-uppercase mb-1">Function Calling</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ summary_stats.function_calling_models }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-bolt fa-2x text-gray-300"></i>
-                        </div>
+            
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">{{ summary_stats.function_calling_models }}</div>
+                        <div class="stat-label">Function Calling</div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-            <div class="card border-left-success h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Free Models</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ summary_stats.free_models }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-gift fa-2x text-gray-300"></i>
-                        </div>
+            
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-gift"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">{{ summary_stats.free_models }}</div>
+                        <div class="stat-label">Free Models</div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-            <div class="card border-left-info h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Context Window</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ "{:,}".format(summary_stats.avg_context_window) }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-chart-bar fa-2x text-gray-300"></i>
-                        </div>
+            
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">{{ "{:,}".format(summary_stats.avg_context_window) }}</div>
+                        <div class="stat-label">Avg Context Window</div>
                     </div>
                 </div>
             </div>
@@ -150,107 +127,96 @@
     </div>
 
     <!-- Filter and Search Controls -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-filter mr-2"></i>Search & Filter Controls
-                    </h6>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-filter mr-2"></i>Search & Filter Controls
+            </h5>
+        </div>
+        <div class="card-body">
+            <form class="row">
+                <div class="col-lg-4 col-md-6 mb-3">
+                    <label for="search-input" class="form-label">
+                        <i class="fas fa-search mr-1"></i>Search Models
+                    </label>
+                    <input type="search" 
+                           class="form-control"
+                           id="search-input"
+                           name="search"
+                           value="{{ search_query }}"
+                           hx-get="/models"
+                           hx-trigger="keyup changed delay:500ms"
+                           hx-target="#models-content"
+                           hx-include="[name='provider'], [name='sort']"
+                           hx-vals='{"partial": "table"}'
+                           placeholder="Search by name, ID, or provider...">
                 </div>
-                <div class="card-body">
-                    <form class="row">
-                        <div class="col-lg-4 col-md-6 mb-3">
-                            <label for="search-input" class="form-label font-weight-bold">
-                                <i class="fas fa-search mr-1"></i>Search Models
-                            </label>
-                            <input type="search" 
-                                   class="form-control"
-                                   id="search-input"
-                                   name="search"
-                                   value="{{ search_query }}"
-                                   hx-get="/models"
-                                   hx-trigger="keyup changed delay:500ms"
-                                   hx-target="#models-content"
-                                   hx-include="[name='provider'], [name='sort']"
-                                   hx-vals='{"partial": "table"}'
-                                   placeholder="Search by name, ID, or provider...">
-                        </div>
-                        
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <label for="provider-filter" class="form-label font-weight-bold">
-                                <i class="fas fa-building mr-1"></i>Provider
-                            </label>
-                            <select class="form-control"
-                                    id="provider-filter"
-                                    name="provider"
-                                    hx-get="/models"
-                                    hx-trigger="change"
-                                    hx-target="#models-content"
-                                    hx-include="[name='search'], [name='sort']"
-                                    hx-vals='{"partial": "table"}'>
-                                <option value="">All Providers ({{ summary_stats.total_providers }})</option>
-                                {% for provider in providers %}
-                                <option value="{{ provider }}" {% if provider == provider_filter %}selected{% endif %}>
-                                    {{ provider|title }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <label for="sort-select" class="form-label font-weight-bold">
-                                <i class="fas fa-sort mr-1"></i>Sort By
-                            </label>
-                            <select class="form-control"
-                                    id="sort-select"
-                                    name="sort"
-                                    hx-get="/models"
-                                    hx-trigger="change"
-                                    hx-target="#models-content"
-                                    hx-include="[name='search'], [name='provider']"
-                                    hx-vals='{"partial": "table"}'>
-                                <option value="model_name" {% if sort_by == 'model_name' %}selected{% endif %}>Model Name</option>
-                                <option value="provider" {% if sort_by == 'provider' %}selected{% endif %}>Provider</option>
-                                <option value="context_window" {% if sort_by == 'context_window' %}selected{% endif %}>Context Window</option>
-                                <option value="input_price" {% if sort_by == 'input_price' %}selected{% endif %}>Input Price</option>
-                                <option value="output_price" {% if sort_by == 'output_price' %}selected{% endif %}>Output Price</option>
-                                <option value="safety_score" {% if sort_by == 'safety_score' %}selected{% endif %}>Safety Score</option>
-                                <option value="cost_efficiency" {% if sort_by == 'cost_efficiency' %}selected{% endif %}>Cost Efficiency</option>
-                            </select>
-                        </div>
-                        
-                        <div class="col-lg-2 col-md-6 mb-3">
-                            <label class="form-label font-weight-bold">Actions</label>
-                            <div class="btn-group-vertical w-100">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
-                                    <i class="fas fa-times mr-1"></i>Clear
-                                </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-toggle="modal" data-target="#export-modal">
-                                    <i class="fas fa-download mr-1"></i>Export
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <label for="provider-filter" class="form-label">
+                        <i class="fas fa-building mr-1"></i>Provider
+                    </label>
+                    <select class="form-control"
+                            id="provider-filter"
+                            name="provider"
+                            hx-get="/models"
+                            hx-trigger="change"
+                            hx-target="#models-content"
+                            hx-include="[name='search'], [name='sort']"
+                            hx-vals='{"partial": "table"}'>
+                        <option value="">All Providers ({{ summary_stats.total_providers }})</option>
+                        {% for provider in providers %}
+                        <option value="{{ provider }}" {% if provider == provider_filter %}selected{% endif %}>
+                            {{ provider|title }}
+                        </option>
+                        {% endfor %}
+                    </select>
                 </div>
-            </div>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <label for="sort-select" class="form-label">
+                        <i class="fas fa-sort mr-1"></i>Sort By
+                    </label>
+                    <select class="form-control"
+                            id="sort-select"
+                            name="sort"
+                            hx-get="/models"
+                            hx-trigger="change"
+                            hx-target="#models-content"
+                            hx-include="[name='search'], [name='provider']"
+                            hx-vals='{"partial": "table"}'>
+                        <option value="model_name" {% if sort_by == 'model_name' %}selected{% endif %}>Model Name</option>
+                        <option value="provider" {% if sort_by == 'provider' %}selected{% endif %}>Provider</option>
+                        <option value="context_window" {% if sort_by == 'context_window' %}selected{% endif %}>Context Window</option>
+                        <option value="input_price" {% if sort_by == 'input_price' %}selected{% endif %}>Input Price</option>
+                        <option value="output_price" {% if sort_by == 'output_price' %}selected{% endif %}>Output Price</option>
+                        <option value="safety_score" {% if sort_by == 'safety_score' %}selected{% endif %}>Safety Score</option>
+                        <option value="cost_efficiency" {% if sort_by == 'cost_efficiency' %}selected{% endif %}>Cost Efficiency</option>
+                    </select>
+                </div>
+                
+                <div class="col-lg-2 col-md-6 mb-3">
+                    <label class="form-label">Actions</label>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                            <i class="fas fa-times mr-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
     <!-- Models Table -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-table mr-2"></i>AI Models Database
-                    </h6>
-                </div>
-                <div class="card-body p-0">
-                    <div id="models-content">
-                        {% include "partials/models_table.html" %}
-                    </div>
-                </div>
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-table mr-2"></i>AI Models Database
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div id="models-content">
+                {% include "partials/models_table.html" %}
             </div>
         </div>
     </div>
@@ -301,36 +267,37 @@
 
 {% block scripts %}
 <script>
-function clearFilters() {
-    document.getElementById('search-input').value = '';
-    document.getElementById('provider-filter').value = '';
-    document.getElementById('sort-select').value = 'model_name';
-    
-    // Trigger HTMX update
-    htmx.trigger('#search-input', 'keyup');
-}
+document.addEventListener('DOMContentLoaded', function() {
+    function clearFilters() {
+        document.getElementById('search-input').value = '';
+        document.getElementById('provider-filter').value = '';
+        document.getElementById('sort-select').value = 'model_name';
+        
+        // Trigger HTMX update
+        htmx.trigger('#search-input', 'keyup');
+    }
 
-function exportFormat(format) {
-    const searchParams = new URLSearchParams(window.location.search);
-    searchParams.set('format', format);
-    
-    window.open(`/api/models/export?${searchParams.toString()}`, '_blank');
-    $('#export-modal').modal('hide');
-}
+    function exportFormat(format) {
+        const searchParams = new URLSearchParams(window.location.search);
+        searchParams.set('format', format);
+        
+        window.open(`/api/models/export?${searchParams.toString()}`, '_blank');
+        $('#export-modal').modal('hide');
+    }
 
-// Real-time updates for running containers
-setInterval(() => {
-    // Update running container counts every 30 seconds
-    htmx.ajax('GET', '/models', {
-        target: '#models-content',
-        swap: 'innerHTML',
-        values: { partial: 'table' }
-    });
-}, 30000);
+    // Make functions globally available
+    window.clearFilters = clearFilters;
+    window.exportFormat = exportFormat;
 
-// Initialize tooltips
-$(document).ready(function() {
-    $('[data-toggle="tooltip"]').tooltip();
+    // Real-time updates for running containers
+    setInterval(() => {
+        // Update running container counts every 30 seconds
+        htmx.ajax('GET', '/models', {
+            target: '#models-content',
+            swap: 'innerHTML',
+            values: { partial: 'table' }
+        });
+    }, 30000);
 });
 </script>
 {% endblock %}

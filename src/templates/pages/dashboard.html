@@ -3,121 +3,112 @@
 {% block title %}Dashboard - Thesis Research App{% endblock %}
 
 {% block content %}
-<div class="container-fluid full-width">
+<div class="container-fluid px-4 py-3">
     <!-- Page Header -->
-    <div class="row">
-        <div class="col-12">
-            <div class="page-header d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h2 mb-1">
-                        <i class="fas fa-tachometer-alt text-primary mr-2"></i>
-                        AI Research Dashboard
-                    </h1>
-                    <p class="text-muted mb-0">
-                        Manage {{ summary_stats.total_models|default(30) }} AI models and {{ summary_stats.total_apps|default(900) }} generated applications
-                    </p>
-                </div>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-primary"
-                            hx-get="/api/dashboard/refresh-all"
-                            hx-target="#dashboard-models"
-                            hx-indicator="#refresh-spinner">
-                        <i class="fas fa-sync-alt mr-1"></i>Refresh
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" 
-                            _="on click toggle .d-none on #advanced-filters">
-                        <i class="fas fa-filter mr-1"></i>Filters
-                    </button>
-                </div>
-            </div>
+    <div class="page-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-1">
+                <i class="fas fa-tachometer-alt text-primary mr-2"></i>
+                AI Research Dashboard
+            </h1>
+            <p class="text-muted mb-0">
+                Manage {{ summary_stats.total_models|default(30) }} AI models and {{ summary_stats.total_apps|default(900) }} generated applications
+            </p>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary"
+                    hx-get="/api/dashboard/refresh-all"
+                    hx-target="#dashboard-models"
+                    hx-indicator="#refresh-spinner">
+                <i class="fas fa-sync-alt mr-1"></i>Refresh
+            </button>
+            <button type="button" class="btn btn-outline-secondary" 
+                    onclick="toggleAdvancedFilters()">
+                <i class="fas fa-filter mr-1"></i>Filters
+            </button>
         </div>
     </div>
 
-
     <!-- Search and Filter Controls -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card search-filter-card">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-6 mb-3 mb-md-0">
-                            <div class="input-group">
-                                <div class="input-group-prepend">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-search"></i>
-                                    </span>
-                                </div>
-                                <input type="search" 
-                                       class="form-control" 
-                                       id="search-input"
-                                       name="search"
-                                       placeholder="Search models, apps, or containers..."
-                                       hx-get="/api/dashboard/search"
-                                       hx-trigger="keyup changed delay:500ms"
-                                       hx-target="#dashboard-models"
-                                       hx-include="[name='filter-provider'], [name='filter-status']">
-                            </div>
+    <div class="card search-filter-card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-6 mb-3 mb-md-0">
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
                         </div>
-                        <div class="col-md-3 mb-3 mb-md-0">
-                            <select class="form-control" name="filter-provider"
-                                    hx-get="/api/dashboard/search"
-                                    hx-trigger="change"
-                                    hx-target="#dashboard-models"
-                                    hx-include="[name='search'], [name='filter-status']">
-                                <option value="">All Providers</option>
-                                <option value="openai">OpenAI</option>
-                                <option value="anthropic">Anthropic</option>
-                                <option value="google">Google</option>
-                                <option value="deepseek">DeepSeek</option>
-                                <option value="qwen">Qwen</option>
-                            </select>
+                        <input type="search" 
+                               class="form-control" 
+                               id="search-input"
+                               name="search"
+                               placeholder="Search models, apps, or containers..."
+                               hx-get="/api/dashboard/search"
+                               hx-trigger="keyup changed delay:500ms"
+                               hx-target="#dashboard-models"
+                               hx-include="[name='filter-provider'], [name='filter-status']">
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3 mb-md-0">
+                    <select class="form-control" name="filter-provider"
+                            hx-get="/api/dashboard/search"
+                            hx-trigger="change"
+                            hx-target="#dashboard-models"
+                            hx-include="[name='search'], [name='filter-status']">
+                        <option value="">All Providers</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="google">Google</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="qwen">Qwen</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-control" name="filter-status"
+                            hx-get="/api/dashboard/search"
+                            hx-trigger="change"
+                            hx-target="#dashboard-models"
+                            hx-include="[name='search'], [name='filter-provider']">
+                        <option value="">All Status</option>
+                        <option value="running">Running</option>
+                        <option value="stopped">Stopped</option>
+                        <option value="error">Error</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Advanced Filters (Initially Hidden) -->
+            <div id="advanced-filters" class="d-none mt-3 pt-3 border-top">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="small text-muted">Container Type</label>
+                        <div class="form-check-inline">
+                            <input class="form-check-input" type="checkbox" value="frontend" id="filter-frontend">
+                            <label class="form-check-label small" for="filter-frontend">Frontend</label>
                         </div>
-                        <div class="col-md-3">
-                            <select class="form-control" name="filter-status"
-                                    hx-get="/api/dashboard/search"
-                                    hx-trigger="change"
-                                    hx-target="#dashboard-models"
-                                    hx-include="[name='search'], [name='filter-provider']">
-                                <option value="">All Status</option>
-                                <option value="running">Running</option>
-                                <option value="stopped">Stopped</option>
-                                <option value="error">Error</option>
-                            </select>
+                        <div class="form-check-inline">
+                            <input class="form-check-input" type="checkbox" value="backend" id="filter-backend">
+                            <label class="form-check-label small" for="filter-backend">Backend</label>
                         </div>
                     </div>
-                    
-                    <!-- Advanced Filters (Initially Hidden) -->
-                    <div id="advanced-filters" class="d-none mt-3 pt-3 border-top">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <label class="small text-muted">Container Type</label>
-                                <div class="form-check-inline">
-                                    <input class="form-check-input" type="checkbox" value="frontend" id="filter-frontend">
-                                    <label class="form-check-label small" for="filter-frontend">Frontend</label>
-                                </div>
-                                <div class="form-check-inline">
-                                    <input class="form-check-input" type="checkbox" value="backend" id="filter-backend">
-                                    <label class="form-check-label small" for="filter-backend">Backend</label>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="small text-muted">Analysis Status</label>
-                                <select class="form-control form-control-sm">
-                                    <option value="">Any</option>
-                                    <option value="analyzed">Analyzed</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="failed">Failed</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="small text-muted">Performance</label>
-                                <select class="form-control form-control-sm">
-                                    <option value="">Any</option>
-                                    <option value="tested">Tested</option>
-                                    <option value="pending">Pending</option>
-                                </select>
-                            </div>
-                        </div>
+                    <div class="col-md-4">
+                        <label class="small text-muted">Analysis Status</label>
+                        <select class="form-control form-control-sm">
+                            <option value="">Any</option>
+                            <option value="analyzed">Analyzed</option>
+                            <option value="pending">Pending</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small text-muted">Performance</label>
+                        <select class="form-control form-control-sm">
+                            <option value="">Any</option>
+                            <option value="tested">Tested</option>
+                            <option value="pending">Pending</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -125,29 +116,23 @@
     </div>
 
     <!-- Loading Indicator -->
-    <div id="refresh-spinner" class="htmx-indicator">
-        <div class="text-center py-3">
-            <div class="spinner-border text-primary" role="status">
-                <span class="sr-only">Loading...</span>
-            </div>
-            <p class="mt-2 text-muted">Refreshing dashboard data...</p>
+    <div id="refresh-spinner" class="htmx-indicator text-center py-3 mb-4">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Loading...</span>
         </div>
+        <p class="mt-2 text-muted">Refreshing dashboard data...</p>
     </div>
 
     <!-- Models Grid -->
-    <div class="row">
-        <div class="col-12">
-            <div id="dashboard-models" 
-                 hx-get="/api/dashboard/models"
-                 hx-trigger="load"
-                 hx-swap="innerHTML">
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="sr-only">Loading...</span>
-                    </div>
-                    <p class="mt-3 text-muted">Loading AI models and applications...</p>
-                </div>
+    <div id="dashboard-models" 
+         hx-get="/api/dashboard/models"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
             </div>
+            <p class="mt-3 text-muted">Loading AI models and applications...</p>
         </div>
     </div>
 </div>
@@ -165,7 +150,7 @@
                 </button>
             </div>
             <div class="modal-body" id="model-details-content">
-                <div class="text-center">
+                <div class="text-center py-4">
                     <div class="spinner-border" role="status">
                         <span class="sr-only">Loading...</span>
                     </div>
@@ -203,125 +188,141 @@
 
 {% block scripts %}
 <script>
-    // Global functions for modals and interactions
+    // Dashboard specific functions
+    function toggleAdvancedFilters() {
+        const filters = document.getElementById('advanced-filters');
+        if (filters) {
+            filters.classList.toggle('d-none');
+        }
+    }
+
+    // Modal functions for dashboard
     window.showModelDetails = function(modelSlug) {
-        htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
-            target: '#model-details-content',
-            swap: 'innerHTML'
-        });
-        $('#modelDetailsModal').modal('show');
+        if (typeof htmx !== 'undefined') {
+            htmx.ajax('GET', `/api/model/${modelSlug}/details`, {
+                target: '#model-details-content',
+                swap: 'innerHTML'
+            });
+        }
+        if (typeof $ !== 'undefined') {
+            $('#modelDetailsModal').modal('show');
+        }
     };
 
     window.showContainerLogs = function(modelSlug, appNum) {
-        htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
-            target: '#container-logs-content',
-            swap: 'innerHTML'
-        });
-        $('#containerLogsModal').modal('show');
+        if (typeof htmx !== 'undefined') {
+            htmx.ajax('GET', `/api/containers/${modelSlug}/${appNum}/logs`, {
+                target: '#container-logs-content',
+                swap: 'innerHTML'
+            });
+        }
+        if (typeof $ !== 'undefined') {
+            $('#containerLogsModal').modal('show');
+        }
     };
 
-    window.startContainer = function(modelSlug, appNum, element) {
+    // Container control functions
+    function handleContainerAction(action, modelSlug, appNum, element) {
+        if (!element || typeof htmx === 'undefined') return;
+        
         const originalHtml = element.innerHTML;
-        element.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Starting...';
+        const actionText = action.charAt(0).toUpperCase() + action.slice(1) + 'ing...';
+        
+        element.innerHTML = `<span class="spinner-border spinner-border-sm mr-1"></span>${actionText}`;
         element.disabled = true;
         
-        htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/start`, {
+        htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/${action}`, {
             target: `#app-${modelSlug}-${appNum}`,
             swap: 'outerHTML'
         }).then(() => {
             element.innerHTML = originalHtml;
             element.disabled = false;
+        }).catch(() => {
+            element.innerHTML = originalHtml;
+            element.disabled = false;
         });
+    }
+
+    window.startContainer = function(modelSlug, appNum, element) {
+        handleContainerAction('start', modelSlug, appNum, element);
     };
 
     window.stopContainer = function(modelSlug, appNum, element) {
-        const originalHtml = element.innerHTML;
-        element.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Stopping...';
-        element.disabled = true;
-        
-        htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/stop`, {
-            target: `#app-${modelSlug}-${appNum}`,
-            swap: 'outerHTML'
-        }).then(() => {
-            element.innerHTML = originalHtml;
-            element.disabled = false;
-        });
+        handleContainerAction('stop', modelSlug, appNum, element);
     };
 
     window.restartContainer = function(modelSlug, appNum, element) {
-        const originalHtml = element.innerHTML;
-        element.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Restarting...';
-        element.disabled = true;
-        
-        htmx.ajax('POST', `/api/containers/${modelSlug}/${appNum}/restart`, {
-            target: `#app-${modelSlug}-${appNum}`,
-            swap: 'outerHTML'
-        }).then(() => {
-            element.innerHTML = originalHtml;
-            element.disabled = false;
-        });
+        handleContainerAction('restart', modelSlug, appNum, element);
     };
-
-    // Enhanced HTMX event handling
-    document.addEventListener('htmx:afterRequest', function(evt) {
-        if (evt.detail.successful) {
-            // Auto-refresh stats after successful container operations
-            if (evt.detail.pathInfo.xhr.responseURL.includes('/containers/')) {
-                setTimeout(() => {
-                    htmx.trigger('#summary-stats', 'load');
-                }, 1000);
-            }
-        }
-    });
-
-    // Initialize tooltips after HTMX content loads
-    document.addEventListener('htmx:afterSwap', function() {
-        $('[data-toggle="tooltip"]').tooltip();
-    });
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        // Ctrl+F - Focus search
-        if (e.ctrlKey && e.key === 'f') {
-            e.preventDefault();
-            document.getElementById('search-input').focus();
-        }
-        
-        // Ctrl+R - Refresh dashboard
-        if (e.ctrlKey && e.key === 'r') {
-            e.preventDefault();
-            htmx.trigger('#dashboard-models', 'load');
-            htmx.trigger('#summary-stats', 'load');
-        }
-    });
 
     // Auto-refresh functionality
     let autoRefreshInterval;
-    const startAutoRefresh = () => {
+    
+    function startAutoRefresh() {
         if (autoRefreshInterval) clearInterval(autoRefreshInterval);
         
         autoRefreshInterval = setInterval(() => {
-            if (!document.hidden) {
-                htmx.trigger('#summary-stats', 'load');
-                // Optionally refresh the models grid less frequently
-                if (Math.random() < 0.3) { // 30% chance every cycle
+            if (!document.hidden && typeof htmx !== 'undefined') {
+                // Light refresh every 30 seconds
+                try {
+                    htmx.trigger('#summary-stats', 'load');
+                    
+                    // Full refresh less frequently (every 2 minutes)
+                    if (Math.random() < 0.1) {
+                        htmx.trigger('#dashboard-models', 'load');
+                    }
+                } catch (e) {
+                    console.warn('Auto-refresh failed:', e);
+                }
+            }
+        }, 30000);
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        startAutoRefresh();
+        
+        // Additional keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                const searchInput = document.getElementById('search-input');
+                if (searchInput) searchInput.focus();
+            }
+            
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                if (typeof htmx !== 'undefined') {
                     htmx.trigger('#dashboard-models', 'load');
                 }
             }
-        }, 30000); // 30 seconds
-    };
+        });
+    });
 
-    // Start auto-refresh on page load
-    document.addEventListener('DOMContentLoaded', startAutoRefresh);
-
-    // Pause/resume auto-refresh based on page visibility
+    // Page visibility handling
     document.addEventListener('visibilitychange', function() {
         if (document.hidden) {
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
         } else {
             startAutoRefresh();
-            // Immediately refresh when page becomes visible
-            htmx.trigger('#summary-stats', 'load');
+            // Refresh immediately when page becomes visible
+            if (typeof htmx !== 'undefined') {
+                setTimeout(() => {
+                    htmx.trigger('#summary-stats', 'load');
+                }, 100);
+            }
+        }
+    });
+
+    // HTMX event handlers
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful && typeof htmx !== 'undefined') {
+            // Auto-refresh stats after successful container operations
+            if (evt.detail.pathInfo && evt.detail.pathInfo.xhr.responseURL.includes('/containers/')) {
+                setTimeout(() => {
+                    htmx.trigger('#summary-stats', 'load');
+                }, 1000);
+            }
         }
     });
 </script>

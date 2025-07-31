@@ -18,7 +18,7 @@ from extensions import init_extensions, db
 from models import ModelCapability, PortConfiguration, GeneratedApplication
 
 # Import service management components
-from core_services import ServiceManager, ServiceInitializer
+from core_services import ServiceManager, ServiceInitializer, AppConfig
 
 
 class Config:
@@ -314,6 +314,10 @@ def create_app(config_name=None):
         app.config.from_object(config_name)
     else:
         app.config.from_object(Config)
+    
+    # Set up AppConfig for services
+    app_config = AppConfig()
+    app.config['APP_CONFIG'] = app_config
     
     # Ensure required directories exist
     app_root = Path(__file__).parent.parent

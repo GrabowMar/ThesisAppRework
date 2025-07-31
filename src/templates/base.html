@@ -5,27 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Thesis Research App{% endblock %}</title>
     
-    <!-- Bootstrap 4.1.3 CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" 
-          integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" 
+    <!-- Bootstrap 4.6.2 CSS (Updated for security) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" 
+          integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" 
           crossorigin="anonymous">
     
     <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
-          integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ=="
-          crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     
     <!-- HTMX for dynamic interactions -->
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    
-    <!-- _hyperscript for advanced interactions -->
-    <script src="https://unpkg.com/hyperscript.org@0.9.14"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12" 
+            integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" 
+            crossorigin="anonymous"></script>
     
     <!-- HTMX configuration -->
-    <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","requestTimeout":15000,"historyCacheSize":0}'>
+    <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","requestTimeout":30000,"historyCacheSize":5}'>
     
     {% block head %}{% endblock %}
 </head>
@@ -351,21 +350,18 @@
     </div>
 
     <!-- Bootstrap JS and dependencies -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" 
-            integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" 
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" 
+            integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
             crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" 
-            integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" 
-            crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" 
-            integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" 
+            integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct"
             crossorigin="anonymous"></script>
 
     <!-- Custom JavaScript -->
     <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
     
     <script>
-        // Global functions for modals
+        // Global application functions
         function showSettingsModal() {
             $('#settingsModal').modal('show');
         }
@@ -378,20 +374,105 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const mainContent = document.querySelector('.main-content');
-            sidebar.classList.toggle('show');
             
-            // Toggle full width on desktop
-            if (window.innerWidth > 768) {
-                mainContent.classList.toggle('full-width');
+            if (sidebar && mainContent) {
+                sidebar.classList.toggle('show');
+                
+                // Toggle full width on desktop
+                if (window.innerWidth > 768) {
+                    mainContent.classList.toggle('full-width');
+                }
             }
         }
+        
+        // Global loading overlay functions
+        window.showLoadingOverlay = function() {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.classList.remove('d-none');
+        };
+        
+        window.hideLoadingOverlay = function() {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.classList.add('d-none');
+        };
+        
+        // Safe element selector helpers
+        function safeQuerySelector(selector) {
+            try {
+                return document.querySelector(selector);
+            } catch (e) {
+                console.warn('Invalid selector:', selector);
+                return null;
+            }
+        }
+        
+        function safeQuerySelectorAll(selector) {
+            try {
+                return document.querySelectorAll(selector);
+            } catch (e) {
+                console.warn('Invalid selector:', selector);
+                return [];
+            }
+        }
+        
+        // Set active navigation link
+        function setActiveNavLink() {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
+            
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                const href = link.getAttribute('href');
+                
+                if (href && (href === currentPath || 
+                    (currentPath === '/' && href.includes('dashboard')) ||
+                    (currentPath.includes(href) && href !== '/'))) {
+                    link.classList.add('active');
+                }
+            });
+        }
+        
+        // Update notification count
+        function updateNotificationCount() {
+            const badge = document.getElementById('notification-count');
+            if (badge && typeof htmx !== 'undefined') {
+                htmx.ajax('GET', '/api/notifications/count', {
+                    target: '#notification-count',
+                    swap: 'innerHTML'
+                }).catch(() => {
+                    // Silently handle notification count errors
+                });
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tooltips
+            if (typeof $ !== 'undefined') {
+                $('[data-toggle="tooltip"]').tooltip();
+                
+                // Auto-close mobile menu on nav item click
+                $('.navbar-nav .nav-link').on('click', function() {
+                    $('.navbar-collapse').collapse('hide');
+                });
+            }
+            
+            // Set active navigation link
+            setActiveNavLink();
+            
+            // Update notification count
+            updateNotificationCount();
+            
+            // Periodic notification update (every 5 minutes)
+            setInterval(updateNotificationCount, 300000);
+        });
         
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(e) {
             const sidebar = document.getElementById('sidebar');
             const toggleBtn = document.querySelector('.sidebar-toggle');
             
-            if (window.innerWidth <= 768) {
+            if (sidebar && toggleBtn && window.innerWidth <= 768) {
                 if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
                     sidebar.classList.remove('show');
                 }
@@ -409,125 +490,16 @@
             // Ctrl+K - Focus search
             if (e.ctrlKey && e.key === 'k') {
                 e.preventDefault();
-                const searchInput = document.querySelector('#search-input');
+                const searchInput = safeQuerySelector('#search-input, .search-input, [name="search"]');
                 if (searchInput) searchInput.focus();
             }
             
-            // Escape - Close modals
+            // Escape - Close modals and dropdowns
             if (e.key === 'Escape') {
-                $('.modal').modal('hide');
-                $('.dropdown-menu.show').removeClass('show');
-            }
-        });
-        
-        // Global loading overlay functions
-        window.showLoadingOverlay = function() {
-            document.getElementById('loading-overlay').classList.remove('d-none');
-        };
-        
-        window.hideLoadingOverlay = function() {
-            document.getElementById('loading-overlay').classList.add('d-none');
-        };
-        
-        // Set active navigation link
-        function setActiveNavLink() {
-            const currentPath = window.location.pathname;
-            const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
-            
-            navLinks.forEach(link => {
-                link.classList.remove('active');
-                const href = link.getAttribute('href');
-                
-                if (href === currentPath || 
-                    (currentPath === '/' && href.includes('dashboard')) ||
-                    (currentPath.includes(href) && href !== '/')) {
-                    link.classList.add('active');
+                if (typeof $ !== 'undefined') {
+                    $('.modal').modal('hide');
+                    $('.dropdown-menu.show').removeClass('show');
                 }
-            });
-        }
-        
-        // Update notification count
-        function updateNotificationCount() {
-            const badge = document.getElementById('notification-count');
-            if (badge) {
-                htmx.ajax('GET', '/api/notifications/count', {
-                    target: '#notification-count',
-                    swap: 'innerHTML'
-                });
-            }
-        }
-        
-        // Start auto-refresh for dashboard elements
-        function startAutoRefresh() {
-            const refreshableElements = document.querySelectorAll('[hx-trigger*="every"]');
-            refreshableElements.forEach(function(element) {
-                if (element && element.dispatchEvent) {
-                    try {
-                        htmx.trigger(element, 'load');
-                    } catch (e) {
-                        console.warn('Could not trigger refresh for element:', element, e);
-                    }
-                }
-            });
-        }
-        
-        // Safe element selector helper
-        function safeQuerySelector(selector) {
-            try {
-                return document.querySelector(selector);
-            } catch (e) {
-                console.warn('Invalid selector:', selector, e);
-                return null;
-            }
-        }
-        
-        // Safe element selector all helper
-        function safeQuerySelectorAll(selector) {
-            try {
-                return document.querySelectorAll(selector);
-            } catch (e) {
-                console.warn('Invalid selector:', selector, e);
-                return [];
-            }
-        }
-        
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize tooltips
-            $('[data-toggle="tooltip"]').tooltip();
-            
-            // Set active navigation link
-            setActiveNavLink();
-            
-            // Update notification count
-            updateNotificationCount();
-            
-            // Auto-close mobile menu on nav item click
-            $('.navbar-nav .nav-link').on('click', function() {
-                $('.navbar-collapse').collapse('hide');
-            });
-            
-            // Periodic notification update
-            setInterval(updateNotificationCount, 60000);
-            
-            // Start auto-refresh
-            setTimeout(startAutoRefresh, 1000);
-        });
-        
-        // Stop auto-refresh when page is hidden
-        document.addEventListener('visibilitychange', function() {
-            if (!document.hidden) {
-                // Refresh dynamic content when page becomes visible
-                document.querySelectorAll('[hx-trigger*="every"]').forEach(el => {
-                    htmx.trigger(el, 'load');
-                });
-            }
-        });
-        
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.dropdown')) {
-                $('.dropdown-menu.show').removeClass('show');
             }
         });
         
@@ -539,46 +511,32 @@
                 target: evt.detail.target?.id || evt.detail.target?.tagName,
                 url: evt.detail.requestConfig?.url || 'unknown'
             });
-            
-            // Show user-friendly error message
-            const target = evt.detail.target;
-            if (target && target.classList) {
-                target.classList.add('htmx-error');
-                
-                // Show temporary error indicator
-                const originalContent = target.innerHTML;
-                const errorMessage = evt.detail.xhr?.status === 404 ? 'Resource not found' : 'Request failed';
-                target.innerHTML = `<div class="text-muted small"><i class="fas fa-exclamation-triangle"></i> ${errorMessage}</div>`;
-                
-                setTimeout(() => {
-                    if (target.innerHTML.includes('Request failed') || target.innerHTML.includes('Resource not found')) {
-                        target.innerHTML = originalContent;
-                    }
-                    target.classList.remove('htmx-error');
-                }, 3000);
-            }
         });
         
         // Handle HTMX timeout errors
         document.body.addEventListener('htmx:timeout', function(evt) {
             console.warn('HTMX request timed out:', evt.detail);
-            const target = evt.detail.target;
-            if (target && target.classList) {
-                target.classList.add('htmx-timeout');
-                setTimeout(() => target.classList.remove('htmx-timeout'), 5000);
+        });
+        
+        // Initialize tooltips after HTMX content loads
+        document.body.addEventListener('htmx:afterSwap', function() {
+            if (typeof $ !== 'undefined') {
+                $('[data-toggle="tooltip"]').tooltip();
             }
         });
         
-        // Handle HTMX loading states
-        document.body.addEventListener('htmx:beforeRequest', function(evt) {
-            if (evt.detail.target.id === 'loading-overlay') {
-                showLoadingOverlay();
-            }
-        });
-        
-        document.body.addEventListener('htmx:afterRequest', function(evt) {
-            if (evt.detail.target.id === 'loading-overlay') {
-                hideLoadingOverlay();
+        // Auto-refresh when page becomes visible
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden && typeof htmx !== 'undefined') {
+                // Refresh dynamic content when page becomes visible
+                const autoRefreshElements = document.querySelectorAll('[hx-trigger*="every"]');
+                autoRefreshElements.forEach(el => {
+                    try {
+                        htmx.trigger(el, 'load');
+                    } catch (e) {
+                        console.warn('Could not trigger refresh:', e);
+                    }
+                });
             }
         });
     </script>

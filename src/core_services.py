@@ -1317,7 +1317,11 @@ class BatchAnalysisService(BaseService):
     def init_app(self, app: Any):
         """Initialize with Flask app."""
         self.app = app
-        max_workers = app.config.get('APP_CONFIG').BATCH_MAX_WORKERS
+        app_config = app.config.get('APP_CONFIG')
+        if app_config and hasattr(app_config, 'BATCH_MAX_WORKERS'):
+            max_workers = app_config.BATCH_MAX_WORKERS
+        else:
+            max_workers = 4  # Default fallback
         self.worker_pool = ThreadPoolExecutor(max_workers=max_workers)
         self.logger.info(f"Initialized with {max_workers} workers")
     
@@ -1805,9 +1809,11 @@ class ServiceInitializer:
     def initialize_port_manager(self):
         """Initialize the port manager service."""
         try:
-            port_manager = PortManager()
+            # Get port configuration from app config
+            port_config = self.app.config.get('PORT_CONFIG', [])
+            port_manager = PortManager(port_config)
             self.service_manager.register('port_manager', port_manager)
-            self.logger.info("Port manager initialized")
+            self.logger.info(f"Port manager initialized with {len(port_config)} configurations")
         except Exception as e:
             self.logger.error(f"Failed to initialize port manager: {e}")
             raise
