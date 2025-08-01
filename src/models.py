@@ -199,6 +199,8 @@ class GeneratedApplication(db.Model):
     # Relationships
     security_analyses = db.relationship('SecurityAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
     performance_tests = db.relationship('PerformanceTest', backref='application', lazy=True, cascade='all, delete-orphan')
+    zap_analyses = db.relationship('ZAPAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
+    openrouter_analyses = db.relationship('OpenRouterAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
     
     # Unique constraint
     __table_args__ = (db.UniqueConstraint('model_slug', 'app_number', name='unique_model_app'),)
@@ -443,6 +445,170 @@ class PerformanceTest(db.Model):
     
     def __repr__(self):
         return f'<PerformanceTest {self.id} for App {self.application_id}>'
+
+class ZAPAnalysis(db.Model):
+    """Model for storing ZAP (OWASP ZAP) security analysis results."""
+    __tablename__ = 'zap_analyses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
+    
+    # Analysis status and configuration
+    status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
+    
+    # Results summary
+    total_alerts = db.Column(db.Integer, default=0)
+    high_risk_count = db.Column(db.Integer, default=0)
+    medium_risk_count = db.Column(db.Integer, default=0)
+    low_risk_count = db.Column(db.Integer, default=0)
+    informational_count = db.Column(db.Integer, default=0)
+    
+    # Performance metrics
+    analysis_duration = db.Column(db.Float)  # Duration in seconds
+    
+    # JSON field for detailed results
+    results_json = db.Column(db.Text)       # Detailed ZAP analysis results
+    metadata_json = db.Column(db.Text)      # Analysis metadata
+    
+    # Timestamps
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def get_results(self):
+        """Get analysis results as dictionary."""
+        if self.results_json:
+            try:
+                return json.loads(self.results_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_results(self, results_dict):
+        """Set analysis results from dictionary."""
+        self.results_json = json.dumps(results_dict)
+    
+    def get_metadata(self):
+        """Get metadata as dictionary."""
+        if self.metadata_json:
+            try:
+                return json.loads(self.metadata_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_metadata(self, metadata_dict):
+        """Set metadata from dictionary."""
+        self.metadata_json = json.dumps(metadata_dict)
+    
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'application_id': self.application_id,
+            'status': self.status.value if self.status else None,
+            'total_alerts': self.total_alerts,
+            'risk_breakdown': {
+                'high': self.high_risk_count,
+                'medium': self.medium_risk_count,
+                'low': self.low_risk_count,
+                'informational': self.informational_count
+            },
+            'analysis_duration': self.analysis_duration,
+            'results': self.get_results(),
+            'metadata': self.get_metadata(),
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self):
+        return f'<ZAPAnalysis {self.id} for App {self.application_id}>'
+
+class OpenRouterAnalysis(db.Model):
+    """Model for storing OpenRouter analysis results."""
+    __tablename__ = 'openrouter_analyses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
+    
+    # Analysis status and configuration
+    status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
+    
+    # Results summary
+    total_requirements = db.Column(db.Integer, default=0)
+    met_requirements = db.Column(db.Integer, default=0)
+    unmet_requirements = db.Column(db.Integer, default=0)
+    high_confidence_count = db.Column(db.Integer, default=0)
+    medium_confidence_count = db.Column(db.Integer, default=0)
+    low_confidence_count = db.Column(db.Integer, default=0)
+    
+    # Performance metrics
+    analysis_duration = db.Column(db.Float)  # Duration in seconds
+    
+    # JSON field for detailed results
+    results_json = db.Column(db.Text)       # Detailed analysis results
+    metadata_json = db.Column(db.Text)      # Analysis metadata
+    
+    # Timestamps
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def get_results(self):
+        """Get analysis results as dictionary."""
+        if self.results_json:
+            try:
+                return json.loads(self.results_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_results(self, results_dict):
+        """Set analysis results from dictionary."""
+        self.results_json = json.dumps(results_dict)
+    
+    def get_metadata(self):
+        """Get metadata as dictionary."""
+        if self.metadata_json:
+            try:
+                return json.loads(self.metadata_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_metadata(self, metadata_dict):
+        """Set metadata from dictionary."""
+        self.metadata_json = json.dumps(metadata_dict)
+    
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'application_id': self.application_id,
+            'status': self.status.value if self.status else None,
+            'total_requirements': self.total_requirements,
+            'met_requirements': self.met_requirements,
+            'unmet_requirements': self.unmet_requirements,
+            'confidence_breakdown': {
+                'high': self.high_confidence_count,
+                'medium': self.medium_confidence_count,
+                'low': self.low_confidence_count
+            },
+            'analysis_duration': self.analysis_duration,
+            'results': self.get_results(),
+            'metadata': self.get_metadata(),
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self):
+        return f'<OpenRouterAnalysis {self.id} for App {self.application_id}>'
 
 class BatchAnalysis(db.Model):
     """Model for storing batch analysis records."""

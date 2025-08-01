@@ -549,62 +549,6 @@ class DockerUtils:
             return cls._operation_locks[project_name]
 
 
-class JsonResultsManager:
-    """Centralized results manager for all analysis types."""
-    
-    def __init__(self, module_name: str, base_path: Optional[Path] = None):
-        self.module_name = module_name
-        self.reports_dir = (base_path or Path(__file__).parent.parent) / "reports"
-        self.logger = get_logger('json_results')
-    
-    def save_results(self, model: str, app_num: int, results: Any, 
-                    file_name: Optional[str] = None) -> Path:
-        """Save analysis results to JSON file."""
-        if file_name is None:
-            file_name = f".{self.module_name}_results.json"
-        
-        results_dir = self.reports_dir / model / f"app{app_num}"
-        results_dir.mkdir(parents=True, exist_ok=True)
-        results_path = results_dir / file_name
-        
-        # Convert to dict if needed
-        data_to_save = results
-        if hasattr(results, 'to_dict'):
-            data_to_save = results.to_dict()
-        elif hasattr(results, '__dict__') and not isinstance(results, dict):
-            data_to_save = results.__dict__
-        
-        # Add metadata
-        if isinstance(data_to_save, dict):
-            data_to_save["_metadata"] = {
-                "module": self.module_name,
-                "model": model,
-                "app_num": app_num,
-                "saved_at": datetime.now().isoformat(),
-                "filename": file_name
-            }
-        
-        with open(results_path, "w", encoding='utf-8') as f:
-            json.dump(data_to_save, f, indent=2, cls=CustomJSONEncoder)
-        
-        self.logger.info(f"Saved {self.module_name} results to {results_path}")
-        return results_path
-    
-    def load_results(self, model: str, app_num: int, 
-                    file_name: Optional[str] = None) -> Optional[Any]:
-        """Load analysis results from JSON file."""
-        if file_name is None:
-            file_name = f".{self.module_name}_results.json"
-        
-        results_path = self.reports_dir / model / f"app{app_num}" / file_name
-        
-        if not results_path.exists():
-            return None
-        
-        with open(results_path, "r", encoding='utf-8') as f:
-            return json.load(f)
-
-
 # ===========================
 # DATA MODELS
 # ===========================

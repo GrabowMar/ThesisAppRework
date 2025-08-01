@@ -755,9 +755,42 @@ Be thorough and provide specific evidence. Return ONLY the JSON object."""
             recommendations=f"Primary: {primary.recommendations}\n\nSecondary: {secondary.recommendations}"
         )
     
-    def _save_results(self, model: str, app_num: int, results: List[RequirementCheck]):
-        """Save analysis results to reports directory."""
+    def _save_results_to_database(self, model: str, app_num: int, results: List[RequirementCheck]) -> bool:
+        """Save analysis results to database instead of files."""
         try:
+            from models import GeneratedApplication, OpenRouterAnalysis, AnalysisStatus
+            from extensions import db
+            from datetime import datetime
+            
+            # Find the application
+            app = GeneratedApplication.query.filter_by(model_slug=model, app_number=app_num).first()
+            if not app:
+                logger.warning(f"GeneratedApplication not found for {model}/app{app_num}")
+                return False
+            
+            # Create or update OpenRouterAnalysis record
+            or_analysis = OpenRouterAnalysis.query.filter_by(application_id=app.id).first()
+            if not or_analysis:
+                or_analysis = OpenRouterAnalysis()
+                or_analysis.application_id = app.id
+                db.session.add(or_analysis)
+            
+            # Update analysis fields
+            or_analysis.status = AnalysisStatus.COMPLETED
+            or_analysis.completed_at = datetime.utcnow()
+            
+            if not or_analysis.started_at:
+                or_analysis.started_at = datetime.utcnow()
+            
+            # Extract counts from results
+            or_analysis.total_requirements = len(results)
+            or_analysis.met_requirements = sum(1 for check in results if check.result.met)
+            or_analysis.unmet_requirements = or_analysis.total_requirements - or_analysis.met_requirements
+            or_analysis.high_confidence_count = sum(1 for check in results if check.result.confidence == "HIGH")
+            or_analysis.medium_confidence_count = sum(1 for check in results if check.result.confidence == "MEDIUM")
+            or_analysis.low_confidence_count = sum(1 for check in results if check.result.confidence == "LOW")
+            
+            # Prepare results data
             results_data = {
                 "model": model,
                 "app_num": app_num,
@@ -783,18 +816,35 @@ Be thorough and provide specific evidence. Return ONLY the JSON object."""
                 }
             }
             
-            # Create reports directory
-            reports_dir = self.base_path / "reports" / model / f"app{app_num}"
-            reports_dir.mkdir(parents=True, exist_ok=True)
+            # Store full results
+            or_analysis.set_results(results_data)
             
-            # Save results
-            with open(reports_dir / "openrouter_analysis.json", 'w', encoding='utf-8') as f:
-                json.dump(results_data, f, indent=2)
+            # Store metadata
+            metadata = {
+                'model': model,
+                'app_num': app_num,
+                'timestamp': datetime.utcnow().isoformat(),
+                'analysis_type': 'openrouter_analysis'
+            }
+            or_analysis.set_metadata(metadata)
             
-            logger.info(f"Results saved to {reports_dir / 'openrouter_analysis.json'}")
+            db.session.commit()
+            logger.info(f"Saved OpenRouter analysis results to database for {model}/app{app_num}")
+            return True
             
         except Exception as e:
-            logger.error(f"Error saving results: {e}")
+            logger.error(f"Failed to save OpenRouter results to database: {e}")
+            try:
+                from extensions import db
+                db.session.rollback()
+            except:
+                pass
+            return False
+
+    def _save_results(self, model: str, app_num: int, results: List[RequirementCheck]):
+        """DEPRECATED: Save analysis results to reports directory. Now saves to database."""
+        logger.warning("File-based saving is deprecated. Saving to database instead.")
+        self._save_results_to_database(model, app_num, results)
     
     def load_results(self, model: str, app_num: int) -> Optional[List[RequirementCheck]]:
         """Load saved analysis results."""

@@ -106,24 +106,92 @@ except ImportError:
     events = MockEvents()
 
 # Add save/load analysis results fallbacks
+def save_analysis_results_to_database(model_name: str, app_num: int, analysis_type: str, results: Dict[str, Any]) -> bool:
+    """Save performance analysis results to database instead of files."""
+    try:
+        from models import GeneratedApplication, PerformanceTest, AnalysisStatus
+        from extensions import db
+        from datetime import datetime
+        
+        # Find the application
+        app = GeneratedApplication.query.filter_by(model_slug=model_name, app_number=app_num).first()
+        if not app:
+            logger.warning(f"GeneratedApplication not found for {model_name}/app{app_num}")
+            return False
+        
+        # Create or update PerformanceTest record
+        perf_test = PerformanceTest.query.filter_by(application_id=app.id, test_type=analysis_type).first()
+        if not perf_test:
+            perf_test = PerformanceTest()
+            perf_test.application_id = app.id
+            perf_test.test_type = analysis_type
+            db.session.add(perf_test)
+        
+        # Extract key metrics from results
+        perf_test.status = AnalysisStatus.COMPLETED
+        perf_test.completed_at = datetime.utcnow()
+        
+        if not perf_test.started_at:
+            perf_test.started_at = datetime.utcnow()
+        
+        # Extract performance metrics from results
+        if isinstance(results, dict):
+            stats = results.get('stats', {})
+            if stats:
+                perf_test.requests_per_second = stats.get('requests_per_second', 0.0)
+                perf_test.average_response_time = stats.get('average_response_time', 0.0)
+                perf_test.error_rate_percent = stats.get('error_rate_percent', 0.0)
+                
+            # Resource usage if available
+            resource_usage = results.get('resource_usage', {})
+            if resource_usage:
+                perf_test.cpu_usage_percent = resource_usage.get('cpu_percent', 0.0)
+                perf_test.memory_usage_mb = resource_usage.get('memory_mb', 0.0)
+            
+            # Duration if available
+            perf_test.duration_seconds = results.get('duration_seconds', results.get('test_duration', 60))
+            
+            # Target users if available
+            perf_test.target_users = results.get('target_users', results.get('users', 1))
+        
+        # Store full results
+        perf_test.set_results(results)
+        
+        # Store metadata
+        metadata = {
+            'model': model_name,
+            'app_num': app_num,
+            'analysis_type': analysis_type,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        perf_test.set_metadata(metadata)
+        
+        db.session.commit()
+        logger.info(f"Saved performance analysis results to database for {model_name}/app{app_num}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to save performance results to database: {e}")
+        try:
+            from extensions import db
+            db.session.rollback()
+        except:
+            pass
+        return False
+
 def save_analysis_results(model_name: str, app_num: int, analysis_type: str, results: Dict[str, Any], 
                          subfolder: Optional[str] = None) -> Optional[Path]:
-    """Fallback implementation for saving analysis results"""
-    try:
-        reports_dir = Path.cwd() / "reports" / model_name / f"app{app_num}"
-        if subfolder:
-            reports_dir = reports_dir / subfolder
-        reports_dir.mkdir(parents=True, exist_ok=True)
-        
-        filename = f"{analysis_type}_results.json"
-        filepath = reports_dir / filename
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=2, default=str)
-        
-        return filepath
-    except Exception:
-        return None
+    """DEPRECATED: Use save_analysis_results_to_database instead. 
+    This function now just calls the database version for compatibility."""
+    logger.warning("save_analysis_results is deprecated. Results are now saved to database only.")
+    
+    # Call the database version
+    success = save_analysis_results_to_database(model_name, app_num, analysis_type, results)
+    
+    # Return a dummy path for backward compatibility
+    if success:
+        return Path(f"database://{model_name}/app{app_num}/{analysis_type}")
+    return None
 
 def load_analysis_results(model_name: str, app_num: int, analysis_type: str, 
                          subfolder: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -406,16 +474,19 @@ class LocustPerformanceTester:
             Path to the saved results file
         """
         try:
-            # Use the simple save_analysis_results function from utils.py
-            file_name = "performance_results.json"
-            results_path = save_analysis_results(
+            # Use the database save function instead of file-based saving
+            success = save_analysis_results_to_database(
                 model_name=model,
                 app_num=app_num,
                 analysis_type="performance",
                 results=asdict(result)
             )
-            logger.info(f"Saved consolidated performance results for {model}/app{app_num}")
-            return str(results_path)
+            if success:
+                logger.info(f"Saved consolidated performance results for {model}/app{app_num} to database")
+                return f"database://{model}/app{app_num}/performance"
+            else:
+                logger.error(f"Failed to save performance results for {model}/app{app_num} to database")
+                return ""
         except Exception as e:
             logger.exception(f"Error saving consolidated results for {model}/app{app_num}: {e}")
             return ""

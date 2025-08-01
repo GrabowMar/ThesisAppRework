@@ -45,32 +45,33 @@ def create_logger_for_component(name: str):
     """Create logger for component - standardized interface."""
     return get_logger(name)
 
-# Import JsonResultsManager with proper compatibility
+# Import compatibility - JsonResultsManager is deprecated
 try:
-    from core_services import JsonResultsManager as _CoreJsonResultsManager
-    JsonResultsManager = _CoreJsonResultsManager  # type: ignore
+    # Dummy JsonResultsManager for backward compatibility
+    class JsonResultsManager:  # type: ignore
+        """DEPRECATED: Results are now saved to database only."""
+        def __init__(self, module_name: str, base_path: Optional[Path] = None):
+            self.module_name = module_name
+            self.base_path = base_path or Path(__file__).parent.parent
+        
+        def save_results(self, model: str, app_num: int, results: Any, 
+                        file_name: Optional[str] = None) -> Path:
+            """DEPRECATED: Results are now saved to database only."""
+            logger.warning("JsonResultsManager.save_results is deprecated. Results are saved to database only.")
+            return Path(f"deprecated://{model}/app{app_num}")
+
 except ImportError:
     # Fallback JsonResultsManager implementation for compatibility
     class JsonResultsManager:  # type: ignore
-        """Fallback JsonResultsManager implementation."""
+        """DEPRECATED: Results are now saved to database only."""
         def __init__(self, module_name: str, base_path: Optional[Path] = None):
             self.module_name = module_name
-            self.base_path = base_path or Path(__file__).parent.parent / "reports"
-            
+            self.base_path = base_path or Path(__file__).parent.parent
+        
         def save_results(self, model: str, app_num: int, results: Any, 
                         file_name: Optional[str] = None) -> Path:
-            """Save analysis results to JSON file."""
-            if file_name is None:
-                file_name = f".{self.module_name}_results.json"
-            
-            results_dir = self.base_path / model / f"app{app_num}"
-            results_dir.mkdir(parents=True, exist_ok=True)
-            results_path = results_dir / file_name
-            
-            with open(results_path, "w", encoding='utf-8') as f:
-                json.dump(results, f, indent=2)
-            
-            return results_path
+            """DEPRECATED: Results are now saved to database only."""
+            return Path(f"deprecated://{model}/app{app_num}")
             
         def load_results(self, model: str, app_num: int, 
                         file_name: Optional[str] = None) -> Optional[Any]:
@@ -678,9 +679,7 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
                 }
             }
             
-            self.results_manager.save_results(model, app_num, results,
-                                            file_name=".backend_security_results.json")
-            logger.info(f"✅ Results saved successfully")
+            logger.info(f"✅ Backend security analysis results prepared (file saving disabled - using database only)")
                                             
             return issues_dict, tool_status, tool_outputs
 
@@ -1145,9 +1144,7 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                 }
             }
             
-            self.results_manager.save_results(model, app_num, results,
-                                            file_name=".frontend_security_results.json")
-            logger.info(f"✅ Results saved successfully")
+            logger.info(f"✅ Frontend security analysis results prepared (file saving disabled - using database only)")
             
             return issues_dict, tool_status, tool_outputs
 class BackendQualityAnalyzer(BaseAnalyzer):
@@ -1658,9 +1655,7 @@ class BackendQualityAnalyzer(BaseAnalyzer):
                 }
             }
             
-            self.results_manager.save_results(model, app_num, results,
-                                            file_name=".backend_quality_results.json")
-            logger.info(f"✅ Results saved successfully")
+            logger.info(f"✅ Backend quality analysis results prepared (file saving disabled - using database only)")
                                             
             return issues_dict, tool_status, tool_outputs
 
@@ -2039,9 +2034,7 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                 }
             }
             
-            self.results_manager.save_results(model, app_num, results,
-                                            file_name=".frontend_quality_results.json")
-            logger.info(f"✅ Results saved successfully")
+            logger.info(f"✅ Frontend quality analysis results prepared (file saving disabled - using database only)")
                                             
             return issues_dict, tool_status, tool_outputs
                 
@@ -2084,8 +2077,7 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                 "timestamp": datetime.now().isoformat()
             }
             
-            self.results_manager.save_results(model, app_num, results,
-                                            file_name=".frontend_quality_results.json")
+            logger.info(f"✅ Frontend quality analysis results prepared (file saving disabled - using database only)")
                                             
             return issues_dict, tool_status, tool_outputs
 

@@ -63,19 +63,106 @@ except ImportError:
             def version(self) -> str:
                 return "Mock ZAP v1.0"
 
-# Import the analysis functions and utilities from core_services
+def save_analysis_results_to_database(model: str, app_num: int, results: Any) -> bool:
+    """Save ZAP analysis results to database instead of files."""
+    try:
+        from models import GeneratedApplication, ZAPAnalysis, AnalysisStatus
+        from extensions import db
+        from datetime import datetime
+        
+        # Find the application
+        app = GeneratedApplication.query.filter_by(model_slug=model, app_number=app_num).first()
+        if not app:
+            logger.warning(f"GeneratedApplication not found for {model}/app{app_num}")
+            return False
+        
+        # Create or update ZAPAnalysis record
+        zap_analysis = ZAPAnalysis.query.filter_by(application_id=app.id).first()
+        if not zap_analysis:
+            zap_analysis = ZAPAnalysis()
+            zap_analysis.application_id = app.id
+            db.session.add(zap_analysis)
+        
+        # Update analysis fields
+        zap_analysis.status = AnalysisStatus.COMPLETED
+        zap_analysis.completed_at = datetime.utcnow()
+        
+        if not zap_analysis.started_at:
+            zap_analysis.started_at = datetime.utcnow()
+        
+        # Extract alert counts from results
+        if isinstance(results, dict):
+            alerts = results.get('alerts', [])
+            zap_analysis.total_alerts = len(alerts)
+            
+            # Count by risk level
+            high_count = 0
+            medium_count = 0
+            low_count = 0
+            info_count = 0
+            
+            for alert in alerts:
+                risk = alert.get('risk', '').lower()
+                if risk == 'high':
+                    high_count += 1
+                elif risk == 'medium':
+                    medium_count += 1
+                elif risk == 'low':
+                    low_count += 1
+                elif risk in ['informational', 'info']:
+                    info_count += 1
+            
+            zap_analysis.high_risk_count = high_count
+            zap_analysis.medium_risk_count = medium_count
+            zap_analysis.low_risk_count = low_count
+            zap_analysis.informational_count = info_count
+            
+            # Extract scan duration if available
+            scan_time = results.get('scan_duration_seconds', results.get('duration', 0))
+            if scan_time:
+                zap_analysis.analysis_duration = float(scan_time)
+        
+        # Store full results
+        zap_analysis.set_results(results)
+        
+        # Store metadata
+        metadata = {
+            'model': model,
+            'app_num': app_num,
+            'timestamp': datetime.utcnow().isoformat(),
+            'analysis_type': 'zap_security'
+        }
+        zap_analysis.set_metadata(metadata)
+        
+        db.session.commit()
+        logger.info(f"Saved ZAP analysis results to database for {model}/app{app_num}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to save ZAP results to database: {e}")
+        try:
+            from extensions import db
+            db.session.rollback()
+        except:
+            pass
+        return False
+
+# Import the analysis functions and utilities - database only
 try:
-    from core_services import JsonResultsManager, get_logger, AppUtils
-    # Create a results manager instance for ZAP results
-    results_manager = JsonResultsManager('zap')
+    from core_services import get_logger, AppUtils
     
     def save_analysis_results(model: str, app_num: int, results: Any, file_name: Optional[str] = None) -> Optional[Path]:
-        """Save analysis results wrapper."""
-        return results_manager.save_results(model, app_num, results, file_name)
+        """DEPRECATED: Save analysis results wrapper. Use save_analysis_results_to_database instead."""
+        logger.warning("save_analysis_results is deprecated. Results are now saved to database only.")
+        success = save_analysis_results_to_database(model, app_num, results)
+        if success:
+            return Path(f"database://{model}/app{app_num}/zap")
+        return None
     
     def load_analysis_results(model: str, app_num: int, file_name: Optional[str] = None) -> Optional[Any]:
-        """Load analysis results wrapper."""
-        return results_manager.load_results(model, app_num, file_name)
+        """DEPRECATED: Load analysis results wrapper. Results are now in database only."""
+        logger.warning("File-based result loading is deprecated. Use database queries instead.")
+        return None
     
     def get_app_info(model: str, app_num: int) -> Optional[Dict[str, Any]]:
         """Get app info wrapper."""
@@ -84,6 +171,10 @@ try:
 except ImportError:
     # Fallback implementations
     def save_analysis_results(model: str, app_num: int, results: Any, file_name: Optional[str] = None) -> Optional[Path]:
+        """Fallback: Save to database instead of files."""
+        success = save_analysis_results_to_database(model, app_num, results)
+        if success:
+            return Path(f"database://{model}/app{app_num}/zap")
         return None
     
     def load_analysis_results(model: str, app_num: int, file_name: Optional[str] = None) -> Optional[Any]:
