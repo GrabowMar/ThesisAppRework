@@ -28,15 +28,17 @@ from dotenv import load_dotenv
 try:
     import requests
     # Suppress SSL warnings when we need to disable verification
+    import urllib3
     from urllib3.exceptions import InsecureRequestWarning
-    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+    urllib3.disable_warnings(InsecureRequestWarning)
 except ImportError:
     # If requests fails to import due to SSL issues, try to fix it
     import ssl
     ssl._create_default_https_context = ssl._create_unverified_context
     import requests
+    import urllib3
     from urllib3.exceptions import InsecureRequestWarning
-    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+    urllib3.disable_warnings(InsecureRequestWarning)
 
 # Load environment variables
 load_dotenv()
@@ -196,8 +198,6 @@ class OpenRouterAnalyzer:
     def _get_session(self) -> requests.Session:
         """Get a properly configured requests session."""
         session = requests.Session()
-        # Set basic timeout for all requests
-        session.timeout = DEFAULT_TIMEOUT
         # If we're in a monkey-patched environment, configure accordingly
         if not self.ssl_verify:
             session.verify = False

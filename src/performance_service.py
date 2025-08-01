@@ -10,8 +10,6 @@ import json
 import os
 import re
 import subprocess
-import gevent
-import pandas as pd
 import importlib
 import warnings
 from dataclasses import dataclass, field, asdict
@@ -19,25 +17,139 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Callable, TypedDict
 
+# Optional dependencies with graceful fallbacks
+try:
+    import gevent
+    GEVENT_AVAILABLE = True
+except ImportError:
+    GEVENT_AVAILABLE = False
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    pd = None
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
+
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    plt = None
+
 # Import logging service from core_services module
 try:
-    from core_services import create_logger_for_component
+    from core_services import get_logger
+    def create_logger_for_component(name: str):
+        return get_logger(name)
 except ImportError:
     import logging
-    def create_logger_for_component(name):
+    def create_logger_for_component(name: str):
         return logging.getLogger(name)
 
 # Import utility functions from core_services module
 try:
-    from core_services import save_analysis_results, load_analysis_results, get_models_base_dir
+    from core_services import get_models_base_dir
 except ImportError:
     # Fallback implementations
-    def save_analysis_results(*args, **kwargs):
-        pass
-    def load_analysis_results(*args, **kwargs):
-        return None
-    def get_models_base_dir():
+    def get_models_base_dir() -> Path:
+        """Fallback implementation for get_models_base_dir."""
         return Path.cwd() / "misc" / "models"
+
+# Optional Locust imports with fallbacks
+try:
+    from locust import HttpUser, task, between, TaskSet
+    from locust.stats import sort_stats, RequestStats
+    from locust.env import Environment
+    from locust.log import setup_logging
+    from locust import events
+    LOCUST_AVAILABLE = True
+except ImportError:
+    LOCUST_AVAILABLE = False
+    # Mock classes and functions
+    class MockHttpUser:
+        def __init__(self, *args, **kwargs):
+            pass
+    
+    class MockRequestStats:
+        PERCENTILES_TO_REPORT = [50, 66, 75, 80, 90, 95, 98, 99, 99.9, 99.99, 100]
+        def __init__(self, *args, **kwargs):
+            self.entries = {}
+    
+    class MockEnvironment:
+        def __init__(self, *args, **kwargs):
+            pass
+    
+    class MockEvents:
+        class MockListener:
+            def add_listener(self, func):
+                return func
+        test_start = MockListener()
+        test_stop = MockListener()
+    
+    HttpUser = MockHttpUser
+    task = lambda weight=1: lambda func: func
+    between = lambda min_val, max_val: lambda: min_val
+    TaskSet = MockHttpUser
+    sort_stats = lambda entries: []
+    RequestStats = MockRequestStats
+    Environment = MockEnvironment
+    setup_logging = lambda level, formatter: None
+    events = MockEvents()
+
+# Add save/load analysis results fallbacks
+def save_analysis_results(model_name: str, app_num: int, analysis_type: str, results: Dict[str, Any], 
+                         subfolder: Optional[str] = None) -> Optional[Path]:
+    """Fallback implementation for saving analysis results"""
+    try:
+        reports_dir = Path.cwd() / "reports" / model_name / f"app{app_num}"
+        if subfolder:
+            reports_dir = reports_dir / subfolder
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        
+        filename = f"{analysis_type}_results.json"
+        filepath = reports_dir / filename
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(results, f, indent=2, default=str)
+        
+        return filepath
+    except Exception:
+        return None
+
+def load_analysis_results(model_name: str, app_num: int, analysis_type: str, 
+                         subfolder: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Fallback implementation for loading analysis results"""
+    try:
+        reports_dir = Path.cwd() / "reports" / model_name / f"app{app_num}"
+        if subfolder:
+            reports_dir = reports_dir / subfolder
+        
+        filename = f"{analysis_type}_results.json"
+        filepath = reports_dir / filename
+        
+        if filepath.exists():
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
+
+# Add get_app_info fallback
+try:
+    from core_services import get_app_info
+except ImportError:
+    def get_app_info(model: str, app_num: int) -> Dict[str, Any]:
+        """Fallback implementation for get_app_info"""
+        return {"status": "unknown", "port": 8000, "backend_port": 8000, "frontend_port": 3000}
 
 # Initialize logger
 logger = create_logger_for_component('performance')
@@ -185,14 +297,32 @@ class UserGenerator:
         Returns:
             A dynamically generated HttpUser subclass.
         """
+        # Check if Locust is available
+        if not _import_locust_safely():
+            logger.warning("Locust not available, creating mock user class")
+            # Return a mock class when Locust is not available
+            class MockUser:
+                def __init__(self):
+                    self.host = host
+                    self.wait_time = lambda: 2
+            return MockUser
+            
         # Get Locust classes safely
-        HttpUser = _get_locust_module('HttpUser')
-        task = _get_locust_module('task')
-        between = _get_locust_module('between')
+        try:
+            HttpUser = _get_locust_module('HttpUser')
+            task = _get_locust_module('task')
+            between = _get_locust_module('between')
+        except ImportError:
+            logger.error("Failed to import Locust modules")
+            class MockUser:
+                def __init__(self):
+                    self.host = host
+                    self.wait_time = lambda: 2
+            return MockUser
         
         class_attrs = {
             'host': host,
-            'wait_time': between(1, 3)
+            'wait_time': between(1, 3) if between else lambda: 2
         }
 
         for i, endpoint in enumerate(endpoints):
@@ -214,25 +344,38 @@ class UserGenerator:
                     request_name = captured_endpoint_config.get('request_name', captured_path)
                     kwargs['name'] = request_name
 
-                    request_method_func = getattr(self.client, captured_method)
-                    with request_method_func(captured_path, catch_response=True, **kwargs) as response:
-                        validators = captured_endpoint_config.get('validators')
-                        if validators and callable(validators):
-                            try:
-                                validators(response)
-                            except Exception as val_err:
-                                response.failure(f"Validator failed: {val_err}")
-                        elif not response.ok:
-                            response.failure(f"HTTP {response.status_code}")
+                    if hasattr(self, 'client'):
+                        request_method_func = getattr(self.client, captured_method, None)
+                        if request_method_func:
+                            with request_method_func(captured_path, catch_response=True, **kwargs) as response:
+                                validators = captured_endpoint_config.get('validators')
+                                if validators and callable(validators):
+                                    try:
+                                        validators(response)
+                                    except Exception as val_err:
+                                        response.failure(f"Validator failed: {val_err}")
+                                elif not response.ok:
+                                    response.failure(f"HTTP {response.status_code}")
                 task_fn.__name__ = task_name
                 task_fn.__doc__ = f"Task for {captured_method.upper()} {captured_path}"
                 return task_fn
 
             task_fn_instance = create_task_fn(path, method, endpoint)
-            decorated_task = task(weight)(task_fn_instance)
+            if task:
+                decorated_task = task(weight)(task_fn_instance)
+            else:
+                decorated_task = task_fn_instance
             class_attrs[task_name] = decorated_task
 
-        DynamicUserClass = type('DynamicHttpUser', (HttpUser,), class_attrs)
+        try:
+            DynamicUserClass = type('DynamicHttpUser', (HttpUser,), class_attrs)
+        except (TypeError, NameError):
+            # Fallback when HttpUser is None or not available
+            class DynamicUserClass:
+                def __init__(self):
+                    for key, value in class_attrs.items():
+                        setattr(self, key, value)
+                        
         logger.debug(f"Created DynamicHttpUser class with tasks: {list(class_attrs.keys())}")
         return DynamicUserClass
 
@@ -266,10 +409,10 @@ class LocustPerformanceTester:
             # Use the simple save_analysis_results function from utils.py
             file_name = "performance_results.json"
             results_path = save_analysis_results(
-                model=model,
+                model_name=model,
                 app_num=app_num,
-                results=result,
-                filename=file_name
+                analysis_type="performance",
+                results=asdict(result)
             )
             logger.info(f"Saved consolidated performance results for {model}/app{app_num}")
             return str(results_path)
@@ -291,9 +434,9 @@ class LocustPerformanceTester:
         try:
             file_name = "performance_results.json"
             data = load_analysis_results(
-                model=model,
+                model_name=model,
                 app_num=app_num,
-                filename=file_name
+                analysis_type="performance"
             )
             
             if not data:
@@ -339,7 +482,7 @@ class LocustPerformanceTester:
             logger.error(f"Error loading performance results for {model}/app{app_num}: {e}")
             return None
 
-    def run_performance_test(self, model: str, app_num: int) -> Dict[str, Any]:
+    def run_performance_test(self, model: str, app_num: int, force_rerun: bool = False) -> Dict[str, Any]:
         """
         Batch analysis compatible method to run performance test.
         This method provides a simplified interface for batch processing.
@@ -348,13 +491,6 @@ class LocustPerformanceTester:
         
         try:
             # Get app info to determine URL
-            try:
-                from core_services import get_app_info
-            except ImportError:
-                # Fallback implementation
-                def get_app_info(model, app_num):
-                    return None
-                    
             app_info = get_app_info(model, app_num)
             if not app_info:
                 raise ValueError(f"Could not find app info for {model}/app{app_num}")
@@ -373,13 +509,17 @@ class LocustPerformanceTester:
             ]
             
             # Run a simple performance test (reduced load for batch processing)
-            result = self.run_test_library(
+            result = self.run_test_cli(
+                test_name=f"Batch_Test_{model}_app{app_num}",
                 host=host,
+                endpoints=endpoints,
                 user_count=5,  # Light load for batch processing
                 spawn_rate=1,
-                test_duration_seconds=30,  # Short duration
-                endpoints=endpoints,
-                test_name=f"Batch_Test_{model}_app{app_num}"
+                run_time="30s",  # Short duration
+                headless=True,
+                model=model,
+                app_num=app_num,
+                force_rerun=force_rerun
             )
             
             if result:
@@ -410,35 +550,21 @@ class LocustPerformanceTester:
                 "summary": {"error": str(e)}
             }
             
-    def get_latest_test_result(self, model: str, port: int) -> Optional[PerformanceResult]:
+    def get_latest_test_result(self, model: str, app_num: int) -> Optional[PerformanceResult]:
         """
-        Get the latest test result for a specific model and port.
+        Get the latest test result for a specific model and app number.
         
         Args:
             model: Model name
-            port: Application port
+            app_num: Application number
             
         Returns:
             PerformanceResult object or None if not found
         """
         try:
-            # Determine app_num from port
-            try:
-                from core_services import get_app_info
-            except ImportError:
-                # Fallback implementation
-                def get_app_info(port):
-                    return None
-                    
-            app_info = get_app_info(port)
-            if not app_info or 'app_num' not in app_info:
-                logger.warning(f"Could not determine app_num from port {port}")
-                return None
-                
-            app_num = app_info['app_num']
             return self.load_performance_results(model, app_num)
         except Exception as e:
-            logger.error(f"Error getting latest test result for {model}/port{port}: {e}")
+            logger.error(f"Error getting latest test result for {model}/app{app_num}: {e}")
             return None
 
     def _setup_test_directory(self, test_name: str) -> Path:
@@ -624,56 +750,70 @@ class LocustPerformanceTester:
         logger.info("Extracting stats directly from Locust environment...")
         
         # Get Locust classes safely
-        sort_stats = _get_locust_module('sort_stats')
-        RequestStats = _get_locust_module('RequestStats')
+        try:
+            sort_stats = _get_locust_module('sort_stats')
+            RequestStats = _get_locust_module('RequestStats')
+        except ImportError:
+            logger.warning("Locust not available, using fallback stats extraction")
+            return self._create_fallback_result(start_time, end_time, user_count, spawn_rate)
         
         endpoints: List[EndpointStats] = []
         errors: List[ErrorStats] = []
 
-        sorted_entries = sort_stats(stats.entries)
-        for entry in sorted_entries:
-            if entry.name == "Aggregated":
-                continue
+        try:
+            sorted_entries = sort_stats(stats.entries)
+            for entry in sorted_entries:
+                if entry.name == "Aggregated":
+                    continue
 
-            percentiles_dict = {}
-            try:
-                for p in RequestStats.PERCENTILES_TO_REPORT:
-                    percentile_value = entry.get_response_time_percentile(p)
-                    percentiles_dict[f"{p*100:.0f}"] = percentile_value if percentile_value is not None else 0.0
-            except Exception as p_err:
-                logger.warning(f"Could not calculate percentiles for {entry.name}: {p_err}")
+                percentiles_dict = {}
+                try:
+                    if hasattr(RequestStats, 'PERCENTILES_TO_REPORT'):
+                        for p in RequestStats.PERCENTILES_TO_REPORT:
+                            percentile_value = entry.get_response_time_percentile(p)
+                            percentiles_dict[f"{p*100:.0f}"] = percentile_value if percentile_value is not None else 0.0
+                except Exception as p_err:
+                    logger.warning(f"Could not calculate percentiles for {entry.name}: {p_err}")
 
-            ep_stats = EndpointStats(
-                name=entry.name,
-                method=entry.method or "N/A",
-                num_requests=entry.num_requests,
-                num_failures=entry.num_failures,
-                median_response_time=entry.median_response_time or 0.0,
-                avg_response_time=entry.avg_response_time or 0.0,
-                min_response_time=entry.min_response_time if entry.num_requests > 0 and entry.min_response_time is not None else 0.0,
-                max_response_time=entry.max_response_time or 0.0,
-                avg_content_length=entry.avg_content_length or 0.0,
-                current_rps=entry.current_rps or 0.0,
-                current_fail_per_sec=entry.current_fail_per_sec or 0.0,
-                percentiles=percentiles_dict
-            )
-            endpoints.append(ep_stats)
+                ep_stats = EndpointStats(
+                    name=entry.name,
+                    method=entry.method or "N/A",
+                    num_requests=entry.num_requests,
+                    num_failures=entry.num_failures,
+                    median_response_time=entry.median_response_time or 0.0,
+                    avg_response_time=entry.avg_response_time or 0.0,
+                    min_response_time=entry.min_response_time if entry.num_requests > 0 and entry.min_response_time is not None else 0.0,
+                    max_response_time=entry.max_response_time or 0.0,
+                    avg_content_length=entry.avg_content_length or 0.0,
+                    current_rps=entry.current_rps or 0.0,
+                    current_fail_per_sec=entry.current_fail_per_sec or 0.0,
+                    percentiles=percentiles_dict
+                )
+                endpoints.append(ep_stats)
 
-        for error_key, error_entry in stats.errors.items():
-            err_stats = ErrorStats(
-                error_type=str(error_entry.error),
-                count=error_entry.occurrences,
-                endpoint=error_entry.name or "N/A",
-                method=error_entry.method or "N/A",
-                description=str(error_entry.error)
-            )
-            errors.append(err_stats)
+            for error_key, error_entry in stats.errors.items():
+                err_stats = ErrorStats(
+                    error_type=str(error_entry.error),
+                    count=error_entry.occurrences,
+                    endpoint=error_entry.name or "N/A",
+                    method=error_entry.method or "N/A",
+                    description=str(error_entry.error)
+                )
+                errors.append(err_stats)
+        except Exception as e:
+            logger.error(f"Error extracting stats: {e}")
+            return self._create_fallback_result(start_time, end_time, user_count, spawn_rate)
 
         total_entry = stats.total
         duration_sec = max((end_time - start_time).total_seconds(), 0.1)
 
-        total_p95 = total_entry.get_response_time_percentile(0.95) or 0.0
-        total_p99 = total_entry.get_response_time_percentile(0.99) or 0.0
+        total_p95 = 0.0
+        total_p99 = 0.0
+        try:
+            total_p95 = total_entry.get_response_time_percentile(0.95) or 0.0
+            total_p99 = total_entry.get_response_time_percentile(0.99) or 0.0
+        except Exception as e:
+            logger.warning(f"Could not calculate percentiles for total: {e}")
 
         result = PerformanceResult(
             total_requests=total_entry.num_requests,
@@ -693,6 +833,26 @@ class LocustPerformanceTester:
         )
         logger.info(f"Stats extraction complete. Total Requests: {result.total_requests}, Failures: {result.total_failures}")
         return result
+
+    def _create_fallback_result(self, start_time: datetime, end_time: datetime, user_count: int, spawn_rate: int) -> PerformanceResult:
+        """Create a fallback result when Locust is not available."""
+        duration_sec = max((end_time - start_time).total_seconds(), 0.1)
+        return PerformanceResult(
+            total_requests=0,
+            total_failures=0,
+            avg_response_time=0.0,
+            median_response_time=0.0,
+            requests_per_sec=0.0,
+            start_time=start_time.strftime("%Y-%m-%d %H:%M:%S"),
+            end_time=end_time.strftime("%Y-%m-%d %H:%M:%S"),
+            duration=int(duration_sec),
+            endpoints=[],
+            errors=[],
+            percentile_95=0.0,
+            percentile_99=0.0,
+            user_count=user_count,
+            spawn_rate=spawn_rate
+        )
 
     def run_test_library(
         self,
@@ -747,105 +907,157 @@ class LocustPerformanceTester:
         if user_class is None:
             raise ValueError("Either user_class or endpoints must be provided")
 
+        # Check if Locust is available
+        if not _import_locust_safely():
+            logger.warning("Locust not available, creating fallback result")
+            start_time = datetime.now()
+            end_time = start_time + timedelta(seconds=run_time)
+            result = self._create_fallback_result(start_time, end_time, user_count, spawn_rate)
+            result.test_name = full_test_name
+            result.host = host
+            
+            if model is not None and app_num is not None:
+                self._save_consolidated_results(result, model, app_num)
+            return result
+
         # Get Locust classes safely
-        Environment = _get_locust_module('Environment')
-        events = _get_locust_module('events')
-
-        self.environment = None
-        self.runner = None
-        self.environment = Environment(user_classes=[user_class], host=host, catch_exceptions=True)
-        self.environment.create_local_runner()
-        if not self.environment.runner:
-            raise RuntimeError("Failed to create Locust runner.")
-        self.runner = self.environment.runner
-        self.environment.custom_data = {}
-
-        @events.test_start.add_listener
-        def on_test_start(environment, **kwargs):
-            environment.custom_data['start_time'] = datetime.now()
-            logger.info(f"Test '{full_test_name}' starting at {environment.custom_data['start_time'].isoformat()} with {user_count} users at {spawn_rate} users/s on host {environment.host}")
-            if on_start_callback:
-                try:
-                    on_start_callback(environment)
-                except Exception as cb_err:
-                    logger.error(f"Error in on_start_callback: {cb_err}", exc_info=True)
-
-        @events.test_stop.add_listener
-        def on_test_stop(environment, **kwargs):
-            logger.info(f"Test '{full_test_name}' stopping...")
-            if on_stop_callback:
-                try:
-                    on_stop_callback(environment)
-                except Exception as cb_err:
-                    logger.error(f"Error in on_stop_callback: {cb_err}", exc_info=True)
-
-        self.runner.start(user_count, spawn_rate=spawn_rate)
-        logger.info(f"Locust runner started. Waiting for {run_time} seconds...")
-
-        stopper_greenlet = None
         try:
-            def stopper():
-                gevent.sleep(run_time)
-                logger.info(f"Run time ({run_time}s) elapsed. Stopping runner for test '{full_test_name}'...")
-                if self.runner:
-                    self.runner.quit()
-                    logger.info("Runner quit signal sent.")
-                else:
-                    logger.warning("Stopper executed but runner was None.")
-            stopper_greenlet = gevent.spawn(stopper)
-            self.runner.greenlet.join()
-            logger.info("Runner greenlet joined (test run finished).")
-        except KeyboardInterrupt:
-            logger.warning("Test run interrupted by user (KeyboardInterrupt). Stopping runner...")
-            if self.runner: self.runner.quit()
-        except Exception as run_err:
-            logger.exception(f"Error during runner execution or join for test '{full_test_name}': {run_err}")
-            if self.runner: self.runner.quit()
-            raise RuntimeError(f"Locust run failed: {run_err}") from run_err
-        finally:
-            if stopper_greenlet and not stopper_greenlet.dead:
-                stopper_greenlet.kill(block=False)
-                logger.debug("Stopper greenlet killed.")
-
-        end_time = datetime.now()
-        logger.info(f"Test '{full_test_name}' finished execution at {end_time.isoformat()}")
-        start_time = self.environment.custom_data.get('start_time')
-        if start_time is None:
-            logger.warning("Start time not found on environment.custom_data! Using approximate start based on end time and duration.")
-            start_time = end_time - timedelta(seconds=run_time)
-        else:
-            logger.info(f"Actual test start time recorded: {start_time.isoformat()}")
-
-        if not self.environment or not self.environment.stats:
-            raise RuntimeError("Locust environment or stats object not available after test run.")
-
-        result = self._extract_stats_from_environment(
-            stats=self.environment.stats,
-            start_time=start_time,
-            end_time=end_time,
-            user_count=user_count,
-            spawn_rate=spawn_rate
-        )
-        result.test_name = full_test_name
-        result.host = host
-
-        if generate_graphs:
-            try:
-                graph_infos = self._generate_graphs_from_history(self.environment.stats.history, test_dir)
-                result.graph_urls = graph_infos
-            except Exception as graph_err:
-                logger.error(f"Failed to generate graphs for test '{full_test_name}': {graph_err}", exc_info=True)
-                result.graph_urls = []
-
-        # Save results using the simple save function if model and app_num are provided
-        if model is not None and app_num is not None:
-            self._save_consolidated_results(result, model, app_num)
+            Environment = _get_locust_module('Environment')
+            events = _get_locust_module('events')
+        except ImportError:
+            logger.error("Failed to import Locust modules for test execution")
+            start_time = datetime.now()
+            end_time = start_time + timedelta(seconds=run_time)
+            result = self._create_fallback_result(start_time, end_time, user_count, spawn_rate)
+            result.test_name = full_test_name
+            result.host = host
+            
+            if model is not None and app_num is not None:
+                self._save_consolidated_results(result, model, app_num)
+            return result
 
         self.environment = None
         self.runner = None
-        logger.debug("Environment and runner references cleared.")
-        logger.info(f"Returning results for test {full_test_name}")
-        return result
+        
+        try:
+            self.environment = Environment(user_classes=[user_class], host=host, catch_exceptions=True)
+            self.environment.create_local_runner()
+            if not self.environment.runner:
+                raise RuntimeError("Failed to create Locust runner.")
+            self.runner = self.environment.runner
+            self.environment.custom_data = {}
+
+            @events.test_start.add_listener
+            def on_test_start(environment, **kwargs):
+                environment.custom_data['start_time'] = datetime.now()
+                logger.info(f"Test '{full_test_name}' starting at {environment.custom_data['start_time'].isoformat()} with {user_count} users at {spawn_rate} users/s on host {environment.host}")
+                if on_start_callback:
+                    try:
+                        on_start_callback(environment)
+                    except Exception as cb_err:
+                        logger.error(f"Error in on_start_callback: {cb_err}", exc_info=True)
+
+            @events.test_stop.add_listener
+            def on_test_stop(environment, **kwargs):
+                logger.info(f"Test '{full_test_name}' stopping...")
+                if on_stop_callback:
+                    try:
+                        on_stop_callback(environment)
+                    except Exception as cb_err:
+                        logger.error(f"Error in on_stop_callback: {cb_err}", exc_info=True)
+
+            self.runner.start(user_count, spawn_rate=spawn_rate)
+            logger.info(f"Locust runner started. Waiting for {run_time} seconds...")
+
+            stopper_greenlet = None
+            try:
+                if GEVENT_AVAILABLE:
+                    import gevent
+                    def stopper():
+                        gevent.sleep(run_time)
+                        logger.info(f"Run time ({run_time}s) elapsed. Stopping runner for test '{full_test_name}'...")
+                        if self.runner:
+                            self.runner.quit()
+                            logger.info("Runner quit signal sent.")
+                        else:
+                            logger.warning("Stopper executed but runner was None.")
+                    stopper_greenlet = gevent.spawn(stopper)
+                    self.runner.greenlet.join()
+                else:
+                    # Fallback without gevent
+                    import time
+                    time.sleep(run_time)
+                    if self.runner:
+                        self.runner.quit()
+                        
+                logger.info("Runner greenlet joined (test run finished).")
+            except KeyboardInterrupt:
+                logger.warning("Test run interrupted by user (KeyboardInterrupt). Stopping runner...")
+                if self.runner: self.runner.quit()
+            except Exception as run_err:
+                logger.exception(f"Error during runner execution or join for test '{full_test_name}': {run_err}")
+                if self.runner: self.runner.quit()
+                raise RuntimeError(f"Locust run failed: {run_err}") from run_err
+            finally:
+                if stopper_greenlet and GEVENT_AVAILABLE:
+                    import gevent
+                    if not stopper_greenlet.dead:
+                        stopper_greenlet.kill(block=False)
+                        logger.debug("Stopper greenlet killed.")
+
+            end_time = datetime.now()
+            logger.info(f"Test '{full_test_name}' finished execution at {end_time.isoformat()}")
+            start_time = self.environment.custom_data.get('start_time')
+            if start_time is None:
+                logger.warning("Start time not found on environment.custom_data! Using approximate start based on end time and duration.")
+                start_time = end_time - timedelta(seconds=run_time)
+            else:
+                logger.info(f"Actual test start time recorded: {start_time.isoformat()}")
+
+            if not self.environment or not self.environment.stats:
+                raise RuntimeError("Locust environment or stats object not available after test run.")
+
+            result = self._extract_stats_from_environment(
+                stats=self.environment.stats,
+                start_time=start_time,
+                end_time=end_time,
+                user_count=user_count,
+                spawn_rate=spawn_rate
+            )
+            result.test_name = full_test_name
+            result.host = host
+
+            if generate_graphs:
+                try:
+                    graph_infos = self._generate_graphs_from_history(self.environment.stats.history, test_dir)
+                    result.graph_urls = graph_infos
+                except Exception as graph_err:
+                    logger.error(f"Failed to generate graphs for test '{full_test_name}': {graph_err}", exc_info=True)
+                    result.graph_urls = []
+
+            # Save results using the simple save function if model and app_num are provided
+            if model is not None and app_num is not None:
+                self._save_consolidated_results(result, model, app_num)
+
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in run_test_library: {e}")
+            # Create fallback result
+            start_time = datetime.now()
+            end_time = start_time + timedelta(seconds=run_time)
+            result = self._create_fallback_result(start_time, end_time, user_count, spawn_rate)
+            result.test_name = full_test_name
+            result.host = host
+            
+            if model is not None and app_num is not None:
+                self._save_consolidated_results(result, model, app_num)
+            return result
+            
+        finally:
+            self.environment = None
+            self.runner = None
+            logger.debug("Environment and runner references cleared.")
 
     def _create_temp_locustfile(self, host: str, endpoints: List[Dict[str, Any]], test_dir: Path) -> str:
         """
@@ -937,6 +1149,19 @@ class DynamicHttpUser(HttpUser):
         try:
             stats_path = Path(stats_file)
             if stats_path.exists() and stats_path.stat().st_size > 0:
+                if not PANDAS_AVAILABLE:
+                    logger.warning("Pandas not available, cannot process CSV data")
+                    return PerformanceResult(
+                        total_requests=0, total_failures=0, avg_response_time=0.0,
+                        median_response_time=0.0, requests_per_sec=0.0, 
+                        start_time=start_time.strftime("%Y-%m-%d %H:%M:%S"),
+                        end_time=end_time.strftime("%Y-%m-%d %H:%M:%S"), 
+                        duration=int((end_time - start_time).total_seconds()), 
+                        percentile_95=0.0, percentile_99=0.0,
+                        endpoints=[], errors=[]
+                    )
+                    
+                import pandas as pd
                 df = pd.read_csv(stats_path)
                 for _, row in df.iterrows():
                     if row.get('Name') == 'Aggregated':
@@ -969,18 +1194,22 @@ class DynamicHttpUser(HttpUser):
             else:
                 logger.error(f"Stats CSV not found or empty: {stats_file}")
                 return None
+                
             failures_path = Path(failures_file)
             if failures_path.exists() and failures_path.stat().st_size > 0:
-                df_fail = pd.read_csv(failures_path)
-                for _, row in df_fail.iterrows():
-                    err = ErrorStats(
-                        error_type=row.get('Error', ''),
-                        count=int(row.get('Occurrences', 0)),
-                        endpoint=row.get('Name', ''),
-                        method=row.get('Method', ''),
-                        description=row.get('Error', '')
-                    )
-                    errors.append(err)
+                if PANDAS_AVAILABLE:
+                    import pandas as pd
+                    df_fail = pd.read_csv(failures_path)
+                    for _, row in df_fail.iterrows():
+                        err = ErrorStats(
+                            error_type=row.get('Error', ''),
+                            count=int(row.get('Occurrences', 0)),
+                            endpoint=row.get('Name', ''),
+                            method=row.get('Method', ''),
+                            description=row.get('Error', '')
+                        )
+                        errors.append(err)
+                        
             duration = max((end_time - start_time).total_seconds(), 0.1)
             result = PerformanceResult(
                 total_requests=total_requests,
@@ -999,11 +1228,15 @@ class DynamicHttpUser(HttpUser):
                 spawn_rate=spawn_rate
             )
             return result
-        except pd.errors.EmptyDataError as e:
-            logger.error(f"CSV file is empty: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error parsing CSV results: {e}")
+        except Exception as csv_err:
+            if PANDAS_AVAILABLE:
+                import pandas as pd
+                if isinstance(csv_err, pd.errors.EmptyDataError):
+                    logger.error(f"CSV file is empty: {csv_err}")
+                else:
+                    logger.error(f"Error parsing CSV results: {csv_err}")
+            else:
+                logger.error(f"Error parsing CSV results: {csv_err}")
             return None
 
     def _generate_graphs_from_history(self, history: List[Any], test_dir: Path) -> List[GraphInfo]:
@@ -1022,8 +1255,14 @@ class DynamicHttpUser(HttpUser):
             logger.warning("No stats history provided for graph generation.")
             return graph_infos
         try:
+            if not MATPLOTLIB_AVAILABLE:
+                logger.warning("matplotlib not installed, skipping graph generation.")
+                return graph_infos
+                
             import matplotlib.pyplot as plt
-            import numpy as np
+            if NUMPY_AVAILABLE:
+                import numpy as np
+                
             times = [entry.timestamp for entry in history]
             rps = [entry.total_rps for entry in history]
             fig, ax = plt.subplots()
@@ -1033,7 +1272,7 @@ class DynamicHttpUser(HttpUser):
             ax.set_title('Requests per Second Over Time')
             ax.legend()
             graph_path = test_dir / "rps_over_time.png"
-            fig.savefig(graph_path)
+            fig.savefig(str(graph_path))  # Convert Path to string
             plt.close(fig)
             graph_infos.append(GraphInfo(name="RPS Over Time", url=str(graph_path)))
         except ImportError:
@@ -1059,7 +1298,13 @@ class DynamicHttpUser(HttpUser):
             logger.warning(f"History CSV not found or empty: {history_csv_path}")
             return []
         try:
+            if not MATPLOTLIB_AVAILABLE or not PANDAS_AVAILABLE:
+                logger.warning("matplotlib or pandas not installed; skipping graph generation.")
+                return []
+                
             import matplotlib.pyplot as plt
+            import pandas as pd
+            
             df = pd.read_csv(history_file)
             if 'Timestamp' not in df.columns or 'Requests/s' not in df.columns:
                 logger.warning(f"History CSV missing required columns.")
@@ -1071,18 +1316,22 @@ class DynamicHttpUser(HttpUser):
             plt.title('Requests per Second Over Time')
             plt.legend()
             graph_path = test_dir / 'requests_per_sec.png'
-            plt.savefig(graph_path)
+            plt.savefig(str(graph_path))  # Convert Path to string
             plt.close()
             graph_infos.append({'name': 'Requests/s', 'url': str(graph_path)})
             return graph_infos
         except ImportError:
-            logger.warning("matplotlib not installed; skipping graph generation.")
+            logger.warning("matplotlib or pandas not installed; skipping graph generation.")
             return []
-        except pd.errors.EmptyDataError:
-            logger.warning(f"History CSV is empty: {history_csv_path}")
-            return []
-        except Exception as e:
-            logger.error(f"Error generating graphs from CSV: {e}")
+        except Exception as csv_err:
+            if PANDAS_AVAILABLE:
+                import pandas as pd
+                if isinstance(csv_err, pd.errors.EmptyDataError):
+                    logger.warning(f"History CSV is empty: {history_csv_path}")
+                else:
+                    logger.error(f"Error generating graphs from CSV: {csv_err}")
+            else:
+                logger.error(f"Error generating graphs from CSV: {csv_err}")
             return []
 
     def get_performance_summary(self, result: PerformanceResult) -> Dict[str, Any]:

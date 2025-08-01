@@ -107,16 +107,8 @@ def app():
     # Initialize service manager and core services
     with app.app_context():
         try:
-            from core_services import ServiceManager, ServiceInitializer
-            # Create service manager
-            service_manager = ServiceManager(app)
-            app.config['service_manager'] = service_manager
-            
-            # Initialize core services (docker, scan manager, etc.)
-            service_initializer = ServiceInitializer(app, service_manager)
-            service_initializer.initialize_all()
-            
-            app.logger.info("Core services initialized successfully")
+            # Services are available through functions, not a service manager
+            app.logger.info("Core services available through utility functions")
         except Exception as e:
             app.logger.error(f"Failed to initialize services: {e}")
     
@@ -284,6 +276,8 @@ def sample_model_capability():
 def sample_port_configuration():
     """Create a sample PortConfiguration instance."""
     return PortConfiguration(
+        model='test_model_1',
+        app_num=1,
         frontend_port=9051,
         backend_port=6051,
         is_available=True
@@ -298,7 +292,7 @@ def sample_generated_application():
         app_number=1,
         app_type='login_system',
         provider='test_provider',
-        generation_status='completed',
+        generation_status=AnalysisStatus.COMPLETED,
         has_backend=True,
         has_frontend=True,
         has_docker_compose=True,

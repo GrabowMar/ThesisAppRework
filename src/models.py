@@ -16,7 +16,11 @@ Models include:
 import json
 import enum
 from datetime import datetime
-from extensions import db
+
+try:
+    from .extensions import db
+except ImportError:
+    from extensions import db
 
 class AnalysisStatus(enum.Enum):
     """Status enum for analyses and tests."""

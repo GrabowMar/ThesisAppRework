@@ -6,55 +6,97 @@ OWASP ZAP integration for web application security scanning.
 Simplified version that works reliably.
 """
 
-import json
 import logging
 import os
-import re
 import socket
 import subprocess
 import time
-import shutil
-from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, Callable
+from typing import Any, Dict, List, Optional, Tuple
 
-import requests
 try:
     from zapv2 import ZAPv2
+    ZAP_AVAILABLE = True
 except ImportError:
     try:
         from zaproxy import ZAPv2
+        ZAP_AVAILABLE = True
     except ImportError:
         # Create a mock ZAPv2 class if no ZAP library is available
+        ZAP_AVAILABLE = False
+        
+        class MockZAPComponent:
+            @property
+            def records_to_scan(self) -> str:
+                return "0"
+            
+            @property
+            def version(self) -> str:
+                return "Mock ZAP v1.0"
+            
+            def status(self, scan_id: str) -> str:
+                return "100"  # Always complete
+            
+            def scan(self, *args, **kwargs) -> str:
+                return "mock_scan_id"
+            
+            def access_url(self, *args, **kwargs) -> None:
+                pass
+            
+            def alerts(self, *args, **kwargs) -> List[Dict[str, Any]]:
+                return []
+            
+            def stop_all_scans(self) -> None:
+                pass
+        
         class ZAPv2:
             def __init__(self, *args, **kwargs):
-                pass
+                self.core = MockZAPComponent()
+                self.spider = MockZAPComponent()
+                self.pscan = MockZAPComponent()
+                self.ascan = MockZAPComponent()
+            
+            @property
+            def version(self) -> str:
+                return "Mock ZAP v1.0"
 
-# Import the simple analysis functions from core_services
+# Import the analysis functions and utilities from core_services
 try:
-    from core_services import save_analysis_results, load_analysis_results, get_app_info
+    from core_services import JsonResultsManager, get_logger, AppUtils
+    # Create a results manager instance for ZAP results
+    results_manager = JsonResultsManager('zap')
+    
+    def save_analysis_results(model: str, app_num: int, results: Any, file_name: Optional[str] = None) -> Optional[Path]:
+        """Save analysis results wrapper."""
+        return results_manager.save_results(model, app_num, results, file_name)
+    
+    def load_analysis_results(model: str, app_num: int, file_name: Optional[str] = None) -> Optional[Any]:
+        """Load analysis results wrapper."""
+        return results_manager.load_results(model, app_num, file_name)
+    
+    def get_app_info(model: str, app_num: int) -> Optional[Dict[str, Any]]:
+        """Get app info wrapper."""
+        return AppUtils.get_app_info(model, app_num)
+    
 except ImportError:
     # Fallback implementations
-    def save_analysis_results(*args, **kwargs):
-        pass
-    def load_analysis_results(*args, **kwargs):
+    def save_analysis_results(model: str, app_num: int, results: Any, file_name: Optional[str] = None) -> Optional[Path]:
         return None
-    def get_app_info(*args, **kwargs):
+    
+    def load_analysis_results(model: str, app_num: int, file_name: Optional[str] = None) -> Optional[Any]:
         return None
-
-# Import logging service from core_services module
-try:
-    from core_services import create_logger_for_component
-except ImportError:
-    import logging
-    def create_logger_for_component(name):
-        return logging.getLogger(name)
+    
+    def get_app_info(model: str, app_num: int) -> Optional[Dict[str, Any]]:
+        return None
+    
+    def get_logger(component: str) -> logging.Logger:
+        return logging.getLogger(component)
 
 # Initialize logger
-logger = create_logger_for_component('zap_scanner')
+logger = get_logger('zap_scanner')
 
 
 # Configuration Management
@@ -397,7 +439,7 @@ class ReportGenerator:
     """Simplified report generation."""
     
     @log_operation("Report generation")
-    def generate_affected_code_report(self, vulnerabilities: List[ZapVulnerability], output_file: str = None) -> str:
+    def generate_affected_code_report(self, vulnerabilities: List[ZapVulnerability], output_file: Optional[str] = None) -> str:
         """Generate simple vulnerability report."""
         report = ["# Security Vulnerability Report\n"]
         report.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -480,8 +522,9 @@ class ZAPScanner:
         """Check if ZAP scanner is available for use."""
         try:
             # Check if zapv2 module is available
-            import zapv2
-            
+            if not ZAP_AVAILABLE:
+                return False
+                
             # Check if ZAP daemon can be started or is already running
             if self.daemon_manager.is_ready():
                 return True
@@ -537,7 +580,10 @@ class ZAPScanner:
         try:
             # Try to import from main module first
             try:
-                from core_services import get_models_base_dir
+                from core_services import AppUtils
+                from pathlib import Path
+                def get_models_base_dir():
+                    return Path(__file__).parent.parent / "misc" / "models"
             except ImportError:
                 # Fallback to default path
                 from pathlib import Path
@@ -597,20 +643,24 @@ class ZAPScanner:
         scan_start_time = datetime.now()
         
         try:
+            # Check if ZAP is available
+            if not self.zap:
+                raise RuntimeError("ZAP is not available")
+            
             # Access target
             logger.info(f"Accessing target URL: {target_url}")
             scan_status.phase = "Initial Access"
-            self.zap.core.access_url(target_url, followredirects=True)
+            self.zap.core.access_url(target_url, followredirects=True)  # type: ignore
             time.sleep(2)
             
             # Spider scan
             logger.info("Starting spider scan...")
             scan_status.phase = "Spider Scanning"
-            spider_id = self.zap.spider.scan(url=target_url, maxchildren=self.max_children)
+            spider_id = self.zap.spider.scan(url=target_url, maxchildren=self.max_children)  # type: ignore
             
             # Monitor spider
-            while int(self.zap.spider.status(spider_id)) < 100:
-                progress = int(self.zap.spider.status(spider_id))
+            while int(self.zap.spider.status(spider_id)) < 100:  # type: ignore
+                progress = int(self.zap.spider.status(spider_id))  # type: ignore
                 scan_status.spider_progress = progress
                 scan_status.progress = progress // 3  # Spider is 1/3 of total
                 logger.info(f"Spider progress: {progress}%")
@@ -621,8 +671,8 @@ class ZAPScanner:
             scan_status.phase = "Passive Scanning"
             time.sleep(5)
             
-            while int(self.zap.pscan.records_to_scan) > 0:
-                remaining = int(self.zap.pscan.records_to_scan)
+            while int(self.zap.pscan.records_to_scan) > 0:  # type: ignore
+                remaining = int(self.zap.pscan.records_to_scan)  # type: ignore
                 logger.info(f"Passive scan - {remaining} records remaining")
                 scan_status.passive_progress = 100 - min(remaining, 100)
                 scan_status.progress = 33 + (scan_status.passive_progress // 3)
@@ -631,11 +681,11 @@ class ZAPScanner:
             # Active scan
             logger.info("Starting active scan...")
             scan_status.phase = "Active Scanning"
-            scan_id = self.zap.ascan.scan(url=target_url, recurse=True)
+            scan_id = self.zap.ascan.scan(url=target_url, recurse=True)  # type: ignore
             
             # Monitor active scan
-            while int(self.zap.ascan.status(scan_id)) < 100:
-                progress = int(self.zap.ascan.status(scan_id))
+            while int(self.zap.ascan.status(scan_id)) < 100:  # type: ignore
+                progress = int(self.zap.ascan.status(scan_id))  # type: ignore
                 scan_status.active_progress = progress
                 scan_status.progress = 66 + (progress // 3)
                 logger.info(f"Active scan progress: {progress}%")
@@ -644,7 +694,7 @@ class ZAPScanner:
             # Get results
             logger.info("Retrieving results...")
             scan_status.phase = "Processing Results"
-            alerts = self.zap.core.alerts(baseurl=target_url)
+            alerts = self.zap.core.alerts(baseurl=target_url)  # type: ignore
             
             # Process alerts
             vulnerabilities = []
@@ -704,12 +754,12 @@ class ZAPScanner:
         scan_info = self._scans.get(scan_key)
         return scan_info["status"] if scan_info else None
 
-    def stop_scan(self, model: str = None, app_num: int = None) -> bool:
+    def stop_scan(self, model: Optional[str] = None, app_num: Optional[int] = None) -> bool:
         """Stop a running scan."""
         try:
             if self.zap:
-                self.zap.spider.stop_all_scans()
-                self.zap.ascan.stop_all_scans()
+                self.zap.spider.stop_all_scans()  # type: ignore
+                self.zap.ascan.stop_all_scans()  # type: ignore
             
             if model and app_num:
                 scan_key = f"{model}-{app_num}"
@@ -742,7 +792,7 @@ class ZAPScanner:
                 model=model,
                 app_num=app_num,
                 results=results,
-                filename="zap_results.json"
+                file_name="zap_results.json"
             )
             
             # Generate report

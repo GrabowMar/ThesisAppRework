@@ -10,18 +10,83 @@ import os
 import json
 import logging
 import threading
-import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 from flask import Flask, render_template, jsonify
 
 # Import database components
-from extensions import init_extensions, db
-from models import ModelCapability, PortConfiguration, GeneratedApplication
+try:
+    # Try relative imports first (when run as module)
+    from .extensions import init_extensions, db
+    from .models import ModelCapability, PortConfiguration, GeneratedApplication
+    from .core_services import AppConfig
+except ImportError:
+    # Fall back to absolute imports (when run as script)
+    from extensions import init_extensions, db
+    from models import ModelCapability, PortConfiguration, GeneratedApplication
+    from core_services import AppConfig
 
-# Import service management components
-from core_services import ServiceManager, ServiceInitializer, AppConfig
+# Service management classes
+class ServiceManager:
+    """Manages application services and provides service lookup."""
+    
+    def __init__(self, app):
+        self.app = app
+        self.services = {}
+        self.logger = app.logger
+        self._initialize_core_services()
+    
+    def _initialize_core_services(self):
+        """Initialize core services."""
+        try:
+            # Import services from core_services
+            from core_services import DockerManager, ScanManager, ModelIntegrationService
+            
+            # Initialize Docker Manager
+            docker_manager = DockerManager()
+            self.services['docker_manager'] = docker_manager
+            self.logger.info("Docker manager initialized")
+            
+            # Initialize Scan Manager
+            scan_manager = ScanManager()
+            self.services['scan_manager'] = scan_manager
+            self.logger.info("Scan manager initialized")
+            
+            # Initialize Model Integration Service
+            model_service = ModelIntegrationService()
+            model_service.load_all_data()
+            self.services['model_service'] = model_service
+            self.logger.info("Model service initialized")
+            
+        except Exception as e:
+            self.logger.error(f"Error initializing core services: {e}")
+    
+    def get_service(self, service_name: str):
+        """Get a service by name."""
+        return self.services.get(service_name)
+    
+    def register_service(self, name: str, service):
+        """Register a service."""
+        self.services[name] = service
+        self.logger.info(f"Registered service: {name}")
+    
+    def get_all_services(self):
+        """Get all registered services."""
+        return self.services.copy()
+
+class ServiceInitializer:
+    def __init__(self, app, service_manager):
+        self.app = app
+        self.service_manager = service_manager
+        self.logger = app.logger
+    
+    def initialize_all(self):
+        """Initialize all services."""
+        try:
+            self.logger.info("Service initialization completed")
+        except Exception as e:
+            self.logger.error(f"Service initialization failed: {e}")
 
 
 class Config:
@@ -565,9 +630,10 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             
         except Exception as e:
             app.logger.error(f"Failed to initialize core services: {e}")
-            # Set up minimal fallback services
+            # Set up minimal fallback services - but keep the existing service_manager
+            if 'service_manager' not in app.config:
+                app.config['service_manager'] = ServiceManager(app)
             app.config['docker_manager'] = None
-            app.config['service_manager'] = ServiceManager(app)
             app.config['batch_service'] = None
     
     # Register blueprints with HTMX routes

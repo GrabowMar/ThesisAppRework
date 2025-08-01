@@ -10,10 +10,8 @@ Version: 3.0.0
 
 import json
 import logging
-import os
 import io
 import csv
-import zipfile
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -21,16 +19,25 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from flask import (
     Blueprint, current_app, flash, jsonify, make_response, redirect,
-    render_template, render_template_string, request, send_file, session, url_for, Response
+    render_template, render_template_string, request, send_file, url_for, Response
 )
-from sqlalchemy import func, text
+from sqlalchemy import func
 
-from extensions import db
-from models import (
-    ModelCapability, GeneratedApplication, PortConfiguration,
-    BatchAnalysis, SecurityAnalysis, PerformanceTest
-)
-from core_services import get_container_names, get_docker_project_name
+try:
+    from extensions import db
+    from models import (
+        ModelCapability, GeneratedApplication, PortConfiguration,
+        SecurityAnalysis
+    )
+    from core_services import get_container_names
+except ImportError:
+    # Fallback for direct script execution
+    from .extensions import db
+    from .models import (
+        ModelCapability, GeneratedApplication, PortConfiguration,
+        SecurityAnalysis
+    )
+    from .core_services import get_container_names
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -71,7 +78,7 @@ class ResponseHandler:
         return jsonify({'success': False, 'error': error_msg, 'timestamp': datetime.now().isoformat()}), code
     
     @staticmethod
-    def success_response(data: Any = None, message: str = None) -> Response:
+    def success_response(data: Any = None, message: Optional[str] = None) -> Response:
         """Return success JSON response."""
         return jsonify({
             'success': True,
@@ -81,8 +88,8 @@ class ResponseHandler:
         })
     
     @staticmethod
-    def api_response(success: bool, data: Any = None, error: str = None, 
-                    message: str = None, code: int = 200) -> Tuple[Response, int]:
+    def api_response(success: bool, data: Any = None, error: Optional[str] = None,
+                    message: Optional[str] = None, code: int = 200) -> Tuple[Response, int]:
         """Create standardized API response."""
         response_data = {
             'success': success,
@@ -148,7 +155,7 @@ class DockerCache:
         self._cache_duration = cache_duration
         self._lock = threading.RLock()
     
-    def get_all_containers_cached(self, docker_manager) -> List:
+    def get_all_containers_cached(self, docker_manager) -> List[Any]:
         """Get all containers with caching."""
         with self._lock:
             now = datetime.now().timestamp()

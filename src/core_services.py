@@ -10,37 +10,31 @@ Provides security analysis, performance testing, ZAP scanning, batch processing,
 # IMPORTS
 # ===========================
 
-import atexit
-import enum
 import json
 import logging
 import logging.handlers
 import os
 import re
 import subprocess
-import sys
 import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from functools import lru_cache, wraps
+from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import docker
 from docker.errors import NotFound as DockerNotFound
-from docker.models.containers import Container
 from dotenv import load_dotenv
 from flask import (
     Blueprint, Flask, Response, current_app, g, has_request_context,
-    jsonify, redirect, render_template, request, url_for, flash
+    jsonify, render_template, request
 )
-from werkzeug.exceptions import BadRequest, HTTPException
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Load environment variables
 load_dotenv()

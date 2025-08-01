@@ -13,16 +13,13 @@ This module consolidates functionality from:
 - code_quality_analysis.py
 """
 
-import concurrent.futures
 import json
-import os
 import platform
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
-import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, asdict
@@ -34,36 +31,76 @@ from typing import Dict, List, Optional, Tuple, Any, Union, Callable
 
 # Import logging service from core_services module
 try:
-    from core_services import create_logger_for_component
+    from core_services import get_logger as core_get_logger
 except ImportError:
     import logging
-    def create_logger_for_component(name):
-        return logging.getLogger(name)
+    def core_get_logger(component: str):
+        return logging.getLogger(component)
 
-# Import JsonResultsManager
+def get_logger(name: str):
+    """Get logger - standardized interface."""
+    return core_get_logger(name)
+
+def create_logger_for_component(name: str):
+    """Create logger for component - standardized interface."""
+    return get_logger(name)
+
+# Import JsonResultsManager with proper compatibility
 try:
-    from core_services import JsonResultsManager
+    from core_services import JsonResultsManager as _CoreJsonResultsManager
+    JsonResultsManager = _CoreJsonResultsManager  # type: ignore
 except ImportError:
-    class JsonResultsManager:
+    # Fallback JsonResultsManager implementation for compatibility
+    class JsonResultsManager:  # type: ignore
         """Fallback JsonResultsManager implementation."""
-        def __init__(self, base_path: Path, module_name: str):
-            self.base_path = base_path
+        def __init__(self, module_name: str, base_path: Optional[Path] = None):
             self.module_name = module_name
+            self.base_path = base_path or Path(__file__).parent.parent / "reports"
             
-        def save_results(self, *args, **kwargs):
-            pass
+        def save_results(self, model: str, app_num: int, results: Any, 
+                        file_name: Optional[str] = None) -> Path:
+            """Save analysis results to JSON file."""
+            if file_name is None:
+                file_name = f".{self.module_name}_results.json"
             
-        def load_results(self, *args, **kwargs):
-            return None
+            results_dir = self.base_path / model / f"app{app_num}"
+            results_dir.mkdir(parents=True, exist_ok=True)
+            results_path = results_dir / file_name
+            
+            with open(results_path, "w", encoding='utf-8') as f:
+                json.dump(results, f, indent=2)
+            
+            return results_path
+            
+        def load_results(self, model: str, app_num: int, 
+                        file_name: Optional[str] = None) -> Optional[Any]:
+            """Load analysis results from JSON file."""
+            if file_name is None:
+                file_name = f".{self.module_name}_results.json"
+            
+            results_path = self.base_path / model / f"app{app_num}" / file_name
+            if not results_path.exists():
+                return None
+                
+            try:
+                with open(results_path, "r", encoding='utf-8') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                return None
 
 # Import database models
 try:
     from flask import current_app
-    from models import SecurityAnalysis, GeneratedApplication, AnalysisStatus, SeverityLevel
-    from extensions import db
+    from .models import SecurityAnalysis, GeneratedApplication, AnalysisStatus, SeverityLevel
+    from .extensions import db
     DATABASE_INTEGRATION = True
 except ImportError:
-    DATABASE_INTEGRATION = False
+    try:
+        from models import SecurityAnalysis, GeneratedApplication, AnalysisStatus, SeverityLevel
+        from extensions import db
+        DATABASE_INTEGRATION = True
+    except ImportError:
+        DATABASE_INTEGRATION = False
 
 # Initialize logger
 logger = create_logger_for_component('cli_tools_analysis')
@@ -154,7 +191,7 @@ class BaseAnalyzer(ABC):
     def __init__(self, base_path: Union[str, Path], category: ToolCategory):
         self.base_path = Path(base_path).resolve()
         self.category = category
-        self.results_manager = JsonResultsManager(base_path=self.base_path, module_name=category.value)
+        self.results_manager = JsonResultsManager(module_name=category.value, base_path=self.base_path)
         self.analysis_lock = Lock()
         self.available_tools = {}
         
@@ -1883,8 +1920,12 @@ class UnifiedCLIAnalyzer:
         try:
             # Import database components within Flask context
             from flask import current_app
-            from models import SecurityAnalysis, GeneratedApplication, AnalysisStatus
-            from extensions import db
+            try:
+                from .models import SecurityAnalysis, GeneratedApplication, AnalysisStatus
+                from .extensions import db
+            except ImportError:
+                from models import SecurityAnalysis, GeneratedApplication, AnalysisStatus
+                from extensions import db
             
             # Check if we're in app context
             if not current_app:
