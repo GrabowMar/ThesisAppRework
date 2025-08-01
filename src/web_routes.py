@@ -4191,7 +4191,19 @@ def register_blueprints(app):
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(statistics_bp)
+    
+    # Register legacy batch blueprint for compatibility
     app.register_blueprint(batch_bp)
+    
+    # Register new enhanced batch blueprints
+    try:
+        from batch_routes import batch_api_bp, batch_web_bp
+        app.register_blueprint(batch_api_bp, url_prefix='/api/batch')
+        app.register_blueprint(batch_web_bp, url_prefix='/batch')
+        logger.info("Enhanced batch blueprints registered successfully")
+    except ImportError as e:
+        logger.warning(f"Enhanced batch blueprints not available: {e}")
+    
     app.register_blueprint(docker_bp)
     
     # Register template helpers

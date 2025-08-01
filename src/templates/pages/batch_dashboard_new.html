@@ -1,0 +1,1277 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Analysis Dashboard - AI Research Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Enhanced Batch Dashboard Styles */
+.batch-dashboard {
+    padding: 20px;
+    background: #f8f9fa;
+    min-height: 100vh;
+}
+
+.dashboard-header {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.dashboard-title {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 600;
+}
+
+.dashboard-subtitle {
+    margin: 5px 0 0 0;
+    color: #7f8c8d;
+    font-size: 1rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.stat-card-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.stat-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 15px;
+    font-size: 1.2rem;
+    color: white;
+}
+
+.stat-card-icon.jobs { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.stat-card-icon.running { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.stat-card-icon.completed { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.stat-card-icon.failed { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); }
+.stat-card-icon.workers { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+.stat-card-icon.performance { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+
+.stat-card-content h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.stat-card-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 10px 0;
+}
+
+.stat-card-change {
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+}
+
+.stat-card-change.positive { color: #27ae60; }
+.stat-card-change.negative { color: #e74c3c; }
+.stat-card-change.neutral { color: #7f8c8d; }
+
+.quick-actions {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.quick-actions h3 {
+    margin: 0 0 20px 0;
+    color: #2c3e50;
+    font-size: 1.3rem;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.action-button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.action-button.primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.action-button.success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+}
+
+.action-button.info {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+}
+
+.action-button.warning {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    color: white;
+}
+
+.action-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    text-decoration: none;
+    color: white;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 30px;
+}
+
+.recent-jobs {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.recent-jobs h3 {
+    margin: 0 0 20px 0;
+    color: #2c3e50;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.job-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.job-item {
+    padding: 15px 0;
+    border-bottom: 1px solid #ecf0f1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.job-item:last-child {
+    border-bottom: none;
+}
+
+.job-info h4 {
+    margin: 0 0 5px 0;
+    font-size: 1rem;
+    color: #2c3e50;
+}
+
+.job-meta {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    margin: 0;
+}
+
+.job-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.job-status.pending { background: #ffeaa7; color: #fdcb6e; }
+.job-status.running { background: #74b9ff; color: white; }
+.job-status.completed { background: #00b894; color: white; }
+.job-status.failed { background: #e17055; color: white; }
+.job-status.cancelled { background: #636e72; color: white; }
+
+.activity-feed {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.activity-feed h3 {
+    margin: 0 0 20px 0;
+    color: #2c3e50;
+    font-size: 1.3rem;
+}
+
+.activity-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.activity-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #ecf0f1;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.activity-icon.job-created { background: #4facfe; }
+.activity-icon.job-completed { background: #00b894; }
+.activity-icon.job-failed { background: #e17055; }
+.activity-icon.task-completed { background: #74b9ff; }
+
+.activity-content {
+    flex: 1;
+}
+
+.activity-content p {
+    margin: 0 0 5px 0;
+    font-size: 0.9rem;
+    color: #2c3e50;
+}
+
+.activity-time {
+    font-size: 0.8rem;
+    color: #7f8c8d;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #ecf0f1;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+    transition: width 0.3s ease;
+}
+
+.no-data {
+    text-align: center;
+    padding: 40px 20px;
+    color: #7f8c8d;
+}
+
+.no-data i {
+    font-size: 3rem;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.refresh-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+}
+
+.refresh-indicator.active {
+    color: #4facfe;
+}
+
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #ecf0f1;
+    border-top: 2px solid #4facfe;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .action-button {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* Create Job Modal Styles */
+.modal-lg {
+    max-width: 800px;
+}
+
+.form-section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.form-section:last-child {
+    border-bottom: none;
+}
+
+.form-section h4 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.range-input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.range-preset {
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f8f9fa;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.range-preset:hover {
+    background: #e9ecef;
+}
+
+.form-help {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+/* Advanced Features */
+.collapsible-section {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    margin-bottom: 15px;
+}
+
+.collapsible-header {
+    padding: 15px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: between;
+}
+
+.collapsible-content {
+    padding: 15px;
+    display: none;
+}
+
+.collapsible-content.active {
+    display: block;
+}
+
+.toggle-icon {
+    margin-left: auto;
+    transition: transform 0.2s ease;
+}
+
+.toggle-icon.active {
+    transform: rotate(180deg);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="batch-dashboard">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="dashboard-title">
+                    <i class="fas fa-tasks"></i>
+                    Batch Analysis Dashboard
+                </h1>
+                <p class="dashboard-subtitle">
+                    Orchestrate and monitor comprehensive analysis across all AI models and applications
+                </p>
+            </div>
+            <div class="refresh-indicator" id="refresh-indicator">
+                <i class="fas fa-sync-alt"></i>
+                <span>Auto-refresh: <span id="refresh-status">ON</span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Overview -->
+    <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-icon jobs">
+                    <i class="fas fa-briefcase"></i>
+                </div>
+                <div class="stat-card-content">
+                    <h3>Total Jobs</h3>
+                </div>
+            </div>
+            <div class="stat-card-value" id="total-jobs">{{ stats.jobs.total or 0 }}</div>
+            <div class="stat-card-change neutral">
+                <i class="fas fa-chart-line"></i>
+                <span>All time</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-icon running">
+                    <i class="fas fa-play"></i>
+                </div>
+                <div class="stat-card-content">
+                    <h3>Running Jobs</h3>
+                </div>
+            </div>
+            <div class="stat-card-value" id="running-jobs">{{ stats.jobs.by_status.running or 0 }}</div>
+            <div class="stat-card-change positive">
+                <i class="fas fa-arrow-up"></i>
+                <span>Active now</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-icon completed">
+                    <i class="fas fa-check"></i>
+                </div>
+                <div class="stat-card-content">
+                    <h3>Completed</h3>
+                </div>
+            </div>
+            <div class="stat-card-value" id="completed-jobs">{{ stats.jobs.by_status.completed or 0 }}</div>
+            <div class="stat-card-change positive">
+                <i class="fas fa-check-circle"></i>
+                <span>Success rate: {{ "%.1f"|format((stats.jobs.by_status.completed or 0) / (stats.jobs.total or 1) * 100) }}%</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-icon failed">
+                    <i class="fas fa-times"></i>
+                </div>
+                <div class="stat-card-content">
+                    <h3>Failed Jobs</h3>
+                </div>
+            </div>
+            <div class="stat-card-value" id="failed-jobs">{{ stats.jobs.by_status.failed or 0 }}</div>
+            <div class="stat-card-change {% if stats.jobs.by_status.failed > 0 %}negative{% else %}neutral{% endif %}">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Need attention</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-icon workers">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-card-content">
+                    <h3>Active Workers</h3>
+                </div>
+            </div>
+            <div class="stat-card-value" id="active-workers">{{ stats.worker_pool.active_workers or 0 }}</div>
+            <div class="stat-card-change neutral">
+                <i class="fas fa-server"></i>
+                <span>Max: {{ stats.worker_pool.max_workers or 0 }}</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-icon performance">
+                    <i class="fas fa-tachometer-alt"></i>
+                </div>
+                <div class="stat-card-content">
+                    <h3>Avg Duration</h3>
+                </div>
+            </div>
+            <div class="stat-card-value" id="avg-duration">{{ "%.1f"|format(stats.jobs.average_duration_seconds or 0) }}s</div>
+            <div class="stat-card-change neutral">
+                <i class="fas fa-clock"></i>
+                <span>Per job</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <h3>
+            <i class="fas fa-bolt"></i>
+            Quick Actions
+        </h3>
+        <div class="action-buttons">
+            <button class="action-button primary" onclick="openCreateJobModal()">
+                <i class="fas fa-plus"></i>
+                Create New Job
+            </button>
+            <a href="{{ url_for('batch.jobs_list') }}" class="action-button info">
+                <i class="fas fa-list"></i>
+                View All Jobs
+            </a>
+            <a href="{{ url_for('batch.workers_list') }}" class="action-button warning">
+                <i class="fas fa-users-cog"></i>
+                Manage Workers
+            </a>
+            <a href="{{ url_for('batch.analytics') }}" class="action-button success">
+                <i class="fas fa-chart-bar"></i>
+                View Analytics
+            </a>
+            <button class="action-button info" onclick="refreshDashboard()">
+                <i class="fas fa-sync-alt"></i>
+                Refresh Data
+            </button>
+            <button class="action-button warning" onclick="toggleAutoRefresh()">
+                <i class="fas fa-pause"></i>
+                <span id="auto-refresh-button-text">Pause Auto-refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Dashboard Grid -->
+    <div class="dashboard-grid">
+        <!-- Recent Jobs -->
+        <div class="recent-jobs">
+            <h3>
+                <span>
+                    <i class="fas fa-history"></i>
+                    Recent Jobs
+                </span>
+                <a href="{{ url_for('batch.jobs_list') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </h3>
+            <div id="recent-jobs-list">
+                <!-- Jobs will be loaded here -->
+                <div class="no-data">
+                    <i class="fas fa-hourglass-half"></i>
+                    <p>Loading recent jobs...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Feed -->
+        <div class="activity-feed">
+            <h3>
+                <i class="fas fa-bell"></i>
+                Activity Feed
+            </h3>
+            <div id="activity-feed-list">
+                <!-- Activity will be loaded here -->
+                <div class="no-data">
+                    <i class="fas fa-rss"></i>
+                    <p>Loading activity...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Job Modal -->
+<div class="modal fade" id="createJobModal" tabindex="-1" role="dialog" aria-labelledby="createJobModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createJobModalLabel">
+                    <i class="fas fa-plus-circle"></i>
+                    Create New Batch Job
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="createJobForm">
+                <div class="modal-body">
+                    <!-- Job Basic Information -->
+                    <div class="form-section">
+                        <h4>Basic Information</h4>
+                        <div class="form-group">
+                            <label for="jobName">Job Name *</label>
+                            <input type="text" class="form-control" id="jobName" name="name" required maxlength="200">
+                            <div class="form-help">Give your job a descriptive name (max 200 characters)</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="jobDescription">Description</label>
+                            <textarea class="form-control" id="jobDescription" name="description" rows="3"></textarea>
+                            <div class="form-help">Optional description of what this job will analyze</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="jobPriority">Priority</label>
+                            <select class="form-control" id="jobPriority" name="priority">
+                                {% for priority in job_priorities %}
+                                <option value="{{ priority }}" {% if priority == 'normal' %}selected{% endif %}>
+                                    {{ priority|title }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Analysis Configuration -->
+                    <div class="form-section">
+                        <h4>Analysis Types *</h4>
+                        <div class="checkbox-grid">
+                            {% for analysis_type in analysis_types %}
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="analysis_{{ analysis_type }}" name="analysis_types" value="{{ analysis_type }}">
+                                <label for="analysis_{{ analysis_type }}">{{ analysis_type|replace('_', ' ')|title }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-help">Select which types of analysis to perform</div>
+                    </div>
+
+                    <!-- Model Selection -->
+                    <div class="form-section">
+                        <h4>Models to Analyze *</h4>
+                        <div class="form-group">
+                            <select class="form-control" id="modelsSelect" name="models" multiple size="6">
+                                <!-- Models will be loaded dynamically -->
+                            </select>
+                            <div class="form-help">Hold Ctrl/Cmd to select multiple models</div>
+                        </div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllModels()">Select All</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectNoModels()">Select None</button>
+                        </div>
+                    </div>
+
+                    <!-- App Range Configuration -->
+                    <div class="form-section">
+                        <h4>Application Range *</h4>
+                        <div class="form-group">
+                            <label for="appRange">App Numbers</label>
+                            <div class="range-input-group">
+                                <input type="text" class="form-control" id="appRange" name="app_range" value="1-5" placeholder="e.g., 1-5, 1,3,5, all">
+                                <div class="range-presets">
+                                    <span class="range-preset" onclick="setAppRange('1-5')">1-5</span>
+                                    <span class="range-preset" onclick="setAppRange('1-10')">1-10</span>
+                                    <span class="range-preset" onclick="setAppRange('1-30')">1-30</span>
+                                    <span class="range-preset" onclick="setAppRange('all')">All</span>
+                                </div>
+                            </div>
+                            <div class="form-help">
+                                Specify which apps to analyze. Examples: "1-5", "1,3,5,7", "all"
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options -->
+                    <div class="collapsible-section">
+                        <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                            <h4>Advanced Options</h4>
+                            <i class="fas fa-chevron-down toggle-icon"></i>
+                        </div>
+                        <div class="collapsible-content">
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="autoStart" name="auto_start" checked>
+                                    <label class="form-check-label" for="autoStart">
+                                        Auto-start job immediately
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="autoRetry" name="auto_retry">
+                                    <label class="form-check-label" for="autoRetry">
+                                        Auto-retry failed tasks
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="maxRetries">Max Retries</label>
+                                <input type="number" class="form-control" id="maxRetries" name="max_retries" value="3" min="0" max="10">
+                            </div>
+                            <div class="form-group">
+                                <label for="taskTimeout">Task Timeout (seconds)</label>
+                                <input type="number" class="form-control" id="taskTimeout" name="task_timeout" value="300" min="60" max="3600">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-rocket"></i>
+                        Create Job
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Enhanced Batch Dashboard JavaScript
+class BatchDashboard {
+    constructor() {
+        this.autoRefreshEnabled = true;
+        this.autoRefreshInterval = null;
+        this.refreshRate = 30000; // 30 seconds
+        this.isRefreshing = false;
+        
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.startAutoRefresh();
+        this.loadInitialData();
+        this.loadAvailableModels();
+    }
+
+    setupEventListeners() {
+        // Form submission
+        document.getElementById('createJobForm').addEventListener('submit', (e) => {
+            this.handleJobCreation(e);
+        });
+
+        // Modal events
+        $('#createJobModal').on('show.bs.modal', () => {
+            this.resetCreateJobForm();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'r':
+                        e.preventDefault();
+                        this.refreshDashboard();
+                        break;
+                    case 'n':
+                        e.preventDefault();
+                        this.openCreateJobModal();
+                        break;
+                }
+            }
+        });
+    }
+
+    async loadInitialData() {
+        await Promise.all([
+            this.loadRecentJobs(),
+            this.loadActivityFeed(),
+            this.updateStatistics()
+        ]);
+    }
+
+    async loadAvailableModels() {
+        try {
+            const response = await fetch('/api/models');
+            const data = await response.json();
+            
+            const select = document.getElementById('modelsSelect');
+            select.innerHTML = '';
+            
+            data.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.canonical_slug;
+                option.textContent = `${model.model_name} (${model.provider})`;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Failed to load models:', error);
+            this.showNotification('Failed to load available models', 'error');
+        }
+    }
+
+    async loadRecentJobs() {
+        try {
+            const response = await fetch('/api/batch/jobs?per_page=10&page=1');
+            const data = await response.json();
+            
+            const container = document.getElementById('recent-jobs-list');
+            
+            if (data.jobs && data.jobs.length > 0) {
+                container.innerHTML = this.renderJobsList(data.jobs);
+            } else {
+                container.innerHTML = `
+                    <div class="no-data">
+                        <i class="fas fa-inbox"></i>
+                        <p>No jobs found. Create your first batch job!</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to load recent jobs:', error);
+            document.getElementById('recent-jobs-list').innerHTML = `
+                <div class="no-data">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Failed to load recent jobs</p>
+                </div>
+            `;
+        }
+    }
+
+    renderJobsList(jobs) {
+        return `
+            <ul class="job-list">
+                ${jobs.map(job => `
+                    <li class="job-item">
+                        <div class="job-info">
+                            <h4>
+                                <a href="/batch/jobs/${job.id}">${job.name}</a>
+                            </h4>
+                            <p class="job-meta">
+                                ${job.total_tasks} tasks • Created ${this.formatRelativeTime(job.created_at)}
+                                ${job.eta ? ` • ETA: ${job.eta}` : ''}
+                            </p>
+                            ${job.progress_percentage > 0 ? `
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${job.progress_percentage}%"></div>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="job-actions">
+                            <span class="job-status ${job.status}">${job.status}</span>
+                            ${this.renderJobActions(job)}
+                        </div>
+                    </li>
+                `).join('')}
+            </ul>
+        `;
+    }
+
+    renderJobActions(job) {
+        const actions = [];
+        
+        if (job.can_be_cancelled) {
+            actions.push(`<button class="btn btn-sm btn-outline-danger" onclick="batchDashboard.cancelJob('${job.id}')">Cancel</button>`);
+        }
+        
+        if (job.can_be_restarted) {
+            actions.push(`<button class="btn btn-sm btn-outline-primary" onclick="batchDashboard.restartJob('${job.id}')">Restart</button>`);
+        }
+        
+        return actions.length > 0 ? `<div class="btn-group">${actions.join('')}</div>` : '';
+    }
+
+    async loadActivityFeed() {
+        try {
+            // Simulate activity feed for now
+            const container = document.getElementById('activity-feed-list');
+            
+            container.innerHTML = `
+                <ul class="activity-list">
+                    <li class="activity-item">
+                        <div class="activity-icon job-created">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p>New job created: "Security Analysis Batch"</p>
+                            <div class="activity-time">2 minutes ago</div>
+                        </div>
+                    </li>
+                    <li class="activity-item">
+                        <div class="activity-icon job-completed">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p>Job completed: "Performance Test Suite"</p>
+                            <div class="activity-time">15 minutes ago</div>
+                        </div>
+                    </li>
+                    <li class="activity-item">
+                        <div class="activity-icon task-completed">
+                            <i class="fas fa-task"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p>Task completed: ZAP scan for anthropic_claude/app1</p>
+                            <div class="activity-time">22 minutes ago</div>
+                        </div>
+                    </li>
+                </ul>
+            `;
+        } catch (error) {
+            console.error('Failed to load activity feed:', error);
+        }
+    }
+
+    async updateStatistics() {
+        try {
+            const response = await fetch('/api/batch/statistics');
+            const stats = await response.json();
+            
+            // Update stat cards
+            document.getElementById('total-jobs').textContent = stats.jobs.total || 0;
+            document.getElementById('running-jobs').textContent = stats.jobs.by_status.running || 0;
+            document.getElementById('completed-jobs').textContent = stats.jobs.by_status.completed || 0;
+            document.getElementById('failed-jobs').textContent = stats.jobs.by_status.failed || 0;
+            document.getElementById('active-workers').textContent = stats.worker_pool.active_workers || 0;
+            document.getElementById('avg-duration').textContent = `${(stats.jobs.average_duration_seconds || 0).toFixed(1)}s`;
+            
+        } catch (error) {
+            console.error('Failed to update statistics:', error);
+        }
+    }
+
+    async handleJobCreation(event) {
+        event.preventDefault();
+        
+        const formData = new FormData(event.target);
+        const jobData = {
+            name: formData.get('name'),
+            description: formData.get('description'),
+            priority: formData.get('priority'),
+            analysis_types: formData.getAll('analysis_types'),
+            models: Array.from(document.getElementById('modelsSelect').selectedOptions).map(o => o.value),
+            app_range: formData.get('app_range'),
+            auto_start: formData.has('auto_start'),
+            options: {
+                auto_retry: formData.has('auto_retry'),
+                max_retries: parseInt(formData.get('max_retries')),
+                task_timeout: parseInt(formData.get('task_timeout'))
+            }
+        };
+
+        // Validation
+        if (!jobData.name.trim()) {
+            this.showNotification('Job name is required', 'error');
+            return;
+        }
+
+        if (jobData.analysis_types.length === 0) {
+            this.showNotification('At least one analysis type must be selected', 'error');
+            return;
+        }
+
+        if (jobData.models.length === 0) {
+            this.showNotification('At least one model must be selected', 'error');
+            return;
+        }
+
+        try {
+            // Show loading state
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+            submitBtn.disabled = true;
+
+            const response = await fetch('/api/batch/jobs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(jobData)
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                $('#createJobModal').modal('hide');
+                this.showNotification(`Job "${jobData.name}" created successfully!`, 'success');
+                
+                // Refresh dashboard
+                await this.refreshDashboard();
+                
+                // Optionally redirect to job details
+                if (result.job_id) {
+                    setTimeout(() => {
+                        window.location.href = `/batch/jobs/${result.job_id}`;
+                    }, 2000);
+                }
+            } else {
+                throw new Error(result.error || 'Failed to create job');
+            }
+        } catch (error) {
+            console.error('Job creation failed:', error);
+            this.showNotification(`Failed to create job: ${error.message}`, 'error');
+        } finally {
+            // Reset button
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fas fa-rocket"></i> Create Job';
+            submitBtn.disabled = false;
+        }
+    }
+
+    async cancelJob(jobId) {
+        if (!confirm('Are you sure you want to cancel this job?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/batch/jobs/${jobId}/cancel`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                this.showNotification('Job cancelled successfully', 'success');
+                await this.refreshDashboard();
+            } else {
+                throw new Error(result.error || 'Failed to cancel job');
+            }
+        } catch (error) {
+            console.error('Job cancellation failed:', error);
+            this.showNotification(`Failed to cancel job: ${error.message}`, 'error');
+        }
+    }
+
+    async restartJob(jobId) {
+        // Implementation for job restart would go here
+        this.showNotification('Job restart feature coming soon', 'info');
+    }
+
+    async refreshDashboard() {
+        if (this.isRefreshing) return;
+        
+        this.isRefreshing = true;
+        const indicator = document.getElementById('refresh-indicator');
+        indicator.classList.add('active');
+        indicator.innerHTML = '<div class="spinner"></div> <span>Refreshing...</span>';
+        
+        try {
+            await this.loadInitialData();
+            this.showNotification('Dashboard refreshed', 'success');
+        } catch (error) {
+            console.error('Refresh failed:', error);
+            this.showNotification('Failed to refresh dashboard', 'error');
+        } finally {
+            this.isRefreshing = false;
+            setTimeout(() => {
+                indicator.classList.remove('active');
+                indicator.innerHTML = `<i class="fas fa-sync-alt"></i> <span>Auto-refresh: <span id="refresh-status">${this.autoRefreshEnabled ? 'ON' : 'OFF'}</span></span>`;
+            }, 1000);
+        }
+    }
+
+    startAutoRefresh() {
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+        }
+        
+        if (this.autoRefreshEnabled) {
+            this.autoRefreshInterval = setInterval(() => {
+                if (document.visibilityState === 'visible') {
+                    this.loadInitialData();
+                }
+            }, this.refreshRate);
+        }
+    }
+
+    toggleAutoRefresh() {
+        this.autoRefreshEnabled = !this.autoRefreshEnabled;
+        
+        const button = document.getElementById('auto-refresh-button-text');
+        const status = document.getElementById('refresh-status');
+        
+        if (this.autoRefreshEnabled) {
+            button.textContent = 'Pause Auto-refresh';
+            status.textContent = 'ON';
+            this.startAutoRefresh();
+        } else {
+            button.textContent = 'Resume Auto-refresh';
+            status.textContent = 'OFF';
+            if (this.autoRefreshInterval) {
+                clearInterval(this.autoRefreshInterval);
+                this.autoRefreshInterval = null;
+            }
+        }
+        
+        // Save preference
+        localStorage.setItem('batchDashboardAutoRefresh', this.autoRefreshEnabled);
+    }
+
+    resetCreateJobForm() {
+        const form = document.getElementById('createJobForm');
+        form.reset();
+        
+        // Reset analysis types
+        document.querySelectorAll('input[name="analysis_types"]').forEach(cb => {
+            cb.checked = false;
+        });
+        
+        // Reset models selection
+        document.getElementById('modelsSelect').selectedIndex = -1;
+        
+        // Set default values
+        document.getElementById('jobPriority').value = 'normal';
+        document.getElementById('appRange').value = '1-5';
+        document.getElementById('autoStart').checked = true;
+    }
+
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show notification`;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 500px;
+        `;
+        
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 5000);
+    }
+
+    formatRelativeTime(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        
+        if (diffMins < 1) return 'just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
+    }
+}
+
+// Global functions for template use
+window.openCreateJobModal = function() {
+    $('#createJobModal').modal('show');
+};
+
+window.selectAllModels = function() {
+    const select = document.getElementById('modelsSelect');
+    for (let option of select.options) {
+        option.selected = true;
+    }
+};
+
+window.selectNoModels = function() {
+    const select = document.getElementById('modelsSelect');
+    for (let option of select.options) {
+        option.selected = false;
+    }
+};
+
+window.setAppRange = function(range) {
+    document.getElementById('appRange').value = range;
+};
+
+window.toggleCollapsible = function(header) {
+    const content = header.nextElementSibling;
+    const icon = header.querySelector('.toggle-icon');
+    
+    content.classList.toggle('active');
+    icon.classList.toggle('active');
+};
+
+window.refreshDashboard = function() {
+    batchDashboard.refreshDashboard();
+};
+
+window.toggleAutoRefresh = function() {
+    batchDashboard.toggleAutoRefresh();
+};
+
+// Initialize dashboard
+let batchDashboard;
+document.addEventListener('DOMContentLoaded', function() {
+    batchDashboard = new BatchDashboard();
+    
+    // Load saved auto-refresh preference
+    const savedAutoRefresh = localStorage.getItem('batchDashboardAutoRefresh');
+    if (savedAutoRefresh === 'false') {
+        batchDashboard.toggleAutoRefresh();
+    }
+});
+</script>
+{% endblock %}

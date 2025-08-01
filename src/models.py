@@ -30,6 +30,46 @@ class AnalysisStatus(enum.Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
 
+class JobStatus(enum.Enum):
+    """Status enum for batch jobs."""
+    PENDING = "pending"
+    QUEUED = "queued"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    ARCHIVED = "archived"
+
+class TaskStatus(enum.Enum):
+    """Status enum for batch tasks."""
+    PENDING = "pending"
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    RETRYING = "retrying"
+
+class JobPriority(enum.Enum):
+    """Priority levels for batch jobs."""
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    URGENT = "urgent"
+
+class AnalysisType(enum.Enum):
+    """Types of analysis that can be performed."""
+    SECURITY_BACKEND = "security_backend"
+    SECURITY_FRONTEND = "security_frontend"
+    SECURITY_COMBINED = "security_combined"
+    PERFORMANCE = "performance"
+    ZAP_SECURITY = "zap_security"
+    OPENROUTER = "openrouter"
+    CODE_QUALITY = "code_quality"
+    DEPENDENCY_CHECK = "dependency_check"
+    DOCKER_SCAN = "docker_scan"
+
 class SeverityLevel(enum.Enum):
     """Severity levels for security issues."""
     LOW = "low"
@@ -706,3 +746,504 @@ class BatchAnalysis(db.Model):
     
     def __repr__(self):
         return f'<BatchAnalysis {self.name}>'
+
+
+class BatchJob(db.Model):
+    """Enhanced model for batch analysis jobs with full database persistence."""
+    __tablename__ = 'batch_jobs'
+    
+    id = db.Column(db.String(36), primary_key=True)  # UUID string
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    
+    # Job configuration
+    status = db.Column(db.Enum(JobStatus), default=JobStatus.PENDING, index=True)
+    priority = db.Column(db.Enum(JobPriority), default=JobPriority.NORMAL, index=True)
+    auto_start = db.Column(db.Boolean, default=True)
+    auto_retry = db.Column(db.Boolean, default=False)
+    max_retries = db.Column(db.Integer, default=3)
+    
+    # Analysis configuration (JSON fields)
+    analysis_types_json = db.Column(db.Text)  # List of AnalysisType values
+    models_json = db.Column(db.Text)          # List of model slugs  
+    app_range_json = db.Column(db.Text)       # App range configuration
+    options_json = db.Column(db.Text)         # Additional options
+    
+    # Progress tracking
+    total_tasks = db.Column(db.Integer, default=0)
+    completed_tasks = db.Column(db.Integer, default=0)
+    failed_tasks = db.Column(db.Integer, default=0)
+    cancelled_tasks = db.Column(db.Integer, default=0)
+    
+    # Performance metrics
+    estimated_duration_minutes = db.Column(db.Integer)
+    actual_duration_seconds = db.Column(db.Float)
+    
+    # Error handling
+    error_message = db.Column(db.Text)
+    error_details_json = db.Column(db.Text)
+    
+    # Results summary
+    results_summary_json = db.Column(db.Text)
+    artifacts_json = db.Column(db.Text)  # Generated artifacts/reports
+    
+    # Timestamps
+    scheduled_at = db.Column(db.DateTime)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    last_heartbeat = db.Column(db.DateTime)  # For monitoring
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Foreign key to user (if user management is added later)
+    created_by = db.Column(db.String(100))  # For future user management
+    
+    # Relationships
+    tasks = db.relationship('BatchTask', backref='job', lazy=True, cascade='all, delete-orphan')
+    
+    def get_analysis_types(self):
+        """Get analysis types as list."""
+        if self.analysis_types_json:
+            try:
+                return json.loads(self.analysis_types_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_analysis_types(self, types_list):
+        """Set analysis types from list."""
+        self.analysis_types_json = json.dumps(types_list)
+    
+    def get_models(self):
+        """Get models as list."""
+        if self.models_json:
+            try:
+                return json.loads(self.models_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_models(self, models_list):
+        """Set models from list."""
+        self.models_json = json.dumps(models_list)
+    
+    def get_app_range(self):
+        """Get app range configuration."""
+        if self.app_range_json:
+            try:
+                return json.loads(self.app_range_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_app_range(self, app_range_dict):
+        """Set app range configuration."""
+        self.app_range_json = json.dumps(app_range_dict)
+    
+    def get_options(self):
+        """Get additional options."""
+        if self.options_json:
+            try:
+                return json.loads(self.options_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_options(self, options_dict):
+        """Set additional options."""
+        self.options_json = json.dumps(options_dict)
+    
+    def get_error_details(self):
+        """Get error details."""
+        if self.error_details_json:
+            try:
+                return json.loads(self.error_details_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_error_details(self, error_dict):
+        """Set error details."""
+        self.error_details_json = json.dumps(error_dict)
+    
+    def get_results_summary(self):
+        """Get results summary."""
+        if self.results_summary_json:
+            try:
+                return json.loads(self.results_summary_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_results_summary(self, summary_dict):
+        """Set results summary."""
+        self.results_summary_json = json.dumps(summary_dict)
+    
+    def get_artifacts(self):
+        """Get generated artifacts."""
+        if self.artifacts_json:
+            try:
+                return json.loads(self.artifacts_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_artifacts(self, artifacts_list):
+        """Set generated artifacts."""
+        self.artifacts_json = json.dumps(artifacts_list)
+    
+    def get_progress_percentage(self):
+        """Calculate progress percentage."""
+        if self.total_tasks == 0:
+            return 0
+        processed = self.completed_tasks + self.failed_tasks + self.cancelled_tasks
+        return round(processed / self.total_tasks * 100, 1)
+    
+    def get_success_rate(self):
+        """Calculate success rate percentage."""
+        processed = self.completed_tasks + self.failed_tasks
+        if processed == 0:
+            return 0
+        return round(self.completed_tasks / processed * 100, 1)
+    
+    def is_active(self):
+        """Check if job is currently active."""
+        return self.status in [JobStatus.QUEUED, JobStatus.RUNNING]
+    
+    def can_be_cancelled(self):
+        """Check if job can be cancelled."""
+        return self.status in [JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.PAUSED]
+    
+    def can_be_restarted(self):
+        """Check if job can be restarted."""
+        return self.status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]
+    
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'status': self.status.value if self.status else None,
+            'priority': self.priority.value if self.priority else None,
+            'auto_start': self.auto_start,
+            'auto_retry': self.auto_retry,
+            'max_retries': self.max_retries,
+            'analysis_types': self.get_analysis_types(),
+            'models': self.get_models(),
+            'app_range': self.get_app_range(),
+            'options': self.get_options(),
+            'total_tasks': self.total_tasks,
+            'completed_tasks': self.completed_tasks,
+            'failed_tasks': self.failed_tasks,
+            'cancelled_tasks': self.cancelled_tasks,
+            'progress_percentage': self.get_progress_percentage(),
+            'success_rate': self.get_success_rate(),
+            'estimated_duration_minutes': self.estimated_duration_minutes,
+            'actual_duration_seconds': self.actual_duration_seconds,
+            'error_message': self.error_message,
+            'error_details': self.get_error_details(),
+            'results_summary': self.get_results_summary(),
+            'artifacts': self.get_artifacts(),
+            'is_active': self.is_active(),
+            'can_be_cancelled': self.can_be_cancelled(),
+            'can_be_restarted': self.can_be_restarted(),
+            'created_by': self.created_by,
+            'scheduled_at': self.scheduled_at.isoformat() if self.scheduled_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+    
+    def __repr__(self):
+        return f'<BatchJob {self.name} ({self.status.value if self.status else "unknown"})>'
+
+
+class BatchTask(db.Model):
+    """Enhanced model for individual batch tasks with full database persistence."""
+    __tablename__ = 'batch_tasks'
+    
+    id = db.Column(db.String(36), primary_key=True)  # UUID string
+    job_id = db.Column(db.String(36), db.ForeignKey('batch_jobs.id'), nullable=False, index=True)
+    
+    # Task identification
+    model_slug = db.Column(db.String(200), nullable=False, index=True)
+    app_number = db.Column(db.Integer, nullable=False, index=True)
+    analysis_type = db.Column(db.Enum(AnalysisType), nullable=False, index=True)
+    
+    # Task configuration
+    status = db.Column(db.Enum(TaskStatus), default=TaskStatus.PENDING, index=True)
+    priority = db.Column(db.Enum(JobPriority), default=JobPriority.NORMAL)
+    retry_count = db.Column(db.Integer, default=0)
+    max_retries = db.Column(db.Integer, default=3)
+    
+    # Execution details
+    assigned_worker = db.Column(db.String(100))  # Worker ID/name
+    execution_host = db.Column(db.String(100))   # Host where task executed
+    process_id = db.Column(db.Integer)           # Process ID during execution
+    
+    # Performance metrics
+    estimated_duration_seconds = db.Column(db.Integer)
+    actual_duration_seconds = db.Column(db.Float)
+    memory_usage_mb = db.Column(db.Float)
+    cpu_usage_percent = db.Column(db.Float)
+    
+    # Results and errors
+    exit_code = db.Column(db.Integer)
+    error_message = db.Column(db.Text)
+    error_details_json = db.Column(db.Text)
+    
+    # Analysis results
+    results_json = db.Column(db.Text)
+    artifacts_json = db.Column(db.Text)  # Generated files/reports
+    
+    # Analysis-specific metrics
+    issues_found = db.Column(db.Integer, default=0)
+    critical_issues = db.Column(db.Integer, default=0)
+    high_issues = db.Column(db.Integer, default=0)
+    medium_issues = db.Column(db.Integer, default=0)
+    low_issues = db.Column(db.Integer, default=0)
+    
+    # Task dependencies (for future use)
+    depends_on_json = db.Column(db.Text)  # List of task IDs this depends on
+    
+    # Timestamps
+    queued_at = db.Column(db.DateTime)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    last_heartbeat = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def get_error_details(self):
+        """Get error details."""
+        if self.error_details_json:
+            try:
+                return json.loads(self.error_details_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_error_details(self, error_dict):
+        """Set error details."""
+        self.error_details_json = json.dumps(error_dict)
+    
+    def get_results(self):
+        """Get task results."""
+        if self.results_json:
+            try:
+                return json.loads(self.results_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_results(self, results_dict):
+        """Set task results."""
+        self.results_json = json.dumps(results_dict)
+    
+    def get_artifacts(self):
+        """Get generated artifacts."""
+        if self.artifacts_json:
+            try:
+                return json.loads(self.artifacts_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_artifacts(self, artifacts_list):
+        """Set generated artifacts."""
+        self.artifacts_json = json.dumps(artifacts_list)
+    
+    def get_depends_on(self):
+        """Get task dependencies."""
+        if self.depends_on_json:
+            try:
+                return json.loads(self.depends_on_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_depends_on(self, depends_list):
+        """Set task dependencies."""
+        self.depends_on_json = json.dumps(depends_list)
+    
+    def get_total_issues(self):
+        """Get total issues count."""
+        return self.critical_issues + self.high_issues + self.medium_issues + self.low_issues
+    
+    def can_be_retried(self):
+        """Check if task can be retried."""
+        return (
+            self.status in [TaskStatus.FAILED, TaskStatus.CANCELLED] and
+            self.retry_count < self.max_retries
+        )
+    
+    def can_be_cancelled(self):
+        """Check if task can be cancelled."""
+        return self.status in [TaskStatus.PENDING, TaskStatus.QUEUED, TaskStatus.RUNNING]
+    
+    def get_execution_summary(self):
+        """Get execution summary."""
+        duration = self.actual_duration_seconds
+        if duration and self.estimated_duration_seconds:
+            efficiency = round((self.estimated_duration_seconds / duration) * 100, 1)
+        else:
+            efficiency = None
+            
+        return {
+            'duration_seconds': duration,
+            'estimated_duration_seconds': self.estimated_duration_seconds,
+            'efficiency_percentage': efficiency,
+            'memory_usage_mb': self.memory_usage_mb,
+            'cpu_usage_percent': self.cpu_usage_percent,
+            'exit_code': self.exit_code,
+            'retry_count': self.retry_count,
+            'assigned_worker': self.assigned_worker,
+            'execution_host': self.execution_host
+        }
+    
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'job_id': self.job_id,
+            'model_slug': self.model_slug,
+            'app_number': self.app_number,
+            'analysis_type': self.analysis_type.value if self.analysis_type else None,
+            'status': self.status.value if self.status else None,
+            'priority': self.priority.value if self.priority else None,
+            'retry_count': self.retry_count,
+            'max_retries': self.max_retries,
+            'issues_found': self.issues_found,
+            'critical_issues': self.critical_issues,
+            'high_issues': self.high_issues,
+            'medium_issues': self.medium_issues,
+            'low_issues': self.low_issues,
+            'total_issues': self.get_total_issues(),
+            'execution_summary': self.get_execution_summary(),
+            'error_message': self.error_message,
+            'error_details': self.get_error_details(),
+            'results': self.get_results(),
+            'artifacts': self.get_artifacts(),
+            'depends_on': self.get_depends_on(),
+            'can_be_retried': self.can_be_retried(),
+            'can_be_cancelled': self.can_be_cancelled(),
+            'queued_at': self.queued_at.isoformat() if self.queued_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+    
+    def __repr__(self):
+        return f'<BatchTask {self.model_slug}/app{self.app_number} {self.analysis_type.value if self.analysis_type else "unknown"} ({self.status.value if self.status else "unknown"})>'
+
+
+class BatchWorker(db.Model):
+    """Model for tracking batch workers/processes."""
+    __tablename__ = 'batch_workers'
+    
+    id = db.Column(db.String(36), primary_key=True)  # UUID string
+    name = db.Column(db.String(100), nullable=False)
+    host = db.Column(db.String(100), nullable=False)
+    process_id = db.Column(db.Integer)
+    
+    # Worker status
+    status = db.Column(db.String(20), default='idle')  # idle, busy, offline, error
+    current_task_id = db.Column(db.String(36), db.ForeignKey('batch_tasks.id'), nullable=True)
+    
+    # Capabilities
+    supported_analysis_types_json = db.Column(db.Text)
+    max_concurrent_tasks = db.Column(db.Integer, default=1)
+    current_task_count = db.Column(db.Integer, default=0)
+    
+    # Performance metrics
+    total_tasks_completed = db.Column(db.Integer, default=0)
+    total_tasks_failed = db.Column(db.Integer, default=0)
+    average_task_duration = db.Column(db.Float)
+    
+    # Resource usage
+    cpu_usage_percent = db.Column(db.Float)
+    memory_usage_mb = db.Column(db.Float)
+    disk_usage_mb = db.Column(db.Float)
+    
+    # Health monitoring
+    last_heartbeat = db.Column(db.DateTime)
+    last_error = db.Column(db.Text)
+    error_count = db.Column(db.Integer, default=0)
+    
+    # Timestamps
+    started_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def get_supported_analysis_types(self):
+        """Get supported analysis types."""
+        if self.supported_analysis_types_json:
+            try:
+                return json.loads(self.supported_analysis_types_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_supported_analysis_types(self, types_list):
+        """Set supported analysis types."""
+        self.supported_analysis_types_json = json.dumps(types_list)
+    
+    def is_available(self):
+        """Check if worker is available for tasks."""
+        return (
+            self.status == 'idle' and
+            self.current_task_count < self.max_concurrent_tasks
+        )
+    
+    def is_healthy(self):
+        """Check if worker is healthy."""
+        if not self.last_heartbeat:
+            return False
+        
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(minutes=5)
+        return self.last_heartbeat > cutoff and self.status != 'error'
+    
+    def get_efficiency_rating(self):
+        """Calculate worker efficiency rating."""
+        total = self.total_tasks_completed + self.total_tasks_failed
+        if total == 0:
+            return 0
+        return round((self.total_tasks_completed / total) * 100, 1)
+    
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'host': self.host,
+            'process_id': self.process_id,
+            'status': self.status,
+            'current_task_id': self.current_task_id,
+            'supported_analysis_types': self.get_supported_analysis_types(),
+            'max_concurrent_tasks': self.max_concurrent_tasks,
+            'current_task_count': self.current_task_count,
+            'total_tasks_completed': self.total_tasks_completed,
+            'total_tasks_failed': self.total_tasks_failed,
+            'average_task_duration': self.average_task_duration,
+            'efficiency_rating': self.get_efficiency_rating(),
+            'cpu_usage_percent': self.cpu_usage_percent,
+            'memory_usage_mb': self.memory_usage_mb,
+            'disk_usage_mb': self.disk_usage_mb,
+            'is_available': self.is_available(),
+            'is_healthy': self.is_healthy(),
+            'last_error': self.last_error,
+            'error_count': self.error_count,
+            'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+    
+    def __repr__(self):
+        return f'<BatchWorker {self.name} ({self.status})>'
