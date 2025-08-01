@@ -3757,7 +3757,10 @@ def run_security_analysis(model, app_num):
         
         # Get application info
         app_info = AppDataProvider.get_app_info(model, app_num)
-        if not app_info['exists']:
+        
+        # Check if application directory exists
+        app_dir = base_path / model / f"app{app_num}"
+        if not app_dir.exists():
             return render_template_string("""
             <div class="alert alert-warning">
                 <h6>Application Not Found</h6>
@@ -3787,15 +3790,17 @@ def run_security_analysis(model, app_num):
                 use_all_tools=False
             )
         
-        if analysis_results['success']:
-            total_issues = analysis_results['total_issues']
-            categories = analysis_results['results']
+        # Check if analysis completed successfully
+        if analysis_results and not any('error' in result for result in analysis_results.values() if isinstance(result, dict)):
+            # Extract results from the analysis
+            categories = {k: v for k, v in analysis_results.items() if k != 'metadata'}
+            total_issues = sum(len(cat.get('issues', [])) for cat in categories.values() if isinstance(cat, dict))
             
             # Generate detailed results HTML
             results_html = []
             
             for category, data in categories.items():
-                if data['issues']:
+                if isinstance(data, dict) and data.get('issues'):
                     category_name = category.replace('_', ' ').title()
                     results_html.append(f"""
                     <div class="analysis-category mb-3">
@@ -3807,20 +3812,27 @@ def run_security_analysis(model, app_num):
                     """)
                     
                     for issue in data['issues'][:10]:  # Show first 10 issues
+                        # Issue is a dictionary, so access its properties correctly
+                        severity = issue.get('severity', 'LOW')
                         severity_class = {
                             'HIGH': 'severity-high',
                             'MEDIUM': 'severity-medium', 
                             'LOW': 'severity-low'
-                        }.get(issue.severity, 'severity-low')
+                        }.get(severity, 'severity-low')
+                        
+                        issue_text = issue.get('issue_text', 'Unknown issue')
+                        filename = issue.get('filename', 'unknown')
+                        line_number = issue.get('line_number', 0)
+                        tool = issue.get('tool', 'unknown')
                         
                         results_html.append(f"""
                         <div class="analysis-result-item {severity_class} mb-2">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
-                                    <strong>{issue.tool}</strong>: {issue.issue_text[:100]}{'...' if len(issue.issue_text) > 100 else ''}
-                                    <br><small class="text-muted">{issue.filename}:{issue.line_number}</small>
+                                    <strong>{tool}</strong>: {issue_text[:100]}{'...' if len(issue_text) > 100 else ''}
+                                    <br><small class="text-muted">{filename}:{line_number}</small>
                                 </div>
-                                <span class="badge badge-{'danger' if issue.severity == 'HIGH' else 'warning' if issue.severity == 'MEDIUM' else 'info'}">{issue.severity}</span>
+                                <span class="badge badge-{'danger' if severity == 'HIGH' else 'warning' if severity == 'MEDIUM' else 'info'}">{severity}</span>
                             </div>
                         </div>
                         """)
@@ -3867,7 +3879,10 @@ def run_security_analysis(model, app_num):
             total_issues=total_issues,
             results_html=''.join(results_html),
             timestamp=datetime.now().strftime('%H:%M:%S'),
-            vulnerability_count=sum(1 for cat in categories.values() for issue in cat['issues'] if issue.severity in ['HIGH', 'MEDIUM'])
+            vulnerability_count=sum(1 for cat in categories.values() 
+                                   if isinstance(cat, dict) and cat.get('issues')
+                                   for issue in cat['issues'] 
+                                   if issue.get('severity') in ['HIGH', 'MEDIUM'])
             )
         else:
             return render_template_string("""
