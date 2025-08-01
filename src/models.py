@@ -172,40 +172,29 @@ class PortConfiguration(db.Model):
         return f'<PortConfiguration frontend:{self.frontend_port} backend:{self.backend_port}>'
 
 class GeneratedApplication(db.Model):
-    """Model for storing generated application instances."""
+    """Model for storing information about AI-generated applications."""
     __tablename__ = 'generated_applications'
     
     id = db.Column(db.Integer, primary_key=True)
     model_slug = db.Column(db.String(200), nullable=False, index=True)
-    app_number = db.Column(db.Integer, nullable=False, index=True)
-    app_type = db.Column(db.String(200), nullable=False)
-    provider = db.Column(db.String(100), nullable=False, index=True)
-    
-    # Generation status
-    generation_status = db.Column(db.String(50), default='pending', index=True)
-    
-    # Application components
+    app_number = db.Column(db.Integer, nullable=False)
+    app_type = db.Column(db.String(50), nullable=False)
+    provider = db.Column(db.String(100), nullable=False, index=True)  # Added provider field
+    generation_status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING)
     has_backend = db.Column(db.Boolean, default=False)
     has_frontend = db.Column(db.Boolean, default=False)
     has_docker_compose = db.Column(db.Boolean, default=False)
-    
-    # Framework information
-    backend_framework = db.Column(db.String(100))
-    frontend_framework = db.Column(db.String(100))
-    
-    # Container status
-    container_status = db.Column(db.String(50), default='stopped', index=True)
-    
-    # JSON field for detailed metadata
+    backend_framework = db.Column(db.String(50))
+    frontend_framework = db.Column(db.String(50))
+    container_status = db.Column(db.String(50), default='stopped')
     metadata_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), 
+                          onupdate=db.func.current_timestamp())
     
     # Relationships
     security_analyses = db.relationship('SecurityAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
     performance_tests = db.relationship('PerformanceTest', backref='application', lazy=True, cascade='all, delete-orphan')
-    
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Unique constraint
     __table_args__ = (db.UniqueConstraint('model_slug', 'app_number', name='unique_model_app'),)

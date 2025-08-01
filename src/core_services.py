@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol, Tuple, Type, Union
 
 import docker
-from docker.errors import NotFound
+from docker.errors import NotFound as DockerNotFound
 from docker.models.containers import Container
 from dotenv import load_dotenv
 from flask import (
@@ -65,6 +65,19 @@ class AppDefaults:
 class AppConfig:
     """Unified application configuration."""
     
+    @staticmethod
+    def _safe_int_env(key: str, default: int) -> int:
+        """Safely parse an integer from environment variables."""
+        value = None  # Initialize value to avoid unbound variable
+        try:
+            value = os.getenv(key)
+            if value:
+                return int(value)
+            return default
+        except ValueError:
+            logging.warning(f"Invalid integer value for {key}: '{value}', using default: {default}")
+            return default
+
     def __init__(self):
         self.DEBUG = os.getenv("FLASK_ENV", "development") != "production"
         self.SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "your-secret-key-here")
@@ -86,17 +99,6 @@ class AppConfig:
         if self.SECRET_KEY == "your-secret-key-here" and not self.DEBUG:
             logging.warning("SECURITY WARNING: FLASK_SECRET_KEY is not set in production!")
     
-    @staticmethod
-    def _safe_int_env(key: str, default: int) -> int:
-        """Safely parse an integer from environment variables."""
-        try:
-            value = os.getenv(key)
-            return int(value) if value else default
-        except ValueError:
-            logging.warning(f"Invalid integer value for {key}: '{value}', using default: {default}")
-            return default
-
-
 # ===========================
 # LOGGING SERVICE
 # ===========================
@@ -179,13 +181,19 @@ class LoggingService:
                 
                 try:
                     if hasattr(record, 'args') and record.args:
-                        request_line = str(record.args[0])
+                        request_line = str(record.args[0]) if record.args else ""
                         parts = request_line.split()
                         if len(parts) >= 2:
                             path = parts[1]
                             if any(excluded in path for excluded in self.EXCLUDED_PATHS):
-                                status_code = record.args[1] if len(record.args) > 1 else 200
-                                return status_code >= 400
+                                # Access status code more safely
+                                if len(record.args) > 1:
+                                    try:
+                                        status_code = int(str(record.args[1]))
+                                        return status_code >= 400
+                                    except (ValueError, TypeError, IndexError):
+                                        return True
+                                return True
                 except:
                     pass
                 return True
@@ -649,7 +657,7 @@ class BatchTask:
     error: Optional[Dict[str, str]] = None
     issues_count: Optional[int] = None
     created_at: datetime = field(default_factory=datetime.now)
-    updated_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = field(default=None)
     
     def update(self):
         """Update the updated_at timestamp."""
@@ -801,7 +809,7 @@ class DockerManager(BaseService):
                 status=container_status,
                 details=state.get("Status", "unknown")
             )
-        except docker.errors.NotFound:
+        except DockerNotFound:
             return DockerStatus(exists=False, status="not_found")
         except Exception as e:
             self.logger.error(f"Error fetching status for {container_name}: {e}")
@@ -835,35 +843,50 @@ class DockerManager(BaseService):
             project_name = DockerUtils.get_project_name(model, app_num)
             compose_dir = compose_file.parent
             
-            # Build full command
-            cmd = ["docker-compose", "-p", project_name, "-f", str(compose_file)] + command
+            # Build full command - try docker compose first, then docker-compose
+            base_commands = [
+                ["docker", "compose"],
+                ["docker-compose"]
+            ]
             
-            self.logger.info(f"Executing: {' '.join(cmd)}")
+            for base_cmd in base_commands:
+                cmd = base_cmd + ["-p", project_name, "-f", str(compose_file)] + command
+                
+                self.logger.info(f"Executing: {' '.join(cmd)}")
+                
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        cwd=str(compose_dir),
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                    )
+                    
+                    # If command succeeded or it's a real error (not command not found)
+                    if result.returncode == 0 or "command not found" not in result.stderr.lower():
+                        output = result.stdout + ("\n--- STDERR ---\n" + result.stderr if result.stderr else "")
+                        
+                        return {
+                            'success': result.returncode == 0,
+                            'output': output,
+                            'project_name': project_name,
+                            'message': 'Command executed successfully' if result.returncode == 0 else 'Command failed',
+                            'error': output if result.returncode != 0 else None
+                        }
+                except subprocess.TimeoutExpired:
+                    return {'success': False, 'error': f"Command timed out after {timeout}s"}
+                except FileNotFoundError:
+                    # Try next command
+                    continue
             
-            result = subprocess.run(
-                cmd,
-                cwd=str(compose_dir),
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            )
+            # If we get here, no command worked
+            return {'success': False, 'error': 'Docker Compose not found. Please install Docker Compose.'}
             
-            output = result.stdout + ("\n--- STDERR ---\n" + result.stderr if result.stderr else "")
-            
-            return {
-                'success': result.returncode == 0,
-                'output': output,
-                'project_name': project_name,
-                'message': 'Command executed successfully' if result.returncode == 0 else 'Command failed',
-                'error': output if result.returncode != 0 else None
-            }
-            
-        except subprocess.TimeoutExpired:
-            return {'success': False, 'error': f"Command timed out after {timeout}s"}
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
+
     def start_containers(self, compose_path: str, model: str, app_num: int) -> Dict[str, Any]:
         """Start containers using docker-compose."""
         # Stop any conflicting containers first
@@ -996,20 +1019,27 @@ class PortManager(CacheableService):
         config = self.get_app_config(model_name, app_number)
         if not config:
             return None
+        
+        backend_port = config.get('backend_port')
+        frontend_port = config.get('frontend_port')
+        
+        # Ensure ports are integers
+        if backend_port is None or frontend_port is None:
+            return None
+            
         return {
-            "backend": config.get('backend_port'),
-            "frontend": config.get('frontend_port')
+            "backend": int(backend_port),
+            "frontend": int(frontend_port)
         }
-    
-    def get_model_apps(self, model_name: str) -> List[Dict[str, Any]]:
-        """Get all apps for a model."""
-        return [config for config in self.port_config 
-                if config.get('model_name') == model_name]
     
     def get_all_models(self) -> List[str]:
         """Get all unique model names."""
-        return list(set(config.get('model_name') for config in self.port_config 
-                       if config.get('model_name')))
+        models = []
+        for config in self.port_config:
+            model_name = config.get('model_name')
+            if model_name and isinstance(model_name, str):
+                models.append(model_name)
+        return list(set(models))
 
 
 # ===========================
@@ -1101,64 +1131,71 @@ class ScanManager(BaseService):
         try:
             self.logger.info(f"Starting security analysis for {model} app {app_num}")
             
-            # Import the security analysis service
-            from security_analysis_service import UnifiedCLIAnalyzer
-            from security_analysis_service import ToolCategory
-            
-            # Initialize the analyzer
-            analyzer = UnifiedCLIAnalyzer(Path.cwd())
-            
-            # Determine categories based on enabled tools
-            categories = []
-            if any(tool in enabled_tools and enabled_tools[tool] for tool in ['bandit', 'safety', 'semgrep']):
-                categories.append(ToolCategory.BACKEND_SECURITY)
-            if any(tool in enabled_tools and enabled_tools[tool] for tool in ['eslint', 'npm_audit', 'retire']):
-                categories.append(ToolCategory.FRONTEND_SECURITY)
-            
-            # If no specific tools enabled, use both categories
-            if not categories:
-                categories = [ToolCategory.BACKEND_SECURITY, ToolCategory.FRONTEND_SECURITY]
-            
-            # Run the analysis
-            results = analyzer.run_analysis(
-                model=model,
-                app_num=app_num,
-                categories=categories,
-                use_all_tools=False,
-                force_rerun=False
-            )
-            
-            # Format results for web interface
-            if results and isinstance(results, dict):
-                total_issues = 0
-                for category_result in results.values():
-                    if isinstance(category_result, dict) and 'issues' in category_result:
-                        total_issues += len(category_result['issues'])
+            # Try to import the security analysis service dynamically
+            try:
+                from security_analysis_service import UnifiedCLIAnalyzer, ToolCategory
                 
-                return {
-                    'success': True,
-                    'data': {
-                        'issues': [],  # Simplified for now
-                        'total_issues': total_issues,
-                        'categories': list(results.keys())
+                # Initialize the analyzer
+                analyzer = UnifiedCLIAnalyzer(Path.cwd())
+                
+                # Determine categories based on enabled tools
+                categories = []
+                if any(tool in enabled_tools and enabled_tools[tool] for tool in ['bandit', 'safety', 'semgrep']):
+                    categories.append(ToolCategory.BACKEND_SECURITY)
+                if any(tool in enabled_tools and enabled_tools[tool] for tool in ['eslint', 'npm_audit', 'retire']):
+                    categories.append(ToolCategory.FRONTEND_SECURITY)
+                
+                # If no specific tools enabled, use both categories
+                if not categories:
+                    categories = [ToolCategory.BACKEND_SECURITY, ToolCategory.FRONTEND_SECURITY]
+                
+                # Run the analysis
+                results = analyzer.run_analysis(
+                    model=model,
+                    app_num=app_num,
+                    categories=categories,
+                    use_all_tools=False,
+                    force_rerun=False
+                )
+                
+                # Format results for web interface
+                if results and isinstance(results, dict):
+                    total_issues = 0
+                    for category_result in results.values():
+                        if isinstance(category_result, dict) and 'issues' in category_result:
+                            total_issues += len(category_result['issues'])
+                    
+                    return {
+                        'success': True,
+                        'data': {
+                            'issues': [],  # Simplified for now
+                            'total_issues': total_issues,
+                            'categories': list(results.keys())
+                        }
                     }
-                }
-            else:
+                else:
+                    return {
+                        'success': True,
+                        'data': {
+                            'issues': [],
+                            'total_issues': 0,
+                            'categories': []
+                        }
+                    }
+                    
+            except ImportError as e:
+                self.logger.warning(f"Security analysis service not available: {e}")
+                # Return a mock response when service is not available
                 return {
                     'success': True,
                     'data': {
                         'issues': [],
                         'total_issues': 0,
-                        'categories': []
+                        'categories': [],
+                        'warning': 'Security analysis service not available'
                     }
                 }
                 
-        except ImportError as e:
-            self.logger.error(f"Security analysis service not available: {e}")
-            return {
-                'success': False,
-                'error': 'Security analysis service not available'
-            }
         except Exception as e:
             self.logger.error(f"Security analysis failed: {e}")
             return {
@@ -1333,21 +1370,33 @@ class BatchTaskWorker:
     def _get_analyzer(self, analysis_type: str):
         """Get the appropriate analyzer for the analysis type."""
         analyzer_map = {
-            AnalysisType.FRONTEND_SECURITY: 'frontend_security_analyzer',
-            AnalysisType.BACKEND_SECURITY: 'backend_security_analyzer',
-            AnalysisType.PERFORMANCE: 'performance_analyzer',
-            AnalysisType.ZAP: 'zap_scanner',
-            AnalysisType.GPT4ALL: 'gpt4all_analyzer',
-            AnalysisType.CODE_QUALITY: 'code_quality_analyzer'
+            AnalysisType.FRONTEND_SECURITY.value: 'frontend_security_analyzer',
+            AnalysisType.BACKEND_SECURITY.value: 'backend_security_analyzer',
+            AnalysisType.PERFORMANCE.value: 'performance_service',
+            AnalysisType.ZAP.value: 'zap_service',
+            AnalysisType.GPT4ALL.value: 'gpt4all_analyzer',
+            AnalysisType.CODE_QUALITY.value: 'code_quality_analyzer'
         }
         
         analyzer_name = analyzer_map.get(analysis_type)
         if analyzer_name:
+            # Try to get from service manager first
+            if hasattr(self.app, 'config') and 'service_manager' in self.app.config:
+                service_manager = self.app.config['service_manager']
+                analyzer = service_manager.get_service(analyzer_name)
+                if analyzer:
+                    return analyzer
+            
+            # Fallback to direct app attribute
             return getattr(self.app, analyzer_name, None)
         return None
     
     def _run_analysis(self, analyzer, task: BatchTask) -> Dict[str, Any]:
         """Run the analysis using the analyzer."""
+        # Handle mock services
+        if hasattr(analyzer, '__class__') and 'Mock' in analyzer.__class__.__name__:
+            return {"status": "unavailable", "message": f"{task.analysis_type} service not installed"}
+        
         # This is a simplified version - implement specific logic for each analyzer
         if hasattr(analyzer, 'analyze_app'):
             return analyzer.analyze_app(task.model, task.app_num)
@@ -1516,8 +1565,9 @@ class BatchAnalysisService(BaseService):
                 if self.shutdown_event.is_set():
                     break
                 
-                future = self.worker_pool.submit(worker.execute_task, task)
-                futures.append((future, task))
+                if self.worker_pool is not None:
+                    future = self.worker_pool.submit(worker.execute_task, task)
+                    futures.append((future, task))
             
             # Process results
             for future, task in futures:
@@ -1558,6 +1608,16 @@ class BatchAnalysisService(BaseService):
                 if job_id in self.job_threads:
                     del self.job_threads[job_id]
     
+    def pause_job(self, job_id: str) -> bool:
+        """Pause a running job (not implemented - jobs cannot be paused)."""
+        # Note: JobStatus doesn't have PAUSED state
+        return False
+    
+    def resume_job(self, job_id: str) -> bool:
+        """Resume a paused job (not implemented - jobs cannot be paused)."""
+        # Note: JobStatus doesn't have PAUSED state  
+        return False
+
     def get_job(self, job_id: str) -> Optional[BatchJob]:
         """Get a specific job."""
         return self.jobs.get(job_id)
@@ -1585,126 +1645,6 @@ class BatchAnalysisService(BaseService):
         
         return stats
     
-    def get_detailed_statistics(self) -> Dict[str, Any]:
-        """Get detailed job and task statistics."""
-        with self._lock:
-            stats = {
-                'total_jobs': len(self.jobs),
-                'pending_jobs': 0,
-                'running_jobs': 0,
-                'completed_jobs': 0,
-                'failed_jobs': 0,
-                'cancelled_jobs': 0,
-                'archived_jobs': 0,
-                'total_tasks': len(self.tasks),
-                'pending_tasks': 0,
-                'running_tasks': 0,
-                'completed_tasks': 0,
-                'failed_tasks': 0,
-                'success_rate': 0.0
-            }
-            
-            # Count job statuses
-            for job in self.jobs.values():
-                status_key = f"{job.status.value}_jobs"
-                if status_key in stats:
-                    stats[status_key] += 1
-            
-            # Count task statuses
-            for task in self.tasks.values():
-                status_key = f"{task.status.value}_tasks"
-                if status_key in stats:
-                    stats[status_key] += 1
-            
-            # Calculate success rate
-            total_completed = stats['completed_tasks'] + stats['failed_tasks']
-            if total_completed > 0:
-                stats['success_rate'] = round((stats['completed_tasks'] / total_completed) * 100, 1)
-                
-            return stats
-    
-    def get_job_tasks(self, job_id: str) -> List[BatchTask]:
-        """Get all tasks for a specific job."""
-        with self._lock:
-            return [task for task in self.tasks.values() if task.job_id == job_id]
-    
-    def get_task(self, task_id: str) -> Optional[BatchTask]:
-        """Get a specific task by ID."""
-        with self._lock:
-            return self.tasks.get(task_id)
-    
-    def cancel_job(self, job_id: str) -> bool:
-        """Cancel a running or pending job."""
-        job = self.jobs.get(job_id)
-        if not job:
-            return False
-        
-        if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
-            return False
-        
-        with self._lock:
-            job.status = JobStatus.CANCELLED
-            job.completed_at = datetime.now()
-            
-            # Cancel running thread if exists
-            if job_id in self.job_threads:
-                # Note: Python threads can't be forcefully stopped
-                # We rely on shutdown_event being checked in the execution loop
-                pass
-        
-        self.logger.info(f"Cancelled job: {job_id}")
-        return True
-    
-    def pause_job(self, job_id: str) -> bool:
-        """Pause a running job."""
-        job = self.jobs.get(job_id)
-        if not job or job.status != JobStatus.RUNNING:
-            return False
-        
-        with self._lock:
-            job.status = JobStatus.PAUSED
-        
-        self.logger.info(f"Paused job: {job_id}")
-        return True
-    
-    def resume_job(self, job_id: str) -> bool:
-        """Resume a paused job."""
-        job = self.jobs.get(job_id)
-        if not job or job.status != JobStatus.PAUSED:
-            return False
-        
-        with self._lock:
-            job.status = JobStatus.RUNNING
-        
-        # Restart the job execution
-        self.start_job(job_id)
-        self.logger.info(f"Resumed job: {job_id}")
-        return True
-    
-    def delete_job(self, job_id: str) -> bool:
-        """Delete a job and all its tasks."""
-        job = self.jobs.get(job_id)
-        if not job:
-            return False
-        
-        # Only allow deletion of completed, failed, or cancelled jobs
-        if job.status in [JobStatus.RUNNING, JobStatus.PENDING]:
-            return False
-        
-        with self._lock:
-            # Remove job
-            if job_id in self.jobs:
-                del self.jobs[job_id]
-            
-            # Remove associated tasks
-            tasks_to_remove = [task_id for task_id, task in self.tasks.items() 
-                             if task.job_id == job_id]
-            for task_id in tasks_to_remove:
-                del self.tasks[task_id]
-        
-        self.logger.info(f"Deleted job: {job_id}")
-        return True
-    
     def cleanup(self):
         """Cleanup resources."""
         self.shutdown_event.set()
@@ -1725,39 +1665,82 @@ class AppContext:
     @staticmethod
     def get_docker_manager() -> DockerManager:
         """Get Docker manager from app context."""
-        if not hasattr(current_app, 'docker_manager'):
-            raise RuntimeError("Docker manager not available")
-        return current_app.docker_manager
+        # Check config first, then attributes
+        docker_manager = current_app.config.get('docker_manager')
+        if docker_manager:
+            return docker_manager
+        
+        # Check if it's registered as an attribute via ServiceManager
+        service_manager = current_app.config.get('service_manager')
+        if service_manager:
+            docker_manager = service_manager.get_service('docker_manager')
+            if docker_manager:
+                return docker_manager
+            
+        raise RuntimeError("Docker manager not available")
     
     @staticmethod
     def get_port_manager() -> PortManager:
         """Get Port manager from app context."""
-        if not hasattr(current_app, 'port_manager'):
-            raise RuntimeError("Port manager not available")
-        return current_app.port_manager
+        # Check config first, then attributes
+        port_manager = current_app.config.get('port_manager')
+        if port_manager:
+            return port_manager
+        
+        # Check if it's registered via ServiceManager
+        service_manager = current_app.config.get('service_manager')
+        if service_manager:
+            port_manager = service_manager.get_service('port_manager')
+            if port_manager:
+                return port_manager
+            
+        raise RuntimeError("Port manager not available")
     
     @staticmethod
     def get_scan_manager() -> ScanManager:
         """Get Scan manager from app context."""
-        if not hasattr(current_app, 'scan_manager'):
-            raise RuntimeError("Scan manager not available")
-        return current_app.scan_manager
+        # Check config first, then attributes
+        scan_manager = current_app.config.get('scan_manager')
+        if scan_manager:
+            return scan_manager
+        
+        # Check if it's registered via ServiceManager
+        service_manager = current_app.config.get('service_manager')
+        if service_manager:
+            scan_manager = service_manager.get_service('scan_manager')
+            if scan_manager:
+                return scan_manager
+            
+        raise RuntimeError("Scan manager not available")
     
     @staticmethod
     def get_batch_service() -> BatchAnalysisService:
         """Get Batch service from app context."""
-        if not hasattr(current_app, 'batch_service'):
-            raise RuntimeError("Batch service not available")
-        return current_app.batch_service
+        # Check config first, then attributes
+        batch_service = current_app.config.get('batch_service')
+        if batch_service:
+            return batch_service
+        
+        # Check if it's registered via ServiceManager
+        service_manager = current_app.config.get('service_manager')
+        if service_manager:
+            batch_service = service_manager.get_service('batch_service')
+            if batch_service:
+                return batch_service
+            
+        raise RuntimeError("Batch service not available")
     
     @staticmethod
-    def get_model_service() -> ModelIntegrationService:
+    def get_model_service() -> Optional[ModelIntegrationService]:
         """Get Model service from app context."""
-        return current_app.config.get('MODEL_SERVICE')
+        model_service = current_app.config.get('MODEL_SERVICE')
+        if isinstance(model_service, ModelIntegrationService):
+            return model_service
+        return None
     
     @staticmethod
     def get_ai_models() -> List[AIModel]:
-        """Get AI models from app context."""
+        """Get AI models from app context.""" 
         return current_app.config.get('AI_MODELS', [])
     
     @staticmethod
@@ -1835,11 +1818,22 @@ class AppUtils:
     @staticmethod
     def get_app_directory(model: str, app_num: int) -> Path:
         """Get the directory path for a specific application."""
-        models_base_dir = Path(current_app.config['APP_CONFIG'].MODELS_BASE_DIR)
+        app_config = current_app.config.get('APP_CONFIG')
+        if app_config and hasattr(app_config, 'MODELS_BASE_DIR'):
+            models_base_dir = Path(app_config.MODELS_BASE_DIR)
+        else:
+            # Fallback to default
+            models_base_dir = Path(__file__).parent.parent / "models"
+            
         app_path = models_base_dir / model / f"app{app_num}"
         
         if not app_path.is_dir():
-            raise FileNotFoundError(f"Application directory not found: {app_path}")
+            # Try misc/models path as fallback
+            misc_models_dir = Path(__file__).parent.parent / "misc" / "models"
+            app_path = misc_models_dir / model / f"app{app_num}"
+            
+            if not app_path.is_dir():
+                raise FileNotFoundError(f"Application directory not found: {app_path}")
         
         return app_path
     
@@ -1875,315 +1869,6 @@ class AppUtils:
             
         except Exception as e:
             return False, str(e)
-
-
-# ===========================
-# SERVICE MANAGER
-# ===========================
-
-class ServiceManager:
-    """Manages application services lifecycle."""
-    
-    def __init__(self, app: Flask):
-        self.app = app
-        self.logger = get_logger('service_manager')
-        self._services = {}
-    
-    def register(self, name: str, service: Any):
-        """Register a service."""
-        self._services[name] = service
-        setattr(self.app, name, service)
-        self.logger.info(f"Registered service: {name}")
-    
-    def register_service(self, name: str, service: Any):
-        """Register a service (alias for register method)."""
-        return self.register(name, service)
-    
-    def get_service(self, name: str):
-        """Get a registered service."""
-        return self._services.get(name)
-    
-    def cleanup(self):
-        """Cleanup all services."""
-        for name, service in self._services.items():
-            try:
-                if hasattr(service, 'cleanup'):
-                    service.cleanup()
-                self.logger.info(f"Cleaned up service: {name}")
-            except Exception as e:
-                self.logger.error(f"Error cleaning up {name}: {e}")
-
-
-class ServiceInitializer:
-    """Initializes application services in the correct order."""
-    
-    def __init__(self, app: Flask, service_manager: ServiceManager):
-        self.app = app
-        self.service_manager = service_manager
-        self.logger = get_logger('service_initializer')
-    
-    def initialize_all(self):
-        """Initialize all services in the correct order."""
-        try:
-            self.logger.info("Starting service initialization...")
-            
-            # Initialize port manager (lightweight, no dependencies)
-            self.initialize_port_manager()
-            
-            # Initialize docker manager
-            self.initialize_docker_service()
-            
-            # Initialize scan manager
-            self.initialize_scan_service()
-            
-            # Initialize batch service
-            self.initialize_batch_service()
-            
-            # Initialize performance service if configured
-            self.initialize_performance_service()
-            
-            # Initialize ZAP service
-            self.initialize_zap_service()
-
-            self.logger.info("All services initialized successfully")
-            
-        except Exception as e:
-            self.logger.error(f"Error during service initialization: {e}")
-            raise
-    
-    def initialize_port_manager(self):
-        """Initialize the port manager service."""
-        try:
-            # Get port configuration from app config
-            port_config = self.app.config.get('PORT_CONFIG', [])
-            port_manager = PortManager(port_config)
-            self.service_manager.register('port_manager', port_manager)
-            self.logger.info(f"Port manager initialized with {len(port_config)} configurations")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize port manager: {e}")
-            raise
-    
-    def initialize_docker_service(self):
-        """Initialize the Docker manager service."""
-        try:
-            docker_manager = DockerManager()
-            self.service_manager.register('docker_manager', docker_manager)
-            self.logger.info("Docker manager initialized")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Docker manager: {e}")
-            # Don't raise - Docker might not be available in all environments
-    
-    def initialize_scan_service(self):
-        """Initialize the scan manager service."""
-        try:
-            scan_manager = ScanManager()
-            self.service_manager.register('scan_manager', scan_manager)
-            self.logger.info("Scan manager initialized")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize scan manager: {e}")
-            # Don't raise - scanning might not be available in all environments
-    
-    def initialize_batch_service(self):
-        """Initialize the batch processing service."""
-        try:
-            batch_service = BatchAnalysisService()
-            self.service_manager.register('batch_service', batch_service)
-            self.logger.info("Batch service initialized")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize batch service: {e}")
-            # Don't raise - batch processing is optional
-    
-    def initialize_performance_service(self):
-        """Initialize the performance service."""
-        try:
-            # Import and initialize the performance service
-            from performance_service import LocustPerformanceTester
-            from pathlib import Path
-            
-            # Create performance tester instance
-            output_dir = Path.cwd() / "performance_reports"
-            performance_service = LocustPerformanceTester(output_dir)
-            
-            # Register with service manager
-            self.service_manager.register('performance_service', performance_service)
-            self.logger.info("Performance service initialized successfully")
-            
-        except ImportError as e:
-            self.logger.warning(f"Performance service not available: {e}")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize performance service: {e}")
-            # Don't raise - performance monitoring is optional
-    
-    def initialize_zap_service(self):
-        """Initialize the ZAP scanning service."""
-        try:
-            # Import and initialize the ZAP service
-            from zap_service import ZAPScanner
-            from pathlib import Path
-            
-            # Create ZAP scanner instance directly
-            base_path = Path.cwd() / "zap_reports"
-            zap_service = ZAPScanner(base_path)
-            
-            # Register with service manager
-            self.service_manager.register('zap_service', zap_service)
-            self.logger.info("ZAP service initialized successfully")
-            
-        except ImportError as e:
-            self.logger.warning(f"ZAP service not available: {e}")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize ZAP service: {e}")
-            # Don't raise - ZAP scanning is optional
-
-
-# ===========================
-# FLASK APPLICATION FACTORY
-# ===========================
-
-class FlaskApplicationFactory:
-    """Factory for creating Flask applications."""
-    
-    def create_app(self) -> Flask:
-        """Create and configure the Flask application."""
-        try:
-            # Create Flask instance
-            app = Flask(__name__)
-            
-            # Load configuration
-            config = AppConfig()
-            app.config.from_object(config)
-            app.config['APP_CONFIG'] = config
-            
-            # Setup logging
-            LoggingService.setup(app)
-            logger = get_logger('app')
-            
-            # Setup proxy fix
-            app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-            
-            # Initialize services
-            service_manager = ServiceManager(app)
-            self._initialize_services(app, service_manager)
-            
-            # Register blueprints
-            self._register_blueprints(app)
-            
-            # Setup error handlers
-            self._setup_error_handlers(app)
-            
-            # Setup context processors
-            self._setup_context_processors(app)
-            
-            # Register cleanup
-            atexit.register(lambda: service_manager.cleanup())
-            
-            logger.info("Application initialized successfully")
-            return app
-            
-        except Exception as e:
-            raise InitializationError(f"Failed to create application: {e}")
-    
-    def _initialize_services(self, app: Flask, service_manager: ServiceManager):
-        """Initialize all application services."""
-        # Load port configuration
-        port_config = self._load_port_config(app.config['APP_CONFIG'].BASE_DIR.parent)
-        app.config['PORT_CONFIG'] = port_config
-        
-        # Initialize model service
-        model_service = ModelIntegrationService(app.config['APP_CONFIG'].BASE_DIR.parent)
-        app.config['MODEL_SERVICE'] = model_service
-        app.config['AI_MODELS'] = self._extract_ai_models(port_config, model_service)
-        
-        # Initialize core services
-        service_manager.register('docker_manager', DockerManager())
-        service_manager.register('port_manager', PortManager(port_config))
-        service_manager.register('scan_manager', ScanManager())
-        
-        # Initialize batch service
-        batch_service = BatchAnalysisService()
-        batch_service.init_app(app)
-        service_manager.register('batch_service', batch_service)
-        
-        # Initialize analyzers (simplified - would load actual analyzers)
-        self._initialize_analyzers(app, service_manager)
-    
-    def _load_port_config(self, base_path: Path) -> List[Dict[str, Any]]:
-        """Load port configuration."""
-        config_path = base_path / "port_config.json"
-        
-        if not config_path.exists():
-            return []
-        
-        try:
-            with open(config_path, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            get_logger('config').error(f"Failed to load port config: {e}")
-            return []
-    
-    def _extract_ai_models(self, port_config: List[Dict[str, Any]], 
-                          model_service: ModelIntegrationService) -> List[AIModel]:
-        """Extract AI models from configuration."""
-        models = []
-        seen_models = set()
-        
-        for config in port_config:
-            model_name = config.get('model_name')
-            if model_name and model_name not in seen_models:
-                seen_models.add(model_name)
-                
-                # Get model from service if available
-                model_data = model_service.get_model(model_name)
-                if model_data:
-                    models.append(model_data)
-                else:
-                    # Create basic model
-                    models.append(AIModel(name=model_name))
-        
-        return models
-    
-    def _initialize_analyzers(self, app: Flask, service_manager: ServiceManager):
-        """Initialize analyzer services (placeholder for actual analyzers)."""
-        # This would load actual analyzers like:
-        # - frontend_security_analyzer
-        # - backend_security_analyzer
-        # - performance_analyzer
-        # - zap_scanner
-        # - gpt4all_analyzer
-        # - code_quality_analyzer
-        pass
-    
-    def _register_blueprints(self, app: Flask):
-        """Register application blueprints."""
-        # Register main routes
-        app.register_blueprint(create_main_blueprint())
-        app.register_blueprint(create_api_blueprint())
-        app.register_blueprint(create_docker_blueprint())
-        app.register_blueprint(create_batch_blueprint())
-    
-    def _setup_error_handlers(self, app: Flask):
-        """Setup error handlers."""
-        @app.errorhandler(404)
-        def not_found(e):
-            if request.path.startswith('/api/'):
-                return create_api_response(False, error="Not found", code=404)
-            return render_template('404.html'), 404
-        
-        @app.errorhandler(500)
-        def server_error(e):
-            if request.path.startswith('/api/'):
-                return create_api_response(False, error="Internal server error", code=500)
-            return render_template('500.html'), 500
-    
-    def _setup_context_processors(self, app: Flask):
-        """Setup template context processors."""
-        @app.context_processor
-        def inject_globals():
-            return {
-                'ai_models': AppContext.get_ai_models,
-                'get_app_info': AppUtils.get_app_info
-            }
-
 
 # ===========================
 # BLUEPRINTS
@@ -2289,6 +1974,11 @@ def create_docker_blueprint() -> Blueprint:
         if not all([action, model, app_num]):
             return create_api_response(False, error="Missing required parameters", code=400)
         
+        try:
+            app_num = int(app_num)  # Ensure app_num is an integer
+        except (ValueError, TypeError):
+            return create_api_response(False, error="Invalid app_num", code=400)
+        
         success, message = AppUtils.handle_docker_action(action, model, app_num)
         
         return create_api_response(success, message=message, code=200 if success else 500)
@@ -2378,7 +2068,7 @@ def get_docker_project_name(model: str, app_num: int) -> str:
         Sanitized project name (e.g., 'anthropic_claude_3_sonnet_app1')
     """
     # Replace special characters with underscores and make lowercase
-    sanitized_model = re.sub(r'[^a-zA-Z0-9_]', '_', model.lower())
+    sanitized_model = re.sub(r'[^aA-Zz0-9_]', '_', model.lower())
     # Remove multiple consecutive underscores
     sanitized_model = re.sub(r'_+', '_', sanitized_model)
     # Remove leading/trailing underscores
@@ -2467,15 +2157,32 @@ def main():
         logger = get_logger('main')
         logger.info(f"Starting Flask application on {config.HOST}:{config.PORT}")
         
+        # Add startup message
+        print(f"""
+╔══════════════════════════════════════════════════════════════╗
+║           Thesis Research App - Core Services                ║
+╚══════════════════════════════════════════════════════════════╝
+
+🚀 Starting server at http://{config.HOST}:{config.PORT}
+📋 Debug mode: {config.DEBUG}
+📁 Log directory: {config.LOG_DIR}
+🔧 Max workers: {config.BATCH_MAX_WORKERS}
+
+Press Ctrl+C to stop the server
+        """)
+        
         app.run(
             host=config.HOST,
             port=config.PORT,
             debug=config.DEBUG,
             threaded=True
         )
+    except KeyboardInterrupt:
+        print("\n👋 Server stopped by user")
+        return 0
     except Exception as e:
         print(f"Failed to start application: {e}")
-        return 1
+        return  1
     
     return 0
 

@@ -27,7 +27,7 @@ sys.path.insert(0, str(src_dir))
 
 # Import Flask components
 from app import create_app
-from models import ModelCapability, GeneratedApplication, PortConfiguration
+from models import ModelCapability, GeneratedApplication, PortConfiguration, AnalysisStatus
 from extensions import db
 
 # Configure logging
@@ -87,55 +87,53 @@ def main():
                     logger.info(f"Processing model: {model_id}")
                     
                     # Create ModelCapability entry
-                    model_capability = ModelCapability(
-                        model_id=model_data.get('model_id'),
-                        canonical_slug=model_data.get('canonical_slug', model_id.replace('/', '_')),
-                        provider=model_data.get('provider', 'unknown'),
-                        model_name=model_data.get('model_name', model_id),
-                        is_free=model_data.get('is_free', False),
-                        context_window=model_data.get('context_window', 0),
-                        max_output_tokens=model_data.get('max_output_tokens', 0),
-                        supports_function_calling=model_data.get('supports_function_calling', False),
-                        supports_vision=model_data.get('supports_vision', False),
-                        supports_streaming=model_data.get('supports_streaming', True),
-                        supports_json_mode=model_data.get('supports_json_mode', False),
-                        input_price_per_token=float(model_data.get('pricing', {}).get('prompt_tokens', 0) or 0),
-                        output_price_per_token=float(model_data.get('pricing', {}).get('completion_tokens', 0) or 0),
-                        cost_efficiency=model_data.get('performance_metrics', {}).get('cost_efficiency', 0.0),
-                        safety_score=model_data.get('quality_metrics', {}).get('safety', 0.0),
-                        capabilities_json=json.dumps(model_data.get('capabilities', {})),
-                        metadata_json=json.dumps({
-                            'description': model_data.get('description', ''),
-                            'architecture': model_data.get('architecture', {}),
-                            'quality_metrics': model_data.get('quality_metrics', {}),
-                            'performance_metrics': model_data.get('performance_metrics', {}),
-                            'last_updated': model_data.get('last_updated', '')
-                        })
-                    )
+                    model_capability = ModelCapability()
+                    model_capability.model_id = model_data.get('model_id')
+                    model_capability.canonical_slug = model_data.get('canonical_slug', model_id.replace('/', '_'))
+                    model_capability.provider = model_data.get('provider', 'unknown')
+                    model_capability.model_name = model_data.get('model_name', model_id)
+                    model_capability.is_free = model_data.get('is_free', False)
+                    model_capability.context_window = model_data.get('context_window', 0)
+                    model_capability.max_output_tokens = model_data.get('max_output_tokens', 0)
+                    model_capability.supports_function_calling = model_data.get('supports_function_calling', False)
+                    model_capability.supports_vision = model_data.get('supports_vision', False)
+                    model_capability.supports_streaming = model_data.get('supports_streaming', True)
+                    model_capability.supports_json_mode = model_data.get('supports_json_mode', False)
+                    model_capability.input_price_per_token = float(model_data.get('pricing', {}).get('prompt_tokens', 0) or 0)
+                    model_capability.output_price_per_token = float(model_data.get('pricing', {}).get('completion_tokens', 0) or 0)
+                    model_capability.cost_efficiency = model_data.get('performance_metrics', {}).get('cost_efficiency', 0.0)
+                    model_capability.safety_score = model_data.get('quality_metrics', {}).get('safety', 0.0)
+                    model_capability.capabilities_json = json.dumps(model_data.get('capabilities', {}))
+                    model_capability.metadata_json = json.dumps({
+                        'description': model_data.get('description', ''),
+                        'architecture': model_data.get('architecture', {}),
+                        'quality_metrics': model_data.get('quality_metrics', {}),
+                        'performance_metrics': model_data.get('performance_metrics', {}),
+                        'last_updated': model_data.get('last_updated', '')
+                    })
                     
                     db.session.add(model_capability)
                     models_created += 1
                     
                     # Create a sample GeneratedApplication for the first app
                     canonical_slug = model_data.get('canonical_slug', model_id.replace('/', '_'))
-                    app_entry = GeneratedApplication(
-                        model_slug=canonical_slug,
-                        app_number=1,
-                        app_type="login_system",
-                        provider=model_data.get('provider', 'unknown'),
-                        generation_status="completed",
-                        has_backend=True,
-                        has_frontend=True,
-                        has_docker_compose=True,
-                        backend_framework="Flask",
-                        frontend_framework="React",
-                        container_status="stopped",
-                        metadata_json=json.dumps({
-                            "description": f"Login system application generated by {model_id}",
-                            "features": ["authentication", "user management"],
-                            "model_used": model_id
-                        })
-                    )
+                    app_entry = GeneratedApplication()
+                    app_entry.model_slug = canonical_slug
+                    app_entry.app_number = 1
+                    app_entry.app_type = "login_system"
+                    app_entry.provider = model_data.get('provider', 'unknown')
+                    app_entry.generation_status = "completed"
+                    app_entry.has_backend = True
+                    app_entry.has_frontend = True
+                    app_entry.has_docker_compose = True
+                    app_entry.backend_framework = "Flask"
+                    app_entry.frontend_framework = "React"
+                    app_entry.container_status = "stopped"
+                    app_entry.metadata_json = json.dumps({
+                        "description": f"Login system application generated by {model_id}",
+                        "features": ["authentication", "user management"],
+                        "model_used": model_id
+                    })
                     
                     db.session.add(app_entry)
                     apps_created += 1
@@ -145,18 +143,17 @@ def main():
                         frontend_port = 9000 + (models_created * 10) + app_num
                         backend_port = 6000 + (models_created * 10) + app_num
                         
-                        port_config = PortConfiguration(
-                            model=canonical_slug,
-                            app_num=app_num,
-                            frontend_port=frontend_port,
-                            backend_port=backend_port,
-                            is_available=True,
-                            metadata_json=json.dumps({
-                                'model_name': model_id,
-                                'app_type': f'app_{app_num}',
-                                'source': 'initial_load'
-                            })
-                        )
+                        port_config = PortConfiguration()
+                        port_config.model = canonical_slug
+                        port_config.app_num = app_num
+                        port_config.frontend_port = frontend_port
+                        port_config.backend_port = backend_port
+                        port_config.is_available = True
+                        port_config.metadata_json = json.dumps({
+                            'model_name': model_id,
+                            'app_type': f'app_{app_num}',
+                            'source': 'initial_load'
+                        })
                         
                         db.session.add(port_config)
                         ports_created += 1
@@ -178,7 +175,7 @@ def main():
             logger.info("\nSample models:")
             for model in ModelCapability.query.limit(5).all():
                 logger.info(f"  {model.model_id} ({model.provider})")
-                
+            
             return True
             
     except Exception as e:
