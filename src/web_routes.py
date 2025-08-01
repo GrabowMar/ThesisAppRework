@@ -637,7 +637,11 @@ def dashboard():
         
     except Exception as e:
         logger.error(f"Dashboard error: {e}", exc_info=True)
-        return render_template("pages/error.html", error=str(e))
+        from datetime import datetime
+        return render_template("pages/error.html", 
+                             error=str(e), 
+                             timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                             error_code=500)
 
 
 @main_bp.route("/dashboard")

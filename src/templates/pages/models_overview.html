@@ -1,94 +1,81 @@
 {% extends "base.html" %}
 
-{% block title %}AI Models Overview - Thesis Research App{% endblock %}
+{% block title %}AI Models Overview - Research Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-3">
-    <!-- Header -->
-    <div class="page-header d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
         <div>
-            <h1 class="h3 mb-1">
+            <h1 class="page-title">
                 <i class="fas fa-robot text-primary mr-2"></i>
                 AI Models Overview
             </h1>
-            <p class="text-muted mb-0">
-                Comprehensive analysis of {{ summary_stats.total_models }} AI models across {{ summary_stats.total_providers }} providers
+            <p class="page-subtitle">
+                Comprehensive analysis of {{ summary_stats.total_models or 0 }} AI models across {{ summary_stats.total_providers or 0 }} providers
             </p>
         </div>
-        <div class="btn-group" role="group">
-            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left mr-1"></i>Dashboard
-            </a>
-            <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#export-modal">
-                <i class="fas fa-download mr-1"></i>Export Data
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary btn-sm" 
+                    hx-get="/api/models/refresh"
+                    hx-target="#models-content"
+                    hx-indicator="#loading-overlay">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" 
+                    data-toggle="modal" data-target="#export-modal">
+                <i class="fas fa-download mr-1"></i>
+                Export
             </button>
         </div>
     </div>
 
-    <!-- Research Project Information -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle mr-2"></i>Research Project Overview
-                    </h5>
+    <!-- Research Overview Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="card-title">
+                <i class="fas fa-info-circle mr-2"></i>
+                Research Project Overview
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="info-item">
+                        <strong>Project Scope:</strong> 
+                        Large-scale AI model analysis comparing code generation capabilities
+                    </div>
+                    <div class="info-item">
+                        <strong>Total Applications:</strong> 
+                        {{ summary_stats.total_apps or 0 }} generated applications
+                    </div>
+                    <div class="info-item">
+                        <strong>Analysis Types:</strong> 
+                        Security, Performance, and Code Quality assessments
+                    </div>
+                    <div class="info-item">
+                        <strong>Methodology:</strong> 
+                        Each model generates 30 different application types for comparative analysis
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Project Scope</h6>
-                            <ul class="list-unstyled">
-                                <li><i class="fas fa-check text-success mr-2"></i>{{ summary_stats.total_models }} AI models analyzed</li>
-                                <li><i class="fas fa-check text-success mr-2"></i>30 application types per model</li>
-                                <li><i class="fas fa-check text-success mr-2"></i>{{ summary_stats.total_apps }} total generated applications</li>
-                                <li><i class="fas fa-check text-success mr-2"></i>Docker containerization for each app</li>
-                                <li><i class="fas fa-check text-success mr-2"></i>Security analysis and performance testing</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Application Types Generated</h6>
-                            <div class="row">
-                                <div class="col-6">
-                                    <small class="text-muted">
-                                        • Authentication System<br>
-                                        • Real-time Chat<br>
-                                        • Feedback System<br>
-                                        • Blog Platform<br>
-                                        • E-commerce Cart<br>
-                                        • Note-taking App<br>
-                                        • File Upload System<br>
-                                        • Forum Platform<br>
-                                        • CRUD Application<br>
-                                        • Microblog<br>
-                                        • Polling System<br>
-                                        • Reservation System<br>
-                                        • Photo Gallery<br>
-                                        • Cloud Storage<br>
-                                        • Kanban Board
-                                    </small>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted">
-                                        • IoT Dashboard<br>
-                                        • Fitness Tracker<br>
-                                        • Wiki System<br>
-                                        • Digital Wallet<br>
-                                        • Map Application<br>
-                                        • Recipe Manager<br>
-                                        • Learning Platform<br>
-                                        • Finance Tracker<br>
-                                        • Social Network<br>
-                                        • Health Monitor<br>
-                                        • Environment Tracker<br>
-                                        • Team Management<br>
-                                        • Art Portfolio<br>
-                                        • Event Planner<br>
-                                        • Research Collaboration
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
+                <div class="col-md-6">
+                    <div class="info-item">
+                        <strong>Data Collection:</strong> 
+                        Automated security scanning and performance profiling
+                    </div>
+                    <div class="info-item">
+                        <strong>Technologies:</strong> 
+                        Docker containerization, HTMX interfaces, Flask backend
+                    </div>
+                    <div class="info-item">
+                        <strong>Research Goal:</strong> 
+                        Understand AI model strengths and weaknesses in code generation
+                    </div>
+                    <div class="info-item">
+                        <strong>Current Status:</strong> 
+                        <span class="badge badge-success">Data Collection Phase</span>
                     </div>
                 </div>
             </div>
@@ -96,344 +83,307 @@
     </div>
 
     <!-- Statistics Grid -->
-    <div class="stats-grid mb-4">
-        <div class="row">
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value">{{ summary_stats.total_models }}</div>
-                        <div class="stat-label">Total Models</div>
+    <div class="stats-grid">
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="stats-card-value">{{ summary_stats.total_models or 0 }}</div>
+            <div class="stats-card-label">AI Models</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-building"></i>
+            </div>
+            <div class="stats-card-value">{{ summary_stats.total_providers or 0 }}</div>
+            <div class="stats-card-label">Providers</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-mobile-alt"></i>
+            </div>
+            <div class="stats-card-value">{{ summary_stats.total_apps or 0 }}</div>
+            <div class="stats-card-label">Applications</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-rocket"></i>
+            </div>
+            <div class="stats-card-value">{{ summary_stats.total_running or 0 }}</div>
+            <div class="stats-card-label">Running</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-eye"></i>
+            </div>
+            <div class="stats-card-value">{{ summary_stats.vision_models or 0 }}</div>
+            <div class="stats-card-label">Vision Capable</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <div class="stats-card-value">{{ summary_stats.fast_models or 0 }}</div>
+            <div class="stats-card-label">High Speed</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-brain"></i>
+            </div>
+            <div class="stats-card-value">{{ summary_stats.large_context or 0 }}</div>
+            <div class="stats-card-label">Large Context</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="stats-card-value">{{ summary_stats.analyses_completed or 0 }}</div>
+            <div class="stats-card-label">Analyses Done</div>
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="card mb-4">
+        <div class="card-body p-3">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="form-control form-control-sm" 
+                               id="models-search" placeholder="Search models...">
                     </div>
                 </div>
-            </div>
-            
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-building"></i>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value">{{ summary_stats.total_providers }}</div>
-                        <div class="stat-label">Providers</div>
-                    </div>
+                <div class="col-md-2">
+                    <select class="form-control form-control-sm" id="provider-filter">
+                        <option value="">All Providers</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="google">Google</option>
+                        <option value="meta">Meta</option>
+                    </select>
                 </div>
-            </div>
-            
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-mobile-alt"></i>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value">{{ summary_stats.total_apps }}</div>
-                        <div class="stat-label">Generated Apps</div>
-                    </div>
+                <div class="col-md-2">
+                    <select class="form-control form-control-sm" id="capability-filter">
+                        <option value="">All Capabilities</option>
+                        <option value="vision">Vision</option>
+                        <option value="function_calling">Function Calling</option>
+                        <option value="json_mode">JSON Mode</option>
+                    </select>
                 </div>
-            </div>
-            
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-rocket"></i>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value">{{ summary_stats.total_running }}</div>
-                        <div class="stat-label">Running Containers</div>
-                    </div>
+                <div class="col-md-2">
+                    <select class="form-control form-control-sm" id="sort-by">
+                        <option value="name">Sort by Name</option>
+                        <option value="provider">Sort by Provider</option>
+                        <option value="context_length">Sort by Context</option>
+                        <option value="max_output">Sort by Output</option>
+                    </select>
                 </div>
-            </div>
-            
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-eye"></i>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value">{{ summary_stats.vision_models }}</div>
-                        <div class="stat-label">Vision Models</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-bolt"></i>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value">{{ summary_stats.function_calling_models }}</div>
-                        <div class="stat-label">Function Calling</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-gift"></i>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value">{{ summary_stats.free_models }}</div>
-                        <div class="stat-label">Free Models</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-chart-bar"></i>
-                    </div>
-                    <div class="stat-content">
-                        <div class="stat-value">{{ "{:,}".format(summary_stats.avg_context_window) }}</div>
-                        <div class="stat-label">Avg Context Window</div>
-                    </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm btn-block"
+                            onclick="clearModelFilters()">
+                        Clear Filters
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Models Table -->
-    <div class="card">
-        <div class="card-header">
-            <h5 class="card-title mb-0">
-                <i class="fas fa-table mr-2"></i>AI Models Database
-            </h5>
-        </div>
-        <div class="card-body p-0">
-            <!-- Models Table - Static Informational View -->
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="thead-dark">
-                        <tr>
-                            <th scope="col">
-                                <i class="fas fa-robot mr-1"></i>Model
-                            </th>
-                            <th scope="col">
-                                <i class="fas fa-building mr-1"></i>Provider
-                            </th>
-                            <th scope="col">
-                                <i class="fas fa-memory mr-1"></i>Context
-                            </th>
-                            <th scope="col">
-                                <i class="fas fa-dollar-sign mr-1"></i>Pricing
-                            </th>
-                            <th scope="col">
-                                <i class="fas fa-cogs mr-1"></i>Features
-                            </th>
-                            <th scope="col">
-                                <i class="fas fa-chart-line mr-1"></i>Quality
-                            </th>
-                            <th scope="col">
-                                <i class="fas fa-info-circle mr-1"></i>Apps Generated
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for model in models %}
-                        <tr>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="mr-2">
+    <div id="models-content">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title">
+                    <i class="fas fa-table mr-2"></i>
+                    AI Models Database
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="models-table">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Model</th>
+                                <th>Provider</th>
+                                <th>Context Length</th>
+                                <th>Max Output</th>
+                                <th>Capabilities</th>
+                                <th>Apps Generated</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for model in models %}
+                            <tr class="model-row" data-model="{{ model.slug }}" data-provider="{{ model.provider }}">
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="model-icon mr-2">
+                                            <i class="fas fa-robot text-primary"></i>
+                                        </div>
+                                        <div>
+                                            <div class="font-weight-bold">{{ model.display_name }}</div>
+                                            <small class="text-muted">{{ model.slug }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge badge-primary">{{ model.provider|title }}</span>
+                                </td>
+                                <td>
+                                    <div class="text-sm">
+                                        {{ "{:,}".format(model.context_length) if model.context_length else 'N/A' }}
+                                    </div>
+                                    <small class="text-muted">tokens</small>
+                                </td>
+                                <td>
+                                    <div class="text-sm">
+                                        {{ "{:,}".format(model.max_output) if model.max_output else 'N/A' }}
+                                    </div>
+                                    <small class="text-muted">tokens</small>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
                                         {% if model.supports_vision %}
-                                        <i class="fas fa-eye text-info" title="Vision Support"></i>
-                                        {% else %}
-                                        <i class="fas fa-brain text-muted" title="Text Only"></i>
+                                        <span class="badge badge-info">Vision</span>
+                                        {% endif %}
+                                        {% if model.supports_function_calling %}
+                                        <span class="badge badge-success">Functions</span>
+                                        {% endif %}
+                                        {% if model.supports_json_mode %}
+                                        <span class="badge badge-warning">JSON</span>
                                         {% endif %}
                                     </div>
-                                    <div>
-                                        <div class="font-weight-bold">{{ model.model_name }}</div>
-                                        <small class="text-muted">{{ model.model_id or model.canonical_slug }}</small>
-                                        {% if model.is_free %}
-                                        <span class="badge badge-success badge-sm ml-1">FREE</span>
-                                        {% endif %}
+                                </td>
+                                <td>
+                                    <div class="text-center">
+                                        <div class="h6 mb-0">{{ model.app_count or 30 }}</div>
+                                        <small class="text-muted">applications</small>
                                     </div>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="badge badge-primary">{{ model.provider }}</span>
-                                {% if model.architecture and model.architecture.parameter_count and model.architecture.parameter_count != 'unknown' %}
-                                <small class="text-muted d-block">{{ model.architecture.parameter_count }}</small>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="text-center">
-                                    <span class="font-weight-bold">{{ "{:,}".format(model.context_window) if model.context_window else 'N/A' }}</span>
-                                    {% if model.context_window %}
-                                    <small class="text-muted d-block">tokens</small>
-                                    {% endif %}
-                                    {% if model.max_output_tokens %}
-                                    <small class="text-info d-block">Out: {{ "{:,}".format(model.max_output_tokens) }}</small>
-                                    {% endif %}
-                                </div>
-                            </td>
-                            <td>
-                                {% if model.is_free %}
-                                <div class="text-center">
-                                    <span class="badge badge-success">FREE</span>
-                                </div>
-                                {% else %}
-                                <div class="text-center">
-                                    <div class="text-success small">
-                                        {% if model.input_price_per_token and model.input_price_per_token > 0 %}
-                                        In: ${{ "%.6f"|format(model.input_price_per_token) }}
-                                        {% else %}
-                                        In: N/A
-                                        {% endif %}
+                                </td>
+                                <td>
+                                    <div class="status-indicator status-{{ model.status or 'ready' }}">
+                                        <span class="status-dot"></span>
+                                        {{ model.status|title if model.status else 'Ready' }}
                                     </div>
-                                    <div class="text-warning small">
-                                        {% if model.output_price_per_token and model.output_price_per_token > 0 %}
-                                        Out: ${{ "%.6f"|format(model.output_price_per_token) }}
-                                        {% else %}
-                                        Out: N/A
-                                        {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                                onclick="viewModelApps('{{ model.slug }}')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info btn-sm"
+                                                onclick="showModelDetails('{{ model.slug }}')">
+                                            <i class="fas fa-info"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success btn-sm"
+                                                onclick="startModelAnalysis('{{ model.slug }}')">
+                                            <i class="fas fa-play"></i>
+                                        </button>
                                     </div>
-                                    {% if model.cost_efficiency and model.cost_efficiency > 0 %}
-                                    <small class="text-muted">Eff: {{ "%.2f"|format(model.cost_efficiency) }}</small>
-                                    {% endif %}
-                                </div>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="d-flex flex-wrap">
-                                    {% if model.supports_function_calling %}
-                                    <span class="badge badge-success badge-sm mr-1 mb-1">
-                                        <i class="fas fa-cog mr-1"></i>Functions
-                                    </span>
-                                    {% endif %}
-                                    {% if model.supports_vision %}
-                                    <span class="badge badge-info badge-sm mr-1 mb-1">
-                                        <i class="fas fa-eye mr-1"></i>Vision
-                                    </span>
-                                    {% endif %}
-                                    {% if model.supports_json_mode %}
-                                    <span class="badge badge-secondary badge-sm mr-1 mb-1">
-                                        <i class="fas fa-code mr-1"></i>JSON
-                                    </span>
-                                    {% endif %}
-                                    {% if model.supports_streaming %}
-                                    <span class="badge badge-dark badge-sm mr-1 mb-1">
-                                        <i class="fas fa-stream mr-1"></i>Stream
-                                    </span>
-                                    {% endif %}
-                                    {% if model.context_window and model.context_window > 100000 %}
-                                    <span class="badge badge-warning badge-sm mr-1 mb-1">
-                                        <i class="fas fa-expand-arrows-alt mr-1"></i>Long Context
-                                    </span>
-                                    {% endif %}
-                                </div>
-                            </td>
-                            <td>
-                                {% if model.quality_metrics or model.safety_score %}
-                                <div class="text-center">
-                                    {% if model.quality_metrics %}
-                                    {% if model.quality_metrics.helpfulness %}
-                                    <div class="text-primary small">Help: {{ "%.1f"|format(model.quality_metrics.helpfulness) }}</div>
-                                    {% endif %}
-                                    {% if model.quality_metrics.accuracy %}
-                                    <div class="text-info small">Acc: {{ "%.1f"|format(model.quality_metrics.accuracy) }}</div>
-                                    {% endif %}
-                                    {% if model.quality_metrics.safety %}
-                                    <div class="text-success small">Safe: {{ "%.1f"|format(model.quality_metrics.safety) }}</div>
-                                    {% endif %}
-                                    {% endif %}
-                                    {% if model.safety_score and model.safety_score > 0 %}
-                                    <div class="font-weight-bold">{{ "%.1f"|format(model.safety_score) }}</div>
-                                    {% endif %}
-                                </div>
-                                {% else %}
-                                <span class="text-muted">N/A</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="text-center">
-                                    <div class="font-weight-bold text-primary">30</div>
-                                    <small class="text-muted">applications</small>
-                                    <div class="mt-1">
-                                        <small class="text-success">
-                                            <i class="fas fa-docker mr-1"></i>Containerized
-                                        </small>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- No Results State -->
-            {% if not models %}
-            <div class="text-center py-5">
-                <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                <h4 class="text-muted">No Models Found</h4>
-                <p class="text-muted">No models are currently configured in the system.</p>
-            </div>
-            {% endif %}
-
-            <!-- Table Summary Footer -->
-            {% if models %}
-            <div class="d-flex justify-content-between align-items-center p-3 bg-light border-top">
-                <div class="text-muted">
-                    <i class="fas fa-info-circle mr-1"></i>
-                    Showing {{ models|length }} AI models with {{ models|length * 30 }} total generated applications
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-                
-                <div class="text-muted">
-                    <small>Each model generated 30 different application types for comparative analysis</small>
+
+                <!-- Empty State -->
+                {% if not models %}
+                <div class="text-center py-5">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Models Found</h4>
+                    <p class="text-muted">No models match your current filter criteria.</p>
                 </div>
+                {% endif %}
+
+                <!-- Table Footer -->
+                {% if models %}
+                <div class="d-flex justify-content-between align-items-center p-3 bg-light border-top">
+                    <div class="text-muted">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Showing {{ models|length }} AI models with {{ (models|length * 30) if models else 0 }} total applications
+                    </div>
+                    <div class="text-muted">
+                        <small>Each model generates 30 different application types for analysis</small>
+                    </div>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Model Details Modal -->
+<div class="modal fade" id="modelDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-robot mr-2"></i>
+                    Model Details
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="model-details-content">
+                <!-- Content loaded via HTMX -->
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Export Modal -->
-<div class="modal fade" id="export-modal" tabindex="-1" role="dialog" aria-labelledby="export-modal-title" aria-hidden="true">
+<div class="modal fade" id="export-modal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="export-modal-title">
-                    <i class="fas fa-download mr-2"></i>Export Models Data
+                <h5 class="modal-title">
+                    <i class="fas fa-download mr-2"></i>
+                    Export Models Data
                 </h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
-                <p class="text-muted">Choose your preferred export format for the complete models dataset:</p>
+                <p class="text-muted">Choose your preferred export format:</p>
                 <div class="row">
                     <div class="col-4">
-                        <button class="btn btn-primary btn-block" onclick="exportFormat('json')">
-                            <i class="fas fa-file-code fa-2x d-block mb-2"></i>
+                        <button type="button" class="btn btn-outline-primary btn-block"
+                                onclick="exportModels('json')">
+                            <i class="fas fa-code mr-2"></i>
                             JSON
                         </button>
                     </div>
                     <div class="col-4">
-                        <button class="btn btn-success btn-block" onclick="exportFormat('csv')">
-                            <i class="fas fa-file-csv fa-2x d-block mb-2"></i>
+                        <button type="button" class="btn btn-outline-success btn-block"
+                                onclick="exportModels('csv')">
+                            <i class="fas fa-table mr-2"></i>
                             CSV
                         </button>
                     </div>
                     <div class="col-4">
-                        <button class="btn btn-info btn-block" onclick="exportFormat('xlsx')">
-                            <i class="fas fa-file-excel fa-2x d-block mb-2"></i>
+                        <button type="button" class="btn btn-outline-info btn-block"
+                                onclick="exportModels('xlsx')">
+                            <i class="fas fa-file-excel mr-2"></i>
                             Excel
                         </button>
                     </div>
                 </div>
                 <div class="mt-3">
                     <small class="text-muted">
-                        <i class="fas fa-info-circle mr-1"></i>
-                        Export includes model capabilities, pricing, features, and application generation statistics.
+                        Export includes model specifications, capabilities, and analysis results.
                     </small>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
             </div>
         </div>
     </div>
@@ -442,23 +392,240 @@
 
 {% block scripts %}
 <script>
+// Models Overview JavaScript
+class ModelsOverview {
+    constructor() {
+        this.filters = {
+            search: '',
+            provider: '',
+            capability: '',
+            sortBy: 'name'
+        };
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupKeyboardShortcuts();
+        this.loadSavedFilters();
+    }
+
+    setupEventListeners() {
+        // Filter events
+        document.getElementById('models-search')?.addEventListener('input', 
+            this.debounce(() => this.applyFilters(), 300));
+        document.getElementById('provider-filter')?.addEventListener('change', () => this.applyFilters());
+        document.getElementById('capability-filter')?.addEventListener('change', () => this.applyFilters());
+        document.getElementById('sort-by')?.addEventListener('change', () => this.applyFilters());
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('models-search')?.focus();
+            }
+            if (e.ctrlKey && e.key === 'e') {
+                e.preventDefault();
+                $('#export-modal').modal('show');
+            }
+        });
+    }
+
+    loadSavedFilters() {
+        const saved = localStorage.getItem('modelsOverviewFilters');
+        if (saved) {
+            this.filters = { ...this.filters, ...JSON.parse(saved) };
+            this.restoreFilters();
+            this.applyFilters();
+        }
+    }
+
+    applyFilters() {
+        this.filters = {
+            search: document.getElementById('models-search')?.value || '',
+            provider: document.getElementById('provider-filter')?.value || '',
+            capability: document.getElementById('capability-filter')?.value || '',
+            sortBy: document.getElementById('sort-by')?.value || 'name'
+        };
+
+        // Save filters
+        localStorage.setItem('modelsOverviewFilters', JSON.stringify(this.filters));
+
+        // Apply filters to table
+        this.filterTable();
+    }
+
+    filterTable() {
+        const rows = document.querySelectorAll('.model-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const modelName = row.querySelector('td:first-child').textContent.toLowerCase();
+            const provider = row.dataset.provider?.toLowerCase() || '';
+            const capabilities = Array.from(row.querySelectorAll('.badge')).map(b => b.textContent.toLowerCase());
+
+            let visible = true;
+
+            // Search filter
+            if (this.filters.search) {
+                const searchTerm = this.filters.search.toLowerCase();
+                visible = visible && modelName.includes(searchTerm);
+            }
+
+            // Provider filter
+            if (this.filters.provider) {
+                visible = visible && provider === this.filters.provider.toLowerCase();
+            }
+
+            // Capability filter
+            if (this.filters.capability) {
+                const capFilter = this.filters.capability.toLowerCase();
+                visible = visible && capabilities.some(cap => cap.includes(capFilter));
+            }
+
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        // Sort visible rows
+        this.sortTable();
+
+        // Update count display
+        this.updateFilterCount(visibleCount);
+    }
+
+    sortTable() {
+        const tbody = document.querySelector('#models-table tbody');
+        const rows = Array.from(tbody.querySelectorAll('.model-row:not([style*="display: none"])'));
+
+        rows.sort((a, b) => {
+            const aValue = this.getSortValue(a, this.filters.sortBy);
+            const bValue = this.getSortValue(b, this.filters.sortBy);
+            
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                return bValue - aValue; // Descending for numbers
+            }
+            return aValue.localeCompare(bValue); // Ascending for strings
+        });
+
+        // Reorder rows
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    getSortValue(row, sortBy) {
+        switch (sortBy) {
+            case 'name':
+                return row.querySelector('td:first-child .font-weight-bold').textContent;
+            case 'provider':
+                return row.dataset.provider || '';
+            case 'context_length':
+                const contextText = row.querySelector('td:nth-child(3) .text-sm').textContent;
+                return parseInt(contextText.replace(/[,\s]/g, '')) || 0;
+            case 'max_output':
+                const outputText = row.querySelector('td:nth-child(4) .text-sm').textContent;
+                return parseInt(outputText.replace(/[,\s]/g, '')) || 0;
+            default:
+                return '';
+        }
+    }
+
+    updateFilterCount(count) {
+        // Update the footer text with filtered count
+        const footer = document.querySelector('.bg-light.border-top .text-muted');
+        if (footer) {
+            const totalModels = document.querySelectorAll('.model-row').length;
+            if (count !== totalModels) {
+                footer.innerHTML = `<i class="fas fa-filter mr-1"></i>Showing ${count} of ${totalModels} models (filtered)`;
+            } else {
+                footer.innerHTML = `<i class="fas fa-info-circle mr-1"></i>Showing ${count} AI models with ${count * 30} total applications`;
+            }
+        }
+    }
+
+    restoreFilters() {
+        document.getElementById('models-search').value = this.filters.search;
+        document.getElementById('provider-filter').value = this.filters.provider;
+        document.getElementById('capability-filter').value = this.filters.capability;
+        document.getElementById('sort-by').value = this.filters.sortBy;
+    }
+
+    clearFilters() {
+        this.filters = { search: '', provider: '', capability: '', sortBy: 'name' };
+        this.restoreFilters();
+        localStorage.removeItem('modelsOverviewFilters');
+        this.filterTable();
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+}
+
+// Global functions
+window.clearModelFilters = function() {
+    modelsOverview.clearFilters();
+};
+
+window.viewModelApps = function(modelSlug) {
+    window.location.href = `/app/${encodeURIComponent(modelSlug)}/1`;
+};
+
+window.showModelDetails = function(modelSlug) {
+    htmx.ajax('GET', `/api/models/${encodeURIComponent(modelSlug)}/details`, {
+        target: '#model-details-content'
+    });
+    $('#modelDetailsModal').modal('show');
+};
+
+window.startModelAnalysis = function(modelSlug) {
+    if (!confirm('Start security analysis for all apps in this model?')) return;
+    
+    htmx.ajax('POST', `/api/models/${encodeURIComponent(modelSlug)}/analyze`, {
+        swap: 'none'
+    }).then(() => {
+        modelsOverview.showToast('Analysis started for ' + modelSlug, 'success');
+    }).catch(() => {
+        modelsOverview.showToast('Failed to start analysis', 'danger');
+    });
+};
+
+window.exportModels = function(format) {
+    const url = `/api/models/export?format=${format}`;
+    window.open(url, '_blank');
+    $('#export-modal').modal('hide');
+    modelsOverview.showToast(`Exporting models data as ${format.toUpperCase()}`, 'info');
+};
+
+// Initialize models overview
+let modelsOverview;
 document.addEventListener('DOMContentLoaded', function() {
-    // Export functionality
-    function exportFormat(format) {
-        const searchParams = new URLSearchParams(window.location.search);
-        searchParams.set('format', format);
-        
-        window.open(`/api/models/export?${searchParams.toString()}`, '_blank');
-        $('#export-modal').modal('hide');
-    }
-
-    // Make export function globally available
-    window.exportFormat = exportFormat;
-
-    // Initialize tooltips
-    if (typeof $ !== 'undefined') {
-        $('[title]').tooltip();
-    }
+    modelsOverview = new ModelsOverview();
 });
 </script>
 {% endblock %}

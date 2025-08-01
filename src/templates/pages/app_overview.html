@@ -1,693 +1,310 @@
 {% extends "base.html" %}
 
-{% block title %}{{ app_info.app_type|title }} - {{ model|replace('_', ' ')|title }} App {{ app_num }}{% endblock %}
+{% block title %}{{ app_info.app_type|title }} App - {{ model|replace('_', ' ')|title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-3">
-    <!-- App Header -->
-    <div class="app-details-header mb-4">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h1 class="h2 mb-2">{{ app_info.app_type|title }} Application</h1>
-                <p class="mb-0 text-muted">{{ model|replace('_', ' ')|title }} • App {{ app_num }}</p>
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb bg-transparent p-0 mb-2">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('main.models_overview') }}">Models</a>
+                    </li>
+                    <li class="breadcrumb-item active">
+                        {{ model|replace('_', ' ')|title }}
+                    </li>
+                </ol>
+            </nav>
+            <h1 class="page-title">
+                <i class="fas fa-mobile-alt text-primary mr-2"></i>
+                {{ app_info.app_type|title }} Application
+            </h1>
+            <p class="page-subtitle">
+                {{ model|replace('_', ' ')|title }} • Application {{ app_num }}
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2 align-items-center">
+            <div class="status-indicator status-{{ container_status or 'unknown' }}">
+                <span class="status-dot"></span>
+                {{ container_status|title if container_status else 'Unknown' }}
             </div>
-            <div class="col-md-4 text-md-end">
-                <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm mr-2">
-                    <i class="fas fa-arrow-left mr-1"></i>Dashboard
-                </a>
-                <span class="badge badge-{{ 'success' if container_status == 'running' else 'secondary' }}" id="app-status">
-                    <span class="status-indicator status-{{ container_status or 'unknown' }}"></span>
-                    {{ container_status|title if container_status else 'Unknown' }}
-                </span>
+            <button type="button" class="btn btn-primary btn-sm" 
+                    hx-get="/api/app/{{ model }}/{{ app_num }}/refresh"
+                    hx-target="#app-content"
+                    hx-indicator="#loading-overlay">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Actions Bar -->
+    <div class="card mb-4">
+        <div class="card-body p-3">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-success btn-sm"
+                                onclick="startContainer('{{ model }}', '{{ app_num }}', this)"
+                                {% if container_status == 'running' %}disabled{% endif %}>
+                            <i class="fas fa-play mr-1"></i>Start
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm"
+                                onclick="stopContainer('{{ model }}', '{{ app_num }}', this)"
+                                {% if container_status != 'running' %}disabled{% endif %}>
+                            <i class="fas fa-stop mr-1"></i>Stop
+                        </button>
+                        <button type="button" class="btn btn-info btn-sm"
+                                onclick="restartContainer('{{ model }}', '{{ app_num }}', this)">
+                            <i class="fas fa-redo mr-1"></i>Restart
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm"
+                                onclick="showContainerLogs('{{ model }}', '{{ app_num }}')">
+                            <i class="fas fa-terminal mr-1"></i>Logs
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-md-right">
+                    <div class="dashboard-inline-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Port</span>
+                            <span class="stat-value">{{ port_info.frontend or 'N/A' }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Type</span>
+                            <span class="stat-value">{{ app_info.app_type|title }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <ul class="nav nav-tabs mb-4" id="appTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <a class="nav-link active" id="overview-tab" data-toggle="tab" href="#overview" role="tab">
-                <i class="fas fa-info-circle mr-2"></i>Overview
-            </a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link" id="containers-tab" data-toggle="tab" href="#containers" role="tab">
-                <i class="fas fa-cube mr-2"></i>Containers
-            </a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link" id="analysis-tab" data-toggle="tab" href="#analysis" role="tab">
-                <i class="fas fa-shield-alt mr-2"></i>Analysis
-            </a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link" id="performance-tab" data-toggle="tab" href="#performance" role="tab">
-                <i class="fas fa-tachometer-alt mr-2"></i>Performance
-            </a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link" id="files-tab" data-toggle="tab" href="#files" role="tab">
-                <i class="fas fa-folder mr-2"></i>Files
-            </a>
-        </li>
-    </ul>
-
-    <!-- Tab Content -->
-    <div class="tab-content" id="appTabsContent">
-        <!-- Overview Tab -->
-        <div class="tab-pane fade show active" id="overview" role="tabpanel">
-            <div class="row mb-4">
-                <!-- App Information Card -->
-                <div class="col-lg-6">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-info-circle text-primary mr-2"></i>
-                                Application Information
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <strong class="text-muted">Model Provider:</strong>
-                                    <div class="mt-1">{{ model.split('_')[0]|title }}</div>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <strong class="text-muted">Model Name:</strong>
-                                    <div class="mt-1">{{ model|replace('_', ' ')|title }}</div>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <strong class="text-muted">Application Type:</strong>
-                                    <div class="mt-1">{{ app_info.app_type|title }}</div>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <strong class="text-muted">Generation Date:</strong>
-                                    <div class="mt-1">{{ app_info.created_at.strftime('%Y-%m-%d %H:%M') if app_info.created_at else 'Unknown' }}</div>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <strong class="text-muted">Frontend Port:</strong>
-                                    <div class="mt-1">{{ port_config.frontend_port if port_config else 'N/A' }}</div>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <strong class="text-muted">Backend Port:</strong>
-                                    <div class="mt-1">{{ port_config.backend_port if port_config else 'N/A' }}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Status Overview -->
-                <div class="col-lg-6">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-heartbeat text-success mr-2"></i>
-                                Current Status
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="status-grid">
-                                <div class="status-item mb-3">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-desktop mr-2"></i>Frontend</span>
-                                        <span class="badge badge-{{ 'success' if frontend_status == 'running' else 'secondary' }}">
-                                            {{ frontend_status|title if frontend_status else 'Unknown' }}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="status-item mb-3">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-server mr-2"></i>Backend</span>
-                                        <span class="badge badge-{{ 'success' if backend_status == 'running' else 'secondary' }}">
-                                            {{ backend_status|title if backend_status else 'Unknown' }}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="status-item mb-3">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-database mr-2"></i>Database</span>
-                                        <span class="badge badge-{{ 'success' if database_status == 'running' else 'secondary' }}">
-                                            {{ database_status|title if database_status else 'Unknown' }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Summary Cards -->
-            <div class="row">
-                <div class="col-lg-4 mb-3">
-                    <div class="card border-left-primary h-100">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                        Security Issues
-                                    </div>
-                                    <div class="h4 mb-0 font-weight-bold text-gray-800">
-                                        {{ analysis_summary.security_issues_count if analysis_summary else 0 }}
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-shield-alt fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-lg-4 mb-3">
-                    <div class="card border-left-success h-100">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                        Performance Score
-                                    </div>
-                                    <div class="h4 mb-0 font-weight-bold text-gray-800">
-                                        {{ performance_summary.score if performance_summary else 'N/A' }}
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-tachometer-alt fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-lg-4 mb-3">
-                    <div class="card border-left-warning h-100">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                        Total Files
-                                    </div>
-                                    <div class="h4 mb-0 font-weight-bold text-gray-800">
-                                        {{ file_stats.total_files if file_stats else 0 }}
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-folder fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <!-- Main Content Tabs -->
+    <div class="card">
+        <div class="card-header border-bottom-0">
+            <ul class="nav nav-tabs card-header-tabs" id="appTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="overview-tab" data-toggle="tab" href="#overview" role="tab">
+                        <i class="fas fa-info-circle mr-2"></i>Overview
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="containers-tab" data-toggle="tab" href="#containers" role="tab">
+                        <i class="fas fa-cube mr-2"></i>Containers
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="analysis-tab" data-toggle="tab" href="#analysis" role="tab">
+                        <i class="fas fa-shield-alt mr-2"></i>Security
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="performance-tab" data-toggle="tab" href="#performance" role="tab">
+                        <i class="fas fa-tachometer-alt mr-2"></i>Performance
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="files-tab" data-toggle="tab" href="#files" role="tab">
+                        <i class="fas fa-folder mr-2"></i>Files
+                    </a>
+                </li>
+            </ul>
         </div>
-
-        <!-- Containers Tab -->
-        <div class="tab-pane fade" id="containers" role="tabpanel">
-            <div class="row">
-                <!-- Frontend Container -->
-                <div class="col-lg-6 mb-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h6 class="mb-0 font-weight-bold text-success">
-                                <i class="fas fa-desktop mr-2"></i>Frontend Container
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="container-info">
-                                <div class="info-row mb-2">
-                                    <strong>Port:</strong> {{ port_config.frontend_port if port_config else 'N/A' }}
+        
+        <div class="card-body">
+            <div class="tab-content" id="appTabsContent">
+                <!-- Overview Tab -->
+                <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                    <div class="row">
+                        <!-- App Information -->
+                        <div class="col-lg-6">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-info mr-2"></i>Application Details
+                                    </h6>
                                 </div>
-                                <div class="info-row mb-2">
-                                    <strong>Technology:</strong> React + Vite
-                                </div>
-                                <div class="info-row mb-2">
-                                    <strong>Status:</strong> 
-                                    <span class="badge badge-{{ 'success' if frontend_status == 'running' else 'secondary' }}">
-                                        {{ frontend_status|title if frontend_status else 'Unknown' }}
-                                    </span>
-                                </div>
-                                {% if frontend_status == 'running' and port_config %}
-                                <div class="info-row">
-                                    <strong>URL:</strong> 
-                                    <a href="http://localhost:{{ port_config.frontend_port }}" target="_blank" class="text-primary">
-                                        http://localhost:{{ port_config.frontend_port }}
-                                    </a>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Backend Container -->
-                <div class="col-lg-6 mb-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h6 class="mb-0 font-weight-bold text-primary">
-                                <i class="fas fa-server mr-2"></i>Backend Container
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="container-info">
-                                <div class="info-row mb-2">
-                                    <strong>Port:</strong> {{ port_config.backend_port if port_config else 'N/A' }}
-                                </div>
-                                <div class="info-row mb-2">
-                                    <strong>Technology:</strong> {{ app_info.backend_tech if app_info else 'Python/Flask' }}
-                                </div>
-                                <div class="info-row mb-2">
-                                    <strong>Status:</strong> 
-                                    <span class="badge badge-{{ 'success' if backend_status == 'running' else 'secondary' }}">
-                                        {{ backend_status|title if backend_status else 'Unknown' }}
-                                    </span>
-                                </div>
-                                {% if backend_status == 'running' and port_config %}
-                                <div class="info-row">
-                                    <strong>API URL:</strong> 
-                                    <a href="http://localhost:{{ port_config.backend_port }}" target="_blank" class="text-primary">
-                                        http://localhost:{{ port_config.backend_port }}
-                                    </a>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Docker Compose Information -->
-            <div class="row">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h6 class="mb-0 font-weight-bold">
-                                <i class="fas fa-file-code mr-2"></i>Docker Configuration
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <strong class="text-muted">Project Directory:</strong>
-                                    <div class="mt-1 small text-monospace">misc/models/{{ model }}/app{{ app_num }}/</div>
-                                </div>
-                                <div class="col-md-6">
-                                    <strong class="text-muted">Docker Compose:</strong>
-                                    <div class="mt-1 small text-monospace">docker-compose.yml</div>
+                                <div class="card-body">
+                                    <div class="info-item">
+                                        <strong>Type:</strong> {{ app_info.app_type|title }}
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Model:</strong> {{ model|replace('_', ' ')|title }}
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>App Number:</strong> {{ app_num }}
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Status:</strong> 
+                                        <span class="badge badge-{{ 'success' if container_status == 'running' else 'secondary' }}">
+                                            {{ container_status|title if container_status else 'Unknown' }}
+                                        </span>
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Created:</strong> {{ app_info.created_date or 'Unknown' }}
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Last Modified:</strong> {{ app_info.last_modified or 'Unknown' }}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Analysis Tab -->
-        <div class="tab-pane fade" id="analysis" role="tabpanel">
-            <div class="row">
-                <!-- Analysis Summary -->
-                <div class="col-lg-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-shield-alt text-primary mr-2"></i>
-                                Security Analysis Summary
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row mb-4">
-                                <div class="col-12">
-                                    <div class="card bg-light border-left-primary mb-3">
-                                        <div class="card-body py-3">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                                        Security Issues Found
-                                                    </div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                                        {{ analysis_summary.security_issues_count if analysis_summary else 0 }}
-                                                    </div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-shield-alt fa-2x text-gray-300"></i>
+                        <!-- Health Status -->
+                        <div class="col-lg-6">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-heartbeat mr-2"></i>Health Status
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="health-indicator health-{{ 'healthy' if container_status == 'running' else 'error' }}">
+                                        <i class="fas fa-circle mr-2"></i>
+                                        Container Health: {{ 'Healthy' if container_status == 'running' else 'Unhealthy' }}
+                                    </div>
+                                    
+                                    <div class="mt-3">
+                                        <h6>Port Configuration</h6>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="text-center p-2 bg-light rounded">
+                                                    <div class="font-weight-bold">Frontend</div>
+                                                    <div class="text-primary">{{ port_info.frontend or 'N/A' }}</div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="col-12">
-                                    <div class="card bg-light border-left-warning mb-3">
-                                        <div class="card-body py-3">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                                        Vulnerabilities
-                                                    </div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                                        {{ analysis_summary.vulnerabilities_count if analysis_summary else 0 }}
-                                                    </div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="col-12">
-                                    <div class="card bg-light border-left-success">
-                                        <div class="card-body py-3">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                                        Last Analysis
-                                                    </div>
-                                                    <div class="h6 mb-0 font-weight-bold text-gray-800">
-                                                        {{ analysis_summary.last_scan_date.strftime('%Y-%m-%d %H:%M') if analysis_summary and analysis_summary.last_scan_date else 'Never' }}
-                                                    </div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-clock fa-2x text-gray-300"></i>
+                                            <div class="col-6">
+                                                <div class="text-center p-2 bg-light rounded">
+                                                    <div class="font-weight-bold">Backend</div>
+                                                    <div class="text-primary">{{ port_info.backend or 'N/A' }}</div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Tools Used -->
-                            {% if analysis_summary and analysis_summary.tools_used %}
-                            <div class="mt-4">
-                                <h6 class="text-muted mb-3">Analysis Tools Used</h6>
-                                <div class="tools-list">
-                                    {% for tool in analysis_summary.tools_used %}
-                                    <span class="badge badge-secondary mb-1 mr-1">{{ tool }}</span>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                            {% endif %}
-
-                            <!-- Analysis Info -->
-                            <div class="mt-4">
-                                <div class="info-item mb-3">
-                                    <strong class="text-muted">Reports Directory:</strong>
-                                    <div class="mt-1 small text-monospace">reports/{{ model }}/app{{ app_num }}/</div>
-                                </div>
-                                {% if file_stats %}
-                                <div class="info-item">
-                                    <strong class="text-muted">Files Analyzed:</strong>
-                                    <div class="mt-1">
-                                        <small>{{ file_stats.python_files or 0 }} Python files</small><br>
-                                        <small>{{ file_stats.js_files or 0 }} JavaScript files</small><br>
-                                        <small>{{ file_stats.total_files or 0 }} total files</small>
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Analysis Results -->
-                <div class="col-lg-8">
-                    <div class="card">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">
-                                <i class="fas fa-chart-line text-success mr-2"></i>
-                                Analysis Results
-                            </h5>
-                            {% if analysis_results %}
-                            <div class="btn-group btn-group-sm" role="group">
-                                <a href="/api/analysis/{{ model }}/{{ app_num }}/export" class="btn btn-outline-secondary">
-                                    <i class="fas fa-download"></i> Export Results
-                                </a>
-                            </div>
-                            {% endif %}
-                        </div>
-                        <div class="card-body">
-                            {% if analysis_results %}
-                                <div id="detailed-results">
-                                    {% for result in analysis_results %}
-                                    <div class="analysis-result-item {{ 'severity-' + result.severity if result.severity else '' }}">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <h6 class="mb-1">{{ result.tool_name }}</h6>
-                                            {% if result.severity %}
-                                            <span class="badge badge-{{ 'danger' if result.severity == 'high' else 'warning' if result.severity == 'medium' else 'info' }}">
-                                                {{ result.severity.upper() }}
-                                            </span>
-                                            {% endif %}
-                                        </div>
-                                        
-                                        {% if result.message %}
-                                        <p class="mb-2">{{ result.message }}</p>
-                                        {% endif %}
-                                        
-                                        {% if result.file_path %}
-                                        <small class="text-muted">
-                                            <i class="fas fa-file mr-1"></i>{{ result.file_path }}
-                                            {% if result.line_number %}at line {{ result.line_number }}{% endif %}
-                                        </small>
-                                        {% endif %}
-                                        
-                                        {% if result.issue_count %}
-                                        <div class="mt-2">
-                                            <span class="issue-count-badge">
-                                                {{ result.issue_count }} issue{{ 's' if result.issue_count != 1 else '' }} found
-                                            </span>
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <div class="text-center py-5 text-muted">
-                                    <i class="fas fa-info-circle fa-3x mb-3"></i>
-                                    <h5>No Analysis Results Available</h5>
-                                    <p>Security analysis results will appear here once available.</p>
-                                    <small>Check the reports directory: <code>reports/{{ model }}/app{{ app_num }}/</code></small>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Performance Tab -->
-        <div class="tab-pane fade" id="performance" role="tabpanel">
-            <div class="row">
-                <div class="col-lg-4">
-                    <!-- Performance Summary -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-chart-bar text-primary mr-2"></i>
-                                Performance Summary
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            {% if performance_summary %}
-                                <div class="performance-metric mb-3">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted">Average Response Time</small>
-                                        <strong>{{ performance_summary.avg_response_time }}ms</strong>
-                                    </div>
-                                    <div class="progress mt-2" style="height: 6px;">
-                                        <div class="progress-bar bg-success" style="width: {{ (1000 - performance_summary.avg_response_time) / 10 }}%"></div>
-                                    </div>
-                                </div>
-                                
-                                <div class="performance-metric mb-3">
-                                    <small class="text-muted">Throughput</small>
-                                    <div class="mt-1">
-                                        <strong>{{ performance_summary.throughput }} req/sec</strong>
-                                    </div>
-                                </div>
-                                
-                                <div class="performance-metric">
-                                    <small class="text-muted">Error Rate</small>
-                                    <div class="mt-1">
-                                        <strong class="text-{{ 'danger' if performance_summary.error_rate > 5 else 'success' }}">
-                                            {{ performance_summary.error_rate }}%
-                                        </strong>
-                                    </div>
-                                </div>
-                            {% else %}
-                                <div class="text-center text-muted">
-                                    <i class="fas fa-chart-line fa-2x mb-3"></i>
-                                    <p>No performance data available</p>
-                                    <small>Performance reports: <code>performance_reports/{{ model }}_app{{ app_num }}/</code></small>
-                                </div>
-                            {% endif %}
                         </div>
                     </div>
 
-                    <!-- Test History -->
-                    <div class="card mt-3">
-                        <div class="card-header">
-                            <h6 class="mb-0">
-                                <i class="fas fa-history text-info mr-2"></i>
-                                Recent Tests
-                            </h6>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="list-group list-group-flush">
-                                {% if performance_history %}
-                                    {% for test in performance_history %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <!-- Statistics Cards -->
+                    <div class="row mt-4">
+                        <div class="col-md-4">
+                            <div class="card border-left-primary">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
                                         <div>
-                                            <small class="text-muted">{{ test.date.strftime('%Y-%m-%d %H:%M') }}</small>
-                                            <div>{{ test.test_type }} - {{ test.duration }}s</div>
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                Security Issues
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ security_stats.total_issues or 0 }}
+                                            </div>
                                         </div>
-                                        <span class="badge badge-{{ 'success' if test.success else 'danger' }}">
-                                            {{ 'Pass' if test.success else 'Fail' }}
-                                        </span>
+                                        <div class="col-auto">
+                                            <i class="fas fa-shield-alt fa-2x text-gray-300"></i>
+                                        </div>
                                     </div>
-                                    {% endfor %}
-                                {% else %}
-                                    <div class="list-group-item text-center text-muted">
-                                        <small>No performance tests run yet</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card border-left-success">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                Performance Score
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ performance_stats.score or 'N/A' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-tachometer-alt fa-2x text-gray-300"></i>
+                                        </div>
                                     </div>
-                                {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card border-left-warning">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                File Count
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ file_stats.total_files or 0 }}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-folder fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="col-lg-8">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-tachometer-alt text-success mr-2"></i>
-                                Performance Data
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            {% if performance_summary %}
-                                <!-- Performance Summary Table -->
-                                <div class="table-responsive">
-                                    <table class="table table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>Metric</th>
-                                                <th>Value</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td>Average Response Time</td>
-                                                <td>{{ performance_summary.avg_response_time }}ms</td>
-                                                <td>
-                                                    <span class="badge badge-{{ 'success' if performance_summary.avg_response_time < 500 else 'warning' if performance_summary.avg_response_time < 1000 else 'danger' }}">
-                                                        {{ 'Good' if performance_summary.avg_response_time < 500 else 'Fair' if performance_summary.avg_response_time < 1000 else 'Poor' }}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>Throughput</td>
-                                                <td>{{ performance_summary.throughput }} req/sec</td>
-                                                <td>
-                                                    <span class="badge badge-{{ 'success' if performance_summary.throughput > 100 else 'warning' if performance_summary.throughput > 50 else 'danger' }}">
-                                                        {{ 'High' if performance_summary.throughput > 100 else 'Medium' if performance_summary.throughput > 50 else 'Low' }}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>Error Rate</td>
-                                                <td>{{ performance_summary.error_rate }}%</td>
-                                                <td>
-                                                    <span class="badge badge-{{ 'success' if performance_summary.error_rate < 1 else 'warning' if performance_summary.error_rate < 5 else 'danger' }}">
-                                                        {{ 'Excellent' if performance_summary.error_rate < 1 else 'Good' if performance_summary.error_rate < 5 else 'Poor' }}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            {% else %}
-                                <div class="text-center py-5 text-muted">
-                                    <i class="fas fa-chart-area fa-3x mb-3"></i>
-                                    <h5>No Performance Data Available</h5>
-                                    <p>Performance test results will appear here once available.</p>
-                                    <small>Check the performance reports directory: <code>performance_reports/{{ model }}_app{{ app_num }}/</code></small>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Files Tab -->
-        <div class="tab-pane fade" id="files" role="tabpanel">
-            <div class="row">
-                <div class="col-lg-3">
-                    <div class="card">
-                        <div class="card-header">
-                            <h6 class="mb-0">
-                                <i class="fas fa-folder-tree text-primary mr-2"></i>
-                                Project Structure
-                            </h6>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="file-tree">
-                                {% if file_tree %}
-                                    {% for file in file_tree %}
-                                    <div class="list-group-item file-item" data-file="{{ file.path }}">
-                                        <i class="fas fa-{{ file.icon }} file-icon"></i>
-                                        {{ file.name }}
-                                    </div>
-                                    {% endfor %}
-                                {% else %}
-                                    <div class="text-center py-4 text-muted">
-                                        <i class="fas fa-folder-open fa-2x mb-2"></i>
-                                        <p>No files found</p>
-                                    </div>
-                                {% endif %}
-                            </div>
+                <!-- Containers Tab -->
+                <div class="tab-pane fade" id="containers" role="tabpanel">
+                    <div id="container-details"
+                         hx-get="/api/app/{{ model }}/{{ app_num }}/containers"
+                         hx-trigger="load, containerRefresh from:body"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-4">
+                            <div class="spinner mb-3"></div>
+                            <p class="text-muted">Loading container information...</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="col-lg-9">
-                    <!-- File Stats -->
-                    <div class="card mb-3">
-                        <div class="card-body py-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div class="file-stats text-muted small">
-                                    {% if file_stats %}
-                                    <span class="mr-3"><i class="fas fa-file-code mr-1"></i>{{ file_stats.total_files }} Total Files</span>
-                                    <span class="mr-3"><i class="fab fa-python mr-1"></i>{{ file_stats.python_files }} Python</span>
-                                    <span class="mr-3"><i class="fab fa-js mr-1"></i>{{ file_stats.js_files }} JavaScript</span>
-                                    <span><i class="fas fa-file-alt mr-1"></i>{{ file_stats.other_files }} Other</span>
-                                    {% endif %}
-                                </div>
-                                <div class="text-muted small">
-                                    Project: <code>misc/models/{{ model }}/app{{ app_num }}/</code>
-                                </div>
-                            </div>
+
+                <!-- Analysis Tab -->
+                <div class="tab-pane fade" id="analysis" role="tabpanel">
+                    <div id="analysis-details"
+                         hx-get="/api/app/{{ model }}/{{ app_num }}/analysis"
+                         hx-trigger="load, analysisRefresh from:body"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-4">
+                            <div class="spinner mb-3"></div>
+                            <p class="text-muted">Loading security analysis...</p>
                         </div>
                     </div>
-                    
-                    <!-- File Content Display -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h6 class="mb-0">
-                                <i class="fas fa-file-code mr-2"></i>
-                                <span id="current-file-name">Select a file to view</span>
-                            </h6>
+                </div>
+
+                <!-- Performance Tab -->
+                <div class="tab-pane fade" id="performance" role="tabpanel">
+                    <div id="performance-details"
+                         hx-get="/api/app/{{ model }}/{{ app_num }}/performance"
+                         hx-trigger="load, performanceRefresh from:body"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-4">
+                            <div class="spinner mb-3"></div>
+                            <p class="text-muted">Loading performance metrics...</p>
                         </div>
-                        <div class="card-body p-0">
-                            <div id="file-content">
-                                <div class="text-center py-5 text-muted">
-                                    <i class="fas fa-file-alt fa-3x mb-3"></i>
-                                    <h5>No File Selected</h5>
-                                    <p>Click on a file in the project structure to view its contents.</p>
-                                </div>
-                            </div>
+                    </div>
+                </div>
+
+                <!-- Files Tab -->
+                <div class="tab-pane fade" id="files" role="tabpanel">
+                    <div id="files-details"
+                         hx-get="/api/app/{{ model }}/{{ app_num }}/files"
+                         hx-trigger="load, filesRefresh from:body"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-4">
+                            <div class="spinner mb-3"></div>
+                            <p class="text-muted">Loading file structure...</p>
                         </div>
                     </div>
                 </div>
@@ -696,203 +313,182 @@
     </div>
 </div>
 
-<style>
-.app-details-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 0.5rem;
-    padding: 2rem;
-    margin-bottom: 2rem;
-}
-
-.status-indicator {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 0.5rem;
-}
-
-.status-running { background-color: #28a745; }
-.status-stopped { background-color: #dc3545; }
-.status-unknown { background-color: #6c757d; }
-
-.border-left-primary {
-    border-left: 0.25rem solid #4e73df !important;
-}
-
-.border-left-success {
-    border-left: 0.25rem solid #1cc88a !important;
-}
-
-.border-left-warning {
-    border-left: 0.25rem solid #f6c23e !important;
-}
-
-.text-xs {
-    font-size: 0.7rem;
-}
-
-.text-gray-800 {
-    color: #5a5c69 !important;
-}
-
-.text-gray-300 {
-    color: #dddfeb !important;
-}
-
-.card {
-    transition: all 0.3s ease;
-}
-
-.card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.status-item {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #e9ecef;
-}
-
-.status-item:last-child {
-    border-bottom: none;
-}
-
-.analysis-result-item {
-    border-left: 4px solid #6c757d;
-    background: #f8f9fa;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-    border-radius: 0.375rem;
-}
-
-.analysis-result-item.severity-high {
-    border-left-color: #dc3545;
-    background: #f8d7da;
-}
-
-.analysis-result-item.severity-medium {
-    border-left-color: #ffc107;
-    background: #fff3cd;
-}
-
-.analysis-result-item.severity-low {
-    border-left-color: #17a2b8;
-    background: #d1ecf1;
-}
-
-.issue-count-badge {
-    background: #e9ecef;
-    color: #495057;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.info-item {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #e9ecef;
-}
-
-.info-item:last-child {
-    border-bottom: none;
-}
-
-.tools-list .badge {
-    font-size: 0.7rem;
-    font-weight: 500;
-}
-
-.performance-metric {
-    padding: 0.75rem 0;
-    border-bottom: 1px solid #e3e6f0;
-}
-
-.performance-metric:last-child {
-    border-bottom: none;
-}
-
-.file-tree {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.file-tree .list-group-item {
-    border: none;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.file-tree .list-group-item:hover {
-    background-color: #f8f9fa;
-}
-
-.file-tree .list-group-item.active {
-    background-color: #007bff;
-    color: white;
-}
-
-.file-tree .file-icon {
-    width: 16px;
-    text-align: center;
-    margin-right: 0.5rem;
-}
-
-#file-content {
-    max-height: 600px;
-    overflow-y: auto;
-    background: #f8f9fa;
-}
-
-#file-content pre {
-    margin: 0;
-    padding: 1rem;
-    background: transparent;
-    border: none;
-    font-size: 0.875rem;
-    line-height: 1.4;
-    font-family: 'Fira Code', 'Courier New', monospace;
-}
-
-.container-info .info-row {
-    padding: 0.25rem 0;
-}
-</style>
-
-<script>
-// File viewer functionality
-function selectFile(filePath, fileName) {
-    // Update active state
-    document.querySelectorAll('.file-tree .list-group-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    event.target.classList.add('active');
-    
-    // Update file name
-    document.getElementById('current-file-name').textContent = fileName;
-    
-    // This would normally load file content via AJAX
-    // For now, show a placeholder
-    document.getElementById('file-content').innerHTML = `
-        <div class="text-center py-4 text-muted">
-            <i class="fas fa-file-code fa-2x mb-2"></i>
-            <p>File content would be displayed here</p>
-            <small>File: ${filePath}</small>
+<!-- Container Logs Modal -->
+<div class="modal fade" id="containerLogsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-terminal mr-2"></i>
+                    Container Logs - {{ model|replace('_', ' ')|title }} App {{ app_num }}
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="container-logs-content" class="log-viewer">
+                    <!-- Logs loaded via HTMX -->
+                </div>
+            </div>
         </div>
-    `;
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// App Overview JavaScript
+class AppOverview {
+    constructor() {
+        this.modelSlug = '{{ model }}';
+        this.appNum = '{{ app_num }}';
+        this.autoRefreshInterval = null;
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+        this.setupKeyboardShortcuts();
+    }
+
+    setupEventListeners() {
+        // Tab switching events
+        document.addEventListener('shown.bs.tab', (e) => {
+            const tabId = e.target.getAttribute('href');
+            if (tabId === '#containers') {
+                htmx.trigger('#container-details', 'containerRefresh');
+            } else if (tabId === '#analysis') {
+                htmx.trigger('#analysis-details', 'analysisRefresh');
+            } else if (tabId === '#performance') {
+                htmx.trigger('#performance-details', 'performanceRefresh');
+            } else if (tabId === '#files') {
+                htmx.trigger('#files-details', 'filesRefresh');
+            }
+        });
+
+        // Container action events
+        document.addEventListener('htmx:afterRequest', (e) => {
+            if (e.detail.successful && e.detail.xhr.responseURL.includes('/api/containers/')) {
+                this.refreshContainerStatus();
+            }
+        });
+    }
+
+    setupAutoRefresh() {
+        // Auto-refresh container status every 15 seconds
+        this.autoRefreshInterval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                this.refreshContainerStatus();
+            }
+        }, 15000);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                this.refreshApp();
+            }
+            if (e.ctrlKey && e.key === 'l') {
+                e.preventDefault();
+                this.showContainerLogs();
+            }
+        });
+    }
+
+    refreshApp() {
+        htmx.trigger('#app-content', 'refresh');
+        this.showToast('Application refreshed', 'success');
+    }
+
+    refreshContainerStatus() {
+        htmx.ajax('GET', `/api/app/${this.modelSlug}/${this.appNum}/status`, {
+            target: '.status-indicator',
+            swap: 'outerHTML'
+        });
+    }
+
+    showContainerLogs() {
+        htmx.ajax('GET', `/api/containers/${encodeURIComponent(this.modelSlug)}/${this.appNum}/logs`, {
+            target: '#container-logs-content'
+        });
+        $('#containerLogsModal').modal('show');
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
 }
 
-// Add click handlers to file items
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.file-item').forEach(item => {
-        item.addEventListener('click', function() {
-            const filePath = this.dataset.file;
-            const fileName = this.textContent.trim();
-            selectFile(filePath, fileName);
-        });
+// Global container control functions
+window.startContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('start', modelSlug, appNum, button);
+};
+
+window.stopContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('stop', modelSlug, appNum, button);
+};
+
+window.restartContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('restart', modelSlug, appNum, button);
+};
+
+window.showContainerLogs = function(modelSlug, appNum) {
+    appOverview.showContainerLogs();
+};
+
+function handleContainerAction(action, modelSlug, appNum, button) {
+    const originalText = button.innerHTML;
+    button.innerHTML = `<div class="spinner"></div> ${action}ing...`;
+    button.disabled = true;
+
+    htmx.ajax('POST', `/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
+        swap: 'none'
+    }).then(() => {
+        appOverview.showToast(`Container ${action} successful`, 'success');
+        appOverview.refreshContainerStatus();
+        
+        // Re-enable appropriate buttons after action
+        setTimeout(() => {
+            const buttons = document.querySelectorAll('.btn[onclick*="Container"]');
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                // Reset button text based on action
+                if (btn.innerHTML.includes('Start')) {
+                    btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start';
+                } else if (btn.innerHTML.includes('Stop')) {
+                    btn.innerHTML = '<i class="fas fa-stop mr-1"></i>Stop';
+                } else if (btn.innerHTML.includes('Restart')) {
+                    btn.innerHTML = '<i class="fas fa-redo mr-1"></i>Restart';
+                }
+            });
+        }, 1000);
+    }).catch(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+        appOverview.showToast(`Container ${action} failed`, 'danger');
     });
+}
+
+// Initialize app overview
+let appOverview;
+document.addEventListener('DOMContentLoaded', function() {
+    appOverview = new AppOverview();
 });
 </script>
 {% endblock %}

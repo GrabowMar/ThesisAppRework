@@ -1,272 +1,677 @@
 {% extends "base.html" %}
 
-{% block title %}Generation Statistics{% endblock %}
+{% block title %}Generation Statistics - Research Platform{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-chart-bar text-primary mr-2"></i>
+                Generation Statistics
+            </h1>
+            <p class="page-subtitle">
+                AI model performance analysis and generation metrics
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary btn-sm" 
+                    onclick="refreshStatistics()">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" 
+                    onclick="exportStatistics()">
+                <i class="fas fa-download mr-1"></i>
+                Export
+            </button>
+            <button type="button" class="btn btn-info btn-sm" 
+                    data-toggle="modal" data-target="#chart-settings-modal">
+                <i class="fas fa-cog mr-1"></i>
+                Settings
+            </button>
+        </div>
+    </div>
+
+    <!-- Key Metrics Grid -->
+    <div class="stats-grid">
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="stats-card-value">{{ stats.total_models or 0 }}</div>
+            <div class="stats-card-label">AI Models</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-code"></i>
+            </div>
+            <div class="stats-card-value">{{ stats.total_applications or 0 }}</div>
+            <div class="stats-card-label">Applications</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-exchange-alt"></i>
+            </div>
+            <div class="stats-card-value">{{ stats.total_calls or 0 }}</div>
+            <div class="stats-card-label">API Calls</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stats-card-value">{{ "%.1f"|format(stats.success_rate or 0) }}%</div>
+            <div class="stats-card-label">Success Rate</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stats-card-value">{{ stats.avg_generation_time or 'N/A' }}</div>
+            <div class="stats-card-label">Avg Time</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-thumbs-up"></i>
+            </div>
+            <div class="stats-card-value">{{ stats.successful_calls or 0 }}</div>
+            <div class="stats-card-label">Successful</div>
+        </div>
+    </div>
+
+    <!-- Time Range Selector -->
+    <div class="card mb-4">
+        <div class="card-body p-3">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <label class="form-label mb-1">Time Range</label>
+                    <select class="form-control form-control-sm" id="time-range" onchange="updateTimeRange()">
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d" selected>Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label mb-1">Chart Type</label>
+                    <select class="form-control form-control-sm" id="chart-type" onchange="updateChartType()">
+                        <option value="line">Line Chart</option>
+                        <option value="bar">Bar Chart</option>
+                        <option value="area">Area Chart</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label mb-1">Group By</label>
+                    <select class="form-control form-control-sm" id="group-by" onchange="updateGrouping()">
+                        <option value="day">Daily</option>
+                        <option value="hour">Hourly</option>
+                        <option value="week">Weekly</option>
+                        <option value="month">Monthly</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
     <div class="row">
+        <!-- Generation Trends Chart -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-chart-line mr-2"></i>
+                        Generation Trends
+                    </h6>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-sm active" 
+                                onclick="showTrendMetric('success')">Success</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                                onclick="showTrendMetric('failed')">Failed</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                                onclick="showTrendMetric('total')">Total</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="trends-chart-container" style="height: 400px;">
+                        {% if daily_stats %}
+                            <canvas id="trendsChart"></canvas>
+                        {% else %}
+                            <div class="d-flex align-items-center justify-content-center h-100">
+                                <div class="text-center">
+                                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                                    <h5 class="text-muted">No Trend Data</h5>
+                                    <p class="text-muted">Generation trends will appear here as data is collected</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Models Performance -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-trophy mr-2"></i>
+                        Top Performing Models
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if top_models %}
+                        {% for model in top_models %}
+                        <div class="d-flex justify-content-between align-items-center mb-3 p-2 border rounded">
+                            <div class="d-flex align-items-center">
+                                <div class="model-rank mr-2">
+                                    <span class="badge badge-primary">#{{ loop.index }}</span>
+                                </div>
+                                <div>
+                                    <div class="font-weight-bold text-sm">{{ model.display_name }}</div>
+                                    <small class="text-muted">{{ model.provider|title }}</small>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-weight-bold text-success">{{ model.success_rate }}%</div>
+                                <small class="text-muted">{{ model.total_calls }} calls</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-trophy fa-2x mb-2"></i>
+                            <p>Model performance rankings will appear here</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Statistics Tables -->
+    <div class="row mt-4">
+        <!-- Recent Generation Activity -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-history mr-2"></i>
+                        Recent Generation Activity
+                    </h6>
+                    <button type="button" class="btn btn-outline-primary btn-sm"
+                            hx-get="/api/statistics/recent"
+                            hx-target="#recent-activity-table"
+                            hx-indicator="#recent-activity-loading">
+                        <i class="fas fa-sync-alt mr-1"></i>Refresh
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="recent-activity-table">
+                        {% if recent_generations %}
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Model</th>
+                                            <th>App Type</th>
+                                            <th>Status</th>
+                                            <th>Duration</th>
+                                            <th>Generated</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for gen in recent_generations %}
+                                        <tr>
+                                            <td>
+                                                <div class="font-weight-bold text-sm">{{ gen.model_name }}</div>
+                                                <small class="text-muted">{{ gen.provider }}</small>
+                                            </td>
+                                            <td>{{ gen.app_type|title }}</td>
+                                            <td>
+                                                <span class="status-indicator status-{{ gen.status }}">
+                                                    <span class="status-dot"></span>
+                                                    {{ gen.status|title }}
+                                                </span>
+                                            </td>
+                                            <td>{{ gen.duration or 'N/A' }}</td>
+                                            <td>
+                                                <div class="text-sm">{{ gen.created_at.strftime('%H:%M') if gen.created_at else 'N/A' }}</div>
+                                                <small class="text-muted">{{ gen.created_at.strftime('%Y-%m-%d') if gen.created_at else 'N/A' }}</small>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-history fa-3x mb-3"></i>
+                                <h5>No Recent Activity</h5>
+                                <p>Generation activity will appear here as models create applications</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Provider Statistics -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-building mr-2"></i>
+                        Provider Statistics
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="provider-stats">
+                        {% if provider_stats %}
+                            {% for provider in provider_stats %}
+                            <div class="provider-stat-item mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="font-weight-bold">{{ provider.name|title }}</span>
+                                    <span class="badge badge-primary">{{ provider.model_count }} models</span>
+                                </div>
+                                <div class="progress mb-1" style="height: 6px;">
+                                    <div class="progress-bar" style="width: {{ provider.success_rate }}%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between text-sm text-muted">
+                                    <span>{{ provider.success_rate }}% success</span>
+                                    <span>{{ provider.total_calls }} calls</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-building fa-2x mb-2"></i>
+                                <p>Provider statistics will appear here</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Analysis Section -->
+    <div class="row mt-4">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>
-                    <i class="fas fa-chart-bar text-primary mr-2"></i>
-                    Generation Statistics & Analysis
-                </h2>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="refresh-stats">
-                        <i class="fas fa-sync-alt mr-1"></i>
-                        Refresh Data
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="export-stats">
-                        <i class="fas fa-download mr-1"></i>
-                        Export
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        Error Analysis
+                    </h6>
+                    <button type="button" class="btn btn-outline-warning btn-sm"
+                            hx-get="/api/statistics/errors"
+                            hx-target="#error-analysis-content">
+                        <i class="fas fa-sync-alt mr-1"></i>Refresh
                     </button>
                 </div>
-            </div>
-
-            <!-- Overview Cards -->
-            <div class="row mb-4">
-                <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="card border-primary">
-                        <div class="card-body text-center">
-                            <i class="fas fa-robot fa-2x text-primary mb-2"></i>
-                            <h4 class="card-title">{{ stats.total_models or 0 }}</h4>
-                            <p class="card-text text-muted">AI Models Used</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="card border-success">
-                        <div class="card-body text-center">
-                            <i class="fas fa-code fa-2x text-success mb-2"></i>
-                            <h4 class="card-title">{{ stats.total_applications or 0 }}</h4>
-                            <p class="card-text text-muted">App Types</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="card border-info">
-                        <div class="card-body text-center">
-                            <i class="fas fa-exchange-alt fa-2x text-info mb-2"></i>
-                            <h4 class="card-title">{{ stats.total_calls or 0 }}</h4>
-                            <p class="card-text text-muted">API Calls</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="card border-warning">
-                        <div class="card-body text-center">
-                            <i class="fas fa-check-circle fa-2x text-warning mb-2"></i>
-                            <h4 class="card-title">{{ "%.1f"|format(stats.success_rate or 0) }}%</h4>
-                            <p class="card-text text-muted">Success Rate</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Additional Statistics Row -->
-            <div class="row mb-4">
-                <div class="col-lg-6 col-md-6 mb-3">
-                    <div class="card border-secondary">
-                        <div class="card-body text-center">
-                            <i class="fas fa-clock fa-2x text-secondary mb-2"></i>
-                            <h4 class="card-title">{{ stats.avg_generation_time or 'N/A' }}</h4>
-                            <p class="card-text text-muted">Avg Generation Time</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6 col-md-6 mb-3">
-                    <div class="card border-dark">
-                        <div class="card-body text-center">
-                            <i class="fas fa-thumbs-up fa-2x text-dark mb-2"></i>
-                            <h4 class="card-title">{{ stats.successful_calls or 0 }}</h4>
-                            <p class="card-text text-muted">Successful Calls</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Generation Data Tables -->
-            <div class="row">
-                <!-- Recent Generation Activity -->
-                <div class="col-lg-8">
-                    <div class="card">
-                        <div class="card-header bg-primary text-white">
-                            <h5 class="mb-0">
-                                <i class="fas fa-history mr-2"></i>
-                                Recent Generation Activity
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            {% if recent_generations %}
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Model</th>
-                                                <th>App Type</th>
-                                                <th>Type</th>
-                                                <th>Status</th>
-                                                <th>Duration</th>
-                                                <th>Size</th>
-                                                <th>Time</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for gen in recent_generations %}
-                                            <tr>
-                                                <td class="small">{{ gen.model_name }}</td>
-                                                <td>{{ gen.app_type }}</td>
-                                                <td class="small">{{ gen.call_type|title }}</td>
-                                                <td>
-                                                    <span class="badge badge-{{ 'success' if gen.status == 'success' else 'danger' }}">
-                                                        {{ gen.status|title }}
-                                                    </span>
-                                                </td>
-                                                <td class="small">{{ gen.duration }}</td>
-                                                <td class="small">
-                                                    {% if gen.content_length > 0 %}
-                                                        {{ "%.1f"|format(gen.content_length / 1024) }}KB
-                                                    {% else %}
-                                                        -
-                                                    {% endif %}
-                                                </td>
-                                                <td class="small">{{ gen.date }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
+                <div class="card-body" id="error-analysis-content">
+                    {% if error_stats %}
+                        <div class="row">
+                            {% for error_type, count in error_stats.items() %}
+                            <div class="col-md-3">
+                                <div class="error-stat-card">
+                                    <div class="error-count">{{ count }}</div>
+                                    <div class="error-type">{{ error_type|title }}</div>
                                 </div>
-                            {% else %}
-                                <div class="text-center text-muted py-4">
-                                    <i class="fas fa-info-circle fa-2x mb-2"></i>
-                                    <p>No generation data available yet.</p>
-                                    <p class="small">Use <code>generateOutputs.py</code> to generate applications.</p>
-                                </div>
-                            {% endif %}
+                            </div>
+                            {% endfor %}
                         </div>
-                    </div>
-                </div>
-
-                <!-- Model Performance -->
-                <div class="col-lg-4">
-                    <div class="card">
-                        <div class="card-header bg-success text-white">
-                            <h5 class="mb-0">
-                                <i class="fas fa-trophy mr-2"></i>
-                                Top Performing Models
-                            </h5>
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                            <p>No errors detected in recent generations</p>
                         </div>
-                        <div class="card-body">
-                            {% if top_models %}
-                                {% for model in top_models %}
-                                <div class="d-flex justify-content-between align-items-center mb-3 p-2 border rounded">
-                                    <div>
-                                        <span class="font-weight-bold">{{ model.name }}</span>
-                                        <br>
-                                        <small class="text-muted">{{ model.apps_generated }} apps • {{ model.total_calls }} calls</small>
-                                    </div>
-                                    <div class="text-right">
-                                        <span class="badge badge-{{ 'success' if model.success_rate >= 70 else 'warning' if model.success_rate >= 40 else 'danger' }}">
-                                            {{ "%.1f"|format(model.success_rate) }}%
-                                        </span>
-                                        <br>
-                                        <small class="text-muted">{{ model.successful_calls }}/{{ model.total_calls }}</small>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="text-center text-muted">
-                                    <i class="fas fa-info-circle mb-2"></i>
-                                    <p class="small">No performance data available yet.</p>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Daily Statistics Chart -->
-            <div class="row mt-4">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header bg-info text-white">
-                            <h5 class="mb-0">
-                                <i class="fas fa-chart-line mr-2"></i>
-                                Generation Trends
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            {% if daily_stats %}
-                                <canvas id="generationChart" width="400" height="100"></canvas>
-                            {% else %}
-                                <div class="text-center text-muted py-4">
-                                    <i class="fas fa-chart-line fa-2x mb-2"></i>
-                                    <p>Generation trends will appear here as data is collected.</p>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Chart.js for visualization -->
+<!-- Chart Settings Modal -->
+<div class="modal fade" id="chart-settings-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cog mr-2"></i>
+                    Chart Settings
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Refresh Interval</label>
+                    <select class="form-control" id="refresh-interval">
+                        <option value="30">30 seconds</option>
+                        <option value="60" selected>1 minute</option>
+                        <option value="300">5 minutes</option>
+                        <option value="0">Manual only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Theme</label>
+                    <select class="form-control" id="chart-theme">
+                        <option value="light" selected>Light</option>
+                        <option value="dark">Dark</option>
+                    </select>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="show-animations" checked>
+                    <label class="form-check-label" for="show-animations">
+                        Enable chart animations
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveChartSettings()">
+                    Save Settings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js for visualizations -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Refresh data button
-    document.getElementById('refresh-stats').addEventListener('click', function() {
-        location.reload();
-    });
+// Statistics Overview JavaScript
+class StatisticsOverview {
+    constructor() {
+        this.chart = null;
+        this.refreshInterval = null;
+        this.settings = {
+            timeRange: '7d',
+            chartType: 'line',
+            groupBy: 'day',
+            refreshInterval: 60,
+            theme: 'light',
+            animations: true
+        };
+        this.init();
+    }
 
-    // Export button
-    document.getElementById('export-stats').addEventListener('click', function() {
-        window.open('/statistics/api/export', '_blank');
-    });
+    init() {
+        this.loadSettings();
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+        this.initializeChart();
+    }
 
-    // Initialize chart if data exists
-    {% if daily_stats %}
-    const ctx = document.getElementById('generationChart').getContext('2d');
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: {
+    loadSettings() {
+        const saved = localStorage.getItem('statisticsSettings');
+        if (saved) {
+            this.settings = { ...this.settings, ...JSON.parse(saved) };
+        }
+        this.applySettings();
+    }
+
+    setupEventListeners() {
+        // Metric toggle buttons
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('[onclick*="showTrendMetric"]')) {
+                document.querySelectorAll('[onclick*="showTrendMetric"]').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                e.target.classList.add('active');
+            }
+        });
+    }
+
+    setupAutoRefresh() {
+        if (this.settings.refreshInterval > 0) {
+            this.refreshInterval = setInterval(() => {
+                if (document.visibilityState === 'visible') {
+                    this.refreshStatistics();
+                }
+            }, this.settings.refreshInterval * 1000);
+        }
+    }
+
+    initializeChart() {
+        const canvas = document.getElementById('trendsChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        
+        {% if daily_stats %}
+        const chartData = {
             labels: {{ daily_stats.dates | tojson }},
             datasets: [{
                 label: 'Successful Generations',
                 data: {{ daily_stats.successful | tojson }},
                 borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                tension: 0.1
+                backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                tension: 0.1,
+                fill: this.settings.chartType === 'area'
             }, {
                 label: 'Failed Generations',
                 data: {{ daily_stats.failed | tojson }},
                 borderColor: 'rgb(255, 99, 132)',
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                tension: 0.1
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                tension: 0.1,
+                fill: this.settings.chartType === 'area'
             }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Daily Generation Statistics'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
+        };
+
+        this.chart = new Chart(ctx, {
+            type: this.settings.chartType === 'area' ? 'line' : this.settings.chartType,
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: this.settings.animations ? 750 : 0
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Generation Activity Over Time'
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top'
                     }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
                 }
             }
+        });
+        {% endif %}
+    }
+
+    refreshStatistics() {
+        // Refresh main stats
+        htmx.ajax('GET', '/api/statistics/overview', {
+            target: '.stats-grid',
+            swap: 'innerHTML'
+        });
+
+        // Refresh chart data
+        htmx.ajax('GET', `/api/statistics/trends?range=${this.settings.timeRange}&group=${this.settings.groupBy}`, {
+            target: '#trends-chart-container',
+            swap: 'innerHTML'
+        }).then(() => {
+            this.initializeChart();
+        });
+
+        // Refresh recent activity
+        htmx.trigger('#recent-activity-table', 'refresh');
+
+        this.showToast('Statistics refreshed', 'success');
+    }
+
+    updateTimeRange() {
+        this.settings.timeRange = document.getElementById('time-range').value;
+        this.saveSettings();
+        this.refreshChartData();
+    }
+
+    updateChartType() {
+        this.settings.chartType = document.getElementById('chart-type').value;
+        this.saveSettings();
+        this.updateChart();
+    }
+
+    updateGrouping() {
+        this.settings.groupBy = document.getElementById('group-by').value;
+        this.saveSettings();
+        this.refreshChartData();
+    }
+
+    updateChart() {
+        if (this.chart) {
+            this.chart.destroy();
+            this.initializeChart();
         }
-    });
-    {% endif %}
+    }
+
+    refreshChartData() {
+        htmx.ajax('GET', `/api/statistics/trends?range=${this.settings.timeRange}&group=${this.settings.groupBy}`, {
+            target: '#trends-chart-container',
+            swap: 'innerHTML'
+        }).then(() => {
+            this.initializeChart();
+        });
+    }
+
+    showTrendMetric(metric) {
+        // Update chart to show specific metric
+        if (this.chart) {
+            const datasets = this.chart.data.datasets;
+            datasets.forEach((dataset, index) => {
+                if (metric === 'success' && index === 0) {
+                    dataset.hidden = false;
+                } else if (metric === 'failed' && index === 1) {
+                    dataset.hidden = false;
+                } else if (metric === 'total') {
+                    dataset.hidden = false;
+                } else {
+                    dataset.hidden = metric !== 'total';
+                }
+            });
+            this.chart.update();
+        }
+    }
+
+    exportStatistics() {
+        const params = new URLSearchParams({
+            timeRange: this.settings.timeRange,
+            groupBy: this.settings.groupBy,
+            format: 'xlsx'
+        });
+        
+        window.open(`/api/statistics/export?${params.toString()}`, '_blank');
+        this.showToast('Exporting statistics...', 'info');
+    }
+
+    applySettings() {
+        document.getElementById('time-range').value = this.settings.timeRange;
+        document.getElementById('chart-type').value = this.settings.chartType;
+        document.getElementById('group-by').value = this.settings.groupBy;
+        document.getElementById('refresh-interval').value = this.settings.refreshInterval;
+        document.getElementById('chart-theme').value = this.settings.theme;
+        document.getElementById('show-animations').checked = this.settings.animations;
+    }
+
+    saveSettings() {
+        localStorage.setItem('statisticsSettings', JSON.stringify(this.settings));
+    }
+
+    saveChartSettings() {
+        this.settings.refreshInterval = parseInt(document.getElementById('refresh-interval').value);
+        this.settings.theme = document.getElementById('chart-theme').value;
+        this.settings.animations = document.getElementById('show-animations').checked;
+        
+        this.saveSettings();
+        this.setupAutoRefresh();
+        this.updateChart();
+        
+        $('#chart-settings-modal').modal('hide');
+        this.showToast('Settings saved', 'success');
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+}
+
+// Global functions
+window.refreshStatistics = function() {
+    statisticsOverview.refreshStatistics();
+};
+
+window.exportStatistics = function() {
+    statisticsOverview.exportStatistics();
+};
+
+window.updateTimeRange = function() {
+    statisticsOverview.updateTimeRange();
+};
+
+window.updateChartType = function() {
+    statisticsOverview.updateChartType();
+};
+
+window.updateGrouping = function() {
+    statisticsOverview.updateGrouping();
+};
+
+window.showTrendMetric = function(metric) {
+    statisticsOverview.showTrendMetric(metric);
+};
+
+window.saveChartSettings = function() {
+    statisticsOverview.saveChartSettings();
+};
+
+// Initialize statistics overview
+let statisticsOverview;
+document.addEventListener('DOMContentLoaded', function() {
+    statisticsOverview = new StatisticsOverview();
 });
 </script>
 {% endblock %}
