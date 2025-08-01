@@ -209,17 +209,21 @@ class BaseAnalyzer(ABC):
     def _check_tool_availability(self, tool_name: str, tool_config: Dict[str, Any]) -> bool:
         """Check if a tool is available."""
         try:
-            cmd = tool_config.get("cmd", [])
-            if not cmd:
-                return False
-                
             if tool_config.get("python_module"):
-                # Check Python module
-                result = subprocess.run(
-                    [sys.executable, "-m", "pip", "show", tool_name],
-                    capture_output=True, timeout=5, check=False
-                )
-                return result.returncode == 0
+                # Special case for safety - check if package is installed
+                if tool_name == "safety":
+                    result = subprocess.run(
+                        [sys.executable, "-m", "pip", "show", "safety"],
+                        capture_output=True, timeout=5, check=False
+                    )
+                    return result.returncode == 0
+                else:
+                    # For other tools, try to import them directly
+                    result = subprocess.run(
+                        [sys.executable, "-c", f"import {tool_name}"],
+                        capture_output=True, timeout=5, check=False
+                    )
+                    return result.returncode == 0
             elif tool_config.get("npx_tool"):
                 # Check npx availability and the specific tool
                 try:
@@ -232,6 +236,7 @@ class BaseAnalyzer(ABC):
                         return False
                     
                     # Then check if the specific tool can be found by npx
+                    cmd = tool_config.get("cmd", [])
                     tool_cmd = cmd[1] if len(cmd) > 1 else tool_name
                     tool_result = subprocess.run(
                         ["npx", tool_cmd, "--version"],
@@ -242,6 +247,9 @@ class BaseAnalyzer(ABC):
                     return False
             else:
                 # Check system command
+                cmd = tool_config.get("cmd", [])
+                if not cmd:
+                    return False
                 return bool(get_executable_path(cmd[0]))
         except Exception as e:
             logger.debug(f"Tool {tool_name} availability check failed: {e}")
@@ -252,11 +260,18 @@ class BaseAnalyzer(ABC):
                   input_data: Optional[str] = None) -> Tuple[List[AnalysisIssue], str, str]:
         """Run a tool and parse its output."""
         try:
-            logger.info(f"Running {tool_name} with command: {' '.join(command)}")
+            logger.info(f"🔧 Starting {tool_name} analysis")
+            logger.info(f"📁 Working directory: {working_dir}")
+            logger.info(f"⚙️  Command: {' '.join(command)}")
+            if input_data:
+                logger.info(f"📥 Input data length: {len(input_data)} characters")
             
             # Use shell=True for NPX commands on Windows
             use_shell = IS_WINDOWS and len(command) > 0 and (command[0] == "npx" or command[0] == "npm")
+            if use_shell:
+                logger.info(f"🪟 Using shell mode for Windows NPX command")
             
+            start_time = datetime.now()
             result = subprocess.run(
                 command,
                 cwd=working_dir,
@@ -269,25 +284,64 @@ class BaseAnalyzer(ABC):
                 errors='replace',
                 shell=use_shell
             )
+            execution_time = (datetime.now() - start_time).total_seconds()
+            
+            logger.info(f"⏱️  {tool_name} completed in {execution_time:.2f} seconds")
+            logger.info(f"🏁 Return code: {result.returncode}")
+            
+            if result.stdout:
+                logger.info(f"📤 STDOUT length: {len(result.stdout)} characters")
+                if len(result.stdout) > 1000:
+                    logger.info(f"📤 STDOUT preview: {result.stdout[:500]}...")
+                else:
+                    logger.info(f"📤 STDOUT: {result.stdout}")
+            else:
+                logger.info(f"📤 No STDOUT output")
+                
+            if result.stderr:
+                logger.info(f"⚠️  STDERR length: {len(result.stderr)} characters")
+                if len(result.stderr) > 1000:
+                    logger.info(f"⚠️  STDERR preview: {result.stderr[:500]}...")
+                else:
+                    logger.info(f"⚠️  STDERR: {result.stderr}")
+            else:
+                logger.info(f"⚠️  No STDERR output")
             
             output = f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
             
             if result.returncode in [0, 1]:  # 0 = no issues, 1 = issues found
-                issues = parser_func(result.stdout) if parser_func else []
+                if parser_func:
+                    logger.info(f"🔍 Parsing {tool_name} output...")
+                    try:
+                        issues = parser_func(result.stdout)
+                        logger.info(f"✅ Parsed {len(issues)} issues from {tool_name}")
+                        for i, issue in enumerate(issues[:5]):  # Log first 5 issues
+                            logger.info(f"  Issue {i+1}: {issue.filename}:{issue.line_number} - {issue.severity} - {issue.issue_text[:100]}")
+                        if len(issues) > 5:
+                            logger.info(f"  ... and {len(issues) - 5} more issues")
+                    except Exception as parse_error:
+                        logger.error(f"❌ Failed to parse {tool_name} output: {parse_error}")
+                        issues = []
+                else:
+                    issues = []
+                    logger.info(f"ℹ️  No parser function provided for {tool_name}")
+                
                 status = ToolStatus.ISSUES_FOUND.value.format(count=len(issues)) if issues else ToolStatus.SUCCESS.value
+                logger.info(f"✅ {tool_name} analysis completed: {status}")
                 return issues, status, output
             else:
-                logger.error(f"{tool_name} failed with return code {result.returncode}")
+                logger.error(f"❌ {tool_name} failed with return code {result.returncode}")
+                logger.error(f"❌ Error details: {result.stderr}")
                 return [], ToolStatus.ERROR.value, output
                 
         except subprocess.TimeoutExpired:
-            logger.error(f"{tool_name} timed out after {timeout} seconds")
+            logger.error(f"⏰ {tool_name} timed out after {timeout} seconds")
             return [], ToolStatus.ERROR.value, f"Tool timed out after {timeout} seconds"
         except FileNotFoundError:
-            logger.error(f"{tool_name} command not found")
+            logger.error(f"🚫 {tool_name} command not found")
             return [], ToolStatus.NOT_FOUND.value, "Command not found"
         except Exception as e:
-            logger.error(f"Error running {tool_name}: {e}")
+            logger.error(f"💥 Error running {tool_name}: {e}")
             return [], ToolStatus.ERROR.value, str(e)
             
     def _sort_issues(self, issues: List[AnalysisIssue]) -> List[AnalysisIssue]:
@@ -332,9 +386,22 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
     def __init__(self, base_path: Union[str, Path]):
         super().__init__(base_path, ToolCategory.BACKEND_SECURITY)
         self.tools = self.get_tool_definitions()
-        self.available_tools = {name: self._check_tool_availability(name, config) 
-                               for name, config in self.tools.items()}
-        logger.info(f"Available backend security tools: {[k for k, v in self.available_tools.items() if v]}")
+        
+        logger.info(f"🔍 Initializing Backend Security Analyzer")
+        logger.info(f"📁 Base path: {base_path}")
+        logger.info(f"🔧 Checking availability of {len(self.tools)} backend security tools...")
+        
+        self.available_tools = {}
+        for name, config in self.tools.items():
+            logger.info(f"  🔍 Checking {name}...")
+            is_available = self._check_tool_availability(name, config)
+            self.available_tools[name] = is_available
+            status_icon = "✅" if is_available else "❌"
+            logger.info(f"    {status_icon} {name}: {'Available' if is_available else 'Not available'}")
+            
+        available_tools_list = [k for k, v in self.available_tools.items() if v]
+        logger.info(f"✅ Backend security tools ready: {len(available_tools_list)}/{len(self.tools)} available")
+        logger.info(f"📋 Available tools: {available_tools_list}")
         
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         return {
@@ -520,60 +587,100 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run backend security analysis."""
         with self.analysis_lock:
-            logger.info(f"Starting backend security analysis for {model}/app{app_num}")
+            logger.info(f"🔒 Starting backend security analysis for {model}/app{app_num}")
+            logger.info(f"⚙️  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
             
             # Check cache
             if not force_rerun:
+                logger.info(f"🔍 Checking for cached results...")
                 cached = self.results_manager.load_results(model, app_num, 
                                                          file_name=".backend_security_results.json")
                 if cached:
-                    logger.info("Using cached backend security results")
+                    logger.info("✅ Using cached backend security results")
                     return (cached.get("issues", []),
                            cached.get("tool_status", {}),
                            cached.get("tool_outputs", {}))
+                else:
+                    logger.info("ℹ️  No cached results found, running fresh analysis")
                            
             # Find app path
+            logger.info(f"📁 Looking for backend path for {model}/app{app_num}")
             app_path = self._find_app_path(model, app_num)
             if not app_path:
                 error_msg = f"Backend path not found for {model}/app{app_num}"
+                logger.error(f"❌ {error_msg}")
                 return [], {"error": error_msg}, {}
+            logger.info(f"✅ Found backend path: {app_path}")
                 
+            # Determine tools to run
+            tools_to_run = list(self.tools.keys()) if use_all_tools else ["bandit"]
+            logger.info(f"🔧 Tools to run: {tools_to_run}")
+            
             # Run tools
             all_issues = []
             tool_status = {}
             tool_outputs = {}
             
-            tools_to_run = list(self.tools.keys()) if use_all_tools else ["bandit"]
-            
-            for tool_name in tools_to_run:
+            for i, tool_name in enumerate(tools_to_run, 1):
+                logger.info(f"🔧 Running tool {i}/{len(tools_to_run)}: {tool_name}")
+                
                 if not self.available_tools.get(tool_name):
+                    status_msg = f"Tool not available"
+                    logger.warning(f"⚠️  {tool_name}: {status_msg}")
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
+                logger.info(f"🚀 Executing {tool_name} on {app_path}")
                 if tool_name == "bandit":
                     issues, status, output = self._run_bandit(app_path)
                 elif tool_name == "safety":
                     issues, status, output = self._run_safety(app_path)
                 else:
+                    logger.warning(f"⚠️  Unknown tool: {tool_name}")
                     continue
+                    
+                # Log results
+                if status == ToolStatus.SUCCESS.value:
+                    issues_count = len(issues)
+                    logger.info(f"✅ {tool_name} completed successfully - Found {issues_count} issues")
+                else:
+                    logger.error(f"❌ {tool_name} failed with status: {status}")
                     
                 all_issues.extend(issues)
                 tool_status[tool_name] = status
                 tool_outputs[tool_name] = output
                 
+            # Generate final summary
+            total_issues = len(all_issues)
+            successful_tools = sum(1 for status in tool_status.values() 
+                                 if status == ToolStatus.SUCCESS.value)
+            failed_tools = len(tool_status) - successful_tools
+            
+            logger.info(f"🎯 Backend Security Analysis Complete!")
+            logger.info(f"📊 Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
+            
             # Sort and save
+            logger.info(f"📋 Sorting and formatting {total_issues} issues...")
             sorted_issues = self._sort_issues(all_issues)
             issues_dict = [issue.to_dict() for issue in sorted_issues]
             
+            logger.info(f"💾 Saving results to cache...")
             results = {
                 "issues": issues_dict,
                 "tool_status": tool_status,
                 "tool_outputs": tool_outputs,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "analysis_summary": {
+                    "total_issues": total_issues,
+                    "tools_run": len(tool_status),
+                    "successful_tools": successful_tools,
+                    "failed_tools": failed_tools
+                }
             }
             
             self.results_manager.save_results(model, app_num, results,
                                             file_name=".backend_security_results.json")
+            logger.info(f"✅ Results saved successfully")
                                             
             return issues_dict, tool_status, tool_outputs
 
@@ -584,9 +691,22 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
     def __init__(self, base_path: Union[str, Path]):
         super().__init__(base_path, ToolCategory.FRONTEND_SECURITY)
         self.tools = self.get_tool_definitions()
-        self.available_tools = {name: self._check_tool_availability(name, config)
-                               for name, config in self.tools.items()}
-        logger.info(f"Available frontend security tools: {[k for k, v in self.available_tools.items() if v]}")
+        
+        logger.info(f"🔍 Initializing Frontend Security Analyzer")
+        logger.info(f"📁 Base path: {base_path}")
+        logger.info(f"🔧 Checking availability of {len(self.tools)} frontend security tools...")
+        
+        self.available_tools = {}
+        for name, config in self.tools.items():
+            logger.info(f"  🔍 Checking {name}...")
+            is_available = self._check_tool_availability(name, config)
+            self.available_tools[name] = is_available
+            status_icon = "✅" if is_available else "❌"
+            logger.info(f"    {status_icon} {name}: {'Available' if is_available else 'Not available'}")
+            
+        available_tools_list = [k for k, v in self.available_tools.items() if v]
+        logger.info(f"✅ Frontend security tools ready: {len(available_tools_list)}/{len(self.tools)} available")
+        logger.info(f"📋 Available tools: {available_tools_list}")
         
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         return {
@@ -930,36 +1050,50 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run frontend security analysis."""
         with self.analysis_lock:
-            logger.info(f"Starting frontend security analysis for {model}/app{app_num}")
+            logger.info(f"🌐 Starting frontend security analysis for {model}/app{app_num}")
+            logger.info(f"⚙️  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
             
             # Check cache
             if not force_rerun:
+                logger.info(f"🔍 Checking for cached results...")
                 cached = self.results_manager.load_results(model, app_num,
                                                          file_name=".frontend_security_results.json")
                 if cached:
-                    logger.info("Using cached frontend security results")
+                    logger.info("✅ Using cached frontend security results")
                     return (cached.get("issues", []),
                            cached.get("tool_status", {}),
                            cached.get("tool_outputs", {}))
+                else:
+                    logger.info("ℹ️  No cached results found, running fresh analysis")
                            
             # Find app path
+            logger.info(f"📁 Looking for frontend path for {model}/app{app_num}")
             app_path = self._find_app_path(model, app_num)
             if not app_path:
                 error_msg = f"Frontend path not found for {model}/app{app_num}"
+                logger.error(f"❌ {error_msg}")
                 return [], {"error": error_msg}, {}
+            logger.info(f"✅ Found frontend path: {app_path}")
                 
+            # Determine tools to run
+            tools_to_run = ["eslint", "retire", "jshint", "snyk"] if use_all_tools else ["eslint", "retire"]
+            logger.info(f"🔧 Tools to run: {tools_to_run}")
+            
             # Run tools
             all_issues = []
             tool_status = {}
             tool_outputs = {}
             
-            tools_to_run = ["eslint", "retire", "jshint", "snyk"] if use_all_tools else ["eslint", "retire"]
-            
-            for tool_name in tools_to_run:
+            for i, tool_name in enumerate(tools_to_run, 1):
+                logger.info(f"🔧 Running tool {i}/{len(tools_to_run)}: {tool_name}")
+                
                 if not self.available_tools.get(tool_name):
+                    status_msg = f"Tool not available"
+                    logger.warning(f"⚠️  {tool_name}: {status_msg}")
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
+                logger.info(f"🚀 Executing {tool_name} on {app_path}")
                 if tool_name == "eslint":
                     issues, status, output = self._run_eslint(app_path)
                 elif tool_name == "retire":
@@ -969,29 +1103,53 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                 elif tool_name == "snyk":
                     issues, status, output = self._run_snyk(app_path)
                 else:
+                    logger.warning(f"⚠️  Unknown tool: {tool_name}")
                     continue
+                    
+                # Log results  
+                if status == ToolStatus.SUCCESS.value:
+                    issues_count = len(issues)
+                    logger.info(f"✅ {tool_name} completed successfully - Found {issues_count} issues")
+                else:
+                    logger.error(f"❌ {tool_name} failed with status: {status}")
                     
                 all_issues.extend(issues)
                 tool_status[tool_name] = status
                 tool_outputs[tool_name] = output
                 
+            # Generate final summary
+            total_issues = len(all_issues)
+            successful_tools = sum(1 for status in tool_status.values() 
+                                 if status == ToolStatus.SUCCESS.value)
+            failed_tools = len(tool_status) - successful_tools
+            
+            logger.info(f"🎯 Frontend Security Analysis Complete!")
+            logger.info(f"📊 Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
+
             # Sort and save
+            logger.info(f"📋 Sorting and formatting {total_issues} issues...")
             sorted_issues = self._sort_issues(all_issues)
             issues_dict = [issue.to_dict() for issue in sorted_issues]
-            
+
+            logger.info(f"💾 Saving results to cache...")
             results = {
                 "issues": issues_dict,
                 "tool_status": tool_status,
                 "tool_outputs": tool_outputs,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "analysis_summary": {
+                    "total_issues": total_issues,
+                    "tools_run": len(tool_status),
+                    "successful_tools": successful_tools,
+                    "failed_tools": failed_tools
+                }
             }
             
             self.results_manager.save_results(model, app_num, results,
                                             file_name=".frontend_security_results.json")
-                                            
+            logger.info(f"✅ Results saved successfully")
+            
             return issues_dict, tool_status, tool_outputs
-
-
 class BackendQualityAnalyzer(BaseAnalyzer):
     """Analyzes backend code quality."""
     
@@ -1401,36 +1559,50 @@ class BackendQualityAnalyzer(BaseAnalyzer):
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run backend quality analysis."""
         with self.analysis_lock:
-            logger.info(f"Starting backend quality analysis for {model}/app{app_num}")
+            logger.info(f"🔧 Starting backend quality analysis for {model}/app{app_num}")
+            logger.info(f"⚙️  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
             
             # Check cache
             if not force_rerun:
+                logger.info(f"🔍 Checking for cached results...")
                 cached = self.results_manager.load_results(model, app_num,
                                                          file_name=".backend_quality_results.json")
                 if cached:
-                    logger.info("Using cached backend quality results")
+                    logger.info("✅ Using cached backend quality results")
                     return (cached.get("issues", []),
                            cached.get("tool_status", {}),
                            cached.get("tool_outputs", {}))
+                else:
+                    logger.info("ℹ️  No cached results found, running fresh analysis")
                            
             # Find app path
+            logger.info(f"📁 Looking for backend path for {model}/app{app_num}")
             app_path = self._find_app_path(model, app_num)
             if not app_path:
                 error_msg = f"Backend path not found for {model}/app{app_num}"
+                logger.error(f"❌ {error_msg}")
                 return [], {"error": error_msg}, {}
+            logger.info(f"✅ Found backend path: {app_path}")
                 
+            # Determine tools to run
+            tools_to_run = list(self.tools.keys()) if use_all_tools else ["flake8"]
+            logger.info(f"🔧 Tools to run: {tools_to_run}")
+            
             # Run tools
             all_issues = []
             tool_status = {}
             tool_outputs = {}
             
-            tools_to_run = list(self.tools.keys()) if use_all_tools else ["flake8"]
-            
-            for tool_name in tools_to_run:
+            for i, tool_name in enumerate(tools_to_run, 1):
+                logger.info(f"🔧 Running tool {i}/{len(tools_to_run)}: {tool_name}")
+                
                 if not self.available_tools.get(tool_name):
+                    status_msg = f"Tool not available"
+                    logger.warning(f"⚠️  {tool_name}: {status_msg}")
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
+                logger.info(f"🚀 Executing {tool_name} on {app_path}")
                 if tool_name == "flake8":
                     issues, status, output = self._run_flake8(app_path)
                 elif tool_name == "pylint":
@@ -1444,25 +1616,51 @@ class BackendQualityAnalyzer(BaseAnalyzer):
                 elif tool_name == "pydocstyle":
                     issues, status, output = self._run_pydocstyle(app_path)
                 else:
+                    logger.warning(f"⚠️  Unknown tool: {tool_name}")
                     continue
+                    
+                # Log results  
+                if status == ToolStatus.SUCCESS.value:
+                    issues_count = len(issues)
+                    logger.info(f"✅ {tool_name} completed successfully - Found {issues_count} issues")
+                else:
+                    logger.error(f"❌ {tool_name} failed with status: {status}")
                     
                 all_issues.extend(issues)
                 tool_status[tool_name] = status
                 tool_outputs[tool_name] = output
                 
+            # Generate final summary
+            total_issues = len(all_issues)
+            successful_tools = sum(1 for status in tool_status.values() 
+                                 if status == ToolStatus.SUCCESS.value)
+            failed_tools = len(tool_status) - successful_tools
+            
+            logger.info(f"🎯 Backend Quality Analysis Complete!")
+            logger.info(f"📊 Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
+
             # Sort and save
+            logger.info(f"📋 Sorting and formatting {total_issues} issues...")
             sorted_issues = self._sort_issues(all_issues)
             issues_dict = [issue.to_dict() for issue in sorted_issues]
             
+            logger.info(f"💾 Saving results to cache...")
             results = {
                 "issues": issues_dict,
                 "tool_status": tool_status,
                 "tool_outputs": tool_outputs,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "analysis_summary": {
+                    "total_issues": total_issues,
+                    "tools_run": len(tool_status),
+                    "successful_tools": successful_tools,
+                    "failed_tools": failed_tools
+                }
             }
             
             self.results_manager.save_results(model, app_num, results,
                                             file_name=".backend_quality_results.json")
+            logger.info(f"✅ Results saved successfully")
                                             
             return issues_dict, tool_status, tool_outputs
 
@@ -1740,42 +1938,58 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run frontend quality analysis."""
         with self.analysis_lock:
-            logger.info(f"Starting frontend quality analysis for {model}/app{app_num}")
+            logger.info(f"🎨 Starting frontend quality analysis for {model}/app{app_num}")
+            logger.info(f"⚙️  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
             
             # Check cache
             if not force_rerun:
+                logger.info(f"🔍 Checking for cached results...")
                 cached = self.results_manager.load_results(model, app_num,
                                                          file_name=".frontend_quality_results.json")
                 if cached:
-                    logger.info("Using cached frontend quality results")
+                    logger.info("✅ Using cached frontend quality results")
                     return (cached.get("issues", []),
                            cached.get("tool_status", {}),
                            cached.get("tool_outputs", {}))
+                else:
+                    logger.info("ℹ️  No cached results found, running fresh analysis")
                            
             # Find app path
+            logger.info(f"📁 Looking for frontend path for {model}/app{app_num}")
             app_path = self._find_app_path(model, app_num)
             if not app_path:
                 error_msg = f"Frontend path not found for {model}/app{app_num}"
+                logger.error(f"❌ {error_msg}")
                 return [], {"error": error_msg}, {}
+            logger.info(f"✅ Found frontend path: {app_path}")
                 
             # Check for source files
+            logger.info(f"📄 Checking for JavaScript/TypeScript files...")
             has_files, source_files = self._check_source_files(app_path)
             if not has_files:
-                logger.info("No JavaScript/TypeScript files found")
+                logger.info("ℹ️  No JavaScript/TypeScript files found")
                 return [], {"info": "No JavaScript/TypeScript files found"}, {}
+            logger.info(f"✅ Found {len(source_files)} JavaScript/TypeScript files")
                 
+            # Determine tools to run
+            tools_to_run = ["eslint", "prettier", "jshint"] if use_all_tools else ["eslint"]
+            logger.info(f"🔧 Tools to run: {tools_to_run}")
+            
             # Run tools
             all_issues = []
             tool_status = {}
             tool_outputs = {}
             
-            tools_to_run = ["eslint", "prettier", "jshint"] if use_all_tools else ["eslint"]
-            
-            for tool_name in tools_to_run:
+            for i, tool_name in enumerate(tools_to_run, 1):
+                logger.info(f"🔧 Running tool {i}/{len(tools_to_run)}: {tool_name}")
+                
                 if not self.available_tools.get(tool_name):
+                    status_msg = f"Tool not available"
+                    logger.warning(f"⚠️  {tool_name}: {status_msg}")
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
+                logger.info(f"🚀 Executing {tool_name} on {app_path}")
                 if tool_name == "eslint":
                     issues, status, output = self._run_eslint_quality(app_path)
                 elif tool_name == "prettier":
@@ -1783,25 +1997,51 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                 elif tool_name == "jshint":
                     issues, status, output = self._run_jshint_quality(app_path)
                 else:
+                    logger.warning(f"⚠️  Unknown tool: {tool_name}")
                     continue
+                    
+                # Log results  
+                if status == ToolStatus.SUCCESS.value:
+                    issues_count = len(issues)
+                    logger.info(f"✅ {tool_name} completed successfully - Found {issues_count} issues")
+                else:
+                    logger.error(f"❌ {tool_name} failed with status: {status}")
                     
                 all_issues.extend(issues)
                 tool_status[tool_name] = status
                 tool_outputs[tool_name] = output
                 
+            # Generate final summary
+            total_issues = len(all_issues)
+            successful_tools = sum(1 for status in tool_status.values() 
+                                 if status == ToolStatus.SUCCESS.value)
+            failed_tools = len(tool_status) - successful_tools
+            
+            logger.info(f"🎯 Frontend Quality Analysis Complete!")
+            logger.info(f"📊 Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
+
             # Sort and save
+            logger.info(f"📋 Sorting and formatting {total_issues} issues...")
             sorted_issues = self._sort_issues(all_issues)
             issues_dict = [issue.to_dict() for issue in sorted_issues]
             
+            logger.info(f"💾 Saving results to cache...")
             results = {
                 "issues": issues_dict,
                 "tool_status": tool_status,
                 "tool_outputs": tool_outputs,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "analysis_summary": {
+                    "total_issues": total_issues,
+                    "tools_run": len(tool_status),
+                    "successful_tools": successful_tools,
+                    "failed_tools": failed_tools
+                }
             }
             
             self.results_manager.save_results(model, app_num, results,
                                             file_name=".frontend_quality_results.json")
+            logger.info(f"✅ Results saved successfully")
                                             
             return issues_dict, tool_status, tool_outputs
                 

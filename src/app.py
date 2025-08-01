@@ -10,8 +10,13 @@ import os
 import json
 import logging
 import threading
+import warnings
 from pathlib import Path
 from typing import Optional, Dict, Any
+
+# Suppress Locust monkey patching warnings during app startup
+warnings.filterwarnings("ignore", message=".*MonkeyPatchWarning.*")
+warnings.filterwarnings("ignore", message=".*Monkey-patching.*")
 
 from flask import Flask, render_template, jsonify
 
@@ -346,7 +351,29 @@ def setup_logging(app: Flask) -> None:
     
     # Set Flask logger
     app.logger.setLevel(logging.INFO)
-    app.logger.info("Logging initialized")
+    
+    # Suppress noisy werkzeug API request logs
+    werkzeug_logger = logging.getLogger('werkzeug')
+    
+    class ApiRequestFilter(logging.Filter):
+        """Filter to suppress noisy API request logs."""
+        
+        def filter(self, record):
+            # Skip API stats requests and other noisy endpoints
+            if hasattr(record, 'getMessage'):
+                message = record.getMessage()
+                if ('"GET /api/model/' in message and '/stats HTTP/1.1" 200' in message) or \
+                   ('"GET /api/status' in message) or \
+                   ('"GET /static/' in message) or \
+                   ('"GET /favicon.ico' in message):
+                    return False
+            return True
+    
+    # Apply filter to werkzeug logger
+    api_filter = ApiRequestFilter()
+    werkzeug_logger.addFilter(api_filter)
+    
+    app.logger.info("Logging initialized with API request filtering")
 
 
 def load_model_integration_data(app: Flask) -> None:
