@@ -638,14 +638,27 @@ class BatchJob:
         """Convert to dictionary representation."""
         data = asdict(self)
         # Convert datetime objects to strings for JSON serialization
-        if data.get('created_at'):
-            data['created_at_formatted'] = data['created_at'].strftime('%Y-%m-%d %H:%M:%S')
-        if data.get('started_at'):
-            data['started_at_formatted'] = data['started_at'].strftime('%Y-%m-%d %H:%M:%S')
-        if data.get('completed_at'):
-            data['completed_at_formatted'] = data['completed_at'].strftime('%Y-%m-%d %H:%M:%S')
-        if data.get('updated_at'):
-            data['updated_at_formatted'] = data['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+        datetime_fields = ['created_at', 'started_at', 'completed_at', 'updated_at']
+        
+        for field in datetime_fields:
+            if data.get(field):
+                try:
+                    # Handle both datetime objects and string representations
+                    if isinstance(data[field], datetime):
+                        data[f'{field}_formatted'] = data[field].strftime('%Y-%m-%d %H:%M:%S')
+                    elif isinstance(data[field], str):
+                        # Try to parse string as datetime and format it
+                        try:
+                            dt = datetime.fromisoformat(data[field].replace('Z', '+00:00'))
+                            data[f'{field}_formatted'] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                        except:
+                            data[f'{field}_formatted'] = data[field]  # Use as-is if parsing fails
+                    else:
+                        data[f'{field}_formatted'] = str(data[field])
+                except Exception as e:
+                    # Fallback for any conversion issues
+                    data[f'{field}_formatted'] = 'N/A'
+        
         return data
     
     def to_json(self) -> str:
@@ -1278,18 +1291,12 @@ class BatchTaskWorker:
         task.started_at = datetime.now()
         
         try:
-            with self.app.app_context():
-                # Get the appropriate analyzer
-                analyzer = self._get_analyzer(task.analysis_type)
-                if not analyzer:
-                    raise ValueError(f"No analyzer available for {task.analysis_type}")
-                
-                # Run analysis
-                result = self._run_analysis(analyzer, task)
-                
-                task.result = result
-                task.status = TaskStatus.COMPLETED
-                task.issues_count = self._count_issues(result)
+            if self.app:
+                with self.app.app_context():
+                    self._execute_task_with_context(task)
+            else:
+                self.logger.warning("No Flask app context available for task execution")
+                self._execute_task_with_context(task)
                 
         except Exception as e:
             self.logger.error(f"Task {task.id} failed: {str(e)}", exc_info=True)
@@ -1304,6 +1311,20 @@ class BatchTaskWorker:
             task.duration_seconds = time.time() - start_time
         
         return task
+    
+    def _execute_task_with_context(self, task: BatchTask):
+        """Execute task logic within proper context."""
+        # Get the appropriate analyzer
+        analyzer = self._get_analyzer(task.analysis_type)
+        if not analyzer:
+            raise ValueError(f"No analyzer available for {task.analysis_type}")
+        
+        # Run analysis
+        result = self._run_analysis(analyzer, task)
+        
+        task.result = result
+        task.status = TaskStatus.COMPLETED
+        task.issues_count = self._count_issues(result)
     
     def _get_analyzer(self, analysis_type: str):
         """Get the appropriate analyzer for the analysis type."""
@@ -1494,50 +1515,27 @@ class BatchAnalysisService(BaseService):
             return
         
         try:
-            tasks = [task for task in self.tasks.values() if task.job_id == job_id]
-            worker = BatchTaskWorker(self.app)
-            
-            # Submit all tasks
-            futures = []
-            for task in tasks:
-                if self.shutdown_event.is_set():
-                    break
-                
-                if self.worker_pool is not None:
-                    future = self.worker_pool.submit(worker.execute_task, task)
-                    futures.append((future, task))
-            
-            # Process results
-            for future, task in futures:
-                if self.shutdown_event.is_set():
-                    future.cancel()
-                    continue
-                
-                try:
-                    completed_task = future.result(timeout=300)
-                    self.tasks[task.id] = completed_task
-                    
-                    if completed_task.status == TaskStatus.COMPLETED:
-                        job.progress["completed"] += 1
-                    else:
-                        job.progress["failed"] += 1
-                        
-                except Exception as e:
-                    self.logger.error(f"Task execution failed: {e}")
-                    job.progress["failed"] += 1
-            
-            # Update job status
-            if job.progress["failed"] == 0:
-                job.status = JobStatus.COMPLETED
-            elif job.progress["completed"] == 0:
-                job.status = JobStatus.FAILED
+            # Run within Flask application context if app is available
+            if self.app:
+                with self.app.app_context():
+                    self._execute_job_tasks(job_id, job)
             else:
-                job.status = JobStatus.COMPLETED
-            
+                self.logger.warning("No Flask app context available for job execution")
+                self._execute_job_tasks(job_id, job)
+                
         except Exception as e:
             self.logger.error(f"Job execution failed: {e}", exc_info=True)
-            job.status = JobStatus.FAILED
-            job.error_message = str(e)
+            try:
+                # Try to mark job as failed within app context if available
+                if self.app:
+                    with self.app.app_context():
+                        job.status = JobStatus.FAILED
+                        job.error_message = str(e)
+                else:
+                    job.status = JobStatus.FAILED
+                    job.error_message = str(e)
+            except Exception as mark_error:
+                self.logger.error(f"Failed to mark job as failed: {mark_error}")
         
         finally:
             job.completed_at = datetime.now()
@@ -1545,6 +1543,48 @@ class BatchAnalysisService(BaseService):
             with self._lock:
                 if job_id in self.job_threads:
                     del self.job_threads[job_id]
+                    
+    def _execute_job_tasks(self, job_id: str, job: BatchJob):
+        """Execute the actual job tasks."""
+        tasks = [task for task in self.tasks.values() if task.job_id == job_id]
+        worker = BatchTaskWorker(self.app)
+        
+        # Submit all tasks
+        futures = []
+        for task in tasks:
+            if self.shutdown_event.is_set():
+                break
+            
+            if self.worker_pool is not None:
+                future = self.worker_pool.submit(worker.execute_task, task)
+                futures.append((future, task))
+        
+        # Process results
+        for future, task in futures:
+            if self.shutdown_event.is_set():
+                future.cancel()
+                continue
+            
+            try:
+                completed_task = future.result(timeout=300)
+                self.tasks[task.id] = completed_task
+                
+                if completed_task.status == TaskStatus.COMPLETED:
+                    job.progress["completed"] += 1
+                else:
+                    job.progress["failed"] += 1
+                    
+            except Exception as e:
+                self.logger.error(f"Task execution failed: {e}")
+                job.progress["failed"] += 1
+        
+        # Update job status
+        if job.progress["failed"] == 0:
+            job.status = JobStatus.COMPLETED
+        elif job.progress["completed"] == 0:
+            job.status = JobStatus.FAILED
+        else:
+            job.status = JobStatus.COMPLETED
     
     def pause_job(self, job_id: str) -> bool:
         """Pause a running job (not implemented - jobs cannot be paused)."""
@@ -1985,10 +2025,10 @@ def create_batch_blueprint() -> Blueprint:
 # APPLICATION ENTRY POINT
 # ===========================
 
-def create_app() -> Flask:
-    """Create and configure the Flask application."""
-    factory = FlaskApplicationFactory()
-    return factory.create_app()
+# def create_app() -> Flask:
+#     """Create and configure the Flask application."""
+#     factory = FlaskApplicationFactory()
+#     return factory.create_app()
 
 
 # ===========================
@@ -2089,38 +2129,31 @@ def generation_lookup_service():
 def main():
     """Main entry point."""
     try:
-        app = create_app()
-        config = app.config['APP_CONFIG']
+        # Import from app.py instead of using local create_app
+        from app import app
         
         logger = get_logger('main')
-        logger.info(f"Starting Flask application on {config.HOST}:{config.PORT}")
+        logger.info("Starting Flask application from core_services main")
         
         # Add startup message
-        print(f"""
+        print("""
 ╔══════════════════════════════════════════════════════════════╗
 ║           Thesis Research App - Core Services                ║
 ╚══════════════════════════════════════════════════════════════╝
 
-🚀 Starting server at http://{config.HOST}:{config.PORT}
-📋 Debug mode: {config.DEBUG}
-📁 Log directory: {config.LOG_DIR}
-🔧 Max workers: {config.BATCH_MAX_WORKERS}
-
-Press Ctrl+C to stop the server
-        """)
+🚀 Server starting...
+📋 Core services module loaded
+""")
         
-        app.run(
-            host=config.HOST,
-            port=config.PORT,
-            debug=config.DEBUG,
-            threaded=True
-        )
+        # Run app with basic config
+        app.run(host='127.0.0.1', port=5000, debug=False)
+        
     except KeyboardInterrupt:
         print("\n👋 Server stopped by user")
         return 0
     except Exception as e:
         print(f"Failed to start application: {e}")
-        return  1
+        return 1
     
     return 0
 
