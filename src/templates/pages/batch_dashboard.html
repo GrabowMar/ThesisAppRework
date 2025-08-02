@@ -1,221 +1,1232 @@
 {% extends "base.html" %}
 
-{% block title %}Batch Analysis Dashboard - AI Research Platform{% endblock %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block head %}
+<style>
+    .stats-card {
+        transition: transform 0.2s;
+        cursor: pointer;
+    }
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .job-form {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .form-section {
+        margin-bottom: 20px;
+    }
+    .form-section h6 {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 5px;
+    }
+    .job-table th {
+        background-color: #f8f9fa;
+        border-top: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .job-status {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+    .status-pending { background-color: #fff3cd; color: #856404; }
+    .status-running { background-color: #d4edda; color: #155724; }
+    .status-completed { background-color: #d1ecf1; color: #0c5460; }
+    .status-failed { background-color: #f8d7da; color: #721c24; }
+    .status-cancelled { background-color: #e2e3e5; color: #383d41; }
+    
+    .search-filter-bar {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .btn-create-job {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        border: none;
+        color: white;
+        font-weight: 600;
+        padding: 12px 30px;
+        border-radius: 25px;
+        transition: all 0.3s;
+    }
+    .btn-create-job:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        color: white;
+    }
+    
+    .auto-refresh-toggle {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+    }
+    .auto-refresh-toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .auto-refresh-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.4s;
+        border-radius: 34px;
+    }
+    .auto-refresh-slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+    }
+    input:checked + .auto-refresh-slider {
+        background-color: #28a745;
+    }
+    input:checked + .auto-refresh-slider:before {
+        transform: translateX(26px);
+    }
+    
+    /* Enhanced Form Styles */
+    .form-tabs .nav-tabs {
+        border-bottom: 2px solid #dee2e6;
+        margin-bottom: 20px;
+    }
+    
+    .form-tabs .nav-link {
+        border: none;
+        border-bottom: 3px solid transparent;
+        background: none;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 12px 20px;
+        transition: all 0.3s;
+    }
+    
+    .form-tabs .nav-link:hover {
+        border-color: transparent;
+        color: #495057;
+        background-color: #f8f9fa;
+    }
+    
+    .form-tabs .nav-link.active {
+        color: #007bff;
+        border-bottom-color: #007bff;
+        background-color: white;
+    }
+    
+    .analysis-type-grid .custom-control-label {
+        cursor: pointer;
+        padding: 15px;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        transition: all 0.3s;
+        display: block;
+        margin-bottom: 0;
+    }
+    
+    .analysis-type-grid .custom-control-input:checked + .custom-control-label {
+        border-color: #007bff;
+        background-color: #f8f9ff;
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+    }
+    
+    .analysis-type-grid .custom-control-label:hover {
+        border-color: #007bff;
+        transform: translateY(-1px);
+    }
+    
+    .test-categories .custom-control-label,
+    .security-tools .custom-control-label,
+    .performance-metrics .custom-control-label,
+    .notification-events .custom-control-label,
+    .additional-formats .custom-control-label {
+        padding: 8px 12px;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        transition: all 0.2s;
+        display: block;
+        margin-bottom: 0;
+    }
+    
+    .test-categories .custom-control-input:checked + .custom-control-label,
+    .security-tools .custom-control-input:checked + .custom-control-label,
+    .performance-metrics .custom-control-input:checked + .custom-control-label,
+    .notification-events .custom-control-input:checked + .custom-control-label,
+    .additional-formats .custom-control-input:checked + .custom-control-label {
+        background-color: #e8f4fd;
+        border-color: #007bff;
+        color: #007bff;
+    }
+    
+    .model-selection-controls,
+    .app-selection-controls {
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+    }
+    
+    .form-validation-status {
+        font-weight: 500;
+    }
+    
+    .form-actions {
+        background-color: #f8f9fa;
+        margin: -15px -20px -20px -20px;
+        padding: 20px;
+        border-radius: 0 0 8px 8px;
+    }
+    
+    .zap-config,
+    .performance-config {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+    }
+    
+    .form-section h6 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-outline-primary:hover,
+    .btn-outline-secondary:hover,
+    .btn-outline-info:hover {
+        transform: translateY(-1px);
+    }
+    
+    .dropdown-menu {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border: none;
+        border-radius: 8px;
+    }
+    
+    .dropdown-item:hover {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .advanced-only {
+        transition: all 0.3s ease-in-out;
+    }
+    
+    .tab-content {
+        min-height: 400px;
+    }
+    
+    .form-group label.form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 8px;
+    }
+    
+    .form-control:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    select[multiple] {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+    }
+    
+    select[multiple]:focus {
+        border-color: #007bff;
+    }
+    
+    select[multiple] option:checked {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .badge {
+        font-size: 0.75rem;
+        margin-left: 5px;
+    }
+    
+    textarea.form-control {
+        resize: vertical;
+        min-height: 80px;
+    }
+    
+    .btn-group .btn {
+        border-radius: 0;
+    }
+    
+    .btn-group .btn:first-child {
+        border-radius: 0.25rem 0 0 0.25rem;
+    }
+    
+    .btn-group .btn:last-child {
+        border-radius: 0 0.25rem 0.25rem 0;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Page Header -->
-    <div class="page-header">
-        <div>
-            <h1 class="page-title">
-                <i class="fas fa-tasks text-primary mr-2"></i>
-                Batch Analysis Dashboard
-            </h1>
-            <p class="page-subtitle">
-                Manage and monitor large-scale security analysis jobs
-            </p>
-        </div>
-        
-        <div class="d-flex gap-2">
-            <button type="button" class="btn btn-success btn-sm" 
-                    onclick="toggleCreateForm()">
-                <i class="fas fa-plus mr-1"></i>
-                New Job
-            </button>
-            <button type="button" class="btn btn-primary btn-sm" 
-                    onclick="refreshDashboard()">
-                <i class="fas fa-sync-alt mr-1"></i>
-                Refresh
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" 
-                    onclick="toggleAutoRefresh()">
-                <i class="fas fa-clock mr-1"></i>
-                <span id="auto-refresh-text">Auto Refresh</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Flash Messages Container -->
-    <div id="flash-messages-container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} alert-dismissible fade show" role="alert">
-                        <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' if category == 'error' else 'info-circle' }} mr-2"></i>
-                        {{ message }}
-                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-tasks text-primary mr-2"></i>
+                        Batch Analysis Management
+                    </h1>
+                    <p class="text-muted mb-0">Manage and monitor batch analysis jobs across multiple AI models</p>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="mr-3">
+                        <small class="text-muted">Auto-refresh:</small>
+                        <label class="auto-refresh-toggle ml-2">
+                            <input type="checkbox" id="autoRefreshToggle">
+                            <span class="auto-refresh-slider"></span>
+                        </label>
                     </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-    </div>
-
-    <!-- Quick Statistics -->
-    <div class="stats-grid">
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-clipboard-list"></i>
+                    <button class="btn btn-outline-primary btn-sm" onclick="refreshStats()">
+                        <i class="fas fa-sync-alt mr-1"></i>
+                        Refresh
+                    </button>
+                </div>
             </div>
-            <div class="stats-card-value" id="total-jobs">
-                {{ stats.total_jobs or 0 }}
-            </div>
-            <div class="stats-card-label">Total Jobs</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-play"></i>
-            </div>
-            <div class="stats-card-value" id="running-jobs">
-                {{ stats.running_jobs or 0 }}
-            </div>
-            <div class="stats-card-label">Running</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-check-circle"></i>
-            </div>
-            <div class="stats-card-value" id="completed-jobs">
-                {{ stats.completed_jobs or 0 }}
-            </div>
-            <div class="stats-card-label">Completed</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <div class="stats-card-value" id="failed-jobs">
-                {{ stats.failed_jobs or 0 }}
-            </div>
-            <div class="stats-card-label">Failed</div>
         </div>
     </div>
 
-    <!-- Create Job Form (Initially Hidden) -->
-    <div id="create-job-form" class="card d-none">
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="statsContainer">
+        <div class="col-md-2">
+            <div class="card stats-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h4 mb-0 text-primary" id="totalJobs">{{ stats.total }}</div>
+                    <small class="text-muted">Total Jobs</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card stats-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h4 mb-0 text-warning" id="pendingJobs">{{ stats.pending }}</div>
+                    <small class="text-muted">Pending</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card stats-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h4 mb-0 text-success" id="runningJobs">{{ stats.running }}</div>
+                    <small class="text-muted">Running</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card stats-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h4 mb-0 text-info" id="completedJobs">{{ stats.completed }}</div>
+                    <small class="text-muted">Completed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card stats-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h4 mb-0 text-danger" id="failedJobs">{{ stats.failed }}</div>
+                    <small class="text-muted">Failed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card stats-card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h4 mb-0 text-secondary" id="cancelledJobs">{{ stats.cancelled }}</div>
+                    <small class="text-muted">Cancelled</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create New Job Form -->
+    <div class="card mb-4">
         <div class="card-header">
-            <h6 class="card-title">
-                <i class="fas fa-plus mr-2"></i>
+            <h5 class="card-title mb-0">
+                <i class="fas fa-plus-circle mr-2"></i>
                 Create New Batch Job
-            </h6>
-            <button type="button" class="btn btn-sm btn-outline-secondary" 
-                    onclick="toggleCreateForm()">
-                <i class="fas fa-times"></i>
-            </button>
+                <span class="float-right">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAdvancedMode()">
+                        <i class="fas fa-cogs mr-1"></i>
+                        <span id="advancedModeText">Show Advanced</span>
+                    </button>
+                </span>
+            </h5>
         </div>
         <div class="card-body">
-            <form id="batch-job-form" method="POST" action="{{ url_for('batch.create_batch_job') }}">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Job Name</label>
-                            <input type="text" class="form-control" name="job_name" 
-                                   placeholder="Enter job name..." required>
+            <form id="createJobForm" hx-post="/batch/create" hx-target="#jobsTable" hx-swap="outerHTML">
+                
+                <!-- Basic Configuration Tab -->
+                <div class="form-tabs mb-4">
+                    <ul class="nav nav-tabs" id="jobFormTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="basic-tab" data-toggle="tab" href="#basic" role="tab">
+                                <i class="fas fa-info-circle mr-1"></i>Basic Setup
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="tests-tab" data-toggle="tab" href="#tests" role="tab">
+                                <i class="fas fa-vials mr-1"></i>Test Configuration
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="targets-tab" data-toggle="tab" href="#targets" role="tab">
+                                <i class="fas fa-bullseye mr-1"></i>Target Selection
+                            </a>
+                        </li>
+                        <li class="nav-item advanced-only" style="display: none;">
+                            <a class="nav-link" id="security-tab" data-toggle="tab" href="#security" role="tab">
+                                <i class="fas fa-shield-alt mr-1"></i>Security Options
+                            </a>
+                        </li>
+                        <li class="nav-item advanced-only" style="display: none;">
+                            <a class="nav-link" id="performance-tab" data-toggle="tab" href="#performance" role="tab">
+                                <i class="fas fa-tachometer-alt mr-1"></i>Performance
+                            </a>
+                        </li>
+                        <li class="nav-item advanced-only" style="display: none;">
+                            <a class="nav-link" id="resources-tab" data-toggle="tab" href="#resources" role="tab">
+                                <i class="fas fa-server mr-1"></i>Resources
+                            </a>
+                        </li>
+                        <li class="nav-item advanced-only" style="display: none;">
+                            <a class="nav-link" id="notifications-tab" data-toggle="tab" href="#notifications" role="tab">
+                                <i class="fas fa-bell mr-1"></i>Notifications
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="tab-content" id="jobFormTabContent">
+                    
+                    <!-- Basic Configuration Tab -->
+                    <div class="tab-pane fade show active" id="basic" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-section">
+                                    <h6><i class="fas fa-cog mr-1"></i> Job Information</h6>
+                                    
+                                    <div class="form-group">
+                                        <label for="jobName" class="form-label">Job Name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="jobName" name="job_name" 
+                                               placeholder="Enter a descriptive name for this batch job" required>
+                                        <small class="form-text text-muted">Choose a meaningful name to identify this job later</small>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="jobDescription" class="form-label">Description</label>
+                                        <textarea class="form-control" id="jobDescription" name="description" rows="3" 
+                                                  placeholder="Optional description of what this job will accomplish"></textarea>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="priority" class="form-label">Priority</label>
+                                        <select class="form-control" id="priority" name="priority">
+                                            <option value="normal">Normal - Standard processing order</option>
+                                            <option value="high">High - Process before normal jobs</option>
+                                            <option value="low">Low - Process after normal jobs</option>
+                                            <option value="urgent">Urgent - Immediate processing</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="jobTags" class="form-label">Tags</label>
+                                        <input type="text" class="form-control" id="jobTags" name="tags" 
+                                               placeholder="security, performance, compliance (comma-separated)">
+                                        <small class="form-text text-muted">Add tags to categorize and search for this job</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-section">
+                                    <h6><i class="fas fa-clock mr-1"></i> Scheduling & Timing</h6>
+                                    
+                                    <div class="form-group">
+                                        <label for="executionMode" class="form-label">Execution Mode</label>
+                                        <select class="form-control" id="executionMode" name="execution_mode">
+                                            <option value="immediate">Immediate - Start right away</option>
+                                            <option value="scheduled">Scheduled - Start at specific time</option>
+                                            <option value="queued">Queued - Wait for available resources</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group" id="scheduledTimeGroup" style="display: none;">
+                                        <label for="scheduledTime" class="form-label">Scheduled Start Time</label>
+                                        <input type="datetime-local" class="form-control" id="scheduledTime" name="scheduled_time">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="maxDuration" class="form-label">Maximum Duration (hours)</label>
+                                        <input type="number" class="form-control" id="maxDuration" name="max_duration" 
+                                               value="4" min="0.5" max="24" step="0.5">
+                                        <small class="form-text text-muted">Job will be cancelled if it exceeds this duration</small>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <div class="custom-control custom-checkbox">
+                                            <input type="checkbox" class="custom-control-input" id="enableRetries" name="enable_retries" checked>
+                                            <label class="custom-control-label" for="enableRetries">Enable automatic retries</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Analysis Type</label>
-                            <select class="form-control" name="analysis_type" required>
-                                <option value="">Select analysis type...</option>
-                                <option value="security">Security Analysis</option>
-                                <option value="performance">Performance Analysis</option>
-                                <option value="comprehensive">Comprehensive</option>
-                            </select>
+
+                    <!-- Test Configuration Tab -->
+                    <div class="tab-pane fade" id="tests" role="tabpanel">
+                        <div class="form-section">
+                            <h6><i class="fas fa-vials mr-1"></i> Analysis Types & Test Suites</h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Primary Analysis Type <span class="text-danger">*</span></label>
+                                        <div class="analysis-type-grid">
+                                            <div class="custom-control custom-radio mb-2">
+                                                <input type="radio" id="analysisTypeSecurity" name="analysis_type" value="security_comprehensive" class="custom-control-input" required>
+                                                <label class="custom-control-label" for="analysisTypeSecurity">
+                                                    <i class="fas fa-shield-alt text-danger mr-2"></i>
+                                                    <strong>Security Analysis</strong>
+                                                    <small class="d-block text-muted">Vulnerability scanning, code analysis, dependency checks</small>
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-radio mb-2">
+                                                <input type="radio" id="analysisTypePerformance" name="analysis_type" value="performance_comprehensive" class="custom-control-input">
+                                                <label class="custom-control-label" for="analysisTypePerformance">
+                                                    <i class="fas fa-tachometer-alt text-success mr-2"></i>
+                                                    <strong>Performance Testing</strong>
+                                                    <small class="d-block text-muted">Load testing, stress testing, resource monitoring</small>
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-radio mb-2">
+                                                <input type="radio" id="analysisTypeQuality" name="analysis_type" value="code_quality" class="custom-control-input">
+                                                <label class="custom-control-label" for="analysisTypeQuality">
+                                                    <i class="fas fa-code text-info mr-2"></i>
+                                                    <strong>Code Quality</strong>
+                                                    <small class="d-block text-muted">Static analysis, complexity metrics, best practices</small>
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-radio mb-2">
+                                                <input type="radio" id="analysisTypeCompliance" name="analysis_type" value="compliance" class="custom-control-input">
+                                                <label class="custom-control-label" for="analysisTypeCompliance">
+                                                    <i class="fas fa-certificate text-warning mr-2"></i>
+                                                    <strong>Compliance Check</strong>
+                                                    <small class="d-block text-muted">GDPR, accessibility, industry standards</small>
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-radio mb-2">
+                                                <input type="radio" id="analysisTypeCustom" name="analysis_type" value="custom" class="custom-control-input">
+                                                <label class="custom-control-label" for="analysisTypeCustom">
+                                                    <i class="fas fa-cogs text-secondary mr-2"></i>
+                                                    <strong>Custom Test Suite</strong>
+                                                    <small class="d-block text-muted">Define your own combination of tests</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Additional Test Categories</label>
+                                        <div class="test-categories">
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="testFrontendSecurity" name="test_categories" value="frontend_security">
+                                                <label class="custom-control-label" for="testFrontendSecurity">
+                                                    <i class="fab fa-js-square mr-2"></i>Frontend Security (XSS, CSRF, etc.)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="testBackendSecurity" name="test_categories" value="backend_security">
+                                                <label class="custom-control-label" for="testBackendSecurity">
+                                                    <i class="fas fa-server mr-2"></i>Backend Security (SQL injection, auth, etc.)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="testApiSecurity" name="test_categories" value="api_security">
+                                                <label class="custom-control-label" for="testApiSecurity">
+                                                    <i class="fas fa-plug mr-2"></i>API Security (rate limiting, validation, etc.)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="testZap" name="test_categories" value="zap_scan">
+                                                <label class="custom-control-label" for="testZap">
+                                                    <i class="fas fa-spider mr-2"></i>OWASP ZAP Security Scan
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="testAccessibility" name="test_categories" value="accessibility">
+                                                <label class="custom-control-label" for="testAccessibility">
+                                                    <i class="fas fa-universal-access mr-2"></i>Accessibility Testing (WCAG)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="testSeo" name="test_categories" value="seo">
+                                                <label class="custom-control-label" for="testSeo">
+                                                    <i class="fas fa-search mr-2"></i>SEO & Performance Audit
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Test Configuration Details -->
+                            <div class="mt-4" id="testConfigDetails">
+                                <h6 class="border-bottom pb-2">Test Configuration Details</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="testSeverity" class="form-label">Minimum Severity Level</label>
+                                            <select class="form-control" id="testSeverity" name="test_severity">
+                                                <option value="info">Info - All findings</option>
+                                                <option value="low">Low - Minor issues and above</option>
+                                                <option value="medium" selected>Medium - Moderate issues and above</option>
+                                                <option value="high">High - Serious issues only</option>
+                                                <option value="critical">Critical - Critical issues only</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="testDepth" class="form-label">Analysis Depth</label>
+                                            <select class="form-control" id="testDepth" name="test_depth">
+                                                <option value="quick">Quick Scan - Surface-level analysis</option>
+                                                <option value="standard" selected>Standard - Balanced speed and coverage</option>
+                                                <option value="deep">Deep Scan - Comprehensive analysis</option>
+                                                <option value="exhaustive">Exhaustive - Maximum coverage</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="testTimeout" class="form-label">Per-Test Timeout (minutes)</label>
+                                            <input type="number" class="form-control" id="testTimeout" name="test_timeout" 
+                                                   value="30" min="5" max="120" step="5">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Target Selection Tab -->
+                    <div class="tab-pane fade" id="targets" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-section">
+                                    <h6><i class="fas fa-robot mr-1"></i> AI Models Selection</h6>
+                                    
+                                    <div class="model-selection-controls mb-3">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectModelsByProvider('all')">
+                                            <i class="fas fa-check-double mr-1"></i>Select All
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary ml-2" onclick="clearModelSelection()">
+                                            <i class="fas fa-times mr-1"></i>Clear All
+                                        </button>
+                                        <div class="btn-group ml-2" role="group">
+                                            <button type="button" class="btn btn-sm btn-outline-info dropdown-toggle" data-toggle="dropdown">
+                                                <i class="fas fa-filter mr-1"></i>By Provider
+                                            </button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="#" onclick="selectModelsByProvider('anthropic')">Anthropic Models</a>
+                                                <a class="dropdown-item" href="#" onclick="selectModelsByProvider('openai')">OpenAI Models</a>
+                                                <a class="dropdown-item" href="#" onclick="selectModelsByProvider('google')">Google Models</a>
+                                                <a class="dropdown-item" href="#" onclick="selectModelsByProvider('meta')">Meta Models</a>
+                                                <a class="dropdown-item" href="#" onclick="selectModelsByProvider('free')">Free Models Only</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="targetModels" class="form-label">Target Models <span class="text-danger">*</span></label>
+                                        <select class="form-control" id="targetModels" name="target_models" multiple size="8" required>
+                                            {% for model in available_models %}
+                                            <option value="{{ model.canonical_slug }}" data-provider="{{ model.provider }}" data-free="{{ model.is_free|lower }}">
+                                                {{ model.model_name }} ({{ model.provider }})
+                                                {% if model.is_free %}<span class="badge badge-success">Free</span>{% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple models</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-section">
+                                    <h6><i class="fas fa-cube mr-1"></i> Application Selection</h6>
+                                    
+                                    <div class="app-selection-controls mb-3">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAppRange('all')">
+                                            <i class="fas fa-check-double mr-1"></i>All Apps
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary ml-2" onclick="clearAppSelection()">
+                                            <i class="fas fa-times mr-1"></i>Clear
+                                        </button>
+                                        <div class="btn-group ml-2" role="group">
+                                            <button type="button" class="btn btn-sm btn-outline-info dropdown-toggle" data-toggle="dropdown">
+                                                <i class="fas fa-list mr-1"></i>Quick Select
+                                            </button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="#" onclick="selectAppRange('1-10')">Apps 1-10 (First batch)</a>
+                                                <a class="dropdown-item" href="#" onclick="selectAppRange('11-20')">Apps 11-20 (Second batch)</a>
+                                                <a class="dropdown-item" href="#" onclick="selectAppRange('21-30')">Apps 21-30 (Third batch)</a>
+                                                <a class="dropdown-item" href="#" onclick="selectAppRange('random-5')">Random 5 Apps</a>
+                                                <a class="dropdown-item" href="#" onclick="selectAppRange('random-10')">Random 10 Apps</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="targetApps" class="form-label">Target Applications</label>
+                                        <select class="form-control" id="targetApps" name="target_apps" multiple size="8">
+                                            {% for app_num in available_apps %}
+                                            <option value="{{ app_num }}">Application {{ app_num }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <small class="form-text text-muted">Leave empty to test all applications</small>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="appFilter" class="form-label">Application Filter Criteria</label>
+                                        <select class="form-control" id="appFilter" name="app_filter">
+                                            <option value="">No additional filtering</option>
+                                            <option value="has_frontend">Only apps with frontend</option>
+                                            <option value="has_backend">Only apps with backend</option>
+                                            <option value="full_stack">Only full-stack applications</option>
+                                            <option value="recently_updated">Recently updated apps only</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security Configuration Tab (Advanced Only) -->
+                    <div class="tab-pane fade advanced-only" id="security" role="tabpanel">
+                        <div class="form-section">
+                            <h6><i class="fas fa-shield-alt mr-1"></i> Security Analysis Configuration</h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Vulnerability Scanning Tools</label>
+                                        <div class="security-tools">
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="toolBandit" name="security_tools" value="bandit" checked>
+                                                <label class="custom-control-label" for="toolBandit">
+                                                    <i class="fas fa-python mr-2"></i>Bandit (Python security linter)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="toolSafety" name="security_tools" value="safety" checked>
+                                                <label class="custom-control-label" for="toolSafety">
+                                                    <i class="fas fa-shield mr-2"></i>Safety (Dependency vulnerability scanner)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="toolSemgrep" name="security_tools" value="semgrep">
+                                                <label class="custom-control-label" for="toolSemgrep">
+                                                    <i class="fas fa-search mr-2"></i>Semgrep (Static analysis)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="toolEslint" name="security_tools" value="eslint_security">
+                                                <label class="custom-control-label" for="toolEslint">
+                                                    <i class="fab fa-js-square mr-2"></i>ESLint Security Rules
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="toolRetire" name="security_tools" value="retire_js">
+                                                <label class="custom-control-label" for="toolRetire">
+                                                    <i class="fas fa-exclamation-triangle mr-2"></i>Retire.js (JS vulnerability scanner)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="toolSnyk" name="security_tools" value="snyk">
+                                                <label class="custom-control-label" for="toolSnyk">
+                                                    <i class="fas fa-bug mr-2"></i>Snyk (Dependency & container scanning)
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">ZAP Scan Configuration</label>
+                                        <div class="zap-config">
+                                            <div class="form-group">
+                                                <label for="zapScanType" class="form-label">Scan Type</label>
+                                                <select class="form-control" id="zapScanType" name="zap_scan_type">
+                                                    <option value="quick">Quick Scan - Fast baseline</option>
+                                                    <option value="baseline" selected>Baseline Scan - Standard security</option>
+                                                    <option value="full">Full Scan - Comprehensive analysis</option>
+                                                    <option value="api">API Scan - REST/GraphQL focused</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="zapTimeout" class="form-label">ZAP Timeout (minutes)</label>
+                                                <input type="number" class="form-control" id="zapTimeout" name="zap_timeout" 
+                                                       value="15" min="5" max="60" step="5">
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="zapSpider" name="zap_options" value="spider">
+                                                <label class="custom-control-label" for="zapSpider">Enable spider crawling</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="zapAjax" name="zap_options" value="ajax_spider">
+                                                <label class="custom-control-label" for="zapAjax">Enable AJAX spider</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="zapActiveScan" name="zap_options" value="active_scan">
+                                                <label class="custom-control-label" for="zapActiveScan">
+                                                    Enable active scanning
+                                                    <small class="d-block text-warning">⚠️ May modify target application</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label for="securityExclusions" class="form-label">Security Exclusions</label>
+                                        <textarea class="form-control" id="securityExclusions" name="security_exclusions" rows="3" 
+                                                  placeholder="Enter file patterns or rule IDs to exclude (one per line)&#10;Examples:&#10;*/node_modules/*&#10;bandit:B101&#10;eslint:no-eval"></textarea>
+                                        <small class="form-text text-muted">Specify files, directories, or specific rules to exclude from security analysis</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Configuration Tab (Advanced Only) -->
+                    <div class="tab-pane fade advanced-only" id="performance" role="tabpanel">
+                        <div class="form-section">
+                            <h6><i class="fas fa-tachometer-alt mr-1"></i> Performance Testing Configuration</h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Load Testing Parameters</label>
+                                        
+                                        <div class="form-group">
+                                            <label for="loadTestType" class="form-label">Test Type</label>
+                                            <select class="form-control" id="loadTestType" name="load_test_type">
+                                                <option value="smoke">Smoke Test - Basic functionality</option>
+                                                <option value="load" selected>Load Test - Normal traffic simulation</option>
+                                                <option value="stress">Stress Test - Beyond normal capacity</option>
+                                                <option value="spike">Spike Test - Sudden traffic increases</option>
+                                                <option value="volume">Volume Test - Large amounts of data</option>
+                                                <option value="endurance">Endurance Test - Extended duration</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="virtualUsers" class="form-label">Virtual Users</label>
+                                            <input type="number" class="form-control" id="virtualUsers" name="virtual_users" 
+                                                   value="10" min="1" max="1000" step="1">
+                                            <small class="form-text text-muted">Number of concurrent users to simulate</small>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="testDuration" class="form-label">Test Duration (minutes)</label>
+                                            <input type="number" class="form-control" id="testDuration" name="test_duration" 
+                                                   value="5" min="1" max="60" step="1">
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="rampUpTime" class="form-label">Ramp-up Time (seconds)</label>
+                                            <input type="number" class="form-control" id="rampUpTime" name="ramp_up_time" 
+                                                   value="30" min="1" max="300" step="5">
+                                            <small class="form-text text-muted">Time to gradually increase load</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Performance Metrics</label>
+                                        <div class="performance-metrics">
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="metricResponseTime" name="performance_metrics" value="response_time" checked>
+                                                <label class="custom-control-label" for="metricResponseTime">Response Time</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="metricThroughput" name="performance_metrics" value="throughput" checked>
+                                                <label class="custom-control-label" for="metricThroughput">Throughput (requests/sec)</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="metricCpuUsage" name="performance_metrics" value="cpu_usage" checked>
+                                                <label class="custom-control-label" for="metricCpuUsage">CPU Usage</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="metricMemoryUsage" name="performance_metrics" value="memory_usage" checked>
+                                                <label class="custom-control-label" for="metricMemoryUsage">Memory Usage</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="metricDiskIo" name="performance_metrics" value="disk_io">
+                                                <label class="custom-control-label" for="metricDiskIo">Disk I/O</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="metricNetworkIo" name="performance_metrics" value="network_io">
+                                                <label class="custom-control-label" for="metricNetworkIo">Network I/O</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label class="form-label">Performance Thresholds</label>
+                                        
+                                        <div class="form-group">
+                                            <label for="maxResponseTime" class="form-label">Max Response Time (ms)</label>
+                                            <input type="number" class="form-control" id="maxResponseTime" name="max_response_time" 
+                                                   value="2000" min="100" max="30000" step="100">
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="minThroughput" class="form-label">Min Throughput (req/sec)</label>
+                                            <input type="number" class="form-control" id="minThroughput" name="min_throughput" 
+                                                   value="10" min="1" max="1000" step="1">
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="errorThreshold" class="form-label">Error Threshold (%)</label>
+                                            <input type="number" class="form-control" id="errorThreshold" name="error_threshold" 
+                                                   value="5" min="0" max="100" step="1">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resources Configuration Tab (Advanced Only) -->
+                    <div class="tab-pane fade advanced-only" id="resources" role="tabpanel">
+                        <div class="form-section">
+                            <h6><i class="fas fa-server mr-1"></i> Resource Allocation & Limits</h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Execution Resources</label>
+                                        
+                                        <div class="form-group">
+                                            <label for="maxConcurrentJobs" class="form-label">Max Concurrent Jobs</label>
+                                            <input type="number" class="form-control" id="maxConcurrentJobs" name="max_concurrent_jobs" 
+                                                   value="3" min="1" max="10" step="1">
+                                            <small class="form-text text-muted">Maximum number of jobs running simultaneously</small>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="maxParallelAnalysis" class="form-label">Max Parallel Analysis</label>
+                                            <input type="number" class="form-control" id="maxParallelAnalysis" name="max_parallel_analysis" 
+                                                   value="2" min="1" max="5" step="1">
+                                            <small class="form-text text-muted">Analysis tools running in parallel per job</small>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="cpuLimit" class="form-label">CPU Limit (%)</label>
+                                            <input type="number" class="form-control" id="cpuLimit" name="cpu_limit" 
+                                                   value="80" min="10" max="100" step="5">
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="memoryLimit" class="form-label">Memory Limit (GB)</label>
+                                            <input type="number" class="form-control" id="memoryLimit" name="memory_limit" 
+                                                   value="4" min="1" max="16" step="0.5">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Docker Configuration</label>
+                                        
+                                        <div class="form-group">
+                                            <label for="dockerNetwork" class="form-label">Docker Network</label>
+                                            <select class="form-control" id="dockerNetwork" name="docker_network">
+                                                <option value="bridge">Bridge (default)</option>
+                                                <option value="host">Host</option>
+                                                <option value="none">None</option>
+                                                <option value="custom">Custom Network</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" id="dockerCleanup" name="docker_cleanup" checked>
+                                            <label class="custom-control-label" for="dockerCleanup">Auto-cleanup containers after analysis</label>
+                                        </div>
+                                        
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" id="dockerPullLatest" name="docker_pull_latest">
+                                            <label class="custom-control-label" for="dockerPullLatest">Pull latest images before analysis</label>
+                                        </div>
+                                        
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" id="dockerSecurityOpt" name="docker_security_opt" checked>
+                                            <label class="custom-control-label" for="dockerSecurityOpt">Use security-enhanced containers</label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label class="form-label">Storage & Cleanup</label>
+                                        
+                                        <div class="form-group">
+                                            <label for="maxStorageSize" class="form-label">Max Storage per Job (GB)</label>
+                                            <input type="number" class="form-control" id="maxStorageSize" name="max_storage_size" 
+                                                   value="2" min="0.5" max="10" step="0.5">
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="retentionDays" class="form-label">Report Retention (days)</label>
+                                            <input type="number" class="form-control" id="retentionDays" name="retention_days" 
+                                                   value="30" min="1" max="365" step="1">
+                                        </div>
+                                        
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" id="compressReports" name="compress_reports" checked>
+                                            <label class="custom-control-label" for="compressReports">Compress reports to save space</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notifications Configuration Tab (Advanced Only) -->
+                    <div class="tab-pane fade advanced-only" id="notifications" role="tabpanel">
+                        <div class="form-section">
+                            <h6><i class="fas fa-bell mr-1"></i> Notifications & Reporting</h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Notification Events</label>
+                                        <div class="notification-events">
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="notifyJobStart" name="notification_events" value="job_start">
+                                                <label class="custom-control-label" for="notifyJobStart">Job Started</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="notifyJobComplete" name="notification_events" value="job_complete" checked>
+                                                <label class="custom-control-label" for="notifyJobComplete">Job Completed</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="notifyJobFailed" name="notification_events" value="job_failed" checked>
+                                                <label class="custom-control-label" for="notifyJobFailed">Job Failed</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="notifyHighSeverity" name="notification_events" value="high_severity_findings" checked>
+                                                <label class="custom-control-label" for="notifyHighSeverity">High Severity Findings</label>
+                                            </div>
+                                            
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input type="checkbox" class="custom-control-input" id="notifyPerformanceIssues" name="notification_events" value="performance_issues">
+                                                <label class="custom-control-label" for="notifyPerformanceIssues">Performance Issues</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="notificationEmail" class="form-label">Email Address</label>
+                                        <input type="email" class="form-control" id="notificationEmail" name="notification_email" 
+                                               placeholder="user@example.com">
+                                        <small class="form-text text-muted">Leave empty to disable email notifications</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Report Configuration</label>
+                                        
+                                        <div class="form-group">
+                                            <label for="reportFormat" class="form-label">Primary Report Format</label>
+                                            <select class="form-control" id="reportFormat" name="report_format">
+                                                <option value="html" selected>HTML - Interactive web report</option>
+                                                <option value="json">JSON - Machine-readable data</option>
+                                                <option value="pdf">PDF - Printable document</option>
+                                                <option value="csv">CSV - Spreadsheet format</option>
+                                                <option value="xml">XML - Structured data</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label class="form-label">Additional Report Formats</label>
+                                            <div class="additional-formats">
+                                                <div class="custom-control custom-checkbox mb-2">
+                                                    <input type="checkbox" class="custom-control-input" id="formatJson" name="additional_formats" value="json">
+                                                    <label class="custom-control-label" for="formatJson">JSON Summary</label>
+                                                </div>
+                                                
+                                                <div class="custom-control custom-checkbox mb-2">
+                                                    <input type="checkbox" class="custom-control-input" id="formatCsv" name="additional_formats" value="csv">
+                                                    <label class="custom-control-label" for="formatCsv">CSV Data Export</label>
+                                                </div>
+                                                
+                                                <div class="custom-control custom-checkbox mb-2">
+                                                    <input type="checkbox" class="custom-control-input" id="formatSarif" name="additional_formats" value="sarif">
+                                                    <label class="custom-control-label" for="formatSarif">SARIF (Security reports)</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" id="includeScreenshots" name="include_screenshots">
+                                            <label class="custom-control-label" for="includeScreenshots">Include screenshots in reports</label>
+                                        </div>
+                                        
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" id="includeLogs" name="include_logs">
+                                            <label class="custom-control-label" for="includeLogs">Include detailed logs</label>
+                                        </div>
+                                        
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" id="autoUpload" name="auto_upload">
+                                            <label class="custom-control-label" for="autoUpload">Auto-upload to cloud storage</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Target Models</label>
-                            <select class="form-control" name="target_models" multiple>
-                                {% for model in available_models %}
-                                <option value="{{ model.slug }}">{{ model.display_name }}</option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-text">Hold Ctrl/Cmd to select multiple models</div>
+
+                <div class="form-actions mt-4 pt-3 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="form-validation-status">
+                            <span id="validationStatus" class="text-muted">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Fill required fields to enable job creation
+                            </span>
+                        </div>
+                        <div class="form-buttons">
+                            <button type="button" class="btn btn-outline-secondary mr-2" onclick="resetForm()">
+                                <i class="fas fa-undo mr-1"></i>Reset Form
+                            </button>
+                            <button type="button" class="btn btn-info mr-2" onclick="saveAsDraft()">
+                                <i class="fas fa-save mr-1"></i>Save as Draft
+                            </button>
+                            <button type="submit" class="btn btn-primary" id="submitJobButton" disabled>
+                                <i class="fas fa-rocket mr-1"></i>Create Batch Job
+                            </button>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Priority</label>
-                            <select class="form-control" name="priority">
-                                <option value="normal">Normal</option>
-                                <option value="high">High</option>
-                                <option value="low">Low</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Description (Optional)</label>
-                    <textarea class="form-control" name="description" rows="3" 
-                              placeholder="Enter job description..."></textarea>
-                </div>
-                
-                <div class="d-flex justify-content-end gap-2">
-                    <button type="button" class="btn btn-secondary" onclick="toggleCreateForm()">
-                        Cancel
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-play mr-1"></i>
-                        Create & Start Job
-                    </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Filters and Controls -->
-    <div class="card">
-        <div class="card-body p-3">
-            <div class="row align-items-center">
-                <div class="col-md-4">
-                    <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" class="form-control form-control-sm" 
-                               id="job-search" placeholder="Search jobs...">
+    <!-- Search and Filter Bar -->
+    <div class="search-filter-bar">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
                     </div>
+                    <input type="text" class="form-control" id="jobSearch" placeholder="Search jobs by name, model, or status...">
                 </div>
-                <div class="col-md-2">
-                    <select class="form-control form-control-sm" id="status-filter">
-                        <option value="">All Status</option>
-                        <option value="pending">Pending</option>
-                        <option value="running">Running</option>
-                        <option value="completed">Completed</option>
-                        <option value="failed">Failed</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <select class="form-control form-control-sm" id="type-filter">
-                        <option value="">All Types</option>
-                        <option value="security">Security</option>
-                        <option value="performance">Performance</option>
-                        <option value="comprehensive">Comprehensive</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <select class="form-control form-control-sm" id="priority-filter">
-                        <option value="">All Priority</option>
-                        <option value="high">High</option>
-                        <option value="normal">Normal</option>
-                        <option value="low">Low</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm btn-block"
-                            onclick="clearFilters()">
-                        Clear Filters
-                    </button>
-                </div>
+            </div>
+            <div class="col-md-2">
+                <select class="form-control" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-control" id="typeFilter">
+                    <option value="">All Types</option>
+                    <option value="frontend_security">Frontend Security</option>
+                    <option value="backend_security">Backend Security</option>
+                    <option value="performance">Performance</option>
+                    <option value="zap">ZAP Security</option>
+                    <option value="code_quality">Code Quality</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-control" id="priorityFilter">
+                    <option value="">All Priority</option>
+                    <option value="high">High</option>
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-secondary btn-block" onclick="clearFilters()">
+                    <i class="fas fa-times mr-1"></i>
+                    Clear Filters
+                </button>
             </div>
         </div>
     </div>
@@ -223,466 +1234,844 @@
     <!-- Jobs Table -->
     <div class="card">
         <div class="card-header">
-            <h6 class="card-title">
+            <h6 class="card-title mb-0">
                 <i class="fas fa-list mr-2"></i>
                 Batch Jobs
+                <span class="badge badge-secondary ml-2" id="jobCount">{{ jobs|length }}</span>
             </h6>
-            <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-danger btn-sm"
-                        onclick="bulkCancelJobs()">
-                    <i class="fas fa-stop mr-1"></i>Cancel Selected
-                </button>
-                <button type="button" class="btn btn-outline-info btn-sm"
-                        onclick="exportJobs()">
-                    <i class="fas fa-download mr-1"></i>Export
-                </button>
-            </div>
         </div>
         <div class="card-body p-0">
-            <div id="jobs-table-container" 
-                 hx-get="/api/batch/jobs"
-                 hx-trigger="load, refreshJobs from:body"
-                 hx-swap="innerHTML">
-                
-                <!-- Loading State -->
-                <div class="text-center py-5">
-                    <div class="spinner mb-3"></div>
-                    <p class="text-muted">Loading batch jobs...</p>
+            <div class="table-responsive">
+                <table class="table table-hover job-table mb-0" id="jobsTable">
+                    <thead>
+                        <tr>
+                            <th width="5%">
+                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)">
+                            </th>
+                            <th width="20%">Job Name</th>
+                            <th width="15%">Type</th>
+                            <th width="10%">Status</th>
+                            <th width="10%">Priority</th>
+                            <th width="15%">Models</th>
+                            <th width="10%">Progress</th>
+                            <th width="10%">Created</th>
+                            <th width="5%">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobsTableBody">
+                        {% if jobs %}
+                            {% for job in jobs %}
+                            <tr data-job-id="{{ job.id }}">
+                                <td>
+                                    <input type="checkbox" class="job-checkbox" value="{{ job.id }}">
+                                </td>
+                                <td>
+                                    <strong>{{ job.name }}</strong>
+                                    {% if job.description %}
+                                    <br><small class="text-muted">{{ job.description[:50] }}{% if job.description|length > 50 %}...{% endif %}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge badge-light">{{ job.analysis_type.replace('_', ' ').title() }}</span>
+                                </td>
+                                <td>
+                                    <span class="job-status status-{{ job.status }}">{{ job.status }}</span>
+                                </td>
+                                <td>
+                                    {% if job.priority == 'high' %}
+                                        <span class="badge badge-danger">High</span>
+                                    {% elif job.priority == 'low' %}
+                                        <span class="badge badge-info">Low</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">Normal</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ job.target_models[:50] }}{% if job.target_models|length > 50 %}...{% endif %}</small>
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ job.progress or 0 }}%"
+                                             aria-valuenow="{{ job.progress or 0 }}" 
+                                             aria-valuemin="0" aria-valuemax="100">
+                                            {{ job.progress or 0 }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <small>{{ job.created_at.strftime('%m/%d %H:%M') if job.created_at else 'N/A' }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="viewJob('{{ job.id }}')" 
+                                                title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        {% if job.status in ['pending', 'running'] %}
+                                        <button class="btn btn-sm btn-outline-warning" 
+                                                onclick="pauseJob('{{ job.id }}')" 
+                                                title="Pause Job">
+                                            <i class="fas fa-pause"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if job.status not in ['running'] %}
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                onclick="deleteJob('{{ job.id }}')" 
+                                                title="Delete Job">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="fas fa-inbox fa-2x mb-2"></i>
+                                    <br>No batch jobs found. Create your first job above!
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% if jobs %}
+        <div class="card-footer">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteSelectedJobs()" disabled id="deleteSelectedBtn">
+                        <i class="fas fa-trash mr-1"></i>
+                        Delete Selected
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning ml-2" onclick="pauseSelectedJobs()" disabled id="pauseSelectedBtn">
+                        <i class="fas fa-pause mr-1"></i>
+                        Pause Selected
+                    </button>
+                </div>
+                <div>
+                    <small class="text-muted">
+                        Showing {{ jobs|length }} of {{ total_jobs }} jobs
+                    </small>
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 
 <!-- Job Details Modal -->
-<div class="modal fade" id="jobDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal fade" id="jobDetailsModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-info-circle mr-2"></i>
-                    Job Details
-                </h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
+                <h5 class="modal-title">Job Details</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
                 </button>
             </div>
-            <div class="modal-body" id="job-details-content">
-                <!-- Content loaded via HTMX -->
+            <div class="modal-body" id="jobDetailsContent">
+                <!-- Job details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Job Logs Modal -->
-<div class="modal fade" id="jobLogsModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-xl" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-terminal mr-2"></i>
-                    Job Logs
-                </h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body p-0">
-                <div id="job-logs-content" class="log-viewer">
-                    <!-- Logs loaded via HTMX -->
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
 <script>
-// Batch Dashboard JavaScript
-class BatchDashboard {
-    constructor() {
-        this.autoRefreshInterval = null;
-        this.autoRefreshEnabled = false;
-        this.refreshRate = 10000; // 10 seconds
-        this.selectedJobs = new Set();
-        this.filters = {
-            search: '',
-            status: '',
-            type: '',
-            priority: ''
-        };
-        this.init();
-    }
+// Global variables
+let statsUpdateInProgress = false;
+let autoRefreshEnabled = false;
+let autoRefreshInterval = null;
+let lastStatsUpdate = 0;
+const STATS_UPDATE_COOLDOWN = 1000; // 1 second cooldown
+const AUTO_REFRESH_INTERVAL = 15000; // 15 seconds
 
-    init() {
-        this.setupEventListeners();
-        this.setupAutoRefresh();
-        this.setupKeyboardShortcuts();
-        this.loadSavedSettings();
-    }
-
-    setupEventListeners() {
-        // Form submissions
-        document.getElementById('batch-job-form')?.addEventListener('submit', (e) => {
-            this.handleFormSubmit(e);
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up auto-refresh toggle
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    if (autoRefreshToggle) {
+        autoRefreshToggle.addEventListener('change', function() {
+            autoRefreshEnabled = this.checked;
+            if (autoRefreshEnabled) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
         });
+    }
 
-        // Filter events
-        ['job-search', 'status-filter', 'type-filter', 'priority-filter'].forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                if (element.type === 'text') {
-                    element.addEventListener('input', this.debounce(() => this.applyFilters(), 300));
-                } else {
-                    element.addEventListener('change', () => this.applyFilters());
+    // Set up search and filter listeners
+    setupSearchAndFilters();
+    
+    // Set up form validation
+    setupFormValidation();
+    
+    // Set up checkbox listeners
+    setupCheckboxListeners();
+    
+    console.log('Batch dashboard initialized');
+});
+
+// Auto-refresh functions
+function startAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    autoRefreshInterval = setInterval(() => {
+        refreshStats();
+    }, AUTO_REFRESH_INTERVAL);
+    console.log('Auto-refresh started');
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+    console.log('Auto-refresh stopped');
+}
+
+// Statistics update function with proper error handling and debouncing
+function refreshStats() {
+    // Implement debouncing to prevent rapid successive calls
+    const now = Date.now();
+    if (statsUpdateInProgress || (now - lastStatsUpdate) < STATS_UPDATE_COOLDOWN) {
+        console.log('Stats update skipped due to rate limiting');
+        return;
+    }
+    
+    statsUpdateInProgress = true;
+    lastStatsUpdate = now;
+    
+    console.log('Refreshing stats...');
+    
+    fetch('/api/batch/stats', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.success && data.data) {
+            updateStatsDisplay(data.data);
+            console.log('Stats updated successfully');
+        } else if (data && data.stats) {
+            // Fallback for old format
+            updateStatsDisplay(data.stats);
+            console.log('Stats updated successfully');
+        } else {
+            console.warn('Invalid stats data received:', data);
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing stats:', error);
+        // Don't show error to user for stats updates, just log it
+    })
+    .finally(() => {
+        statsUpdateInProgress = false;
+    });
+}
+
+// Update statistics display
+function updateStatsDisplay(stats) {
+    const elements = {
+        totalJobs: document.getElementById('totalJobs'),
+        pendingJobs: document.getElementById('pendingJobs'),
+        runningJobs: document.getElementById('runningJobs'),
+        completedJobs: document.getElementById('completedJobs'),
+        failedJobs: document.getElementById('failedJobs'),
+        cancelledJobs: document.getElementById('cancelledJobs')
+    };
+    
+    // Map API field names to display elements
+    const fieldMap = {
+        totalJobs: ['total', 'total_jobs'],
+        pendingJobs: ['pending', 'pending_jobs'], 
+        runningJobs: ['running', 'running_jobs'],
+        completedJobs: ['completed', 'completed_jobs'],
+        failedJobs: ['failed', 'failed_jobs'],
+        cancelledJobs: ['cancelled', 'cancelled_jobs']
+    };
+    
+    Object.keys(elements).forEach(key => {
+        const element = elements[key];
+        if (element) {
+            const possibleFields = fieldMap[key];
+            let value = 0;
+            
+            // Try different field name variants
+            for (const field of possibleFields) {
+                if (stats.hasOwnProperty(field)) {
+                    value = stats[field];
+                    break;
                 }
             }
-        });
-
-        // HTMX events
-        document.addEventListener('htmx:afterRequest', (e) => {
-            if (e.detail.successful) {
-                this.updateStats();
-            }
-        });
-
-        // Job selection events
-        document.addEventListener('change', (e) => {
-            if (e.target.matches('.job-checkbox')) {
-                this.toggleJobSelection(e.target.value, e.target.checked);
-            }
-            if (e.target.matches('#select-all-jobs')) {
-                this.toggleSelectAll(e.target.checked);
-            }
-        });
-    }
-
-    setupAutoRefresh() {
-        const saved = localStorage.getItem('batchDashboardAutoRefresh');
-        this.autoRefreshEnabled = saved === 'true';
-        this.updateAutoRefreshUI();
-        
-        if (this.autoRefreshEnabled) {
-            this.startAutoRefresh();
+            
+            element.textContent = value;
         }
-    }
+    });
+}
 
-    setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'n') {
+// Search and filter functions
+function setupSearchAndFilters() {
+    const searchInput = document.getElementById('jobSearch');
+    const statusFilter = document.getElementById('statusFilter');
+    const typeFilter = document.getElementById('typeFilter');
+    const priorityFilter = document.getElementById('priorityFilter');
+    
+    [searchInput, statusFilter, typeFilter, priorityFilter].forEach(element => {
+        if (element) {
+            element.addEventListener('input', applyFilters);
+            element.addEventListener('change', applyFilters);
+        }
+    });
+}
+
+function applyFilters() {
+    const searchTerm = document.getElementById('jobSearch').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const typeFilter = document.getElementById('typeFilter').value;
+    const priorityFilter = document.getElementById('priorityFilter').value;
+    
+    const rows = document.querySelectorAll('#jobsTableBody tr');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        if (row.children.length === 1) return; // Skip empty state row
+        
+        const jobName = row.children[1].textContent.toLowerCase();
+        const jobType = row.children[2].textContent.toLowerCase();
+        const jobStatus = row.children[3].textContent.toLowerCase().trim();
+        const jobPriority = row.children[4].textContent.toLowerCase().trim();
+        
+        const matchesSearch = !searchTerm || jobName.includes(searchTerm) || jobType.includes(searchTerm);
+        const matchesStatus = !statusFilter || jobStatus === statusFilter;
+        const matchesType = !typeFilter || jobType.includes(typeFilter.replace('_', ' '));
+        const matchesPriority = !priorityFilter || jobPriority === priorityFilter;
+        
+        const shouldShow = matchesSearch && matchesStatus && matchesType && matchesPriority;
+        
+        row.style.display = shouldShow ? '' : 'none';
+        if (shouldShow) visibleCount++;
+    });
+    
+    // Update job count
+    const jobCount = document.getElementById('jobCount');
+    if (jobCount) {
+        jobCount.textContent = visibleCount;
+    }
+}
+
+function clearFilters() {
+    document.getElementById('jobSearch').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('typeFilter').value = '';
+    document.getElementById('priorityFilter').value = '';
+    applyFilters();
+}
+
+// Form functions
+function setupFormValidation() {
+    const form = document.getElementById('createJobForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!validateForm()) {
                 e.preventDefault();
-                this.toggleCreateForm();
-            }
-            if (e.ctrlKey && e.key === 'r') {
-                e.preventDefault();
-                this.refreshDashboard();
-            }
-            if (e.key === 'Escape') {
-                this.hideCreateForm();
+                return false;
             }
         });
     }
+}
 
-    loadSavedSettings() {
-        // Load saved filter values
-        const savedFilters = localStorage.getItem('batchDashboardFilters');
-        if (savedFilters) {
-            this.filters = JSON.parse(savedFilters);
-            this.restoreFilters();
-        }
+function validateForm() {
+    const jobName = document.getElementById('jobName').value.trim();
+    const analysisType = document.getElementById('analysisType').value;
+    const targetModels = document.getElementById('targetModels').selectedOptions;
+    
+    if (!jobName) {
+        alert('Please enter a job name');
+        return false;
     }
+    
+    if (!analysisType) {
+        alert('Please select an analysis type');
+        return false;
+    }
+    
+    if (targetModels.length === 0) {
+        alert('Please select at least one target model');
+        return false;
+    }
+    
+    return true;
+}
 
-    handleFormSubmit(e) {
-        e.preventDefault();
-        const formData = new FormData(e.target);
+function resetForm() {
+    document.getElementById('createJobForm').reset();
+    // Clear any validation messages
+}
+
+// Checkbox functions
+function setupCheckboxListeners() {
+    // Listen for checkbox changes to update bulk action buttons
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('job-checkbox')) {
+            updateBulkActionButtons();
+        }
+    });
+}
+
+function toggleSelectAll(checkbox) {
+    const jobCheckboxes = document.querySelectorAll('.job-checkbox');
+    jobCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateBulkActionButtons();
+}
+
+function updateBulkActionButtons() {
+    const selectedCheckboxes = document.querySelectorAll('.job-checkbox:checked');
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const pauseBtn = document.getElementById('pauseSelectedBtn');
+    
+    const hasSelection = selectedCheckboxes.length > 0;
+    
+    if (deleteBtn) deleteBtn.disabled = !hasSelection;
+    if (pauseBtn) pauseBtn.disabled = !hasSelection;
+}
+
+// Job action functions
+function viewJob(jobId) {
+    fetch(`/batch/job/${jobId}`)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('jobDetailsContent').innerHTML = html;
+            $('#jobDetailsModal').modal('show');
+        })
+        .catch(error => {
+            console.error('Error loading job details:', error);
+            alert('Error loading job details');
+        });
+}
+
+function pauseJob(jobId) {
+    if (confirm('Are you sure you want to pause this job?')) {
+        fetch(`/batch/job/${jobId}/pause`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || 'Error pausing job');
+                }
+            })
+            .catch(error => {
+                console.error('Error pausing job:', error);
+                alert('Error pausing job');
+            });
+    }
+}
+
+function deleteJob(jobId) {
+    if (confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+        fetch(`/batch/job/${jobId}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || 'Error deleting job');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting job:', error);
+                alert('Error deleting job');
+            });
+    }
+}
+
+function deleteSelectedJobs() {
+    const selectedCheckboxes = document.querySelectorAll('.job-checkbox:checked');
+    if (selectedCheckboxes.length === 0) return;
+    
+    if (confirm(`Are you sure you want to delete ${selectedCheckboxes.length} selected jobs? This action cannot be undone.`)) {
+        const jobIds = Array.from(selectedCheckboxes).map(cb => cb.value);
         
-        // Show loading state
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<div class="spinner"></div> Creating...';
-        submitBtn.disabled = true;
-
-        // Submit form
-        fetch(e.target.action, {
+        fetch('/batch/jobs/bulk-delete', {
             method: 'POST',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_ids: jobIds })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                this.showToast('Job created successfully', 'success');
-                this.hideCreateForm();
-                this.refreshDashboard();
-                e.target.reset();
+                location.reload();
             } else {
-                this.showToast(data.message || 'Failed to create job', 'danger');
+                alert(data.message || 'Error deleting jobs');
             }
         })
         .catch(error => {
-            this.showToast('Error creating job', 'danger');
-            console.error('Error:', error);
+            console.error('Error deleting jobs:', error);
+            alert('Error deleting jobs');
+        });
+    }
+}
+
+function pauseSelectedJobs() {
+    const selectedCheckboxes = document.querySelectorAll('.job-checkbox:checked');
+    if (selectedCheckboxes.length === 0) return;
+    
+    if (confirm(`Are you sure you want to pause ${selectedCheckboxes.length} selected jobs?`)) {
+        const jobIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+        
+        fetch('/batch/jobs/bulk-pause', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_ids: jobIds })
         })
-        .finally(() => {
-            submitBtn.innerHTML = originalText;
-            submitBtn.disabled = false;
-        });
-    }
-
-    refreshDashboard() {
-        htmx.trigger('#jobs-table-container', 'refreshJobs');
-        this.updateStats();
-        this.showToast('Dashboard refreshed', 'success');
-    }
-
-    updateStats() {
-        htmx.ajax('GET', '/api/batch/stats', {
-            target: '.stats-grid',
-            swap: 'innerHTML'
-        });
-    }
-
-    applyFilters() {
-        this.filters = {
-            search: document.getElementById('job-search')?.value || '',
-            status: document.getElementById('status-filter')?.value || '',
-            type: document.getElementById('type-filter')?.value || '',
-            priority: document.getElementById('priority-filter')?.value || ''
-        };
-
-        // Save filters
-        localStorage.setItem('batchDashboardFilters', JSON.stringify(this.filters));
-
-        // Apply filters via HTMX
-        const params = new URLSearchParams();
-        Object.entries(this.filters).forEach(([key, value]) => {
-            if (value) params.set(key, value);
-        });
-
-        const url = `/api/batch/jobs?${params.toString()}`;
-        htmx.ajax('GET', url, {target: '#jobs-table-container'});
-    }
-
-    clearFilters() {
-        this.filters = { search: '', status: '', type: '', priority: '' };
-        this.restoreFilters();
-        localStorage.removeItem('batchDashboardFilters');
-        this.applyFilters();
-    }
-
-    restoreFilters() {
-        document.getElementById('job-search').value = this.filters.search;
-        document.getElementById('status-filter').value = this.filters.status;
-        document.getElementById('type-filter').value = this.filters.type;
-        document.getElementById('priority-filter').value = this.filters.priority;
-    }
-
-    toggleAutoRefresh() {
-        this.autoRefreshEnabled = !this.autoRefreshEnabled;
-        localStorage.setItem('batchDashboardAutoRefresh', this.autoRefreshEnabled.toString());
-        
-        if (this.autoRefreshEnabled) {
-            this.startAutoRefresh();
-        } else {
-            this.stopAutoRefresh();
-        }
-        
-        this.updateAutoRefreshUI();
-    }
-
-    startAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-        }
-        
-        this.autoRefreshInterval = setInterval(() => {
-            if (document.visibilityState === 'visible') {
-                htmx.trigger('#jobs-table-container', 'refreshJobs');
-                this.updateStats();
-            }
-        }, this.refreshRate);
-    }
-
-    stopAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-            this.autoRefreshInterval = null;
-        }
-    }
-
-    updateAutoRefreshUI() {
-        const text = document.getElementById('auto-refresh-text');
-        if (text) {
-            text.textContent = this.autoRefreshEnabled ? 'Auto: ON' : 'Auto: OFF';
-        }
-    }
-
-    toggleJobSelection(jobId, selected) {
-        if (selected) {
-            this.selectedJobs.add(jobId);
-        } else {
-            this.selectedJobs.delete(jobId);
-        }
-        this.updateBulkActionButtons();
-    }
-
-    toggleSelectAll(selected) {
-        const checkboxes = document.querySelectorAll('.job-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = selected;
-            this.toggleJobSelection(checkbox.value, selected);
-        });
-    }
-
-    updateBulkActionButtons() {
-        const hasSelection = this.selectedJobs.size > 0;
-        const bulkButtons = document.querySelectorAll('[onclick*="bulk"]');
-        bulkButtons.forEach(btn => {
-            btn.disabled = !hasSelection;
-        });
-    }
-
-    async bulkCancelJobs() {
-        if (this.selectedJobs.size === 0) return;
-        
-        if (!confirm(`Cancel ${this.selectedJobs.size} selected job(s)?`)) return;
-
-        try {
-            const response = await fetch('/api/batch/bulk-cancel', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({job_ids: Array.from(this.selectedJobs)})
-            });
-            
-            const data = await response.json();
+        .then(response => response.json())
+        .then(data => {
             if (data.success) {
-                this.showToast(`${data.cancelled_count} job(s) cancelled`, 'success');
-                this.refreshDashboard();
-                this.selectedJobs.clear();
+                location.reload();
             } else {
-                this.showToast(data.message || 'Failed to cancel jobs', 'danger');
+                alert(data.message || 'Error pausing jobs');
             }
-        } catch (error) {
-            this.showToast('Error cancelling jobs', 'danger');
-            console.error('Error:', error);
-        }
+        })
+        .catch(error => {
+            console.error('Error pausing jobs:', error);
+            alert('Error pausing jobs');
+        });
     }
+}
 
-    exportJobs() {
-        const params = new URLSearchParams(this.filters);
-        window.open(`/api/batch/export?${params.toString()}`, '_blank');
+// HTMX event handlers
+document.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.xhr.status >= 400) {
+        console.error('HTMX request failed:', evt.detail.xhr.status, evt.detail.xhr.statusText);
+        alert('Request failed. Please try again.');
     }
+});
 
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        toast.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'} mr-2"></i>
-            ${message}
+document.addEventListener('htmx:responseError', function(evt) {
+    console.error('HTMX response error:', evt.detail);
+    alert('Network error. Please check your connection and try again.');
+});
+
+// Success handler for form submission
+document.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.target.id === 'jobsTable') {
+        // Job created successfully, reset form and refresh stats
+        document.getElementById('createJobForm').reset();
+        refreshStats();
+        
+        // Show success message
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-success alert-dismissible fade show';
+        alert.innerHTML = `
+            <strong>Success!</strong> Batch job created successfully.
             <button type="button" class="close" data-dismiss="alert">
                 <span>&times;</span>
             </button>
         `;
-        document.body.appendChild(toast);
-
+        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.row'));
+        
+        // Auto-dismiss after 5 seconds
         setTimeout(() => {
-            toast.remove();
+            if (alert.parentNode) {
+                alert.remove();
+            }
         }, 5000);
     }
+});
 
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
+// Advanced form functions
+function toggleAdvancedMode() {
+    const advancedElements = document.querySelectorAll('.advanced-only');
+    const toggleText = document.getElementById('advancedModeText');
+    const isHidden = advancedElements[0].style.display === 'none' || advancedElements[0].style.display === '';
+    
+    advancedElements.forEach(element => {
+        element.style.display = isHidden ? 'block' : 'none';
+    });
+    
+    toggleText.textContent = isHidden ? 'Hide Advanced' : 'Show Advanced';
+}
+
+// Model selection functions
+function selectModelsByProvider(provider) {
+    const modelSelect = document.getElementById('targetModels');
+    const options = modelSelect.options;
+    
+    for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        if (provider === 'all') {
+            option.selected = true;
+        } else if (provider === 'free') {
+            option.selected = option.dataset.free === 'true';
+        } else {
+            option.selected = option.dataset.provider === provider;
+        }
+    }
+    
+    updateValidationStatus();
+}
+
+function clearModelSelection() {
+    const modelSelect = document.getElementById('targetModels');
+    const options = modelSelect.options;
+    
+    for (let i = 0; i < options.length; i++) {
+        options[i].selected = false;
+    }
+    
+    updateValidationStatus();
+}
+
+// App selection functions
+function selectAppRange(range) {
+    const appSelect = document.getElementById('targetApps');
+    const options = appSelect.options;
+    
+    // Clear current selection
+    for (let i = 0; i < options.length; i++) {
+        options[i].selected = false;
+    }
+    
+    if (range === 'all') {
+        for (let i = 0; i < options.length; i++) {
+            options[i].selected = true;
+        }
+    } else if (range.includes('-')) {
+        const [start, end] = range.split('-').map(n => parseInt(n));
+        for (let i = 0; i < options.length; i++) {
+            const appNum = parseInt(options[i].value);
+            if (appNum >= start && appNum <= end) {
+                options[i].selected = true;
+            }
+        }
+    } else if (range.startsWith('random-')) {
+        const count = parseInt(range.split('-')[1]);
+        const indices = [];
+        while (indices.length < count && indices.length < options.length) {
+            const randomIndex = Math.floor(Math.random() * options.length);
+            if (!indices.includes(randomIndex)) {
+                indices.push(randomIndex);
+                options[randomIndex].selected = true;
+            }
+        }
     }
 }
 
-// Global functions
-window.toggleCreateForm = function() {
-    const form = document.getElementById('create-job-form');
-    if (form) {
-        form.classList.toggle('d-none');
-        if (!form.classList.contains('d-none')) {
-            form.querySelector('input[name="job_name"]')?.focus();
+function clearAppSelection() {
+    const appSelect = document.getElementById('targetApps');
+    const options = appSelect.options;
+    
+    for (let i = 0; i < options.length; i++) {
+        options[i].selected = false;
+    }
+}
+
+// Enhanced form validation
+function updateValidationStatus() {
+    const jobName = document.getElementById('jobName').value.trim();
+    const targetModels = document.getElementById('targetModels').selectedOptions.length;
+    const analysisType = document.querySelector('input[name="analysis_type"]:checked');
+    
+    const statusElement = document.getElementById('validationStatus');
+    const submitButton = document.getElementById('submitJobButton');
+    
+    const isValid = jobName.length > 0 && targetModels > 0 && analysisType;
+    
+    if (isValid) {
+        statusElement.innerHTML = '<i class="fas fa-check-circle text-success mr-1"></i> Ready to create job';
+        statusElement.className = 'text-success';
+        submitButton.disabled = false;
+    } else {
+        let missing = [];
+        if (!jobName) missing.push('job name');
+        if (!targetModels) missing.push('target models');
+        if (!analysisType) missing.push('analysis type');
+        
+        statusElement.innerHTML = `<i class="fas fa-exclamation-triangle text-warning mr-1"></i> Missing: ${missing.join(', ')}`;
+        statusElement.className = 'text-warning';
+        submitButton.disabled = true;
+    }
+}
+
+// Save as draft functionality
+function saveAsDraft() {
+    const formData = new FormData(document.getElementById('createJobForm'));
+    const draftData = {};
+    
+    for (let [key, value] of formData.entries()) {
+        if (draftData[key]) {
+            if (Array.isArray(draftData[key])) {
+                draftData[key].push(value);
+            } else {
+                draftData[key] = [draftData[key], value];
+            }
+        } else {
+            draftData[key] = value;
         }
     }
-};
+    
+    // Save to localStorage
+    const draftKey = `batch_job_draft_${Date.now()}`;
+    localStorage.setItem(draftKey, JSON.stringify(draftData));
+    
+    // Show success message
+    showNotification('Draft saved successfully', 'success');
+}
 
-window.hideCreateForm = function() {
-    const form = document.getElementById('create-job-form');
-    if (form) {
-        form.classList.add('d-none');
+// Load draft functionality
+function loadDraft(draftKey) {
+    const draftData = JSON.parse(localStorage.getItem(draftKey));
+    if (!draftData) return;
+    
+    const form = document.getElementById('createJobForm');
+    
+    Object.entries(draftData).forEach(([key, value]) => {
+        const element = form.querySelector(`[name="${key}"]`);
+        if (element) {
+            if (element.type === 'checkbox' || element.type === 'radio') {
+                if (Array.isArray(value)) {
+                    value.forEach(v => {
+                        const checkbox = form.querySelector(`[name="${key}"][value="${v}"]`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                } else {
+                    element.checked = true;
+                }
+            } else if (element.tagName === 'SELECT' && element.multiple) {
+                if (Array.isArray(value)) {
+                    value.forEach(v => {
+                        const option = element.querySelector(`option[value="${v}"]`);
+                        if (option) option.selected = true;
+                    });
+                }
+            } else {
+                element.value = value;
+            }
+        }
+    });
+    
+    updateValidationStatus();
+    showNotification('Draft loaded successfully', 'info');
+}
+
+// Enhanced form reset
+function resetForm() {
+    document.getElementById('createJobForm').reset();
+    updateValidationStatus();
+    
+    // Reset advanced mode
+    const advancedElements = document.querySelectorAll('.advanced-only');
+    advancedElements.forEach(element => {
+        element.style.display = 'none';
+    });
+    document.getElementById('advancedModeText').textContent = 'Show Advanced';
+    
+    // Switch back to basic tab
+    const basicTab = document.getElementById('basic-tab');
+    if (basicTab) {
+        basicTab.click();
     }
-};
+}
 
-window.refreshDashboard = function() {
-    batchDashboard.refreshDashboard();
-};
-
-window.toggleAutoRefresh = function() {
-    batchDashboard.toggleAutoRefresh();
-};
-
-window.clearFilters = function() {
-    batchDashboard.clearFilters();
-};
-
-window.bulkCancelJobs = function() {
-    batchDashboard.bulkCancelJobs();
-};
-
-window.exportJobs = function() {
-    batchDashboard.exportJobs();
-};
-
-// Job action functions
-window.showJobDetails = function(jobId) {
-    htmx.ajax('GET', `/api/batch/jobs/${jobId}/details`, {
-        target: '#job-details-content'
-    });
-    $('#jobDetailsModal').modal('show');
-};
-
-window.showJobLogs = function(jobId) {
-    htmx.ajax('GET', `/api/batch/jobs/${jobId}/logs`, {
-        target: '#job-logs-content'
-    });
-    $('#jobLogsModal').modal('show');
-};
-
-window.cancelJob = function(jobId) {
-    if (!confirm('Cancel this job?')) return;
+// Notification helper
+function showNotification(message, type = 'info') {
+    const alertClass = `alert-${type}`;
+    const iconClass = type === 'success' ? 'fa-check-circle' : 
+                     type === 'warning' ? 'fa-exclamation-triangle' : 
+                     type === 'danger' ? 'fa-times-circle' : 'fa-info-circle';
     
-    htmx.ajax('POST', `/api/batch/jobs/${jobId}/cancel`, {
-        swap: 'none'
-    }).then(() => {
-        batchDashboard.showToast('Job cancelled', 'success');
-        batchDashboard.refreshDashboard();
-    });
-};
-
-window.deleteJob = function(jobId) {
-    if (!confirm('Delete this job? This action cannot be undone.')) return;
+    const alert = document.createElement('div');
+    alert.className = `alert ${alertClass} alert-dismissible fade show`;
+    alert.innerHTML = `
+        <i class="fas ${iconClass} mr-2"></i>${message}
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    `;
     
-    htmx.ajax('DELETE', `/api/batch/jobs/${jobId}`, {
-        swap: 'none'
-    }).then(() => {
-        batchDashboard.showToast('Job deleted', 'success');
-        batchDashboard.refreshDashboard();
-    });
-};
+    document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.row'));
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (alert.parentNode) {
+            alert.remove();
+        }
+    }, 5000);
+}
 
-// Initialize batch dashboard
-let batchDashboard;
-document.addEventListener('DOMContentLoaded', function() {
-    batchDashboard = new BatchDashboard();
-});
+// Enhanced form setup
+function setupFormValidation() {
+    const form = document.getElementById('createJobForm');
+    if (!form) return;
+    
+    // Add validation listeners
+    form.addEventListener('input', updateValidationStatus);
+    form.addEventListener('change', updateValidationStatus);
+    
+    // Scheduled time visibility
+    const executionMode = document.getElementById('executionMode');
+    const scheduledTimeGroup = document.getElementById('scheduledTimeGroup');
+    
+    if (executionMode && scheduledTimeGroup) {
+        executionMode.addEventListener('change', function() {
+            scheduledTimeGroup.style.display = this.value === 'scheduled' ? 'block' : 'none';
+        });
+    }
+    
+    // Analysis type change handler
+    const analysisTypeRadios = document.querySelectorAll('input[name="analysis_type"]');
+    analysisTypeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            updateTestConfigDetails(this.value);
+            updateValidationStatus();
+        });
+    });
+}
+
+// Update test configuration details based on selected analysis type
+function updateTestConfigDetails(analysisType) {
+    const testConfigDetails = document.getElementById('testConfigDetails');
+    if (!testConfigDetails) return;
+    
+    // Show/hide relevant sections based on analysis type
+    const securityTools = document.querySelector('.security-tools');
+    const performanceMetrics = document.querySelector('.performance-metrics');
+    
+    if (securityTools) {
+        securityTools.style.display = analysisType.includes('security') ? 'block' : 'none';
+    }
+    if (performanceMetrics) {
+        performanceMetrics.style.display = analysisType.includes('performance') ? 'block' : 'none';
+    }
+}
+
+// Setup checkbox listeners for automatic validation
+function setupCheckboxListeners() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateValidationStatus);
+    });
+}
 </script>
 {% endblock %}

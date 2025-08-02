@@ -4183,6 +4183,281 @@ def get_app_status_api(model, app_num):
 
 
 # ===========================
+# BATCH API ENDPOINTS (For HTMX compatibility)
+# ===========================
+
+@api_bp.route("/batch/jobs")
+def api_batch_jobs():
+    """Get list of batch jobs (HTMX compatible endpoint)."""
+    try:
+        from models import BatchJob
+        
+        # Get parameters
+        status = request.args.get('status')
+        priority = request.args.get('priority')
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 10))
+        
+        # Build query
+        query = BatchJob.query
+        
+        if status:
+            query = query.filter(BatchJob.status == status)
+        if priority:
+            query = query.filter(BatchJob.priority == priority)
+            
+        total_jobs = query.count()
+        jobs = query.order_by(BatchJob.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+        
+        # Convert jobs to dict format
+        jobs_data = []
+        for job in jobs:
+            job_dict = {
+                'id': job.id,
+                'name': job.name,
+                'description': job.description,
+                'status': job.status.value if hasattr(job.status, 'value') else str(job.status),
+                'priority': job.priority.value if hasattr(job.priority, 'value') else str(job.priority),
+                'created_at': job.created_at.isoformat() if job.created_at else None,
+                'started_at': job.started_at.isoformat() if job.started_at else None,
+                'completed_at': job.completed_at.isoformat() if job.completed_at else None,
+                'total_tasks': job.total_tasks,
+                'completed_tasks': job.completed_tasks,
+                'failed_tasks': job.failed_tasks,
+                'progress': round((job.completed_tasks / job.total_tasks * 100) if job.total_tasks > 0 else 0, 1)
+            }
+            jobs_data.append(job_dict)
+        
+        response_data = {
+            'jobs': jobs_data,
+            'total': total_jobs,
+            'page': page,
+            'limit': limit,
+            'total_pages': (total_jobs + limit - 1) // limit
+        }
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/batch_jobs_table.html", **response_data)
+        
+        return ResponseHandler.success_response(data=response_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting batch jobs: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+# Rate limiting cache for batch stats endpoint - per client
+_batch_stats_clients = {}
+
+@api_bp.route("/batch/stats")
+def api_batch_stats():
+    """Get batch statistics (HTMX compatible endpoint)."""
+    try:
+        # Add per-client rate limiting to prevent infinite loops
+        import time
+        global _batch_stats_clients
+        
+        client_ip = request.remote_addr
+        current_time = time.time()
+        
+        # Minimal rate limiting: only prevent true rapid-fire requests (100+ req/sec)
+        if client_ip in _batch_stats_clients:
+            if current_time - _batch_stats_clients[client_ip] < 0.001:  # 1ms cooldown - only stops 1000+ req/sec
+                logger.debug(f"Extreme rate limit hit for batch/stats endpoint from {client_ip}")
+                return ResponseHandler.error_response("Rate limit exceeded", 429)
+            
+        _batch_stats_clients[client_ip] = current_time
+        
+        # Cleanup old entries (older than 5 minutes) to prevent memory leaks
+        cutoff_time = current_time - 300  # 5 minutes
+        # Use items() and update in place to avoid reassigning the global dict
+        expired_ips = [ip for ip, timestamp in _batch_stats_clients.items() if timestamp <= cutoff_time]
+        for ip in expired_ips:
+            del _batch_stats_clients[ip]
+        
+        from models import BatchJob, JobStatus
+        
+        # Get basic statistics
+        total_jobs = BatchJob.query.count()
+        running_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.RUNNING).count()
+        completed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.COMPLETED).count()
+        failed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.FAILED).count()
+        pending_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.PENDING).count()
+        
+        # Basic worker stats - simplified for now
+        stats = {
+            'total_jobs': total_jobs,
+            'running_jobs': running_jobs,
+            'completed_jobs': completed_jobs,
+            'failed_jobs': failed_jobs,
+            'pending_jobs': pending_jobs,
+            'active_workers': 0,  # TODO: Implement worker tracking
+            'total_workers': 0,   # TODO: Implement worker tracking
+            'queue_size': pending_jobs  # Use pending jobs as queue size approximation
+        }
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/batch_stats.html", stats=stats)
+        
+        return ResponseHandler.success_response(data=stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting batch stats: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/batch/jobs", methods=["POST"])
+def api_create_batch_job():
+    """Create a new batch job (HTMX compatible endpoint)."""
+    try:
+        from models import BatchJob, JobStatus, JobPriority, AnalysisType
+        from extensions import db
+        import uuid
+        
+        data = request.get_json() or {}
+        
+        # Extract job parameters
+        name = data.get('name', 'Untitled Job')
+        description = data.get('description', '')
+        analysis_type_str = data.get('analysis_type', 'security_backend')
+        priority_str = data.get('priority', 'normal')
+        models = data.get('models', [])
+        app_numbers = data.get('app_numbers', [])
+        
+        # Convert string enums to enum values
+        try:
+            analysis_type = AnalysisType(analysis_type_str)
+        except ValueError:
+            analysis_type = AnalysisType.SECURITY_BACKEND
+            
+        try:
+            priority = JobPriority(priority_str)
+        except ValueError:
+            priority = JobPriority.NORMAL
+        
+        # Create the job with UUID
+        job = BatchJob()
+        job.id = str(uuid.uuid4())
+        job.name = name
+        job.description = description
+        job.status = JobStatus.PENDING
+        job.priority = priority
+        job.total_tasks = len(models) * len(app_numbers) if models and app_numbers else 0
+        job.completed_tasks = 0
+        job.failed_tasks = 0
+        
+        # Set configuration using helper methods
+        job.set_analysis_types([analysis_type_str])
+        job.set_models(models)
+        job.set_app_range({'app_numbers': app_numbers})
+        
+        db.session.add(job)
+        db.session.commit()
+        
+        # Convert to dict
+        job_dict = {
+            'id': job.id,
+            'name': job.name,
+            'description': job.description,
+            'status': job.status.value if hasattr(job.status, 'value') else str(job.status),
+            'priority': job.priority.value if hasattr(job.priority, 'value') else str(job.priority),
+            'analysis_types': job.get_analysis_types(),
+            'created_at': job.created_at.isoformat() if job.created_at else None,
+            'total_tasks': job.total_tasks
+        }
+        
+        return ResponseHandler.success_response(
+            data={'job': job_dict},
+            message=f"Job '{name}' created successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error creating batch job: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/batch/jobs/<job_id>/start", methods=["POST"])
+def api_start_batch_job(job_id: str):
+    """Start a batch job (HTMX compatible endpoint)."""
+    try:
+        from models import BatchJob, JobStatus
+        from extensions import db
+        
+        job = BatchJob.query.get_or_404(job_id)
+        
+        if job.status != JobStatus.PENDING:
+            return ResponseHandler.error_response(f"Job {job_id} is not in pending status")
+        
+        # Update job status
+        job.status = JobStatus.RUNNING
+        job.started_at = datetime.utcnow()
+        db.session.commit()
+        
+        # TODO: Start actual job processing with BatchAnalysisService
+        
+        return ResponseHandler.success_response(
+            message=f"Job {job_id} started successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error starting batch job {job_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/batch/jobs/<job_id>/stop", methods=["POST"])
+def api_stop_batch_job(job_id: str):
+    """Stop a batch job (HTMX compatible endpoint)."""
+    try:
+        from models import BatchJob, JobStatus
+        from extensions import db
+        
+        job = BatchJob.query.get_or_404(job_id)
+        
+        if job.status != JobStatus.RUNNING:
+            return ResponseHandler.error_response(f"Job {job_id} is not running")
+        
+        # Update job status
+        job.status = JobStatus.CANCELLED
+        job.completed_at = datetime.utcnow()
+        db.session.commit()
+        
+        # TODO: Stop actual job processing
+        
+        return ResponseHandler.success_response(
+            message=f"Job {job_id} stopped successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error stopping batch job {job_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/batch/jobs/<job_id>", methods=["DELETE"])
+def api_delete_batch_job(job_id: str):
+    """Delete a batch job (HTMX compatible endpoint)."""
+    try:
+        from models import BatchJob
+        from extensions import db
+        
+        job = BatchJob.query.get_or_404(job_id)
+        
+        # Delete associated tasks first (cascade should handle this, but be explicit)
+        for task in job.tasks:
+            db.session.delete(task)
+        
+        db.session.delete(job)
+        db.session.commit()
+        
+        return ResponseHandler.success_response(
+            message=f"Job {job_id} deleted successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error deleting batch job {job_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+# ===========================
 # BLUEPRINT REGISTRATION
 # ===========================
 
@@ -4195,14 +4470,14 @@ def register_blueprints(app):
     # Register legacy batch blueprint for compatibility
     app.register_blueprint(batch_bp)
     
-    # Register new enhanced batch blueprints
-    try:
-        from batch_routes import batch_api_bp, batch_web_bp
-        app.register_blueprint(batch_api_bp, url_prefix='/api/batch')
-        app.register_blueprint(batch_web_bp, url_prefix='/batch')
-        logger.info("Enhanced batch blueprints registered successfully")
-    except ImportError as e:
-        logger.warning(f"Enhanced batch blueprints not available: {e}")
+    # TODO: Register new enhanced batch blueprints when imports are resolved
+    # try:
+    #     from batch_routes import batch_api_bp, batch_web_bp
+    #     app.register_blueprint(batch_api_bp, url_prefix='/api/batch')
+    #     app.register_blueprint(batch_web_bp, url_prefix='/batch')
+    #     logger.info("Enhanced batch blueprints registered successfully")
+    # except ImportError as e:
+    #     logger.warning(f"Enhanced batch blueprints not available: {e}")
     
     app.register_blueprint(docker_bp)
     
