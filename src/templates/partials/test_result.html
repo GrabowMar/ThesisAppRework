@@ -1,0 +1,121 @@
+<!-- Single Test Result Partial -->
+<div class="test-result-container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">
+            <i class="fas fa-flask mr-2"></i>
+            Test: {{ test_file.split('/')[-1] }}
+        </h6>
+        <div class="d-flex align-items-center">
+            <span class="badge badge-{{ 'success' if result.success else 'danger' }} mr-2">
+                {% if result.success %}
+                    <i class="fas fa-check mr-1"></i>
+                    PASSED
+                {% else %}
+                    <i class="fas fa-times mr-1"></i>
+                    FAILED
+                {% endif %}
+            </span>
+            <small class="text-muted">
+                {% if result.duration %}
+                    {{ "%.2f"|format(result.duration) }}s
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
+    {% if result.command %}
+    <div class="mb-2">
+        <small class="text-muted">
+            <strong>Command:</strong> <code>{{ result.command }}</code>
+        </small>
+    </div>
+    {% endif %}
+
+    {% if result.error %}
+    <div class="alert alert-danger mb-3">
+        <h6 class="alert-heading">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            Error
+        </h6>
+        <p class="mb-0">{{ result.error }}</p>
+    </div>
+    {% endif %}
+
+    {% if result.output %}
+    <div class="test-output">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Output:</h6>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        onclick="toggleOutput(this)">
+                    <i class="fas fa-compress-alt mr-1"></i>
+                    Collapse
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                        onclick="copyOutput(this)">
+                    <i class="fas fa-copy mr-1"></i>
+                    Copy
+                </button>
+            </div>
+        </div>
+        <pre class="test-output-content bg-dark text-light p-3 rounded" 
+             style="max-height: 400px; overflow-y: auto; font-size: 0.85em;">{{ result.output }}</pre>
+    </div>
+    {% endif %}
+
+    <div class="mt-3 pt-2 border-top">
+        <div class="row">
+            <div class="col-md-6">
+                <small class="text-muted">
+                    <strong>Exit Code:</strong> {{ result.exit_code }}
+                </small>
+            </div>
+            <div class="col-md-6 text-right">
+                <small class="text-muted">
+                    <strong>Timestamp:</strong> {{ moment().format('YYYY-MM-DD HH:mm:ss') }}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleOutput(button) {
+    const output = button.closest('.test-output').querySelector('.test-output-content');
+    const icon = button.querySelector('i');
+    
+    if (output.style.maxHeight === '60px') {
+        output.style.maxHeight = '400px';
+        icon.className = 'fas fa-compress-alt mr-1';
+        button.querySelector('span') ? button.querySelector('span').textContent = 'Collapse' : null;
+    } else {
+        output.style.maxHeight = '60px';
+        icon.className = 'fas fa-expand-alt mr-1';
+        button.querySelector('span') ? button.querySelector('span').textContent = 'Expand' : null;
+    }
+}
+
+function copyOutput(button) {
+    const output = button.closest('.test-output').querySelector('.test-output-content');
+    
+    // Create temporary textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = output.textContent;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    
+    // Show feedback
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-check mr-1"></i>Copied!';
+    button.classList.add('btn-success');
+    button.classList.remove('btn-outline-primary');
+    
+    setTimeout(() => {
+        button.innerHTML = originalText;
+        button.classList.remove('btn-success');
+        button.classList.add('btn-outline-primary');
+    }, 2000);
+}
+</script>

@@ -9,3 +9,4 @@
 - zap_service.run_zap_scan() - for ZAP scanning
 
 These methods are called through ServiceLocator.get_service() pattern, not direct class instantiation. The ScanManager in core_services.py manages scans but doesn't have run_security_analysis method - this explains the test failures. Need to understand actual service integration patterns. |
+| 2025-08-02 | Resolved TemplateNotFound error by creating missing pages/batch_jobs_list.html template | The Flask application was failing with jinja2.exceptions.TemplateNotFound: pages/batch_jobs_list.html when accessing /batch/ route. Investigation revealed the template file was missing from src/templates/pages/. Created comprehensive batch jobs management template with proper Jinja2 structure, Bootstrap styling, HTMX integration, and error handling. Template now renders successfully with 24,439 characters and passes all 4 comprehensive test suites. |

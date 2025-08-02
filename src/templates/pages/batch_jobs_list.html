@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Jobs Dashboard - Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-layer-group text-primary mr-2"></i>
+                Batch Jobs Dashboard
+            </h1>
+            <p class="page-subtitle">
+                Monitor and manage batch analysis jobs
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary btn-sm" 
+                    hx-get="/batch/api/jobs"
+                    hx-target="#jobs-container"
+                    hx-indicator="#loading-overlay">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh Jobs
+            </button>
+            <button type="button" class="btn btn-success btn-sm" 
+                    onclick="createNewJob()">
+                <i class="fas fa-plus mr-1"></i>
+                Create Job
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" 
+                    onclick="toggleJobFilters()">
+                <i class="fas fa-filter mr-1"></i>
+                Filters
+            </button>
+        </div>
+    </div>
+
+    <!-- Job Statistics -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-card-icon">
+                    <i class="fas fa-tasks"></i>
+                </div>
+                <div class="stats-card-value">
+                    {{ stats.total or total_jobs or 0 }}
+                </div>
+                <div class="stats-card-label">Total Jobs</div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-card-icon">
+                    <i class="fas fa-play-circle"></i>
+                </div>
+                <div class="stats-card-value text-info">
+                    {{ stats.running or running_jobs or 0 }}
+                </div>
+                <div class="stats-card-label">Running</div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-card-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stats-card-value text-success">
+                    {{ stats.completed or completed_jobs or 0 }}
+                </div>
+                <div class="stats-card-label">Completed</div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-card-icon">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <div class="stats-card-value text-danger">
+                    {{ stats.failed or failed_jobs or 0 }}
+                </div>
+                <div class="stats-card-label">Failed</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Filters -->
+    <div class="row mb-3" id="job-filters-row" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filter-status">Status</label>
+                                <select class="form-control form-control-sm" id="filter-status" onchange="applyFilters()">
+                                    <option value="">All Statuses</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="running">Running</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="failed">Failed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filter-type">Analysis Type</label>
+                                <select class="form-control form-control-sm" id="filter-type" onchange="applyFilters()">
+                                    <option value="">All Types</option>
+                                    <option value="frontend_security">Frontend Security</option>
+                                    <option value="backend_security">Backend Security</option>
+                                    <option value="performance">Performance</option>
+                                    <option value="comprehensive">Comprehensive</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filter-search">Search Jobs</label>
+                                <input type="text" class="form-control form-control-sm" 
+                                       id="filter-search" placeholder="Search by name..."
+                                       onkeyup="applyFilters()">
+                            </div>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div class="form-group mb-0">
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        onclick="clearFilters()">
+                                    <i class="fas fa-times mr-1"></i>
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jobs List -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list mr-2"></i>
+                        Batch Jobs
+                        {% if jobs %}
+                            <span class="badge badge-secondary ml-2">{{ jobs|length }}</span>
+                        {% endif %}
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" 
+                                   id="auto-refresh" checked onchange="toggleAutoRefresh()">
+                            <label class="form-check-label" for="auto-refresh">
+                                Auto-refresh
+                            </label>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                onclick="bulkJobAction('cancel')" disabled id="bulk-cancel-btn">
+                            <i class="fas fa-stop mr-1"></i>
+                            Cancel Selected
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="jobs-container">
+                        {% include 'partials/batch_jobs_table.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Job Details Modal -->
+<div class="modal fade" id="jobDetailsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Job Details</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="job-details-content">
+                <!-- Job details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let autoRefreshInterval;
+
+// Filter functionality
+function toggleJobFilters() {
+    const filtersRow = document.getElementById('job-filters-row');
+    const isVisible = filtersRow.style.display !== 'none';
+    filtersRow.style.display = isVisible ? 'none' : 'block';
+}
+
+function applyFilters() {
+    const status = document.getElementById('filter-status').value;
+    const type = document.getElementById('filter-type').value;
+    const search = document.getElementById('filter-search').value.toLowerCase();
+    
+    const jobRows = document.querySelectorAll('.job-row');
+    
+    jobRows.forEach(row => {
+        const jobStatus = row.dataset.status;
+        const jobType = row.dataset.analysisTypes;
+        const jobName = row.dataset.jobName.toLowerCase();
+        
+        let visible = true;
+        
+        if (status && jobStatus !== status) {
+            visible = false;
+        }
+        
+        if (type && !jobType.includes(type)) {
+            visible = false;
+        }
+        
+        if (search && !jobName.includes(search)) {
+            visible = false;
+        }
+        
+        row.style.display = visible ? '' : 'none';
+    });
+}
+
+function clearFilters() {
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-type').value = '';
+    document.getElementById('filter-search').value = '';
+    applyFilters();
+}
+
+// Job actions
+function viewJobDetails(jobId) {
+    fetch(`/batch/job/${jobId}/details`)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('job-details-content').innerHTML = html;
+            $('#jobDetailsModal').modal('show');
+        })
+        .catch(error => {
+            console.error('Error loading job details:', error);
+            alert('Failed to load job details');
+        });
+}
+
+function cancelJob(jobId) {
+    if (!confirm('Are you sure you want to cancel this job?')) {
+        return;
+    }
+    
+    fetch(`/batch/job/${jobId}/cancel`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            refreshJobs();
+        } else {
+            alert('Failed to cancel job: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error cancelling job:', error);
+        alert('Error cancelling job: ' + error.message);
+    });
+}
+
+function startJob(jobId) {
+    fetch(`/batch/job/${jobId}/start`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            refreshJobs();
+        } else {
+            alert('Failed to start job: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error starting job:', error);
+        alert('Error starting job: ' + error.message);
+    });
+}
+
+function deleteJob(jobId) {
+    if (!confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+        return;
+    }
+    
+    fetch(`/batch/job/${jobId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            refreshJobs();
+        } else {
+            alert('Failed to delete job: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting job:', error);
+        alert('Error deleting job: ' + error.message);
+    });
+}
+
+// Bulk actions
+function toggleJobSelection(checkbox) {
+    const selectedJobs = document.querySelectorAll('.job-checkbox:checked');
+    const bulkCancelBtn = document.getElementById('bulk-cancel-btn');
+    
+    bulkCancelBtn.disabled = selectedJobs.length === 0;
+}
+
+function selectAllJobs() {
+    const checkboxes = document.querySelectorAll('.job-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(cb => {
+        cb.checked = !allChecked;
+    });
+    
+    toggleJobSelection();
+}
+
+function bulkJobAction(action) {
+    const selectedJobs = Array.from(document.querySelectorAll('.job-checkbox:checked'))
+        .map(cb => cb.value);
+    
+    if (selectedJobs.length === 0) {
+        alert('Please select at least one job.');
+        return;
+    }
+    
+    const actionText = action === 'cancel' ? 'cancel' : action;
+    if (!confirm(`Are you sure you want to ${actionText} ${selectedJobs.length} job(s)?`)) {
+        return;
+    }
+    
+    Promise.all(selectedJobs.map(jobId => {
+        return fetch(`/batch/job/${jobId}/${action}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+    }))
+    .then(() => {
+        refreshJobs();
+    })
+    .catch(error => {
+        console.error(`Error performing bulk ${action}:`, error);
+        alert(`Error performing bulk ${action}: ` + error.message);
+    });
+}
+
+// Utility functions
+function refreshJobs() {
+    htmx.ajax('GET', '/batch/api/jobs', {
+        target: '#jobs-container',
+        swap: 'innerHTML'
+    });
+}
+
+function createNewJob() {
+    // Navigate to job creation page or open modal
+    window.location.href = '/batch/create';
+}
+
+function toggleAutoRefresh() {
+    const autoRefreshChecked = document.getElementById('auto-refresh').checked;
+    
+    if (autoRefreshChecked) {
+        autoRefreshInterval = setInterval(refreshJobs, 10000); // Refresh every 10 seconds
+    } else {
+        clearInterval(autoRefreshInterval);
+    }
+}
+
+// Initialize auto-refresh on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleAutoRefresh();
+});
+
+// Format duration helper
+function formatDuration(seconds) {
+    if (!seconds) return '—';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+        return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${secs}s`;
+    } else {
+        return `${secs}s`;
+    }
+}
+
+// Progress bar helper
+function updateProgressBar(jobId, progress) {
+    const progressBar = document.querySelector(`#progress-${jobId} .progress-bar`);
+    if (progressBar) {
+        const percentage = progress.completed / progress.total * 100;
+        progressBar.style.width = `${percentage}%`;
+        progressBar.textContent = `${progress.completed}/${progress.total}`;
+    }
+}
+</script>
+{% endblock %}

@@ -449,7 +449,9 @@ class UserGenerator:
 
 
 class LocustPerformanceTester:
-    def __init__(self, output_dir: Union[str, Path], static_url_path: str = "/static"):
+    def __init__(self, output_dir: Optional[Union[str, Path]] = None, static_url_path: str = "/static"):
+        if output_dir is None:
+            output_dir = Path("performance_reports")
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.static_url_path = "/" + static_url_path.strip('/')

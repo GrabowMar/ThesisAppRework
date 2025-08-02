@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Create Batch Job - Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-plus-square text-success mr-2"></i>
+                Create New Batch Analysis Job
+            </h1>
+            <p class="page-subtitle">
+                Configure and create a new batch analysis job
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('batch.batch_overview') }}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left mr-1"></i>
+                Back to Jobs
+            </a>
+        </div>
+    </div>
+
+    <!-- Job Creation Form -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-cog mr-2"></i>
+                        Job Configuration
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form id="createJobForm" method="POST" 
+                          hx-post="/batch/api/create"
+                          hx-target="#form-response"
+                          hx-indicator="#submit-loading">
+                        
+                        <!-- Job Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="job_name" class="form-label">
+                                    <i class="fas fa-tag mr-1"></i>
+                                    Job Name
+                                </label>
+                                <input type="text" class="form-control" id="job_name" name="job_name" 
+                                       placeholder="Enter job name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="description" class="form-label">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Description
+                                </label>
+                                <input type="text" class="form-control" id="description" name="description" 
+                                       placeholder="Job description (optional)">
+                            </div>
+                        </div>
+
+                        <!-- Analysis Type Selection -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <label class="form-label">
+                                    <i class="fas fa-shield-alt mr-1"></i>
+                                    Analysis Type
+                                </label>
+                                <div class="row">
+                                    {% for analysis_type in analysis_types %}
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card analysis-type-card">
+                                            <div class="card-body">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" 
+                                                           name="analysis_type" id="analysis_{{ analysis_type.value }}"
+                                                           value="{{ analysis_type.value }}" required>
+                                                    <label class="form-check-label w-100" 
+                                                           for="analysis_{{ analysis_type.value }}">
+                                                        <strong>{{ analysis_type.name }}</strong>
+                                                        <br>
+                                                        <small class="text-muted">{{ analysis_type.description }}</small>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Model Selection -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <label class="form-label">
+                                    <i class="fas fa-brain mr-1"></i>
+                                    Select Models
+                                </label>
+                                <div class="model-selection">
+                                    <div class="row">
+                                        {% for model in available_models %}
+                                        <div class="col-md-4 col-lg-3 mb-3">
+                                            <div class="card model-card">
+                                                <div class="card-body p-3">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" 
+                                                               name="models" id="model_{{ model.slug }}"
+                                                               value="{{ model.slug }}">
+                                                        <label class="form-check-label w-100" 
+                                                               for="model_{{ model.slug }}">
+                                                            <strong class="model-name">{{ model.name }}</strong>
+                                                            <br>
+                                                            <small class="text-muted">{{ model.apps_count }} apps available</small>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- App Selection -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="app_selection" class="form-label">
+                                    <i class="fas fa-cubes mr-1"></i>
+                                    App Selection
+                                </label>
+                                <select class="form-select" id="app_selection" name="app_selection" required>
+                                    <option value="">Select app range...</option>
+                                    <option value="all">All Apps (1-30)</option>
+                                    <option value="sample">Sample (1, 5, 10, 15, 20, 25, 30)</option>
+                                    <option value="range">Custom Range</option>
+                                    <option value="specific">Specific Apps</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="custom_apps" class="form-label">
+                                    <i class="fas fa-list-ol mr-1"></i>
+                                    Custom Apps
+                                </label>
+                                <input type="text" class="form-control" id="custom_apps" name="custom_apps" 
+                                       placeholder="e.g., 1,5,10-15,20" disabled>
+                                <small class="form-text text-muted">
+                                    Use commas for individual apps, hyphens for ranges
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Options -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-sliders-h mr-2"></i>
+                                    Advanced Options
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label for="priority" class="form-label">Priority</label>
+                                        <select class="form-select" id="priority" name="priority">
+                                            <option value="MEDIUM" selected>Medium</option>
+                                            <option value="HIGH">High</option>
+                                            <option value="LOW">Low</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="max_concurrent" class="form-label">Max Concurrent Tasks</label>
+                                        <input type="number" class="form-control" id="max_concurrent" 
+                                               name="max_concurrent" value="3" min="1" max="10">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="timeout" class="form-label">Task Timeout (minutes)</label>
+                                        <input type="number" class="form-control" id="timeout" 
+                                               name="timeout" value="30" min="5" max="120">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Response Area -->
+                        <div id="form-response" class="mb-3"></div>
+
+                        <!-- Submit Button -->
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" 
+                                    onclick="window.location.href='{{ url_for('batch.batch_overview') }}'">
+                                <i class="fas fa-times mr-1"></i>
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-success">
+                                <span id="submit-loading" class="htmx-indicator spinner-border spinner-border-sm mr-2" role="status"></span>
+                                <i class="fas fa-play mr-1"></i>
+                                Create Job
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.analysis-type-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.analysis-type-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.analysis-type-card .form-check-input:checked + .form-check-label {
+    background-color: rgba(40, 167, 69, 0.1);
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.model-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.model-card:hover {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.model-card .form-check-input:checked + .form-check-label {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-radius: 4px;
+    padding: 8px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // App selection handler
+    const appSelection = document.getElementById('app_selection');
+    const customApps = document.getElementById('custom_apps');
+    
+    appSelection.addEventListener('change', function() {
+        if (this.value === 'range' || this.value === 'specific') {
+            customApps.disabled = false;
+            customApps.required = true;
+        } else {
+            customApps.disabled = true;
+            customApps.required = false;
+            customApps.value = '';
+        }
+    });
+
+    // Model selection helpers
+    const modelCards = document.querySelectorAll('.model-card');
+    modelCards.forEach(card => {
+        card.addEventListener('click', function() {
+            const checkbox = this.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+        });
+    });
+
+    // Analysis type selection helpers
+    const analysisCards = document.querySelectorAll('.analysis-type-card');
+    analysisCards.forEach(card => {
+        card.addEventListener('click', function() {
+            const radio = this.querySelector('input[type="radio"]');
+            radio.checked = true;
+        });
+    });
+});
+</script>
+{% endblock %}

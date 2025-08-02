@@ -59,6 +59,22 @@ try:
             """DEPRECATED: Results are now saved to database only."""
             logger.warning("JsonResultsManager.save_results is deprecated. Results are saved to database only.")
             return Path(f"deprecated://{model}/app{app_num}")
+            
+        def load_results(self, model: str, app_num: int, 
+                        file_name: Optional[str] = None) -> Optional[Any]:
+            """Load analysis results from JSON file."""
+            if file_name is None:
+                file_name = f".{self.module_name}_results.json"
+            
+            results_path = self.base_path / model / f"app{app_num}" / file_name
+            if not results_path.exists():
+                return None
+                
+            try:
+                with open(results_path, "r", encoding='utf-8') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                return None
 
 except ImportError:
     # Fallback JsonResultsManager implementation for compatibility
@@ -121,11 +137,11 @@ class ToolCategory(str, Enum):
 
 
 class ToolStatus(str, Enum):
-    SUCCESS = "✅ No issues found"
-    ISSUES_FOUND = "ℹ️ Found {count} issues"
-    ERROR = "❌ Error"
-    AUTH_REQUIRED = "❌ Authentication required"
-    NOT_FOUND = "❌ Command not found"
+    SUCCESS = "[SUCCESS] No issues found"
+    ISSUES_FOUND = "[INFO] Found {count} issues"
+    ERROR = "[ERROR] Error"
+    AUTH_REQUIRED = "[ERROR] Authentication required"
+    NOT_FOUND = "[ERROR] Command not found"
     NO_FILES = "⚪ No files found"
     SKIPPED = "⚪ Skipped"
 
@@ -261,9 +277,9 @@ class BaseAnalyzer(ABC):
                   input_data: Optional[str] = None) -> Tuple[List[AnalysisIssue], str, str]:
         """Run a tool and parse its output."""
         try:
-            logger.info(f"🔧 Starting {tool_name} analysis")
-            logger.info(f"📁 Working directory: {working_dir}")
-            logger.info(f"⚙️  Command: {' '.join(command)}")
+            logger.info(f"[TOOL] Starting {tool_name} analysis")
+            logger.info(f"[PATH] Working directory: {working_dir}")
+            logger.info(f"[CONFIG]  Command: {' '.join(command)}")
             if input_data:
                 logger.info(f"📥 Input data length: {len(input_data)} characters")
             
@@ -287,8 +303,8 @@ class BaseAnalyzer(ABC):
             )
             execution_time = (datetime.now() - start_time).total_seconds()
             
-            logger.info(f"⏱️  {tool_name} completed in {execution_time:.2f} seconds")
-            logger.info(f"🏁 Return code: {result.returncode}")
+            logger.info(f"[TIME]  {tool_name} completed in {execution_time:.2f} seconds")
+            logger.info(f"[FINISH] Return code: {result.returncode}")
             
             if result.stdout:
                 logger.info(f"📤 STDOUT length: {len(result.stdout)} characters")
@@ -300,39 +316,39 @@ class BaseAnalyzer(ABC):
                 logger.info(f"📤 No STDOUT output")
                 
             if result.stderr:
-                logger.info(f"⚠️  STDERR length: {len(result.stderr)} characters")
+                logger.info(f"[WARN]  STDERR length: {len(result.stderr)} characters")
                 if len(result.stderr) > 1000:
-                    logger.info(f"⚠️  STDERR preview: {result.stderr[:500]}...")
+                    logger.info(f"[WARN]  STDERR preview: {result.stderr[:500]}...")
                 else:
-                    logger.info(f"⚠️  STDERR: {result.stderr}")
+                    logger.info(f"[WARN]  STDERR: {result.stderr}")
             else:
-                logger.info(f"⚠️  No STDERR output")
+                logger.info(f"[WARN]  No STDERR output")
             
             output = f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
             
             if result.returncode in [0, 1]:  # 0 = no issues, 1 = issues found
                 if parser_func:
-                    logger.info(f"🔍 Parsing {tool_name} output...")
+                    logger.info(f"[SEARCH] Parsing {tool_name} output...")
                     try:
                         issues = parser_func(result.stdout)
-                        logger.info(f"✅ Parsed {len(issues)} issues from {tool_name}")
+                        logger.info(f"[SUCCESS] Parsed {len(issues)} issues from {tool_name}")
                         for i, issue in enumerate(issues[:5]):  # Log first 5 issues
                             logger.info(f"  Issue {i+1}: {issue.filename}:{issue.line_number} - {issue.severity} - {issue.issue_text[:100]}")
                         if len(issues) > 5:
                             logger.info(f"  ... and {len(issues) - 5} more issues")
                     except Exception as parse_error:
-                        logger.error(f"❌ Failed to parse {tool_name} output: {parse_error}")
+                        logger.error(f"[ERROR] Failed to parse {tool_name} output: {parse_error}")
                         issues = []
                 else:
                     issues = []
-                    logger.info(f"ℹ️  No parser function provided for {tool_name}")
+                    logger.info(f"[INFO]  No parser function provided for {tool_name}")
                 
                 status = ToolStatus.ISSUES_FOUND.value.format(count=len(issues)) if issues else ToolStatus.SUCCESS.value
-                logger.info(f"✅ {tool_name} analysis completed: {status}")
+                logger.info(f"[SUCCESS] {tool_name} analysis completed: {status}")
                 return issues, status, output
             else:
-                logger.error(f"❌ {tool_name} failed with return code {result.returncode}")
-                logger.error(f"❌ Error details: {result.stderr}")
+                logger.error(f"[ERROR] {tool_name} failed with return code {result.returncode}")
+                logger.error(f"[ERROR] Error details: {result.stderr}")
                 return [], ToolStatus.ERROR.value, output
                 
         except subprocess.TimeoutExpired:
@@ -388,42 +404,59 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
         super().__init__(base_path, ToolCategory.BACKEND_SECURITY)
         self.tools = self.get_tool_definitions()
         
-        logger.info(f"🔍 Initializing Backend Security Analyzer")
-        logger.info(f"📁 Base path: {base_path}")
-        logger.info(f"🔧 Checking availability of {len(self.tools)} backend security tools...")
+        logger.info(f"[SEARCH] Initializing Backend Security Analyzer")
+        logger.info(f"[PATH] Base path: {base_path}")
+        logger.info(f"[TOOL] Checking availability of {len(self.tools)} backend security tools...")
         
         self.available_tools = {}
         for name, config in self.tools.items():
-            logger.info(f"  🔍 Checking {name}...")
+            logger.info(f"  [SEARCH] Checking {name}...")
             is_available = self._check_tool_availability(name, config)
             self.available_tools[name] = is_available
-            status_icon = "✅" if is_available else "❌"
+            status_icon = "[SUCCESS]" if is_available else "[ERROR]"
             logger.info(f"    {status_icon} {name}: {'Available' if is_available else 'Not available'}")
             
         available_tools_list = [k for k, v in self.available_tools.items() if v]
-        logger.info(f"✅ Backend security tools ready: {len(available_tools_list)}/{len(self.tools)} available")
-        logger.info(f"📋 Available tools: {available_tools_list}")
+        logger.info(f"[SUCCESS] Backend security tools ready: {len(available_tools_list)}/{len(self.tools)} available")
+        logger.info(f"[LIST] Available tools: {available_tools_list}")
+        
+        # Log enhanced configurations
+        enhanced_tools = [name for name, config in self.tools.items() if config.get("enhanced_cmd")]
+        if enhanced_tools:
+            logger.info(f"[START] Enhanced 2024-2025 configurations active for: {enhanced_tools}")
+            for tool_name in enhanced_tools:
+                features = self.tools[tool_name].get("modern_features", [])
+                logger.info(f"  [METRICS] {tool_name}: {', '.join(features)}")
         
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         return {
             "bandit": {
                 "cmd": [sys.executable, "-m", "bandit"],
+                "enhanced_cmd": [sys.executable, "-m", "bandit", "-r", ".", "-f", "json", "-ll", "--confidence-level", "high"],
                 "python_module": True,
                 "requires_files": True,
-                "timeout": 30
+                "timeout": 30,
+                "output_format": "json",
+                "modern_features": ["json_output", "confidence_filtering", "severity_levels", "baseline_support"]
             },
             "safety": {
                 "cmd": [sys.executable, "-m", "safety"],
+                "enhanced_cmd": [sys.executable, "-m", "safety", "check", "--json", "--disable-telemetry", "--full-report"],
                 "python_module": True,
                 "requires_files": False,
-                "timeout": 30
+                "timeout": 30,
+                "output_format": "json",
+                "modern_features": ["telemetry_control", "cvss_scoring", "comprehensive_reporting", "ignore_lists"]
             },
             "pylint": {
                 "cmd": [sys.executable, "-m", "pylint"],
+                "enhanced_cmd": [sys.executable, "-m", "pylint", "--output-format=json", "--disable=C,R", "--enable=E,W,F"],
                 "python_module": True,
                 "requires_files": True,
                 "timeout": 45,
-                "max_files": 30
+                "max_files": 30,
+                "output_format": "json",
+                "modern_features": ["message_control", "parallel_execution", "json_output", "category_filtering"]
             },
             "vulture": {
                 "cmd": [sys.executable, "-m", "vulture"],
@@ -564,12 +597,19 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
             return []
             
     def _run_bandit(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
-        """Run Bandit analysis."""
-        command = self.tools["bandit"]["cmd"] + ["-r", ".", "-f", "json", "-ll", "-ii"]
+        """Run Bandit analysis with enhanced 2024-2025 configuration."""
+        # Use enhanced command with modern options
+        enhanced_cmd = self.tools["bandit"].get("enhanced_cmd")
+        if enhanced_cmd:
+            # Enhanced command includes: -r . -f json -ll --confidence-level high
+            command = enhanced_cmd
+        else:
+            # Fallback to basic command with enhanced options
+            command = self.tools["bandit"]["cmd"] + ["-r", ".", "-f", "json", "-ll", "--confidence-level", "high"]
         return self._run_tool("bandit", command, self._parse_bandit, working_dir=app_path)
         
     def _run_safety(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
-        """Run Safety analysis."""
+        """Run Safety analysis with enhanced 2024-2025 configuration."""
         requirements_file = app_path / "requirements.txt"
         if not requirements_file.exists():
             return [], ToolStatus.NO_FILES.value, "No requirements.txt found"
@@ -580,7 +620,14 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
         except IOError as e:
             return [], ToolStatus.ERROR.value, f"Error reading requirements.txt: {e}"
         
-        command = self.tools["safety"]["cmd"] + ["check", "--stdin"]
+        # Use enhanced command with modern options
+        enhanced_cmd = self.tools["safety"].get("enhanced_cmd")
+        if enhanced_cmd:
+            # Enhanced command includes: check --json --disable-telemetry --full-report
+            command = enhanced_cmd + ["--stdin"]
+        else:
+            # Fallback to basic command with enhanced options
+            command = self.tools["safety"]["cmd"] + ["check", "--json", "--disable-telemetry", "--full-report", "--stdin"]
         return self._run_tool("safety", command, self._parse_safety, 
                             working_dir=app_path, input_data=content)
                             
@@ -588,34 +635,34 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run backend security analysis."""
         with self.analysis_lock:
-            logger.info(f"🔒 Starting backend security analysis for {model}/app{app_num}")
-            logger.info(f"⚙️  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
+            logger.info(f"[LOCK] Starting backend security analysis for {model}/app{app_num}")
+            logger.info(f"[CONFIG]  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
             
             # Check cache
             if not force_rerun:
-                logger.info(f"🔍 Checking for cached results...")
+                logger.info(f"[SEARCH] Checking for cached results...")
                 cached = self.results_manager.load_results(model, app_num, 
                                                          file_name=".backend_security_results.json")
                 if cached:
-                    logger.info("✅ Using cached backend security results")
+                    logger.info("[SUCCESS] Using cached backend security results")
                     return (cached.get("issues", []),
                            cached.get("tool_status", {}),
                            cached.get("tool_outputs", {}))
                 else:
-                    logger.info("ℹ️  No cached results found, running fresh analysis")
+                    logger.info("[INFO]  No cached results found, running fresh analysis")
                            
             # Find app path
-            logger.info(f"📁 Looking for backend path for {model}/app{app_num}")
+            logger.info(f"[PATH] Looking for backend path for {model}/app{app_num}")
             app_path = self._find_app_path(model, app_num)
             if not app_path:
                 error_msg = f"Backend path not found for {model}/app{app_num}"
-                logger.error(f"❌ {error_msg}")
+                logger.error(f"[ERROR] {error_msg}")
                 return [], {"error": error_msg}, {}
-            logger.info(f"✅ Found backend path: {app_path}")
+            logger.info(f"[SUCCESS] Found backend path: {app_path}")
                 
             # Determine tools to run
             tools_to_run = list(self.tools.keys()) if use_all_tools else ["bandit"]
-            logger.info(f"🔧 Tools to run: {tools_to_run}")
+            logger.info(f"[TOOL] Tools to run: {tools_to_run}")
             
             # Run tools
             all_issues = []
@@ -623,29 +670,29 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
             tool_outputs = {}
             
             for i, tool_name in enumerate(tools_to_run, 1):
-                logger.info(f"🔧 Running tool {i}/{len(tools_to_run)}: {tool_name}")
+                logger.info(f"[TOOL] Running tool {i}/{len(tools_to_run)}: {tool_name}")
                 
                 if not self.available_tools.get(tool_name):
                     status_msg = f"Tool not available"
-                    logger.warning(f"⚠️  {tool_name}: {status_msg}")
+                    logger.warning(f"[WARN]  {tool_name}: {status_msg}")
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
-                logger.info(f"🚀 Executing {tool_name} on {app_path}")
+                logger.info(f"[START] Executing {tool_name} on {app_path}")
                 if tool_name == "bandit":
                     issues, status, output = self._run_bandit(app_path)
                 elif tool_name == "safety":
                     issues, status, output = self._run_safety(app_path)
                 else:
-                    logger.warning(f"⚠️  Unknown tool: {tool_name}")
+                    logger.warning(f"[WARN]  Unknown tool: {tool_name}")
                     continue
                     
                 # Log results
                 if status == ToolStatus.SUCCESS.value:
                     issues_count = len(issues)
-                    logger.info(f"✅ {tool_name} completed successfully - Found {issues_count} issues")
+                    logger.info(f"[SUCCESS] {tool_name} completed successfully - Found {issues_count} issues")
                 else:
-                    logger.error(f"❌ {tool_name} failed with status: {status}")
+                    logger.error(f"[ERROR] {tool_name} failed with status: {status}")
                     
                 all_issues.extend(issues)
                 tool_status[tool_name] = status
@@ -657,15 +704,15 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
                                  if status == ToolStatus.SUCCESS.value)
             failed_tools = len(tool_status) - successful_tools
             
-            logger.info(f"🎯 Backend Security Analysis Complete!")
-            logger.info(f"📊 Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
+            logger.info(f"[TARGET] Backend Security Analysis Complete!")
+            logger.info(f"[STATS] Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
             
             # Sort and save
-            logger.info(f"📋 Sorting and formatting {total_issues} issues...")
+            logger.info(f"[LIST] Sorting and formatting {total_issues} issues...")
             sorted_issues = self._sort_issues(all_issues)
             issues_dict = [issue.to_dict() for issue in sorted_issues]
             
-            logger.info(f"💾 Saving results to cache...")
+            logger.info(f"[SAVE] Saving results to cache...")
             results = {
                 "issues": issues_dict,
                 "tool_status": tool_status,
@@ -679,9 +726,13 @@ class BackendSecurityAnalyzer(BaseAnalyzer):
                 }
             }
             
-            logger.info(f"✅ Backend security analysis results prepared (file saving disabled - using database only)")
+            logger.info(f"[SUCCESS] Backend security analysis results prepared (file saving disabled - using database only)")
                                             
             return issues_dict, tool_status, tool_outputs
+    
+    def get_available_tools(self) -> List[str]:
+        """Get list of available backend security tools."""
+        return [tool_name for tool_name, is_available in self.available_tools.items() if is_available]
 
 
 class FrontendSecurityAnalyzer(BaseAnalyzer):
@@ -691,48 +742,68 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
         super().__init__(base_path, ToolCategory.FRONTEND_SECURITY)
         self.tools = self.get_tool_definitions()
         
-        logger.info(f"🔍 Initializing Frontend Security Analyzer")
-        logger.info(f"📁 Base path: {base_path}")
-        logger.info(f"🔧 Checking availability of {len(self.tools)} frontend security tools...")
+        logger.info(f"[SEARCH] Initializing Frontend Security Analyzer")
+        logger.info(f"[PATH] Base path: {base_path}")
+        logger.info(f"[TOOL] Checking availability of {len(self.tools)} frontend security tools...")
         
         self.available_tools = {}
         for name, config in self.tools.items():
-            logger.info(f"  🔍 Checking {name}...")
+            logger.info(f"  [SEARCH] Checking {name}...")
             is_available = self._check_tool_availability(name, config)
             self.available_tools[name] = is_available
-            status_icon = "✅" if is_available else "❌"
+            status_icon = "[SUCCESS]" if is_available else "[ERROR]"
             logger.info(f"    {status_icon} {name}: {'Available' if is_available else 'Not available'}")
             
         available_tools_list = [k for k, v in self.available_tools.items() if v]
-        logger.info(f"✅ Frontend security tools ready: {len(available_tools_list)}/{len(self.tools)} available")
-        logger.info(f"📋 Available tools: {available_tools_list}")
+        logger.info(f"[SUCCESS] Frontend security tools ready: {len(available_tools_list)}/{len(self.tools)} available")
+        logger.info(f"[LIST] Available tools: {available_tools_list}")
+        
+        # Log enhanced configurations
+        enhanced_tools = [name for name, config in self.tools.items() if config.get("enhanced_cmd")]
+        if enhanced_tools:
+            logger.info(f"[START] Enhanced 2024-2025 configurations active for: {enhanced_tools}")
+            for tool_name in enhanced_tools:
+                features = self.tools[tool_name].get("modern_features", [])
+                logger.info(f"  [METRICS] {tool_name}: {', '.join(features)}")
         
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         return {
             "eslint": {
                 "cmd": ["npx", "eslint"],
-                "npx_tool": True,
-                "requires_files": True,
-                "timeout": 45
-            },
-            "jshint": {
-                "cmd": ["npx", "jshint"],
+                "enhanced_cmd": ["npx", "eslint", ".", "--format=json", "--ext", ".js,.jsx,.ts,.tsx"],
                 "npx_tool": True,
                 "requires_files": True,
                 "timeout": 45,
-                "max_files": 30
+                "output_format": "json",
+                "modern_features": ["flat_config", "typescript_support", "auto_fix", "cache_support", "rule_severity"]
+            },
+            "jshint": {
+                "cmd": ["npx", "jshint"],
+                "enhanced_cmd": ["npx", "jshint", "--reporter=json", "--config=.jshintrc"],
+                "npx_tool": True,
+                "requires_files": True,
+                "timeout": 45,
+                "max_files": 30,
+                "output_format": "json",
+                "modern_features": ["json_reporting", "config_support", "security_rules"]
             },
             "snyk": {
                 "cmd": ["npx", "snyk"],
+                "enhanced_cmd": ["npx", "snyk", "test", "--json", "--severity-threshold=medium"],
                 "npx_tool": True,
                 "requires_files": False,
-                "timeout": 90
+                "timeout": 90,
+                "output_format": "json",
+                "modern_features": ["severity_thresholds", "container_scanning", "sarif_output", "policy_enforcement", "monitoring"]
             },
             "retire": {
                 "cmd": ["npx", "retire"],
+                "enhanced_cmd": ["npx", "retire", "--outputformat=json", "--outputpath=retire-report.json"],
                 "npx_tool": True,
                 "requires_files": True,
-                "timeout": 60
+                "timeout": 60,
+                "output_format": "json",
+                "modern_features": ["json_output", "vulnerability_detection", "library_scanning"]
             }
         }
         
@@ -952,16 +1023,24 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
         return issues
         
     def _run_eslint(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
-        """Run ESLint with security rules."""
+        """Run ESLint with enhanced 2024-2025 security configuration."""
         scan_dir = "src" if (app_path / "src").is_dir() else "."
-        args = ["npx", "eslint", "--ext", ".js,.jsx,.ts,.tsx,.vue", "--format", "json", "--quiet", scan_dir]
+        
+        # Use enhanced command with modern options
+        enhanced_cmd = self.tools["eslint"].get("enhanced_cmd")
+        if enhanced_cmd:
+            # Enhanced command includes: . --format=json --ext .js,.jsx,.ts,.tsx
+            args = enhanced_cmd + ["--quiet", scan_dir]
+        else:
+            # Fallback to basic command with enhanced options
+            args = ["npx", "eslint", ".", "--format=json", "--ext", ".js,.jsx,.ts,.tsx", "--quiet", scan_dir]
 
         # Check for existing config
         eslint_configs = [".eslintrc.js", ".eslintrc.json", "eslint.config.js"]
         has_config = any((app_path / config).exists() for config in eslint_configs)
 
         if not has_config:
-            # Security-focused config
+            # Enhanced security-focused config for ESLint v9+ flat format
             config = [
                 {
                     "languageOptions": {
@@ -969,27 +1048,37 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                         "sourceType": "module",
                         "globals": {
                             "window": "readonly",
-                            "document": "readonly"
+                            "document": "readonly",
+                            "console": "readonly"
                         }
                     },
                     "rules": {
                         "no-eval": "error",
                         "no-implied-eval": "error",
                         "no-script-url": "error",
-                        "no-new-func": "error"
+                        "no-new-func": "error",
+                        "no-unsafe-inline-assembly": "error",
+                        "no-unused-vars": "warn"
                     }
                 }
             ]
             with self._temp_config(config, "eslint.config.js", is_js=True) as temp_config:
-                args.insert(2, "--config")
-                args.insert(3, str(temp_config))
+                args.insert(-1, "--config")
+                args.insert(-1, str(temp_config))
                 return self._run_tool("eslint", args, self._parse_eslint, working_dir=app_path)
         else:
             return self._run_tool("eslint", args, self._parse_eslint, working_dir=app_path)
             
     def _run_retire(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
-        """Run retire.js to detect vulnerable JavaScript libraries."""
-        command = ["npx", "retire", "--outputformat", "text", "--path", "."]
+        """Run retire.js with enhanced 2024-2025 configuration to detect vulnerable JavaScript libraries."""
+        # Use enhanced command with modern options
+        enhanced_cmd = self.tools["retire"].get("enhanced_cmd")
+        if enhanced_cmd:
+            # Enhanced command includes: --outputformat=json --outputpath=retire-report.json
+            command = enhanced_cmd
+        else:
+            # Fallback to basic command with enhanced options
+            command = ["npx", "retire", "--outputformat=json", "--path", "."]
         return self._run_tool("retire", command, self._parse_retire, working_dir=app_path)
         
     def _run_jshint(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
@@ -1024,7 +1113,7 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
             return self._run_tool("jshint", command, self._parse_jshint, working_dir=app_path)
             
     def _run_snyk(self, app_path: Path) -> Tuple[List[AnalysisIssue], str, str]:
-        """Run Snyk to test for vulnerabilities."""
+        """Run Snyk with enhanced 2024-2025 configuration to test for vulnerabilities."""
         if not (app_path / "package.json").exists():
             return [], ToolStatus.NO_FILES.value, "No package.json found"
             
@@ -1041,42 +1130,48 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
             if install_result.returncode != 0:
                 return [], ToolStatus.ERROR.value, f"npm install failed: {install_result.stderr}"
         
-        # Run Snyk test
-        command = ["npx", "snyk", "test", "--json"]
+        # Use enhanced command with modern options
+        enhanced_cmd = self.tools["snyk"].get("enhanced_cmd")
+        if enhanced_cmd:
+            # Enhanced command includes: test --json --severity-threshold=medium
+            command = enhanced_cmd
+        else:
+            # Fallback to basic command with enhanced options
+            command = ["npx", "snyk", "test", "--json", "--severity-threshold=medium"]
         return self._run_tool("snyk", command, self._parse_snyk, working_dir=app_path)
             
     def run_analysis(self, model: str, app_num: int, use_all_tools: bool = False,
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run frontend security analysis."""
         with self.analysis_lock:
-            logger.info(f"🌐 Starting frontend security analysis for {model}/app{app_num}")
-            logger.info(f"⚙️  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
+            logger.info(f"[FRONTEND] Starting frontend security analysis for {model}/app{app_num}")
+            logger.info(f"[CONFIG] Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
             
             # Check cache
             if not force_rerun:
-                logger.info(f"🔍 Checking for cached results...")
+                logger.info(f"[CACHE] Checking for cached results...")
                 cached = self.results_manager.load_results(model, app_num,
                                                          file_name=".frontend_security_results.json")
                 if cached:
-                    logger.info("✅ Using cached frontend security results")
+                    logger.info("[CACHE] Using cached frontend security results")
                     return (cached.get("issues", []),
                            cached.get("tool_status", {}),
                            cached.get("tool_outputs", {}))
                 else:
-                    logger.info("ℹ️  No cached results found, running fresh analysis")
+                    logger.info("[CACHE] No cached results found, running fresh analysis")
                            
             # Find app path
-            logger.info(f"📁 Looking for frontend path for {model}/app{app_num}")
+            logger.info(f"[PATH] Looking for frontend path for {model}/app{app_num}")
             app_path = self._find_app_path(model, app_num)
             if not app_path:
                 error_msg = f"Frontend path not found for {model}/app{app_num}"
-                logger.error(f"❌ {error_msg}")
+                logger.error(f"[ERROR] {error_msg}")
                 return [], {"error": error_msg}, {}
-            logger.info(f"✅ Found frontend path: {app_path}")
+            logger.info(f"[SUCCESS] Found frontend path: {app_path}")
                 
             # Determine tools to run
             tools_to_run = ["eslint", "retire", "jshint", "snyk"] if use_all_tools else ["eslint", "retire"]
-            logger.info(f"🔧 Tools to run: {tools_to_run}")
+            logger.info(f"[TOOL] Tools to run: {tools_to_run}")
             
             # Run tools
             all_issues = []
@@ -1084,15 +1179,15 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
             tool_outputs = {}
             
             for i, tool_name in enumerate(tools_to_run, 1):
-                logger.info(f"🔧 Running tool {i}/{len(tools_to_run)}: {tool_name}")
+                logger.info(f"[TOOL] Running tool {i}/{len(tools_to_run)}: {tool_name}")
                 
                 if not self.available_tools.get(tool_name):
                     status_msg = f"Tool not available"
-                    logger.warning(f"⚠️  {tool_name}: {status_msg}")
+                    logger.warning(f"[WARN]  {tool_name}: {status_msg}")
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
-                logger.info(f"🚀 Executing {tool_name} on {app_path}")
+                logger.info(f"[START] Executing {tool_name} on {app_path}")
                 if tool_name == "eslint":
                     issues, status, output = self._run_eslint(app_path)
                 elif tool_name == "retire":
@@ -1102,15 +1197,15 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                 elif tool_name == "snyk":
                     issues, status, output = self._run_snyk(app_path)
                 else:
-                    logger.warning(f"⚠️  Unknown tool: {tool_name}")
+                    logger.warning(f"[WARN]  Unknown tool: {tool_name}")
                     continue
                     
                 # Log results  
                 if status == ToolStatus.SUCCESS.value:
                     issues_count = len(issues)
-                    logger.info(f"✅ {tool_name} completed successfully - Found {issues_count} issues")
+                    logger.info(f"[SUCCESS] {tool_name} completed successfully - Found {issues_count} issues")
                 else:
-                    logger.error(f"❌ {tool_name} failed with status: {status}")
+                    logger.error(f"[ERROR] {tool_name} failed with status: {status}")
                     
                 all_issues.extend(issues)
                 tool_status[tool_name] = status
@@ -1122,15 +1217,15 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                                  if status == ToolStatus.SUCCESS.value)
             failed_tools = len(tool_status) - successful_tools
             
-            logger.info(f"🎯 Frontend Security Analysis Complete!")
-            logger.info(f"📊 Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
+            logger.info(f"[TARGET] Frontend Security Analysis Complete!")
+            logger.info(f"[STATS] Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
 
             # Sort and save
-            logger.info(f"📋 Sorting and formatting {total_issues} issues...")
+            logger.info(f"[LIST] Sorting and formatting {total_issues} issues...")
             sorted_issues = self._sort_issues(all_issues)
             issues_dict = [issue.to_dict() for issue in sorted_issues]
 
-            logger.info(f"💾 Saving results to cache...")
+            logger.info(f"[SAVE] Saving results to cache...")
             results = {
                 "issues": issues_dict,
                 "tool_status": tool_status,
@@ -1144,9 +1239,15 @@ class FrontendSecurityAnalyzer(BaseAnalyzer):
                 }
             }
             
-            logger.info(f"✅ Frontend security analysis results prepared (file saving disabled - using database only)")
+            logger.info(f"[SUCCESS] Frontend security analysis results prepared (file saving disabled - using database only)")
             
             return issues_dict, tool_status, tool_outputs
+    
+    def get_available_tools(self) -> List[str]:
+        """Get list of available frontend security tools."""
+        return [tool_name for tool_name, is_available in self.available_tools.items() if is_available]
+
+
 class BackendQualityAnalyzer(BaseAnalyzer):
     """Analyzes backend code quality."""
     
@@ -1556,34 +1657,34 @@ class BackendQualityAnalyzer(BaseAnalyzer):
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run backend quality analysis."""
         with self.analysis_lock:
-            logger.info(f"🔧 Starting backend quality analysis for {model}/app{app_num}")
-            logger.info(f"⚙️  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
+            logger.info(f"[TOOL] Starting backend quality analysis for {model}/app{app_num}")
+            logger.info(f"[CONFIG]  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
             
             # Check cache
             if not force_rerun:
-                logger.info(f"🔍 Checking for cached results...")
+                logger.info(f"[SEARCH] Checking for cached results...")
                 cached = self.results_manager.load_results(model, app_num,
                                                          file_name=".backend_quality_results.json")
                 if cached:
-                    logger.info("✅ Using cached backend quality results")
+                    logger.info("[SUCCESS] Using cached backend quality results")
                     return (cached.get("issues", []),
                            cached.get("tool_status", {}),
                            cached.get("tool_outputs", {}))
                 else:
-                    logger.info("ℹ️  No cached results found, running fresh analysis")
+                    logger.info("[INFO]  No cached results found, running fresh analysis")
                            
             # Find app path
-            logger.info(f"📁 Looking for backend path for {model}/app{app_num}")
+            logger.info(f"[PATH] Looking for backend path for {model}/app{app_num}")
             app_path = self._find_app_path(model, app_num)
             if not app_path:
                 error_msg = f"Backend path not found for {model}/app{app_num}"
-                logger.error(f"❌ {error_msg}")
+                logger.error(f"[ERROR] {error_msg}")
                 return [], {"error": error_msg}, {}
-            logger.info(f"✅ Found backend path: {app_path}")
+            logger.info(f"[SUCCESS] Found backend path: {app_path}")
                 
             # Determine tools to run
             tools_to_run = list(self.tools.keys()) if use_all_tools else ["flake8"]
-            logger.info(f"🔧 Tools to run: {tools_to_run}")
+            logger.info(f"[TOOL] Tools to run: {tools_to_run}")
             
             # Run tools
             all_issues = []
@@ -1591,15 +1692,15 @@ class BackendQualityAnalyzer(BaseAnalyzer):
             tool_outputs = {}
             
             for i, tool_name in enumerate(tools_to_run, 1):
-                logger.info(f"🔧 Running tool {i}/{len(tools_to_run)}: {tool_name}")
+                logger.info(f"[TOOL] Running tool {i}/{len(tools_to_run)}: {tool_name}")
                 
                 if not self.available_tools.get(tool_name):
                     status_msg = f"Tool not available"
-                    logger.warning(f"⚠️  {tool_name}: {status_msg}")
+                    logger.warning(f"[WARN]  {tool_name}: {status_msg}")
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
-                logger.info(f"🚀 Executing {tool_name} on {app_path}")
+                logger.info(f"[START] Executing {tool_name} on {app_path}")
                 if tool_name == "flake8":
                     issues, status, output = self._run_flake8(app_path)
                 elif tool_name == "pylint":
@@ -1613,15 +1714,15 @@ class BackendQualityAnalyzer(BaseAnalyzer):
                 elif tool_name == "pydocstyle":
                     issues, status, output = self._run_pydocstyle(app_path)
                 else:
-                    logger.warning(f"⚠️  Unknown tool: {tool_name}")
+                    logger.warning(f"[WARN]  Unknown tool: {tool_name}")
                     continue
                     
                 # Log results  
                 if status == ToolStatus.SUCCESS.value:
                     issues_count = len(issues)
-                    logger.info(f"✅ {tool_name} completed successfully - Found {issues_count} issues")
+                    logger.info(f"[SUCCESS] {tool_name} completed successfully - Found {issues_count} issues")
                 else:
-                    logger.error(f"❌ {tool_name} failed with status: {status}")
+                    logger.error(f"[ERROR] {tool_name} failed with status: {status}")
                     
                 all_issues.extend(issues)
                 tool_status[tool_name] = status
@@ -1633,15 +1734,15 @@ class BackendQualityAnalyzer(BaseAnalyzer):
                                  if status == ToolStatus.SUCCESS.value)
             failed_tools = len(tool_status) - successful_tools
             
-            logger.info(f"🎯 Backend Quality Analysis Complete!")
-            logger.info(f"📊 Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
+            logger.info(f"[TARGET] Backend Quality Analysis Complete!")
+            logger.info(f"[STATS] Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
 
             # Sort and save
-            logger.info(f"📋 Sorting and formatting {total_issues} issues...")
+            logger.info(f"[LIST] Sorting and formatting {total_issues} issues...")
             sorted_issues = self._sort_issues(all_issues)
             issues_dict = [issue.to_dict() for issue in sorted_issues]
             
-            logger.info(f"💾 Saving results to cache...")
+            logger.info(f"[SAVE] Saving results to cache...")
             results = {
                 "issues": issues_dict,
                 "tool_status": tool_status,
@@ -1655,7 +1756,7 @@ class BackendQualityAnalyzer(BaseAnalyzer):
                 }
             }
             
-            logger.info(f"✅ Backend quality analysis results prepared (file saving disabled - using database only)")
+            logger.info(f"[SUCCESS] Backend quality analysis results prepared (file saving disabled - using database only)")
                                             
             return issues_dict, tool_status, tool_outputs
 
@@ -1933,42 +2034,42 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                     force_rerun: bool = False) -> Tuple[List[Dict], Dict[str, str], Dict[str, str]]:
         """Run frontend quality analysis."""
         with self.analysis_lock:
-            logger.info(f"🎨 Starting frontend quality analysis for {model}/app{app_num}")
-            logger.info(f"⚙️  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
+            logger.info(f"[UI] Starting frontend quality analysis for {model}/app{app_num}")
+            logger.info(f"[CONFIG]  Configuration: use_all_tools={use_all_tools}, force_rerun={force_rerun}")
             
             # Check cache
             if not force_rerun:
-                logger.info(f"🔍 Checking for cached results...")
+                logger.info(f"[SEARCH] Checking for cached results...")
                 cached = self.results_manager.load_results(model, app_num,
                                                          file_name=".frontend_quality_results.json")
                 if cached:
-                    logger.info("✅ Using cached frontend quality results")
+                    logger.info("[SUCCESS] Using cached frontend quality results")
                     return (cached.get("issues", []),
                            cached.get("tool_status", {}),
                            cached.get("tool_outputs", {}))
                 else:
-                    logger.info("ℹ️  No cached results found, running fresh analysis")
+                    logger.info("[INFO]  No cached results found, running fresh analysis")
                            
             # Find app path
-            logger.info(f"📁 Looking for frontend path for {model}/app{app_num}")
+            logger.info(f"[PATH] Looking for frontend path for {model}/app{app_num}")
             app_path = self._find_app_path(model, app_num)
             if not app_path:
                 error_msg = f"Frontend path not found for {model}/app{app_num}"
-                logger.error(f"❌ {error_msg}")
+                logger.error(f"[ERROR] {error_msg}")
                 return [], {"error": error_msg}, {}
-            logger.info(f"✅ Found frontend path: {app_path}")
+            logger.info(f"[SUCCESS] Found frontend path: {app_path}")
                 
             # Check for source files
             logger.info(f"📄 Checking for JavaScript/TypeScript files...")
             has_files, source_files = self._check_source_files(app_path)
             if not has_files:
-                logger.info("ℹ️  No JavaScript/TypeScript files found")
+                logger.info("[INFO]  No JavaScript/TypeScript files found")
                 return [], {"info": "No JavaScript/TypeScript files found"}, {}
-            logger.info(f"✅ Found {len(source_files)} JavaScript/TypeScript files")
+            logger.info(f"[SUCCESS] Found {len(source_files)} JavaScript/TypeScript files")
                 
             # Determine tools to run
             tools_to_run = ["eslint", "prettier", "jshint"] if use_all_tools else ["eslint"]
-            logger.info(f"🔧 Tools to run: {tools_to_run}")
+            logger.info(f"[TOOL] Tools to run: {tools_to_run}")
             
             # Run tools
             all_issues = []
@@ -1976,15 +2077,15 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
             tool_outputs = {}
             
             for i, tool_name in enumerate(tools_to_run, 1):
-                logger.info(f"🔧 Running tool {i}/{len(tools_to_run)}: {tool_name}")
+                logger.info(f"[TOOL] Running tool {i}/{len(tools_to_run)}: {tool_name}")
                 
                 if not self.available_tools.get(tool_name):
                     status_msg = f"Tool not available"
-                    logger.warning(f"⚠️  {tool_name}: {status_msg}")
+                    logger.warning(f"[WARN]  {tool_name}: {status_msg}")
                     tool_status[tool_name] = ToolStatus.NOT_FOUND.value
                     continue
                     
-                logger.info(f"🚀 Executing {tool_name} on {app_path}")
+                logger.info(f"[START] Executing {tool_name} on {app_path}")
                 if tool_name == "eslint":
                     issues, status, output = self._run_eslint_quality(app_path)
                 elif tool_name == "prettier":
@@ -1992,15 +2093,15 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                 elif tool_name == "jshint":
                     issues, status, output = self._run_jshint_quality(app_path)
                 else:
-                    logger.warning(f"⚠️  Unknown tool: {tool_name}")
+                    logger.warning(f"[WARN]  Unknown tool: {tool_name}")
                     continue
                     
                 # Log results  
                 if status == ToolStatus.SUCCESS.value:
                     issues_count = len(issues)
-                    logger.info(f"✅ {tool_name} completed successfully - Found {issues_count} issues")
+                    logger.info(f"[SUCCESS] {tool_name} completed successfully - Found {issues_count} issues")
                 else:
-                    logger.error(f"❌ {tool_name} failed with status: {status}")
+                    logger.error(f"[ERROR] {tool_name} failed with status: {status}")
                     
                 all_issues.extend(issues)
                 tool_status[tool_name] = status
@@ -2012,15 +2113,15 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                                  if status == ToolStatus.SUCCESS.value)
             failed_tools = len(tool_status) - successful_tools
             
-            logger.info(f"🎯 Frontend Quality Analysis Complete!")
-            logger.info(f"📊 Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
+            logger.info(f"[TARGET] Frontend Quality Analysis Complete!")
+            logger.info(f"[STATS] Summary: {total_issues} total issues, {successful_tools} tools succeeded, {failed_tools} tools failed")
 
             # Sort and save
-            logger.info(f"📋 Sorting and formatting {total_issues} issues...")
+            logger.info(f"[LIST] Sorting and formatting {total_issues} issues...")
             sorted_issues = self._sort_issues(all_issues)
             issues_dict = [issue.to_dict() for issue in sorted_issues]
             
-            logger.info(f"💾 Saving results to cache...")
+            logger.info(f"[SAVE] Saving results to cache...")
             results = {
                 "issues": issues_dict,
                 "tool_status": tool_status,
@@ -2034,7 +2135,7 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                 }
             }
             
-            logger.info(f"✅ Frontend quality analysis results prepared (file saving disabled - using database only)")
+            logger.info(f"[SUCCESS] Frontend quality analysis results prepared (file saving disabled - using database only)")
                                             
             return issues_dict, tool_status, tool_outputs
                 
@@ -2077,7 +2178,7 @@ class FrontendQualityAnalyzer(BaseAnalyzer):
                 "timestamp": datetime.now().isoformat()
             }
             
-            logger.info(f"✅ Frontend quality analysis results prepared (file saving disabled - using database only)")
+            logger.info(f"[SUCCESS] Frontend quality analysis results prepared (file saving disabled - using database only)")
                                             
             return issues_dict, tool_status, tool_outputs
 

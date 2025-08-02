@@ -27,7 +27,7 @@ try:
     from extensions import db
     from models import (
         ModelCapability, GeneratedApplication, PortConfiguration,
-        SecurityAnalysis
+        SecurityAnalysis, JobStatus, TaskStatus
     )
     from core_services import get_container_names
 except ImportError:
@@ -2737,6 +2737,11 @@ def performance_subpath_redirect(subpath):
     """Redirect all performance subpaths to statistics."""
     return redirect(url_for('statistics.statistics_overview'))
 
+@main_bp.route("/batch-analysis")
+def batch_analysis_redirect():
+    """Redirect to batch job creation page."""
+    return redirect(url_for('batch.create_batch_job'))
+
 
 # ===========================
 # STATISTICS ROUTES
@@ -2989,18 +2994,42 @@ def load_daily_statistics():
 
 
 # ===========================
-# BATCH ROUTES
+# BATCH ROUTES - Enhanced with Coordinator Integration
 # ===========================
+
+# Import batch coordinator and models
+try:
+    from batch_coordinator import BatchAnalysisCoordinator
+    from models import BatchJob, BatchTask, JobStatus, TaskStatus, AnalysisType
+except ImportError:
+    # Fallback for environments where batch system is not available
+    BatchAnalysisCoordinator = None
+    logger.warning("Batch coordinator not available")
+
+# Global coordinator instance
+_batch_coordinator = None
+
+def get_batch_coordinator():
+    """Get or create batch service instance."""
+    global _batch_coordinator
+    if _batch_coordinator is None:
+        try:
+            # Import the new BatchService
+            from batch_service import BatchService
+            
+            # Create service instance
+            _batch_coordinator = BatchService(current_app)
+            logger.info("Batch service initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize batch service: {e}")
+    return _batch_coordinator
 
 @batch_bp.route("/")
 def batch_overview():
-    """Batch processing overview."""
+    """Enhanced batch processing overview - Jobs management dashboard."""
     try:
-        batch_service = ServiceLocator.get_batch_service()
-        
-        # Get available options
-        models = ModelCapability.query.all()
-        analysis_types = ['frontend_security', 'backend_security', 'performance', 'zap', 'code_quality']
+        batch_service = get_batch_coordinator()
         
         context = {
             'jobs': [],
@@ -3008,6 +3037,8 @@ def batch_overview():
             'running_jobs': 0,
             'completed_jobs': 0,
             'failed_jobs': 0,
+            'pending_jobs': 0,
+            'cancelled_jobs': 0,
             'stats': {
                 'total': 0,
                 'pending': 0,
@@ -3017,138 +3048,489 @@ def batch_overview():
                 'cancelled': 0,
                 'archived': 0
             },
-            'available_models': models,
-            'available_apps': list(range(1, 31)),
-            'analysis_types': analysis_types,
-            'page_title': 'Batch Analysis Management'
+            'page_title': 'Batch Analysis Jobs',
+            'system_stats': None
         }
         
         if batch_service:
-            jobs = batch_service.get_all_jobs()
-            context['jobs'] = [job.to_dict() for job in jobs]
-            context['stats'] = batch_service.get_job_stats()
+            # Get all jobs using BatchService
+            jobs = batch_service.get_jobs(limit=50)
+            
+            context['jobs'] = jobs
             context['total_jobs'] = len(jobs)
-            context['running_jobs'] = sum(1 for j in jobs if j.status.value == 'running')
-            context['completed_jobs'] = sum(1 for j in jobs if j.status.value == 'completed')
-            context['failed_jobs'] = sum(1 for j in jobs if j.status.value == 'failed')
+            
+            # Calculate stats
+            for job in jobs:
+                # Handle both dict and object responses
+                job_status = job.get('status') if isinstance(job, dict) else job.status
+                if job_status == JobStatus.RUNNING or job_status == 'running':
+                    context['running_jobs'] += 1
+                elif job_status == JobStatus.COMPLETED or job_status == 'completed':
+                    context['completed_jobs'] += 1
+                elif job_status == JobStatus.FAILED or job_status == 'failed':
+                    context['failed_jobs'] += 1
+                elif job_status == JobStatus.PENDING or job_status == 'pending':
+                    context['pending_jobs'] += 1
+                elif job_status == JobStatus.CANCELLED or job_status == 'cancelled':
+                    context['cancelled_jobs'] += 1
+            
+            # Update stats dict
+            context['stats'] = {
+                'total': context['total_jobs'],
+                'pending': context['pending_jobs'],
+                'running': context['running_jobs'],
+                'completed': context['completed_jobs'],
+                'failed': context['failed_jobs'],
+                'cancelled': context['cancelled_jobs'],
+                'archived': 0
+            }
+            
+            # Get system statistics if available
+            try:
+                context['system_stats'] = batch_service.get_stats()
+            except Exception as e:
+                logger.warning(f"Could not get system stats: {e}")
         
-        return render_template("pages/batch_dashboard.html", **context)
+        return render_template("pages/batch_jobs_list.html", **context)
         
     except Exception as e:
         logger.error(f"Batch overview error: {e}")
-        models = ModelCapability.query.all()
         context = {
             'jobs': [],
             'total_jobs': 0,
             'running_jobs': 0,
             'completed_jobs': 0,
             'failed_jobs': 0,
-            'stats': {'total': 0, 'pending': 0, 'running': 0, 'completed': 0, 'failed': 0},
-            'available_models': models,
-            'available_apps': list(range(1, 31)),
-            'analysis_types': ['security', 'performance', 'quality'],
-            'error_message': f"Service temporarily unavailable: {str(e)}"
+            'pending_jobs': 0,
+            'cancelled_jobs': 0,
+            'stats': {'total': 0, 'pending': 0, 'running': 0, 'completed': 0, 'failed': 0, 'cancelled': 0, 'archived': 0},
+            'error_message': f"Service temporarily unavailable: {str(e)}",
+            'page_title': 'Batch Analysis Jobs'
         }
-        return render_template("pages/batch_dashboard.html", **context)
+        return render_template("pages/batch_jobs_list.html", **context)
 
 
 @batch_bp.route("/create", methods=["GET", "POST"])
 def create_batch_job():
-    """Create new batch job."""
+    """Enhanced batch job creation with comprehensive tool configuration."""
     if request.method == "GET":
-        models = ModelCapability.query.all()
-        analysis_types = ['frontend_security', 'backend_security', 'performance', 'zap', 'code_quality']
-        
-        context = {
-            'available_models': models,
-            'available_apps': list(range(1, 31)),
-            'analysis_types': analysis_types,
-            'page_title': 'Create Batch Job'
-        }
-        
-        return render_template("pages/create_batch_job.html", **context)
-    
-    else:  # POST
+        # Show enhanced create job page
         try:
-            batch_service = ServiceLocator.get_batch_service()
-            if not batch_service:
-                flash("Batch service not available", "error")
-                return redirect(url_for('batch.batch_overview'))
+            models = ModelCapability.query.all()
             
-            # Get form data
-            job_name = request.form.get('name', '').strip()
-            job_description = request.form.get('description', '').strip()
-            analysis_types = request.form.getlist('analysis_types')
-            selected_models = request.form.getlist('models')
+            context = {
+                'available_models': [{'slug': m.canonical_slug, 'name': m.model_name, 'apps_count': 30} for m in models],
+                'analysis_types': [
+                    {'value': 'SECURITY_COMPREHENSIVE', 'name': 'Security Comprehensive', 'description': 'Full security analysis (Backend + Frontend)'},
+                    {'value': 'SECURITY_BACKEND', 'name': 'Security Backend', 'description': 'Bandit, Safety, Semgrep'},
+                    {'value': 'SECURITY_FRONTEND', 'name': 'Security Frontend', 'description': 'ESLint Security, Retire.js'},
+                    {'value': 'PERFORMANCE_LOAD', 'name': 'Performance Load Testing', 'description': 'Locust load testing'}
+                ],
+                'page_title': 'Create New Batch Analysis Job'
+            }
             
-            # Validate
-            if not all([job_name, analysis_types, selected_models]):
-                flash("Missing required fields", "error")
-                return redirect(url_for('batch.batch_overview'))
+            return render_template("pages/create_batch_job_enhanced.html", **context)
             
-            # Create jobs for each model
-            total_tasks = 0
-            for model in selected_models:
-                app_range = request.form.get(f'app_range_{model}', '1-30')
-                
-                job = batch_service.create_job(
-                    name=f"{job_name} - {model}",
-                    description=job_description or f"Batch analysis for {model}",
-                    analysis_types=analysis_types,
-                    models=[model],
-                    app_range_str=app_range,
-                    auto_start=True
-                )
-                
-                total_tasks += job.progress.get('total', 0)
-            
-            flash(f'Batch job "{job_name}" created successfully ({total_tasks} tasks)', "success")
+        except Exception as e:
+            logger.error(f"Create job page error: {e}")
+            flash(f"Error loading create job page: {str(e)}", "error")
             return redirect(url_for('batch.batch_overview'))
+    
+    else:  # POST - Enhanced form processing
+        try:
+            coordinator = get_batch_coordinator()
+            if not coordinator:
+                return ResponseHandler.error_response("Batch coordinator not available")
+            
+            # Extract basic job information
+            job_data = {
+                'name': request.form.get('name', '').strip(),
+                'description': request.form.get('description', '').strip(),
+                'priority': request.form.get('priority', 'NORMAL'),
+                'execution_mode': request.form.get('execution_mode', 'IMMEDIATE'),
+                'timeout_minutes': int(request.form.get('timeout_minutes', 60)),
+                'max_concurrent_tasks': int(request.form.get('max_concurrent_tasks', 4)),
+                'parallel_execution': bool(request.form.get('parallel_execution')),
+                'retry_failed_tasks': bool(request.form.get('retry_failed_tasks')),
+                'max_retries': int(request.form.get('max_retries', 2))
+            }
+            
+            # Extract analysis types
+            analysis_types = request.form.getlist('analysis_types')
+            if not analysis_types:
+                return ResponseHandler.error_response("At least one analysis type must be selected")
+            
+            job_data['analysis_types'] = analysis_types
+            
+            # Extract target models and apps
+            target_models = request.form.getlist('target_models')
+            if not target_models:
+                return ResponseHandler.error_response("At least one target model must be selected")
+            
+            job_data['target_models'] = target_models
+            
+            # Process target apps
+            target_apps = request.form.get('target_apps', '').strip()
+            if not target_apps:
+                target_apps = '1-30'  # Default to all apps
+            
+            job_data['target_apps'] = _parse_app_specification(target_apps)
+            
+            # Extract tool configurations
+            job_data['security_config'] = _extract_tool_config(request.form, 'security_config')
+            job_data['frontend_config'] = _extract_tool_config(request.form, 'frontend_config')
+            job_data['performance_config'] = _extract_tool_config(request.form, 'performance_config')
+            
+            # Handle scheduling
+            if job_data['execution_mode'] == 'SCHEDULED':
+                scheduled_for = request.form.get('scheduled_for')
+                if scheduled_for:
+                    from datetime import datetime
+                    job_data['scheduled_for'] = datetime.fromisoformat(scheduled_for)
+                
+                recurrence = request.form.get('recurrence_pattern')
+                if recurrence:
+                    job_data['recurrence_pattern'] = recurrence
+            
+            # Validate required fields
+            if not job_data['name']:
+                return ResponseHandler.error_response("Job name is required")
+            
+            # Create job using coordinator
+            job = coordinator.create_job(**job_data)
+            
+            # Start job if immediate execution
+            if job_data['execution_mode'] == 'IMMEDIATE':
+                coordinator.start_job(job.id)
+            
+            if ResponseHandler.is_htmx_request():
+                return f'''
+                <div class="alert alert-success" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Batch job "{job.name}" created successfully with {job.total_tasks} tasks!
+                    <div class="mt-2">
+                        <a href="/batch/" class="btn btn-sm btn-primary">
+                            <i class="fas fa-list me-1"></i>View All Jobs
+                        </a>
+                        <a href="/batch/job/{job.id}" class="btn btn-sm btn-outline-primary ms-2">
+                            <i class="fas fa-eye me-1"></i>View Job Details
+                        </a>
+                    </div>
+                </div>
+                '''
+            
+            flash(f'Batch job "{job.name}" created successfully ({job.total_tasks} tasks)', "success")
+            return redirect(url_for('batch.view_job', job_id=job.id))
             
         except Exception as e:
             logger.error(f"Create job error: {e}")
-            flash(f"Error creating job: {str(e)}", "error")
-            return redirect(url_for('batch.batch_overview'))
+            error_msg = f"Error creating job: {str(e)}"
+            return ResponseHandler.error_response(error_msg)
+
+def _parse_app_specification(app_spec: str) -> List[Union[int, str]]:
+    """Parse app specification into list of app numbers or ranges."""
+    apps = []
+    
+    # Handle comma-separated values
+    for part in app_spec.split(','):
+        part = part.strip()
+        if '-' in part:
+            # Range specification
+            try:
+                start, end = map(int, part.split('-'))
+                apps.append(f"{start}-{end}")
+            except ValueError:
+                # Invalid range, treat as single value
+                try:
+                    apps.append(int(part))
+                except ValueError:
+                    continue
+        else:
+            # Single value
+            try:
+                apps.append(int(part))
+            except ValueError:
+                continue
+    
+    return apps
+
+def _extract_tool_config(form_data, config_prefix: str) -> Dict[str, Any]:
+    """Extract tool configuration from form data."""
+    config = {}
+    
+    # Find all form fields with the config prefix
+    for key, value in form_data.items():
+        if key.startswith(f"{config_prefix}."):
+            # Parse nested configuration structure
+            parts = key.split('.')
+            current = config
+            
+            # Navigate to the correct nested location
+            for part in parts[1:-1]:  # Skip config_prefix and last part
+                if part not in current:
+                    current[part] = {}
+                current = current[part]
+            
+            # Set the value
+            field_name = parts[-1]
+            
+            # Handle different value types
+            if isinstance(value, list):
+                # Multiple values (checkboxes)
+                current[field_name] = value
+            elif value.lower() in ['true', 'false']:
+                # Boolean values
+                current[field_name] = value.lower() == 'true'
+            elif value.isdigit():
+                # Integer values
+                current[field_name] = int(value)
+            elif '\n' in value:
+                # Multi-line text (convert to list)
+                current[field_name] = [line.strip() for line in value.split('\n') if line.strip()]
+            else:
+                # String values
+                current[field_name] = value
+    
+    return config
 
 
 @batch_bp.route("/job/<job_id>")
 def view_job(job_id: str):
-    """View batch job details."""
+    """Enhanced batch job details view."""
     try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
+        coordinator = get_batch_coordinator()
+        if not coordinator:
+            return ResponseHandler.error_response("Batch coordinator not available")
         
-        job = batch_service.get_job(job_id)
-        if not job:
+        job_status = coordinator.get_job_status(job_id)
+        if not job_status:
             return ResponseHandler.error_response("Job not found", 404)
         
-        tasks = batch_service.get_job_tasks(job_id)
+        job_data = job_status['job']
+        tasks = job_status['tasks']
+        is_running = job_status['is_running']
         
+        # Calculate task statistics
         task_stats = {
             'total': len(tasks),
-            'pending': sum(1 for t in tasks if t.status.value == 'pending'),
-            'running': sum(1 for t in tasks if t.status.value == 'running'),
-            'completed': sum(1 for t in tasks if t.status.value == 'completed'),
-            'failed': sum(1 for t in tasks if t.status.value == 'failed')
+            'pending': sum(1 for t in tasks if t['status'] == 'PENDING'),
+            'running': sum(1 for t in tasks if t['status'] == 'RUNNING'),
+            'completed': sum(1 for t in tasks if t['status'] == 'COMPLETED'),
+            'failed': sum(1 for t in tasks if t['status'] == 'FAILED'),
+            'cancelled': sum(1 for t in tasks if t['status'] == 'CANCELLED')
         }
+        
+        # Calculate progress percentage
+        progress_percentage = 0
+        if task_stats['total'] > 0:
+            completed_tasks = task_stats['completed'] + task_stats['failed']
+            progress_percentage = (completed_tasks / task_stats['total']) * 100
         
         context = {
-            'job': job.to_dict(),
-            'tasks': [task.to_dict() for task in tasks],
+            'job': job_data,
+            'tasks': tasks,
             'task_stats': task_stats,
-            'page_title': f'Job: {job.name}'
+            'progress_percentage': round(progress_percentage, 1),
+            'is_running': is_running,
+            'page_title': f'Job: {job_data["name"]}'
         }
         
-        return render_template("pages/view_job.html", **context)
+        return render_template("pages/view_job_enhanced.html", **context)
         
     except Exception as e:
         logger.error(f"View job error: {e}")
         return ResponseHandler.error_response(str(e))
 
+@batch_bp.route("/job/<job_id>/start", methods=["POST"])
+def start_job(job_id: str):
+    """Start a batch job."""
+    try:
+        coordinator = get_batch_coordinator()
+        if not coordinator:
+            return ResponseHandler.error_response("Batch coordinator not available")
+        
+        success = coordinator.start_job(job_id)
+        if success:
+            return ResponseHandler.success_response(message="Job started successfully")
+        else:
+            return ResponseHandler.error_response("Failed to start job")
+            
+    except Exception as e:
+        logger.error(f"Start job error: {e}")
+        return ResponseHandler.error_response(str(e))
 
 @batch_bp.route("/job/<job_id>/cancel", methods=["POST"])
 def cancel_job(job_id: str):
+    """Cancel a running batch job."""
+    try:
+        batch_service = get_batch_coordinator()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        # Use stop_job instead of cancel_job
+        success = batch_service.stop_job(job_id)
+        if success:
+            return ResponseHandler.success_response(message="Job cancelled successfully")
+        else:
+            return ResponseHandler.error_response("Failed to cancel job")
+            
+    except Exception as e:
+        logger.error(f"Cancel job error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@batch_bp.route("/api/jobs", methods=["GET"])
+def api_jobs_list():
+    """API endpoint for jobs list (HTMX compatible)."""
+    try:
+        batch_service = get_batch_coordinator()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        # Get query parameters
+        status_filter = request.args.get('status')
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+        
+        # Use BatchService methods instead of direct database access
+        jobs = batch_service.get_jobs(
+            status=JobStatus[status_filter.upper()] if status_filter else None,
+            limit=limit,
+            offset=offset
+        )
+        
+        jobs_data = [job.to_dict() for job in jobs]
+        total_count = len(jobs_data)  # Simplified for now
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/batch_jobs_table.html", jobs=jobs_data, total_count=total_count)
+        
+        return ResponseHandler.success_response({
+            'jobs': jobs_data,
+            'total_count': total_count,
+            'limit': limit,
+            'offset': offset
+        })
+        
+    except Exception as e:
+        logger.error(f"API jobs list error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@batch_bp.route("/api/job/<job_id>/status", methods=["GET"])
+def api_job_status(job_id: str):
+    """API endpoint for job status updates."""
+    try:
+        batch_service = get_batch_coordinator()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        # Use get_job with string ID as expected
+        job = batch_service.get_job(job_id)
+        if not job:
+            return ResponseHandler.error_response("Job not found", 404)
+        
+        job_status = {
+            "id": job.id,
+            "status": job.status.value if job.status else "unknown",
+            "progress": job.get_progress_percentage(),  # Use the method instead
+            "error_message": job.error_message or "",
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+            "completed_tasks": job.completed_tasks,
+            "total_tasks": job.total_tasks
+        }
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/job_status.html", **job_status)
+        
+        return ResponseHandler.success_response(job_status)
+        
+    except Exception as e:
+        logger.error(f"API job status error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@batch_bp.route("/api/statistics", methods=["GET"])
+def api_statistics():
+    """API endpoint for batch processing statistics."""
+    try:
+        batch_service = get_batch_coordinator()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        # Use get_stats instead of get_statistics
+        stats = batch_service.get_stats()
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/batch_statistics.html", stats=stats)
+        
+        return ResponseHandler.success_response(stats)
+        
+    except Exception as e:
+        logger.error(f"API statistics error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@batch_bp.route("/templates", methods=["GET"])
+def job_templates():
+    """Manage batch job templates."""
+    try:
+        batch_service = get_batch_coordinator()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        # Since BatchService doesn't have template support yet, return empty list
+        context = {
+            'templates': [],
+            'page_title': 'Batch Job Templates'
+        }
+        
+        return render_template("pages/batch_templates.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Job templates error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@batch_bp.route("/reports", methods=["GET"])
+def batch_reports():
+    """View batch analysis reports."""
+    try:
+        batch_service = get_batch_coordinator()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
+        
+        # Since BatchService doesn't have reports support yet, return empty list
+        context = {
+            'reports': [],
+            'page_title': 'Batch Analysis Reports'
+        }
+        
+        return render_template("pages/batch_reports.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Batch reports error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@batch_bp.route("/api/models", methods=["GET"])
+def api_models():
+    """API endpoint for available models."""
+    try:
+        models = ModelCapability.query.all()
+        models_data = [
+            {
+                'slug': model.canonical_slug,
+                'name': model.model_name,
+                'apps_count': 30,  # Assuming 30 apps per model
+                'capabilities': model.capabilities if hasattr(model, 'capabilities') else {}
+            }
+            for model in models
+        ]
+        
+        return ResponseHandler.success_response({'models': models_data})
+        
+    except Exception as e:
+        logger.error(f"API models error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_bp.route("/job/<job_id>/cancel", methods=["POST"])
+def cancel_batch_job(job_id: str):
     """Cancel a batch job."""
     try:
         batch_service = ServiceLocator.get_batch_service()
@@ -3232,7 +3614,7 @@ def resume_job(job_id: str):
 
 
 @batch_bp.route("/job/<job_id>/start", methods=["POST"])
-def start_job(job_id: str):
+def start_batch_job(job_id: str):
     """Start a pending batch job."""
     try:
         batch_service = ServiceLocator.get_batch_service()
@@ -4190,50 +4572,67 @@ def get_app_status_api(model, app_num):
 def api_batch_jobs():
     """Get list of batch jobs (HTMX compatible endpoint)."""
     try:
-        from models import BatchJob
+        batch_service = ServiceLocator.get_batch_service()
+        if not batch_service:
+            return ResponseHandler.error_response("Batch service not available")
         
         # Get parameters
         status = request.args.get('status')
-        priority = request.args.get('priority')
+        priority = request.args.get('priority') 
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        limit = int(request.args.get('limit', 50))  # Show more jobs by default
         
-        # Build query
-        query = BatchJob.query
+        # Get all jobs from service
+        all_jobs = batch_service.get_all_jobs()
         
-        if status:
-            query = query.filter(BatchJob.status == status)
-        if priority:
-            query = query.filter(BatchJob.priority == priority)
-            
-        total_jobs = query.count()
-        jobs = query.order_by(BatchJob.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
-        
-        # Convert jobs to dict format
+        # Convert to dict format and filter
         jobs_data = []
-        for job in jobs:
-            job_dict = {
-                'id': job.id,
-                'name': job.name,
-                'description': job.description,
-                'status': job.status.value if hasattr(job.status, 'value') else str(job.status),
-                'priority': job.priority.value if hasattr(job.priority, 'value') else str(job.priority),
-                'created_at': job.created_at.isoformat() if job.created_at else None,
-                'started_at': job.started_at.isoformat() if job.started_at else None,
-                'completed_at': job.completed_at.isoformat() if job.completed_at else None,
-                'total_tasks': job.total_tasks,
-                'completed_tasks': job.completed_tasks,
-                'failed_tasks': job.failed_tasks,
-                'progress': round((job.completed_tasks / job.total_tasks * 100) if job.total_tasks > 0 else 0, 1)
-            }
+        for job in all_jobs:
+            job_dict = job.to_dict()
+            
+            # Apply filters
+            if status and job_dict.get('status') != status:
+                continue
+            if priority and job_dict.get('priority') != priority:
+                continue
+                
+            # Format dates and add computed fields
+            if job_dict.get('created_at'):
+                try:
+                    from datetime import datetime
+                    if isinstance(job_dict['created_at'], str):
+                        created_dt = datetime.fromisoformat(job_dict['created_at'].replace('Z', '+00:00'))
+                    else:
+                        created_dt = job_dict['created_at']
+                    job_dict['created_at_formatted'] = created_dt.strftime('%m/%d %H:%M')
+                except:
+                    job_dict['created_at_formatted'] = 'N/A'
+            else:
+                job_dict['created_at_formatted'] = 'N/A'
+            
+            # Calculate progress
+            progress_info = job_dict.get('progress', {})
+            total_tasks = progress_info.get('total', 0)
+            completed_tasks = progress_info.get('completed', 0)
+            job_dict['progress_percent'] = round((completed_tasks / total_tasks * 100) if total_tasks > 0 else 0, 1)
+            
             jobs_data.append(job_dict)
         
+        # Sort by created date (most recent first)
+        jobs_data.sort(key=lambda x: x.get('created_at_formatted', ''), reverse=True)
+        
+        # Apply pagination
+        total_jobs = len(jobs_data)
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_jobs = jobs_data[start_idx:end_idx]
+        
         response_data = {
-            'jobs': jobs_data,
+            'jobs': paginated_jobs,
             'total': total_jobs,
             'page': page,
             'limit': limit,
-            'total_pages': (total_jobs + limit - 1) // limit
+            'total_pages': (total_jobs + limit - 1) // limit if total_jobs > 0 else 1
         }
         
         if ResponseHandler.is_htmx_request():
@@ -4306,7 +4705,7 @@ def api_batch_stats():
         return ResponseHandler.error_response(str(e))
 
 
-@api_bp.route("/batch/jobs", methods=["POST"])
+@batch_bp.route("/api/create", methods=["POST"])
 def api_create_batch_job():
     """Create a new batch job (HTMX compatible endpoint)."""
     try:
@@ -4314,7 +4713,24 @@ def api_create_batch_job():
         from extensions import db
         import uuid
         
-        data = request.get_json() or {}
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json() or {}
+        else:
+            # Convert form data to dict
+            data = request.form.to_dict()
+            # Handle lists (e.g., apps, models)
+            if 'apps' in request.form:
+                data['app_numbers'] = request.form.getlist('apps')
+            if 'models' in request.form:
+                data['models'] = request.form.getlist('models')
+            # Map form field names to expected names
+            if 'job_name' in data:
+                data['name'] = data['job_name']
+            if 'selected_model' in data:
+                data['models'] = [data['selected_model']]
+            if 'analysis_type' in data:
+                data['analysis_type'] = data['analysis_type']
         
         # Extract job parameters
         name = data.get('name', 'Untitled Job')
@@ -4470,14 +4886,14 @@ def register_blueprints(app):
     # Register legacy batch blueprint for compatibility
     app.register_blueprint(batch_bp)
     
-    # TODO: Register new enhanced batch blueprints when imports are resolved
-    # try:
-    #     from batch_routes import batch_api_bp, batch_web_bp
-    #     app.register_blueprint(batch_api_bp, url_prefix='/api/batch')
-    #     app.register_blueprint(batch_web_bp, url_prefix='/batch')
-    #     logger.info("Enhanced batch blueprints registered successfully")
-    # except ImportError as e:
-    #     logger.warning(f"Enhanced batch blueprints not available: {e}")
+    # Register new enhanced batch blueprints
+    try:
+        import batch_routes
+        app.register_blueprint(batch_routes.batch_routes_bp)
+        app.register_blueprint(batch_routes.batch_api_bp)
+        logger.info("Enhanced batch blueprints registered successfully")
+    except ImportError as e:
+        logger.warning(f"Enhanced batch blueprints not available: {e}")
     
     app.register_blueprint(docker_bp)
     

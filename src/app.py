@@ -58,8 +58,9 @@ class ServiceManager:
             self.services['scan_manager'] = scan_manager
             self.logger.info("Scan manager initialized")
             
-            # Initialize Model Integration Service
-            model_service = ModelIntegrationService()
+            # Initialize Model Integration Service with correct misc path
+            misc_path = Path(__file__).parent.parent / "misc"
+            model_service = ModelIntegrationService(misc_path)
             model_service.load_all_data()
             self.services['model_service'] = model_service
             self.logger.info("Model service initialized")

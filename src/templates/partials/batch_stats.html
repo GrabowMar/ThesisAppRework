@@ -1,117 +1,19 @@
-<!-- Batch Statistics Partial for HTMX -->
-<div class="row" id="batch-stats">
-    <div class="col-lg-3 col-md-6 mb-4">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-white-50 small">Total Jobs</div>
-                        <div class="text-lg fw-bold">{{ stats.total_jobs }}</div>
-                    </div>
-                    <div class="text-white-25">
-                        <i class="fas fa-tasks fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- Batch Statistics Partial Template -->
+<div class="batch-stats">
+    <div class="stat-item">
+        <span class="stat-value">{{ stats.total_jobs or 0 }}</span>
+        <span class="stat-label">Total Jobs</span>
     </div>
-    
-    <div class="col-lg-3 col-md-6 mb-4">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-white-50 small">Running</div>
-                        <div class="text-lg fw-bold">{{ stats.running_jobs }}</div>
-                    </div>
-                    <div class="text-white-25">
-                        <i class="fas fa-play fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="stat-item">
+        <span class="stat-value">{{ stats.completed_jobs or 0 }}</span>
+        <span class="stat-label">Completed</span>
     </div>
-    
-    <div class="col-lg-3 col-md-6 mb-4">
-        <div class="card bg-info text-white h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-white-50 small">Completed</div>
-                        <div class="text-lg fw-bold">{{ stats.completed_jobs }}</div>
-                    </div>
-                    <div class="text-white-25">
-                        <i class="fas fa-check fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="stat-item">
+        <span class="stat-value">{{ stats.running_jobs or 0 }}</span>
+        <span class="stat-label">Running</span>
     </div>
-    
-    <div class="col-lg-3 col-md-6 mb-4">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-white-50 small">Failed</div>
-                        <div class="text-lg fw-bold">{{ stats.failed_jobs }}</div>
-                    </div>
-                    <div class="text-white-25">
-                        <i class="fas fa-exclamation-triangle fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Additional stats row -->
-<div class="row">
-    <div class="col-lg-4 col-md-6 mb-4">
-        <div class="card bg-warning text-dark h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-dark-50 small">Pending</div>
-                        <div class="text-lg fw-bold">{{ stats.pending_jobs }}</div>
-                    </div>
-                    <div class="text-dark-25">
-                        <i class="fas fa-clock fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-lg-4 col-md-6 mb-4">
-        <div class="card bg-secondary text-white h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-white-50 small">Active Workers</div>
-                        <div class="text-lg fw-bold">{{ stats.active_workers }}</div>
-                    </div>
-                    <div class="text-white-25">
-                        <i class="fas fa-users fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-lg-4 col-md-6 mb-4">
-        <div class="card bg-dark text-white h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-white-50 small">Queue Size</div>
-                        <div class="text-lg fw-bold">{{ stats.queue_size }}</div>
-                    </div>
-                    <div class="text-white-25">
-                        <i class="fas fa-list fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="stat-item">
+        <span class="stat-value">{{ stats.failed_jobs or 0 }}</span>
+        <span class="stat-label">Failed</span>
     </div>
 </div>
