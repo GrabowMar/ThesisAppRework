@@ -23,7 +23,7 @@
             {% for job in jobs %}
             <tr class="job-row" 
                 data-job-id="{{ job.id }}"
-                data-status="{{ job.status }}"
+                data-status="{{ job.status if job.status else 'unknown' }}"
                 data-analysis-types="{{ job.analysis_types|join(',') if job.analysis_types else '' }}"
                 data-job-name="{{ job.name }}">
                 
@@ -55,7 +55,7 @@
                 
                 <!-- Status -->
                 <td>
-                    {% set status = job.status %}
+                    {% set status = job.status if job.status else 'unknown' %}
                     {% if status == 'completed' %}
                         <span class="badge badge-success">{{ status|title }}</span>
                     {% elif status == 'running' %}
@@ -93,17 +93,35 @@
                 
                 <!-- Progress -->
                 <td>
-                    {% if job.total_tasks and job.total_tasks > 0 %}
+                    {% if job.progress %}
                         <div class="progress" style="height: 20px;" id="progress-{{ job.id }}">
-                            {% set percent = job.progress_percentage|default(0) %}
-                            <div class="progress-bar bg-info" 
-                                 role="progressbar" 
-                                 style="width: {{ percent }}%"
-                                 aria-valuenow="{{ job.completed_tasks|default(0) }}" 
-                                 aria-valuemin="0" 
-                                 aria-valuemax="{{ job.total_tasks }}">
-                                {{ job.completed_tasks|default(0) }}/{{ job.total_tasks }}
-                            </div>
+                            {% if job.progress.completed is defined and job.progress.total is defined %}
+                                {% set percent = (job.progress.completed / job.progress.total * 100) if job.progress.total > 0 else 0 %}
+                                <div class="progress-bar bg-info" 
+                                     role="progressbar" 
+                                     style="width: {{ percent }}%"
+                                     aria-valuenow="{{ job.progress.completed }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="{{ job.progress.total }}">
+                                    {{ job.progress.completed }}/{{ job.progress.total }}
+                                </div>
+                            {% elif job.completed_tasks is defined and job.total_tasks is defined %}
+                                {% set percent = (job.completed_tasks / job.total_tasks * 100) if job.total_tasks > 0 else 0 %}
+                                <div class="progress-bar bg-info" 
+                                     role="progressbar" 
+                                     style="width: {{ percent }}%"
+                                     aria-valuenow="{{ job.completed_tasks }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="{{ job.total_tasks }}">
+                                    {{ job.completed_tasks }}/{{ job.total_tasks }}
+                                </div>
+                            {% else %}
+                                <div class="progress-bar bg-secondary" 
+                                     role="progressbar" 
+                                     style="width: 100%">
+                                    No progress data
+                                </div>
+                            {% endif %}
                         </div>
                     {% else %}
                         <span class="text-muted">—</span>
@@ -127,6 +145,21 @@
                                 {{ seconds }}s
                             {% endif %}
                         </span>
+                    {% elif job.duration %}
+                        <span class="text-muted">
+                            {% set duration = job.duration %}
+                            {% set hours = (duration // 3600)|int %}
+                            {% set minutes = ((duration % 3600) // 60)|int %}
+                            {% set seconds = (duration % 60)|int %}
+                            
+                            {% if hours > 0 %}
+                                {{ hours }}h {{ minutes }}m
+                            {% elif minutes > 0 %}
+                                {{ minutes }}m {{ seconds }}s
+                            {% else %}
+                                {{ seconds }}s
+                            {% endif %}
+                        </span>
                     {% else %}
                         <span class="text-muted">—</span>
                     {% endif %}
@@ -135,8 +168,12 @@
                 <!-- Created Date -->
                 <td>
                     {% if job.created_at_formatted %}
-                        <span class="text-muted" title="{{ job.created_at_full|default('') }}">
+                        <span class="text-muted" title="{{ job.created_at_formatted }}">
                             {{ job.created_at_formatted }}
+                        </span>
+                    {% elif job.created_at %}
+                        <span class="text-muted" title="Created at: {{ job.created_at }}">
+                            {{ job.created_at }}
                         </span>
                     {% else %}
                         <span class="text-muted">—</span>
@@ -152,7 +189,7 @@
                             <i class="fas fa-eye"></i>
                         </button>
                         
-                        {% if job.status == 'pending' %}
+                        {% if job.status and job.status == 'pending' %}
                             <button type="button" class="btn btn-outline-success btn-sm"
                                     onclick="startJob('{{ job.id }}')" 
                                     title="Start Job">
@@ -160,7 +197,7 @@
                             </button>
                         {% endif %}
                         
-                        {% if job.status in ['running', 'pending'] %}
+                        {% if job.status and job.status in ['running', 'pending'] %}
                             <button type="button" class="btn btn-outline-warning btn-sm"
                                     onclick="cancelJob('{{ job.id }}')" 
                                     title="Cancel Job">
@@ -168,7 +205,7 @@
                             </button>
                         {% endif %}
                         
-                        {% if job.status in ['completed', 'failed', 'cancelled'] %}
+                        {% if job.status and job.status in ['completed', 'failed', 'cancelled'] %}
                             <button type="button" class="btn btn-outline-danger btn-sm"
                                     onclick="deleteJob('{{ job.id }}')" 
                                     title="Delete Job">
@@ -192,7 +229,7 @@
                                    onclick="viewJobDetails('{{ job.id }}')">
                                     <i class="fas fa-eye mr-2"></i>View Details
                                 </a>
-                                {% if job.status == 'completed' %}
+                                {% if job.status and job.status == 'completed' %}
                                 <a class="dropdown-item" href="/batch/job/{{ job.id }}/results">
                                     <i class="fas fa-download mr-2"></i>Download Results
                                 </a>
@@ -220,10 +257,10 @@
 </div>
 
 <!-- Pagination -->
-{% if total_count > 10 %}
+{% if jobs|length > 10 %}
 <div class="d-flex justify-content-between align-items-center mt-3 px-3 pb-3">
     <div class="text-muted">
-        Showing {{ jobs|length }} of {{ total_count }} jobs
+        Showing {{ jobs|length }} jobs
     </div>
     <nav aria-label="Jobs pagination">
         <ul class="pagination pagination-sm mb-0">
@@ -266,7 +303,7 @@ function duplicateJob(jobId) {
         return;
     }
     
-    fetch(`/api/batch/job/${jobId}/duplicate`, {
+    fetch(`/batch/job/${jobId}/duplicate`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -295,7 +332,7 @@ function updateJobStatuses() {
     runningJobs.forEach(row => {
         const jobId = row.dataset.jobId;
         
-        fetch(`/api/batch/job/${jobId}/status`)
+        fetch(`/batch/job/${jobId}/status`)
             .then(response => response.json())
             .then(data => {
                 if (data.status !== 'running') {

@@ -3380,40 +3380,12 @@ def cancel_job(job_id: str):
 
 @batch_bp.route("/api/jobs", methods=["GET"])
 def api_jobs_list():
-    """API endpoint for jobs list (HTMX compatible)."""
-    try:
-        batch_service = get_batch_coordinator()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        # Get query parameters
-        status_filter = request.args.get('status')
-        limit = int(request.args.get('limit', 50))
-        offset = int(request.args.get('offset', 0))
-        
-        # Use BatchService methods instead of direct database access
-        jobs = batch_service.get_jobs(
-            status=JobStatus[status_filter.upper()] if status_filter else None,
-            limit=limit,
-            offset=offset
-        )
-        
-        jobs_data = [job.to_dict() for job in jobs]
-        total_count = len(jobs_data)  # Simplified for now
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/batch_jobs_table.html", jobs=jobs_data, total_count=total_count)
-        
-        return ResponseHandler.success_response({
-            'jobs': jobs_data,
-            'total_count': total_count,
-            'limit': limit,
-            'offset': offset
-        })
-        
-    except Exception as e:
-        logger.error(f"API jobs list error: {e}")
-        return ResponseHandler.error_response(str(e))
+    """API endpoint for jobs list (HTMX compatible) - REMOVED - USE BATCH ROUTES INSTEAD."""
+    return jsonify({
+        'error': 'This endpoint has been moved. Use /api/batch/jobs instead.',
+        'redirect': '/api/batch/jobs'
+    }), 301
+
 
 @batch_bp.route("/api/job/<job_id>/status", methods=["GET"])
 def api_job_status(job_id: str):
@@ -3740,34 +3712,6 @@ def api_status():
         return ResponseHandler.error_response(f"Error getting status: {str(e)}")
 
 
-@batch_bp.route("/api/jobs")
-def api_jobs():
-    """Get jobs data for AJAX requests."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        jobs = batch_service.get_all_jobs()
-        stats = batch_service.get_job_stats()
-        
-        data = {
-            'jobs': [job.to_dict() for job in jobs],
-            'stats': stats,
-            'total_jobs': len(jobs),
-            'running_jobs': sum(1 for j in jobs if j.status.value == 'running'),
-            'completed_jobs': sum(1 for j in jobs if j.status.value == 'completed'),
-            'failed_jobs': sum(1 for j in jobs if j.status.value == 'failed'),
-            'last_updated': datetime.now().isoformat()
-        }
-        
-        return ResponseHandler.success_response(data, "Jobs retrieved")
-        
-    except Exception as e:
-        logger.error(f"API jobs error: {e}")
-        return ResponseHandler.error_response(f"Error getting jobs: {str(e)}")
-
-
 # ===========================
 # DOCKER ROUTES
 # ===========================
@@ -3887,6 +3831,15 @@ def not_found_error(error):
 def internal_error(error):
     """Handle 500 errors."""
     logger.error(f"Internal error: {error}")
+    
+    # Avoid template rendering for specific errors that might cause template issues
+    error_str = str(error)
+    if 'strftime' in error_str or 'template' in error_str.lower():
+        if request.headers.get('HX-Request') == 'true':
+            return f'<div class="alert alert-danger">Server Error: {error_str}</div>', 500
+        else:
+            return jsonify({'success': False, 'error': error_str}), 500
+    
     return ResponseHandler.error_response("Internal server error", 500)
 
 
@@ -3900,12 +3853,34 @@ def register_template_helpers(app):
     @app.template_filter('format_datetime')
     def format_datetime(value):
         """Format datetime for display."""
-        if isinstance(value, str):
-            try:
-                value = datetime.fromisoformat(value)
-            except ValueError:
-                return value
-        return value.strftime('%Y-%m-%d %H:%M:%S') if value else ''
+        try:
+            if not value:
+                return ''
+            
+            # If it's already a string, just return it (might be pre-formatted)
+            if isinstance(value, str):
+                # Try to parse it, but if it fails, just return the string
+                try:
+                    if 'T' in value:
+                        parsed_dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        return parsed_dt.strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        # Assume it's already formatted
+                        return value
+                except (ValueError, TypeError):
+                    # If parsing fails, return the original string
+                    return str(value)
+            
+            # If it's a datetime object, format it
+            if hasattr(value, 'strftime'):
+                return value.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Fallback - convert to string
+            return str(value)
+            
+        except Exception as e:
+            # Ultimate fallback
+            return str(value) if value else ''
     
     @app.template_filter('format_duration')
     def format_duration(seconds):
@@ -4570,79 +4545,11 @@ def get_app_status_api(model, app_num):
 
 @api_bp.route("/batch/jobs")
 def api_batch_jobs():
-    """Get list of batch jobs (HTMX compatible endpoint)."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        # Get parameters
-        status = request.args.get('status')
-        priority = request.args.get('priority') 
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 50))  # Show more jobs by default
-        
-        # Get all jobs from service
-        all_jobs = batch_service.get_all_jobs()
-        
-        # Convert to dict format and filter
-        jobs_data = []
-        for job in all_jobs:
-            job_dict = job.to_dict()
-            
-            # Apply filters
-            if status and job_dict.get('status') != status:
-                continue
-            if priority and job_dict.get('priority') != priority:
-                continue
-                
-            # Format dates and add computed fields
-            if job_dict.get('created_at'):
-                try:
-                    from datetime import datetime
-                    if isinstance(job_dict['created_at'], str):
-                        created_dt = datetime.fromisoformat(job_dict['created_at'].replace('Z', '+00:00'))
-                    else:
-                        created_dt = job_dict['created_at']
-                    job_dict['created_at_formatted'] = created_dt.strftime('%m/%d %H:%M')
-                except:
-                    job_dict['created_at_formatted'] = 'N/A'
-            else:
-                job_dict['created_at_formatted'] = 'N/A'
-            
-            # Calculate progress
-            progress_info = job_dict.get('progress', {})
-            total_tasks = progress_info.get('total', 0)
-            completed_tasks = progress_info.get('completed', 0)
-            job_dict['progress_percent'] = round((completed_tasks / total_tasks * 100) if total_tasks > 0 else 0, 1)
-            
-            jobs_data.append(job_dict)
-        
-        # Sort by created date (most recent first)
-        jobs_data.sort(key=lambda x: x.get('created_at_formatted', ''), reverse=True)
-        
-        # Apply pagination
-        total_jobs = len(jobs_data)
-        start_idx = (page - 1) * limit
-        end_idx = start_idx + limit
-        paginated_jobs = jobs_data[start_idx:end_idx]
-        
-        response_data = {
-            'jobs': paginated_jobs,
-            'total': total_jobs,
-            'page': page,
-            'limit': limit,
-            'total_pages': (total_jobs + limit - 1) // limit if total_jobs > 0 else 1
-        }
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/batch_jobs_table.html", **response_data)
-        
-        return ResponseHandler.success_response(data=response_data)
-        
-    except Exception as e:
-        logger.error(f"Error getting batch jobs: {e}")
-        return ResponseHandler.error_response(str(e))
+    """Get list of batch jobs (HTMX compatible endpoint) - REMOVED - USE BATCH ROUTES INSTEAD."""
+    return jsonify({
+        'error': 'This endpoint has been moved. Use /api/batch/jobs instead.',
+        'redirect': '/api/batch/jobs'
+    }), 301
 
 
 # Rate limiting cache for batch stats endpoint - per client

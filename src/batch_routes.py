@@ -430,64 +430,69 @@ def get_jobs():
         if not batch_service:
             return jsonify({'error': 'Batch service not available'}), 503
         
-        # Parse query parameters
-        status_filter = request.args.get('status', '').split(',') if request.args.get('status') else None
-        limit = min(int(request.args.get('limit', 50)), 100)
+        # Get query parameters
+        status_filter = request.args.get('status')
+        limit = int(request.args.get('limit', 50))
         offset = int(request.args.get('offset', 0))
-        page = int(request.args.get('page', 1))
         
-        # Calculate offset from page
-        if page > 1:
-            offset = (page - 1) * limit
+        # Get all jobs from the batch service
+        all_jobs = batch_service.get_jobs()
         
-        # Build query
-        query = BatchJob.query
-        
+        # Filter jobs if status is specified
         if status_filter:
-            status_objects = []
-            for status_str in status_filter:
-                try:
-                    status_objects.append(JobStatus(status_str.strip()))
-                except ValueError:
-                    continue
-            if status_objects:
-                query = query.filter(BatchJob.status.in_(status_objects))
+            all_jobs = [job for job in all_jobs if job.status.value == status_filter]
         
-        # Apply ordering and pagination
-        total_count = query.count()
-        jobs = query.order_by(desc(BatchJob.created_at)).offset(offset).limit(limit).all()
+        # Apply pagination
+        total_count = len(all_jobs)
+        jobs = all_jobs[offset:offset + limit]
         
-        # Calculate pagination info
-        total_pages = (total_count + limit - 1) // limit
-        
-        # Format jobs for display
-        formatted_jobs = []
+        # Prepare job data for response
+        jobs_data = []
         for job in jobs:
             job_dict = job.to_dict()
-            job_dict['created_at_formatted'] = job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else 'Unknown'
-            job_dict['duration_formatted'] = str(job.duration).split('.')[0] if job.duration else None
-            formatted_jobs.append(job_dict)
+            
+            # Add formatted dates safely
+            if job.created_at:
+                try:
+                    job_dict['created_at_formatted'] = job.created_at.strftime('%m/%d %H:%M')
+                    job_dict['created_at_full'] = job.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                except (AttributeError, TypeError):
+                    # Handle case where created_at is already a string
+                    job_dict['created_at_formatted'] = str(job_dict.get('created_at', 'N/A'))[:16]
+                    job_dict['created_at_full'] = str(job_dict.get('created_at', 'N/A'))
+            else:
+                job_dict['created_at_formatted'] = 'N/A'
+                job_dict['created_at_full'] = 'N/A'
+            
+            # Calculate progress percentage
+            if job_dict.get('total_tasks', 0) > 0:
+                job_dict['progress_percentage'] = round(
+                    (job_dict.get('completed_tasks', 0) / job_dict['total_tasks']) * 100, 1
+                )
+            else:
+                job_dict['progress_percentage'] = 0
+            
+            jobs_data.append(job_dict)
         
-        # Render as partial if HTMX request
+        # Check if this is an HTMX request
         if request.headers.get('HX-Request'):
-            return render_template('partials/batch_jobs_table.html',
-                                 jobs=formatted_jobs,
-                                 page=page,
-                                 limit=limit,
-                                 total_pages=total_pages,
+            return render_template('partials/batch_jobs_table.html', 
+                                 jobs=jobs_data, 
                                  total_count=total_count)
         
+        # Return JSON for API requests
         return jsonify({
-            'jobs': formatted_jobs,
-            'pagination': {
-                'page': page,
+            'success': True,
+            'data': {
+                'jobs': jobs_data,
+                'total_count': total_count,
                 'limit': limit,
-                'total_pages': total_pages,
-                'total_count': total_count
+                'offset': offset
             }
         })
         
     except Exception as e:
+        logger.error(f"Error in get_jobs: {e}")
         return handle_batch_error(e, "Failed to get jobs")
 
 @batch_api_bp.route('/jobs', methods=['POST'])
