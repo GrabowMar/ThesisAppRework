@@ -1,58 +1,65 @@
 /**********************************************************************
-  Modern Science Dashboard CSS
-  - Consistent design system with tight, efficient spacing
-  - Purple-based color scheme with clean aesthetics
-  - Optimized for data-dense research interfaces
+  Research Dashboard CSS - Academic/Scientific Style
+  - Rectangular, formal design with minimal rounded corners
+  - Muted, professional color scheme
+  - Optimized for research data visualization and analysis
+  - Dense information layout with clear hierarchy
 **********************************************************************/
 
 /* ===================================================================
    Design System Variables
    =================================================================== */
 :root {
-  /* Primary Color Palette - Purple Theme */
-  --primary-50: #f5f3ff;
-  --primary-100: #ede9fe;
-  --primary-200: #ddd6fe;
-  --primary-300: #c4b5fd;
-  --primary-400: #a78bfa;
-  --primary-500: #8b5cf6;  /* Main purple */
-  --primary-600: #7c3aed;
-  --primary-700: #6d28d9;
-  --primary-800: #5b21b6;
-  --primary-900: #4c1d95;
+  /* Primary Color Palette - Professional Blue-Gray */
+  --primary-50: #f8fafc;
+  --primary-100: #f1f5f9;
+  --primary-200: #e2e8f0;
+  --primary-300: #cbd5e1;
+  --primary-400: #94a3b8;
+  --primary-500: #64748b;  /* Main color */
+  --primary-600: #475569;
+  --primary-700: #334155;
+  --primary-800: #1e293b;
+  --primary-900: #0f172a;
   
-  /* Semantic Colors */
-  --success: #10b981;
-  --success-light: #d1fae5;
-  --success-dark: #059669;
+  /* Accent Color - Muted Blue for highlights */
+  --accent-500: #3b82c4;
+  --accent-600: #2563eb;
+  --accent-700: #1d4ed8;
   
-  --danger: #ef4444;
-  --danger-light: #fee2e2;
-  --danger-dark: #dc2626;
+  /* Semantic Colors - Muted versions */
+  --success: #059669;
+  --success-light: #ecfdf5;
+  --success-dark: #047857;
   
-  --warning: #f59e0b;
-  --warning-light: #fef3c7;
-  --warning-dark: #d97706;
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --danger-dark: #b91c1c;
   
-  --info: #3b82f6;
-  --info-light: #dbeafe;
-  --info-dark: #2563eb;
+  --warning: #d97706;
+  --warning-light: #fffbeb;
+  --warning-dark: #b45309;
+  
+  --info: #0891b2;
+  --info-light: #ecfeff;
+  --info-dark: #0e7490;
   
   /* Neutral Palette */
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-800: #1f2937;
-  --gray-900: #111827;
+  --gray-50: #fafafa;
+  --gray-100: #f4f4f5;
+  --gray-200: #e4e4e7;
+  --gray-300: #d4d4d8;
+  --gray-400: #a1a1aa;
+  --gray-500: #71717a;
+  --gray-600: #52525b;
+  --gray-700: #3f3f46;
+  --gray-800: #27272a;
+  --gray-900: #18181b;
   
-  /* Typography - Tighter, More Efficient */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", "Monaco", "Cascadia Code", monospace;
+  /* Typography - Academic/Professional */
+  --font-sans: "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Consolas", "Courier New", monospace;
+  --font-serif: "Georgia", "Times New Roman", serif;
   
   --text-xs: 0.75rem;    /* 12px */
   --text-sm: 0.8125rem;  /* 13px */
@@ -76,24 +83,25 @@
   --space-6: 1.5rem;     /* 24px */
   --space-8: 2rem;       /* 32px */
   
-  /* Borders & Radius */
-  --radius-sm: 0.25rem;  /* 4px */
-  --radius-md: 0.375rem; /* 6px */
-  --radius-lg: 0.5rem;   /* 8px */
-  --radius-xl: 0.75rem;  /* 12px */
+  /* Rectangular Borders & Minimal Radius */
+  --radius-sm: 0.125rem; /* 2px - very subtle */
+  --radius-md: 0.25rem;  /* 4px - still quite rectangular */
+  --radius-lg: 0.375rem; /* 6px - maximum roundness */
+  --radius-xl: 0.5rem;   /* 8px */
   --radius-full: 9999px;
   
   --border-width: 1px;
-  --border-color: var(--gray-200);
+  --border-color: var(--gray-300);
+  --border-color-light: var(--gray-200);
   
-  /* Shadows - Subtle and Clean */
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  /* Flat Shadows - Minimal depth */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 6px -2px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 8px 10px -3px rgba(0, 0, 0, 0.1);
   
-  /* Component Sizes */
+  /* Component Sizes - Keep original */
   --input-height-sm: 32px;
   --input-height-md: 36px;
   --input-height-lg: 40px;
@@ -130,41 +138,43 @@ body {
   font-weight: 400;
   line-height: 1.5;
   color: var(--gray-900);
-  background-color: var(--gray-50);
+  background-color: var(--gray-100);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   height: 100%;
 }
 
 /* ===================================================================
-   Typography
+   Typography - Academic Style
    =================================================================== */
 h1, h2, h3, h4, h5, h6 {
   margin: 0 0 var(--space-2) 0;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.25;
   color: var(--gray-900);
+  font-family: var(--font-serif);
 }
 
-h1 { font-size: var(--text-3xl); font-weight: 700; }
-h2 { font-size: var(--text-2xl); }
-h3 { font-size: var(--text-xl); }
-h4 { font-size: var(--text-lg); }
-h5 { font-size: var(--text-base); }
-h6 { font-size: var(--text-sm); }
+h1 { font-size: var(--text-3xl); font-weight: 300; letter-spacing: -0.02em; }
+h2 { font-size: var(--text-2xl); font-weight: 400; }
+h3 { font-size: var(--text-xl); font-weight: 500; }
+h4 { font-size: var(--text-lg); font-weight: 500; }
+h5 { font-size: var(--text-base); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+h6 { font-size: var(--text-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
 
 p {
   margin: 0 0 var(--space-3) 0;
 }
 
 a {
-  color: var(--primary-600);
+  color: var(--accent-600);
   text-decoration: none;
   transition: color 0.15s ease;
 }
 
 a:hover {
-  color: var(--primary-700);
+  color: var(--accent-700);
+  text-decoration: underline;
 }
 
 strong, b {
@@ -175,17 +185,19 @@ code {
   font-family: var(--font-mono);
   font-size: 0.875em;
   padding: var(--space-0.5) var(--space-1);
-  background-color: var(--gray-100);
+  background-color: var(--gray-200);
+  border: 1px solid var(--gray-300);
   border-radius: var(--radius-sm);
-  color: var(--primary-700);
+  color: var(--gray-800);
 }
 
 pre {
   margin: 0 0 var(--space-4) 0;
   padding: var(--space-3);
-  background-color: var(--gray-900);
-  color: var(--gray-100);
-  border-radius: var(--radius-md);
+  background-color: var(--gray-50);
+  border: 1px solid var(--gray-300);
+  color: var(--gray-900);
+  border-radius: var(--radius-sm);
   overflow-x: auto;
   font-size: var(--text-sm);
 }
@@ -193,6 +205,7 @@ pre {
 pre code {
   padding: 0;
   background: none;
+  border: none;
   color: inherit;
 }
 
@@ -211,11 +224,11 @@ pre code {
   padding: 0 var(--space-4);
 }
 
-/* Cards - Clean and Compact */
+/* Cards - Rectangular and Formal */
 .card {
   background-color: white;
   border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   margin-bottom: var(--space-4);
   overflow: hidden;
@@ -223,7 +236,7 @@ pre code {
 
 .card-header {
   padding: var(--space-3) var(--space-4);
-  background-color: white;
+  background-color: var(--gray-50);
   border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
@@ -245,6 +258,8 @@ pre code {
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--gray-900);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* ===================================================================
@@ -276,17 +291,17 @@ pre code {
 .col-12 { flex: 0 0 100%; }
 
 /* ===================================================================
-   Navigation Bar
+   Navigation Bar - Minimal and Professional
    =================================================================== */
 .navbar {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 56px;
+  height: 56px; /* Keep original height */
   background-color: white;
   border-bottom: var(--border-width) solid var(--border-color);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   z-index: var(--z-fixed);
   display: flex;
   align-items: center;
@@ -306,8 +321,8 @@ pre code {
 .brand-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
-  border-radius: var(--radius-md);
+  background: var(--primary-800);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -331,18 +346,21 @@ pre code {
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--gray-600);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   transition: all 0.15s ease;
+  border-bottom: 2px solid transparent;
 }
 
 .nav-link:hover {
   color: var(--gray-900);
   background-color: var(--gray-100);
+  text-decoration: none;
 }
 
 .nav-link.active {
-  color: var(--primary-600);
+  color: var(--primary-800);
   background-color: var(--primary-50);
+  border-bottom-color: var(--primary-800);
 }
 
 .nav-link i {
@@ -350,15 +368,15 @@ pre code {
 }
 
 /* ===================================================================
-   Sidebar
+   Sidebar - Data-Dense Research Layout
    =================================================================== */
 .sidebar {
   position: fixed;
-  top: 56px;
+  top: 56px; /* Keep original offset */
   left: 0;
-  width: 240px;
+  width: 240px; /* Keep original width */
   height: calc(100vh - 56px);
-  background-color: white;
+  background-color: var(--gray-50);
   border-right: var(--border-width) solid var(--border-color);
   overflow-y: auto;
   z-index: var(--z-sticky);
@@ -401,19 +419,22 @@ pre code {
   justify-content: space-between;
   align-items: center;
   padding: var(--space-2);
-  background-color: var(--gray-50);
-  border-radius: var(--radius-md);
+  background-color: white;
+  border: 1px solid var(--border-color-light);
+  border-radius: var(--radius-sm);
   transition: all 0.15s ease;
 }
 
 .stat-item:hover {
   background-color: var(--primary-50);
+  border-color: var(--primary-400);
 }
 
 .stat-value {
   font-size: var(--text-2xl);
   font-weight: 700;
-  color: var(--gray-900);
+  color: var(--primary-800);
+  font-family: var(--font-mono);
 }
 
 .stat-label {
@@ -441,7 +462,7 @@ pre code {
 .activity-icon {
   width: 20px;
   height: 20px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   background-color: var(--primary-100);
   color: var(--primary-600);
   display: flex;
@@ -472,10 +493,10 @@ pre code {
    Main Content Area
    =================================================================== */
 .main-content {
-  margin-left: 240px;
-  margin-top: 56px;
+  margin-left: 240px; /* Keep original offset */
+  margin-top: 56px; /* Keep original offset */
   min-height: calc(100vh - 56px);
-  background-color: var(--gray-50);
+  background-color: var(--gray-100);
   padding: var(--space-4);
 }
 
@@ -488,9 +509,10 @@ pre code {
 
 .page-title {
   font-size: var(--text-2xl);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--gray-900);
   margin: 0;
+  font-family: var(--font-serif);
 }
 
 .page-subtitle {
@@ -500,7 +522,7 @@ pre code {
 }
 
 /* ===================================================================
-   Forms & Inputs
+   Forms & Inputs - Rectangular Design
    =================================================================== */
 .form-control,
 .form-select {
@@ -515,7 +537,7 @@ pre code {
   background-color: white;
   background-clip: padding-box;
   border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   height: var(--input-height-md);
 }
@@ -523,8 +545,8 @@ pre code {
 .form-control:focus,
 .form-select:focus {
   outline: none;
-  border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+  border-color: var(--primary-700);
+  box-shadow: 0 0 0 3px rgba(51, 65, 85, 0.1);
 }
 
 .form-control::placeholder {
@@ -585,7 +607,7 @@ pre code {
 }
 
 /* ===================================================================
-   Buttons
+   Buttons - Flat and Rectangular
    =================================================================== */
 .btn {
   display: inline-flex;
@@ -605,7 +627,7 @@ pre code {
   user-select: none;
   background-color: white;
   border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   transition: all 0.15s ease;
   height: var(--input-height-md);
 }
@@ -622,19 +644,19 @@ pre code {
 
 .btn:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(51, 65, 85, 0.1);
 }
 
 /* Button Variants */
 .btn-primary {
   color: white;
-  background-color: var(--primary-600);
-  border-color: var(--primary-600);
+  background-color: var(--primary-700);
+  border-color: var(--primary-700);
 }
 
 .btn-primary:hover {
-  background-color: var(--primary-700);
-  border-color: var(--primary-700);
+  background-color: var(--primary-800);
+  border-color: var(--primary-800);
 }
 
 .btn-secondary {
@@ -695,13 +717,13 @@ pre code {
 }
 
 /* ===================================================================
-   Tables
+   Tables - Research Data Style
    =================================================================== */
 .table {
   width: 100%;
   margin-bottom: var(--space-4);
   background-color: white;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
@@ -713,8 +735,8 @@ pre code {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--gray-600);
-  background-color: var(--gray-50);
-  border-bottom: var(--border-width) solid var(--border-color);
+  background-color: var(--gray-100);
+  border-bottom: 2px solid var(--border-color);
 }
 
 .table tbody td {
@@ -739,7 +761,7 @@ pre code {
 }
 
 /* ===================================================================
-   Badges & Status
+   Badges & Status - Rectangular
    =================================================================== */
 .badge {
   display: inline-flex;
@@ -751,7 +773,7 @@ pre code {
   line-height: 1;
   color: white;
   background-color: var(--gray-500);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
 }
 
 .badge-primary { background-color: var(--primary-600); }
@@ -768,7 +790,7 @@ pre code {
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-xs);
   font-weight: 500;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   border: var(--border-width) solid;
 }
 
@@ -803,7 +825,7 @@ pre code {
 .status-dot {
   width: 8px;
   height: 8px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   display: inline-block;
 }
 
@@ -813,14 +835,14 @@ pre code {
 .status-dot.info { background-color: var(--info); }
 
 /* ===================================================================
-   Progress Bars
+   Progress Bars - Flat Design
    =================================================================== */
 .progress {
   display: flex;
   height: 8px;
   overflow: hidden;
   background-color: var(--gray-200);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
 }
 
 .progress-bar {
@@ -842,7 +864,7 @@ pre code {
   padding: var(--space-3) var(--space-4);
   margin-bottom: var(--space-4);
   border: var(--border-width) solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: var(--text-sm);
 }
 
@@ -877,12 +899,12 @@ pre code {
 }
 
 /* ===================================================================
-   Model Cards (Dashboard Specific)
+   Model Cards (Dashboard Specific) - Research Style
    =================================================================== */
 .model-card {
   background-color: white;
   border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   transition: all 0.15s ease;
   margin-bottom: var(--space-3);
 }
@@ -944,6 +966,7 @@ pre code {
   font-weight: 600;
   color: var(--gray-900);
   line-height: 1;
+  font-family: var(--font-mono);
 }
 
 .model-stat-label {
@@ -955,7 +978,7 @@ pre code {
 }
 
 /* ===================================================================
-   Dashboard Stats Cards
+   Dashboard Stats Cards - Research Style
    =================================================================== */
 .stats-grid {
   display: grid;
@@ -965,29 +988,19 @@ pre code {
 }
 
 .stats-card {
-  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
-  color: white;
+  background: white;
+  border: 2px solid var(--primary-700);
+  color: var(--primary-800);
   padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
 }
 
-.stats-card::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-  transform: rotate(30deg);
-}
-
 .stats-card-icon {
   font-size: var(--text-3xl);
-  opacity: 0.3;
+  opacity: 0.1;
   position: absolute;
   right: var(--space-3);
   top: var(--space-3);
@@ -998,12 +1011,14 @@ pre code {
   font-weight: 700;
   line-height: 1;
   margin-bottom: var(--space-1);
+  font-family: var(--font-mono);
 }
 
 .stats-card-label {
   font-size: var(--text-sm);
   font-weight: 500;
-  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* ===================================================================
@@ -1012,7 +1027,7 @@ pre code {
 .search-filter-section {
   background-color: white;
   border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   padding: var(--space-3);
   margin-bottom: var(--space-4);
   box-shadow: var(--shadow-sm);
@@ -1074,7 +1089,7 @@ pre code {
   position: relative;
   background-color: white;
   background-clip: padding-box;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-xl);
   outline: 0;
 }
@@ -1273,7 +1288,7 @@ pre code {
 
 ::-webkit-scrollbar-thumb {
   background: var(--gray-400);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -1451,7 +1466,7 @@ pre code {
   padding: var(--space-1.5) var(--space-3);
   background-color: var(--gray-50);
   border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: var(--text-sm);
 }
 
@@ -1472,7 +1487,7 @@ pre code {
 .app-card {
   background-color: white;
   border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   padding: var(--space-3);
   transition: all 0.15s ease;
   cursor: pointer;
@@ -1523,7 +1538,7 @@ pre code {
   background-color: var(--gray-900);
   color: var(--gray-100);
   padding: var(--space-3);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   overflow-x: auto;
@@ -1534,7 +1549,7 @@ pre code {
   background-color: var(--gray-900);
   color: var(--gray-100);
   padding: var(--space-3);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.6;
@@ -1550,7 +1565,7 @@ pre code {
   padding: var(--space-2) var(--space-3);
   background-color: white;
   border: var(--border-width) solid;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
 }
 
 .health-healthy {
@@ -1588,7 +1603,7 @@ pre code {
 /* Test Results */
 .test-result-container {
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   padding: var(--space-4);
   margin-bottom: var(--space-3);
   background-color: white;
@@ -1606,7 +1621,7 @@ pre code {
 .test-output-content {
   background-color: var(--gray-900) !important;
   color: var(--gray-100) !important;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 0.85em;
   line-height: 1.4;
@@ -1658,9 +1673,9 @@ pre code {
 
 /* Test Statistics Cards */
 .test-stats-card {
-  background: linear-gradient(135deg, white 0%, var(--gray-50) 100%);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
+  background: white;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
   padding: var(--space-4);
   text-align: center;
   transition: all 0.2s ease;
@@ -1676,6 +1691,7 @@ pre code {
   font-weight: 700;
   line-height: 1;
   margin-bottom: var(--space-1);
+  font-family: var(--font-mono);
 }
 
 .test-stats-label {
@@ -1688,14 +1704,14 @@ pre code {
 .test-progress {
   position: relative;
   background-color: var(--gray-200);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   height: 8px;
   overflow: hidden;
 }
 
 .test-progress-bar {
   height: 100%;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   transition: width 0.3s ease;
 }
 
@@ -1818,4 +1834,90 @@ pre code {
   gap: var(--space-1);
   font-size: var(--text-xs);
   color: var(--gray-500);
+}
+
+/* ===================================================================
+   Research-Specific Components
+   =================================================================== */
+
+/* Experiment Results Table */
+.experiment-table {
+  width: 100%;
+  font-size: var(--text-sm);
+  background-color: white;
+  border: var(--border-width) solid var(--gray-400);
+}
+
+.experiment-table thead {
+  background-color: var(--gray-800);
+  color: white;
+}
+
+.experiment-table th {
+  padding: var(--space-2);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--text-xs);
+  text-align: left;
+}
+
+.experiment-table tbody tr {
+  border-bottom: var(--border-width) solid var(--gray-200);
+}
+
+.experiment-table tbody tr:hover {
+  background-color: var(--primary-50);
+}
+
+.experiment-table td {
+  padding: var(--space-2);
+}
+
+/* Dataset Info Panel */
+.dataset-panel {
+  background-color: white;
+  border: var(--border-width) solid var(--border-color);
+  margin-bottom: var(--space-3);
+}
+
+.dataset-header {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--primary-800);
+  color: white;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--text-xs);
+}
+
+.dataset-body {
+  padding: var(--space-3);
+}
+
+/* Research Paper Style Headers */
+.paper-header {
+  text-align: center;
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--gray-300);
+}
+
+.paper-title {
+  font-size: var(--text-3xl);
+  font-weight: 400;
+  font-family: var(--font-serif);
+  margin-bottom: var(--space-2);
+}
+
+.paper-authors {
+  font-size: var(--text-base);
+  color: var(--gray-600);
+  margin-bottom: var(--space-1);
+}
+
+.paper-institution {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  font-style: italic;
 }
