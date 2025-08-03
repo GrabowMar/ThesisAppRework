@@ -30,6 +30,7 @@ try:
         SecurityAnalysis, JobStatus, TaskStatus
     )
     from core_services import get_container_names
+    from batch_testing_service import get_batch_testing_service
 except ImportError:
     # Fallback for direct script execution
     from .extensions import db
@@ -38,6 +39,7 @@ except ImportError:
         SecurityAnalysis
     )
     from .core_services import get_container_names
+    from .batch_testing_service import get_batch_testing_service
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -589,6 +591,7 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 statistics_bp = Blueprint("statistics", __name__, url_prefix="/statistics")
 batch_bp = Blueprint("batch", __name__, url_prefix="/batch")
 docker_bp = Blueprint("docker", __name__, url_prefix="/docker")
+batch_testing_bp = Blueprint("batch_testing", __name__, url_prefix="/batch-testing")
 
 # ===========================
 # MAIN ROUTES
@@ -642,6 +645,12 @@ def dashboard():
                              error=str(e), 
                              timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                              error_code=500)
+
+
+@main_bp.route("/batch-testing")
+def batch_testing():
+    """Redirect to batch testing dashboard."""
+    return redirect("/batch-testing/")
 
 
 @main_bp.route("/dashboard")
@@ -1538,6 +1547,56 @@ def api_docker_cache_stats():
         })
     except Exception as e:
         logger.error(f"Error getting cache stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route("/containers/stats")
+def containers_stats():
+    """Get container statistics for the batch testing dashboard."""
+    try:
+        from batch_testing_service import get_batch_testing_service
+        service = get_batch_testing_service()
+        
+        stats = service.get_container_stats()
+        return jsonify({
+            'success': True,
+            'stats': stats,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting container stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route("/containers/overview")
+def containers_overview():
+    """Get container overview for the batch testing dashboard."""
+    try:
+        from batch_testing_service import get_batch_testing_service
+        service = get_batch_testing_service()
+        
+        # Get available models and their container status
+        models = service.get_available_models()
+        
+        overview = {
+            'total_models': len(models),
+            'models': models,
+            'container_ecosystem': service.get_container_stats()
+        }
+        
+        return jsonify({
+            'success': True,
+            'overview': overview,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting container overview: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -3012,11 +3071,12 @@ def get_batch_coordinator():
     global _batch_coordinator
     if _batch_coordinator is None:
         try:
-            # Import the new BatchService
+            # Import the new Container Batch Service
+            from batch_testing_service import get_batch_testing_service
             
             # Create service instance
-            _batch_coordinator = BatchService(current_app)
-            logger.info("Batch service initialized successfully")
+            _batch_coordinator = get_batch_testing_service()
+            logger.info("Container batch service initialized successfully")
             
         except Exception as e:
             logger.error(f"Failed to initialize batch service: {e}")
@@ -3088,7 +3148,8 @@ def batch_overview():
             except Exception as e:
                 logger.warning(f"Could not get system stats: {e}")
         
-        return render_template("pages/batch_jobs_list.html", **context)
+        # Redirect to the new container-centric batch testing interface
+        return redirect(url_for('batch_testing.batch_testing_dashboard'))
         
     except Exception as e:
         logger.error(f"Batch overview error: {e}")
@@ -3104,7 +3165,8 @@ def batch_overview():
             'error_message': f"Service temporarily unavailable: {str(e)}",
             'page_title': 'Batch Analysis Jobs'
         }
-        return render_template("pages/batch_jobs_list.html", **context)
+        # Redirect to the new container-centric batch testing interface
+        return redirect(url_for('batch_testing.batch_testing_dashboard'))
 
 
 @batch_bp.route("/create", methods=["GET", "POST"])
@@ -4872,6 +4934,211 @@ def api_delete_batch_job(job_id: str):
 
 
 # ===========================
+# BATCH TESTING ROUTES
+# ===========================
+
+@batch_testing_bp.route("/")
+def batch_testing_dashboard():
+    """Batch testing dashboard page."""
+    try:
+        service = get_batch_testing_service()
+        
+        # Get basic stats for dashboard
+        all_jobs = service.get_all_jobs()
+        stats = {
+            'total_jobs': len(all_jobs),
+            'running_jobs': len([j for j in all_jobs if j['status'] == 'running']),
+            'completed_jobs': len([j for j in all_jobs if j['status'] == 'completed']),
+            'total_issues': sum(j.get('total_issues', 0) for j in all_jobs if j['status'] == 'completed')
+        }
+        
+        return ResponseHandler.render_response("batch_testing.html", stats=stats)
+        
+    except Exception as e:
+        logger.error(f"Error loading batch testing dashboard: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_testing_bp.route("/api/jobs")
+def api_get_batch_jobs():
+    """Get list of batch testing jobs with optional filtering."""
+    try:
+        service = get_batch_testing_service()
+        
+        status_filter = request.args.get('status')
+        test_type_filter = request.args.get('test_type')
+        
+        jobs = service.get_all_jobs(status_filter, test_type_filter)
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/batch_jobs_list.html", jobs=jobs)
+        
+        return ResponseHandler.success_response(data=jobs)
+        
+    except Exception as e:
+        logger.error(f"Error getting batch jobs: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_testing_bp.route("/api/create", methods=["POST"])
+def api_create_batch_testing_job():
+    """Create a new batch testing job."""
+    try:
+        service = get_batch_testing_service()
+        
+        # Get form data and map to container operation format
+        job_config = {
+            'operation_type': request.form.get('operation_type'),  # Fixed: use operation_type instead of test_type
+            'job_name': request.form.get('job_name'),
+            'description': request.form.get('description', ''),
+            'tools': request.form.getlist('tools'),
+            'target_selection': request.form.get('target_selection', 'models'),  # Fixed: use target_selection
+            'concurrency': int(request.form.get('concurrency', 3)),
+            'timeout': int(request.form.get('timeout', 300)),
+            'fail_fast': request.form.get('fail_fast') == 'true',
+            'container_options': {
+                'wait_healthy': request.form.get('wait_healthy') == 'true',
+                'pull_images': request.form.get('pull_images') == 'true',
+                'force_recreate': request.form.get('force_recreate') == 'true',
+                'remove_orphans': request.form.get('remove_orphans') == 'true'
+            }
+        }
+        
+        # Handle model/app selection based on target_selection method
+        target_selection = job_config['target_selection']
+        if target_selection == 'models':
+            job_config['selected_models'] = request.form.getlist('selected_models')
+        elif target_selection == 'running_containers':
+            # For running containers, we'll let the service determine which containers are running
+            pass
+        elif target_selection == 'custom':
+            job_config['custom_models'] = request.form.get('custom_models', '')
+            job_config['selected_apps'] = request.form.get('selected_apps', '1-30')
+        
+        result = service.create_batch_job(job_config)
+        
+        if result['success']:
+            return ResponseHandler.success_response(
+                data={'job_id': result['job_id']},
+                message=result['message']
+            )
+        else:
+            return ResponseHandler.error_response(result['error'])
+        
+    except Exception as e:
+        logger.error(f"Error creating batch job: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_testing_bp.route("/api/job/<job_id>/details")
+def api_get_job_details(job_id: str):
+    """Get detailed information about a batch job."""
+    try:
+        service = get_batch_testing_service()
+        job = service.get_job_details(job_id)
+        
+        if not job:
+            return ResponseHandler.error_response("Job not found", 404)
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/batch_job_details.html", job=job)
+        
+        return ResponseHandler.success_response(data=job)
+        
+    except Exception as e:
+        logger.error(f"Error getting job details for {job_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_testing_bp.route("/api/job/<job_id>/results")
+def api_get_job_results(job_id: str):
+    """Get comprehensive results for a completed job."""
+    try:
+        service = get_batch_testing_service()
+        results = service.get_job_results(job_id)
+        
+        if not results:
+            return ResponseHandler.error_response("Job not found or not completed", 404)
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/batch_job_results.html", results=results)
+        
+        return ResponseHandler.success_response(data=results)
+        
+    except Exception as e:
+        logger.error(f"Error getting job results for {job_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_testing_bp.route("/api/job/<job_id>/start", methods=["POST"])
+def api_start_job(job_id: str):
+    """Start execution of a batch job."""
+    try:
+        service = get_batch_testing_service()
+        result = service.start_job(job_id)
+        
+        if result['success']:
+            return ResponseHandler.success_response(message=result['message'])
+        else:
+            return ResponseHandler.error_response(result['error'])
+        
+    except Exception as e:
+        logger.error(f"Error starting job {job_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_testing_bp.route("/api/job/<job_id>/cancel", methods=["POST"])
+def api_cancel_job(job_id: str):
+    """Cancel a running batch job."""
+    try:
+        service = get_batch_testing_service()
+        result = service.cancel_job(job_id)
+        
+        if result['success']:
+            return ResponseHandler.success_response(message=result['message'])
+        else:
+            return ResponseHandler.error_response(result['error'])
+        
+    except Exception as e:
+        logger.error(f"Error cancelling job {job_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_testing_bp.route("/api/job/<job_id>/delete", methods=["DELETE"])
+def api_delete_job(job_id: str):
+    """Delete a batch job."""
+    try:
+        service = get_batch_testing_service()
+        result = service.delete_job(job_id)
+        
+        if result['success']:
+            return ResponseHandler.success_response(message=result['message'])
+        else:
+            return ResponseHandler.error_response(result['error'])
+        
+    except Exception as e:
+        logger.error(f"Error deleting job {job_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@batch_testing_bp.route("/api/models")
+def api_get_available_models():
+    """Get list of available models for batch testing."""
+    try:
+        service = get_batch_testing_service()
+        models = service.get_available_models()
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/batch_model_selection.html", models=models)
+        
+        return ResponseHandler.success_response(data=models)
+        
+    except Exception as e:
+        logger.error(f"Error getting available models: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+# ===========================
 # BLUEPRINT REGISTRATION
 # ===========================
 
@@ -4884,13 +5151,8 @@ def register_blueprints(app):
     # Register legacy batch blueprint for compatibility
     app.register_blueprint(batch_bp)
     
-    # Register new enhanced batch blueprints
-    try:
-        app.register_blueprint(batch_routes.batch_routes_bp)
-        app.register_blueprint(batch_routes.batch_api_bp)
-        logger.info("Enhanced batch blueprints registered successfully")
-    except ImportError as e:
-        logger.warning(f"Enhanced batch blueprints not available: {e}")
+    # Register batch testing blueprint
+    app.register_blueprint(batch_testing_bp)
     
     app.register_blueprint(docker_bp)
     
@@ -4902,6 +5164,6 @@ def register_blueprints(app):
 
 # Export blueprints for use in app factory
 __all__ = [
-    'main_bp', 'api_bp', 'statistics_bp', 'batch_bp', 'docker_bp',
+    'main_bp', 'api_bp', 'statistics_bp', 'batch_bp', 'docker_bp', 'batch_testing_bp',
     'register_blueprints'
 ]

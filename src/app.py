@@ -500,7 +500,7 @@ def create_minimal_routes(app: Flask) -> None:
             'services': {
                 'database': 'connected' if db else 'disconnected',
                 'docker': False,
-                'batch_service': False
+                'container_batch_service': True
             }
         })
 
@@ -640,18 +640,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             )
             service_thread.start()
             
-            # Initialize batch service
-            try:
-                from batch_service import BatchService
-                
-                # Initialize the correct batch service
-                batch_service = BatchService()
-                batch_service.init_app(app)
-                
-                app.logger.info("Batch analysis services initialized successfully")
-            except Exception as e:
-                app.logger.warning(f"Batch service initialization deferred: {e}")
-                app.config['batch_service'] = None
+            # Container batch service is initialized via batch_testing_service module
+            app.logger.info("Container batch operation services available")
             
             # Use app.config to track initialization state
             app.config['_services_initialized'] = True
@@ -663,7 +653,6 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             if 'service_manager' not in app.config:
                 app.config['service_manager'] = ServiceManager(app)
             app.config['docker_manager'] = None
-            app.config['batch_service'] = None
     
     # Register blueprints with HTMX routes
     try:
@@ -704,7 +693,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             'version': '2.0.0-htmx',
             'database': 'connected' if db else 'disconnected',
             'services': {
-                'batch_service': app.config.get('batch_service') is not None,
+                'container_batch_service': True,  # Always available via batch_testing_service
                 'docker_manager': app.config.get('docker_manager') is not None,
                 'service_manager': app.config.get('service_manager') is not None
             }

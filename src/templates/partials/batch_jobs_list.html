@@ -1,0 +1,172 @@
+<!-- Batch Jobs List Partial -->
+<div class="table-responsive">
+    {% if jobs %}
+    <table class="table table-hover">
+        <thead class="thead-light">
+            <tr>
+                <th>Job Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Apps</th>
+                <th>Issues</th>
+                <th>Created</th>
+                <th>Duration</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr class="job-row" data-job-id="{{ job.job_id }}">
+                <td>
+                    <strong>{{ job.job_name }}</strong>
+                    {% if job.description %}
+                    <br><small class="text-muted">{{ job.description[:50] }}{% if job.description|length > 50 %}...{% endif %}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge badge-info">
+                        {% if job.test_type == 'security_backend' %}
+                            <i class="fas fa-server"></i> Backend
+                        {% elif job.test_type == 'security_frontend' %}
+                            <i class="fas fa-desktop"></i> Frontend
+                        {% elif job.test_type == 'security_full' %}
+                            <i class="fas fa-shield-alt"></i> Full
+                        {% else %}
+                            <i class="fas fa-question"></i> {{ job.test_type }}
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge 
+                        {% if job.status == 'completed' %}badge-success
+                        {% elif job.status == 'running' %}badge-primary
+                        {% elif job.status == 'pending' %}badge-warning
+                        {% elif job.status == 'failed' %}badge-danger
+                        {% elif job.status == 'cancelled' %}badge-secondary
+                        {% else %}badge-light{% endif %} job-status-{{ job.status }}">
+                        {% if job.status == 'completed' %}
+                            <i class="fas fa-check"></i> Completed
+                        {% elif job.status == 'running' %}
+                            <i class="fas fa-play"></i> Running
+                        {% elif job.status == 'pending' %}
+                            <i class="fas fa-clock"></i> Pending
+                        {% elif job.status == 'failed' %}
+                            <i class="fas fa-times"></i> Failed
+                        {% elif job.status == 'cancelled' %}
+                            <i class="fas fa-stop"></i> Cancelled
+                        {% else %}
+                            <i class="fas fa-question"></i> {{ job.status|title }}
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1 mr-2" style="height: 20px;">
+                            <div class="progress-bar 
+                                {% if job.status == 'completed' %}bg-success
+                                {% elif job.status == 'running' %}bg-primary
+                                {% elif job.status == 'failed' %}bg-danger
+                                {% else %}bg-warning{% endif %}"
+                                 role="progressbar" 
+                                 style="width: {{ job.progress }}%">
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ job.completed_tasks }}/{{ job.total_tasks }}</small>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge badge-outline-secondary">
+                        {{ job.total_tasks }} apps
+                    </span>
+                </td>
+                <td>
+                    {% if job.total_issues > 0 %}
+                    <span class="badge badge-warning">
+                        <i class="fas fa-exclamation-triangle"></i> {{ job.total_issues }}
+                    </span>
+                    {% else %}
+                    <span class="badge badge-success">
+                        <i class="fas fa-check"></i> 0
+                    </span>
+                    {% endif %}
+                </td>
+                <td>
+                    <small class="text-muted" title="{{ job.created_at }}">
+                        {{ job.created_at_relative }}
+                    </small>
+                </td>
+                <td>
+                    <small class="text-muted">
+                        {% if job.duration %}
+                            {{ job.duration_formatted }}
+                        {% else %}
+                            --
+                        {% endif %}
+                    </small>
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                                onclick="showJobDetails('{{ job.job_id }}')"
+                                title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        
+                        {% if job.status in ['completed'] %}
+                        <button type="button" class="btn btn-outline-success btn-sm" 
+                                onclick="showJobResults('{{ job.job_id }}')"
+                                title="View Results">
+                            <i class="fas fa-chart-bar"></i>
+                        </button>
+                        {% endif %}
+
+                        {% if job.status in ['pending', 'failed'] %}
+                        <button type="button" class="btn btn-outline-success btn-sm" 
+                                onclick="startJob('{{ job.job_id }}', this)"
+                                title="Start Job">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        {% endif %}
+
+                        {% if job.status == 'running' %}
+                        <button type="button" class="btn btn-outline-warning btn-sm" 
+                                onclick="pauseJob('{{ job.job_id }}', this)"
+                                title="Pause Job">
+                            <i class="fas fa-pause"></i>
+                        </button>
+                        {% endif %}
+
+                        {% if job.status in ['running', 'pending'] %}
+                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                onclick="cancelJob('{{ job.job_id }}', this)"
+                                title="Cancel Job">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        {% endif %}
+
+                        {% if job.status in ['completed', 'failed', 'cancelled'] %}
+                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                onclick="deleteJob('{{ job.job_id }}', this)"
+                                title="Delete Job">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-tasks text-muted" style="font-size: 3rem;"></i>
+        <h5 class="mt-3 text-muted">No batch jobs found</h5>
+        <p class="text-muted">Create your first batch security test to get started.</p>
+        <button type="button" class="btn btn-success" onclick="showCreateBatchModal()">
+            <i class="fas fa-plus mr-1"></i>
+            Create Batch Job
+        </button>
+    </div>
+    {% endif %}
+</div>

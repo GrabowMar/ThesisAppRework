@@ -1,0 +1,322 @@
+<!-- Batch Job Details Partial -->
+<div class="row">
+    <div class="col-md-8">
+        <!-- Job Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Job Information
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Job Name:</dt>
+                            <dd class="col-sm-8">{{ job.job_name }}</dd>
+                            
+                            <dt class="col-sm-4">Status:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge 
+                                    {% if job.status == 'completed' %}badge-success
+                                    {% elif job.status == 'running' %}badge-primary
+                                    {% elif job.status == 'pending' %}badge-warning
+                                    {% elif job.status == 'failed' %}badge-danger
+                                    {% elif job.status == 'cancelled' %}badge-secondary
+                                    {% else %}badge-light{% endif %}">
+                                    {{ job.status|title }}
+                                </span>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Test Type:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge badge-info">{{ job.test_type|replace('_', ' ')|title }}</span>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Priority:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge 
+                                    {% if job.priority == 'high' %}badge-danger
+                                    {% elif job.priority == 'normal' %}badge-primary
+                                    {% else %}badge-secondary{% endif %}">
+                                    {{ job.priority|title }}
+                                </span>
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Created:</dt>
+                            <dd class="col-sm-8">{{ job.created_at }}</dd>
+                            
+                            <dt class="col-sm-4">Started:</dt>
+                            <dd class="col-sm-8">{{ job.started_at or 'Not started' }}</dd>
+                            
+                            <dt class="col-sm-4">Completed:</dt>
+                            <dd class="col-sm-8">{{ job.completed_at or 'Not completed' }}</dd>
+                            
+                            <dt class="col-sm-4">Duration:</dt>
+                            <dd class="col-sm-8">{{ job.duration_formatted or 'N/A' }}</dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                {% if job.description %}
+                <div class="mt-3">
+                    <strong>Description:</strong>
+                    <p class="text-muted">{{ job.description }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Task Progress -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-tasks mr-2"></i>
+                    Task Progress
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar 
+                        {% if job.status == 'completed' %}bg-success
+                        {% elif job.status == 'running' %}bg-primary
+                        {% elif job.status == 'failed' %}bg-danger
+                        {% else %}bg-warning{% endif %}"
+                         role="progressbar" 
+                         style="width: {{ job.progress }}%">
+                        {{ job.progress }}%
+                    </div>
+                </div>
+                
+                <div class="row text-center">
+                    <div class="col-3">
+                        <div class="stat-box">
+                            <div class="stat-value">{{ job.total_tasks }}</div>
+                            <div class="stat-label">Total</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-box">
+                            <div class="stat-value">{{ job.completed_tasks }}</div>
+                            <div class="stat-label">Completed</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-box">
+                            <div class="stat-value">{{ job.failed_tasks }}</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-box">
+                            <div class="stat-value">{{ job.pending_tasks }}</div>
+                            <div class="stat-label">Pending</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task List -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-list mr-2"></i>
+                    Individual Tasks
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Application</th>
+                                <th>Status</th>
+                                <th>Issues</th>
+                                <th>Duration</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in job.tasks %}
+                            <tr>
+                                <td>
+                                    <strong>{{ task.model }}</strong>
+                                    <br><small class="text-muted">App {{ task.app_num }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge badge-sm
+                                        {% if task.status == 'completed' %}badge-success
+                                        {% elif task.status == 'running' %}badge-primary
+                                        {% elif task.status == 'pending' %}badge-warning
+                                        {% elif task.status == 'failed' %}badge-danger
+                                        {% else %}badge-light{% endif %}">
+                                        {{ task.status|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if task.issues_count > 0 %}
+                                    <span class="badge badge-warning">{{ task.issues_count }}</span>
+                                    {% else %}
+                                    <span class="badge badge-success">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ task.duration_formatted or 'N/A' }}</small>
+                                </td>
+                                <td>
+                                    {% if task.status == 'completed' %}
+                                    <button class="btn btn-outline-primary btn-sm" 
+                                            onclick="showTaskResults('{{ task.task_id }}')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Configuration -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-cog mr-2"></i>
+                    Configuration
+                </h6>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-6">Concurrency:</dt>
+                    <dd class="col-sm-6">{{ job.concurrency }}</dd>
+                    
+                    <dt class="col-sm-6">Tools:</dt>
+                    <dd class="col-sm-6">
+                        {% for tool in job.tools %}
+                        <span class="badge badge-outline-primary">{{ tool }}</span>
+                        {% endfor %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Security Summary -->
+        {% if job.status == 'completed' %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-shield-alt mr-2"></i>
+                    Security Summary
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <div class="stat-box">
+                        <div class="stat-value text-{{ 'danger' if job.total_issues > 0 else 'success' }}">
+                            {{ job.total_issues }}
+                        </div>
+                        <div class="stat-label">Total Issues</div>
+                    </div>
+                </div>
+                
+                {% if job.issues_by_severity %}
+                <div class="severity-breakdown">
+                    {% for severity, count in job.issues_by_severity.items() %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge 
+                            {% if severity == 'critical' %}badge-danger
+                            {% elif severity == 'high' %}badge-warning
+                            {% elif severity == 'medium' %}badge-info
+                            {% else %}badge-secondary{% endif %}">
+                            {{ severity|title }}
+                        </span>
+                        <span>{{ count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Job Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-play mr-2"></i>
+                    Actions
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if job.status in ['pending', 'failed'] %}
+                    <button type="button" class="btn btn-success" 
+                            onclick="startJob('{{ job.job_id }}', this)">
+                        <i class="fas fa-play mr-1"></i> Start Job
+                    </button>
+                    {% endif %}
+
+                    {% if job.status == 'running' %}
+                    <button type="button" class="btn btn-warning" 
+                            onclick="pauseJob('{{ job.job_id }}', this)">
+                        <i class="fas fa-pause mr-1"></i> Pause Job
+                    </button>
+                    {% endif %}
+
+                    {% if job.status in ['running', 'pending'] %}
+                    <button type="button" class="btn btn-danger" 
+                            onclick="cancelJob('{{ job.job_id }}', this)">
+                        <i class="fas fa-stop mr-1"></i> Cancel Job
+                    </button>
+                    {% endif %}
+
+                    {% if job.status == 'completed' %}
+                    <button type="button" class="btn btn-primary" 
+                            onclick="showJobResults('{{ job.job_id }}')">
+                        <i class="fas fa-chart-bar mr-1"></i> View Results
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" 
+                            onclick="exportJobResults('{{ job.job_id }}')">
+                        <i class="fas fa-download mr-1"></i> Export Results
+                    </button>
+                    {% endif %}
+
+                    {% if job.status in ['completed', 'failed', 'cancelled'] %}
+                    <button type="button" class="btn btn-outline-danger" 
+                            onclick="deleteJob('{{ job.job_id }}', this)">
+                        <i class="fas fa-trash mr-1"></i> Delete Job
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.stat-box {
+    text-align: center;
+    padding: 1rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+</style>

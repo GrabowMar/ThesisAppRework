@@ -1,0 +1,881 @@
+{% extends "base.html" %}
+
+{% block title %}Container Batch Operations - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fab fa-docker text-primary mr-2"></i>
+                Container Batch Operations
+            </h1>
+            <p class="page-subtitle">
+                Orchestrate and manage containerized AI applications at scale
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-success btn-sm" 
+                    onclick="showCreateBatchModal()"
+                    id="create-batch-btn">
+                <i class="fas fa-plus mr-1"></i>
+                New Batch Operation
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" 
+                    hx-get="/batch-testing/api/jobs"
+                    hx-target="#batch-jobs-list"
+                    hx-indicator="#loading-overlay">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh
+            </button>
+            <button type="button" class="btn btn-info btn-sm" 
+                    onclick="showContainerOverview()"
+                    id="container-overview-btn">
+                <i class="fas fa-network-wired mr-1"></i>
+                Container Overview
+            </button>
+        </div>
+    </div>
+
+    <!-- Container System Status -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card bg-gradient-primary text-white">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h5 class="card-title mb-1">
+                                <i class="fab fa-docker mr-2"></i>
+                                Docker Container Ecosystem
+                            </h5>
+                            <p class="card-text mb-0">
+                                Managing {{ stats.total_containers or 0 }} containerized AI applications across {{ stats.total_models or 0 }} AI models
+                            </p>
+                        </div>
+                        <div class="col-auto">
+                            <div class="row text-center">
+                                <div class="col">
+                                    <div class="h4 mb-0" id="running-containers">{{ stats.running_containers or 0 }}</div>
+                                    <small>Running</small>
+                                </div>
+                                <div class="col">
+                                    <div class="h4 mb-0" id="stopped-containers">{{ stats.stopped_containers or 0 }}</div>
+                                    <small>Stopped</small>
+                                </div>
+                                <div class="col">
+                                    <div class="h4 mb-0" id="healthy-containers">{{ stats.healthy_containers or 0 }}</div>
+                                    <small>Healthy</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-tasks"></i>
+            </div>
+            <div class="stats-card-value" id="total-jobs">
+                {{ stats.total_jobs or 0 }}
+            </div>
+            <div class="stats-card-label">Batch Operations</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-play-circle text-success"></i>
+            </div>
+            <div class="stats-card-value" id="active-operations">
+                {{ stats.running_jobs or 0 }}
+            </div>
+            <div class="stats-card-label">Active Operations</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-cubes text-info"></i>
+            </div>
+            <div class="stats-card-value" id="managed-containers">
+                {{ stats.managed_containers or 0 }}
+            </div>
+            <div class="stats-card-label">Managed Containers</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-exclamation-triangle text-warning"></i>
+            </div>
+            <div class="stats-card-value" id="container-issues">
+                {{ stats.container_issues or 0 }}
+            </div>
+            <div class="stats-card-label">Container Issues</div>
+        </div>
+    </div>
+
+    <!-- Container Operations Management -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-cube mr-2"></i>
+                Container Batch Operations
+            </h6>
+            <div class="d-flex gap-2">
+                <select class="form-control form-control-sm" id="operation-filter" style="width: auto;">
+                    <option value="">All Operations</option>
+                    <option value="start">Container Start</option>
+                    <option value="stop">Container Stop</option>
+                    <option value="restart">Container Restart</option>
+                    <option value="build">Container Build</option>
+                    <option value="security_scan">Security Scan</option>
+                    <option value="health_check">Health Check</option>
+                    <option value="log_collection">Log Collection</option>
+                    <option value="resource_monitor">Resource Monitor</option>
+                </select>
+                <select class="form-control form-control-sm" id="status-filter" style="width: auto;">
+                    <option value="">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <select class="form-control form-control-sm" id="model-filter" style="width: auto;">
+                    <option value="">All Models</option>
+                    <!-- Models will be populated dynamically -->
+                </select>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div id="batch-jobs-list" 
+                 hx-get="/batch-testing/api/jobs"
+                 hx-trigger="load, refreshJobs from:body"
+                 hx-swap="innerHTML">
+                
+                <!-- Loading State -->
+                <div class="text-center py-5">
+                    <div class="spinner mb-3"></div>
+                    <p class="text-muted">Loading container operations...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Container Batch Operation Modal -->
+<div class="modal fade" id="createBatchModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fab fa-docker mr-2"></i>
+                    Create Container Batch Operation
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="create-batch-form" 
+                  hx-post="/batch-testing/api/create"
+                  hx-swap="none"
+                  hx-on="htmx:afterRequest: handleBatchCreated(event)">
+                <div class="modal-body">
+                    <!-- Operation Configuration -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">Operation Name</label>
+                                <input type="text" class="form-control" name="job_name" 
+                                       placeholder="e.g., Claude Apps Restart - Q4 2025" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">Operation Type</label>
+                                <select class="form-control" name="operation_type" required onchange="handleOperationTypeChange(this.value)">
+                                    <option value="">Select operation type</option>
+                                    <optgroup label="Container Lifecycle">
+                                        <option value="start_containers">Start Containers</option>
+                                        <option value="stop_containers">Stop Containers</option>
+                                        <option value="restart_containers">Restart Containers</option>
+                                        <option value="rebuild_containers">Rebuild Containers</option>
+                                    </optgroup>
+                                    <optgroup label="Security & Analysis">
+                                        <option value="security_backend">Backend Security Analysis</option>
+                                        <option value="security_frontend">Frontend Security Analysis</option>
+                                        <option value="security_full">Full Security Analysis</option>
+                                        <option value="vulnerability_scan">Vulnerability Scanning</option>
+                                    </optgroup>
+                                    <optgroup label="Monitoring & Health">
+                                        <option value="health_check">Container Health Check</option>
+                                        <option value="resource_monitor">Resource Monitoring</option>
+                                        <option value="log_collection">Log Collection</option>
+                                        <option value="performance_test">Performance Testing</option>
+                                    </optgroup>
+                                    <optgroup label="Maintenance">
+                                        <option value="cleanup_containers">Container Cleanup</option>
+                                        <option value="image_update">Image Updates</option>
+                                        <option value="network_reset">Network Reset</option>
+                                        <option value="volume_backup">Volume Backup</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="2"
+                                  placeholder="Optional description of this batch operation..."></textarea>
+                    </div>
+
+                    <!-- Operation-Specific Configuration -->
+                    <div id="operation-config" class="form-group d-none">
+                        <!-- Security Analysis Tools (shown for security operations) -->
+                        <div id="security-tools-config" class="d-none">
+                            <label class="form-label">Security Analysis Tools</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tools" value="bandit" id="tool-bandit" checked>
+                                        <label class="form-check-label" for="tool-bandit">
+                                            <i class="fab fa-python mr-1"></i> Bandit (Python Security)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tools" value="safety" id="tool-safety" checked>
+                                        <label class="form-check-label" for="tool-safety">
+                                            <i class="fas fa-shield-alt mr-1"></i> Safety (Dependency Check)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tools" value="semgrep" id="tool-semgrep">
+                                        <label class="form-check-label" for="tool-semgrep">
+                                            <i class="fas fa-search mr-1"></i> Semgrep (Code Analysis)
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tools" value="eslint" id="tool-eslint" checked>
+                                        <label class="form-check-label" for="tool-eslint">
+                                            <i class="fab fa-js-square mr-1"></i> ESLint (JavaScript)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tools" value="retire" id="tool-retire" checked>
+                                        <label class="form-check-label" for="tool-retire">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i> Retire.js (Dependencies)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tools" value="snyk" id="tool-snyk">
+                                        <label class="form-check-label" for="tool-snyk">
+                                            <i class="fas fa-bug mr-1"></i> Snyk (Vulnerability)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Container Lifecycle Options -->
+                        <div id="lifecycle-config" class="d-none">
+                            <label class="form-label">Container Options</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="force_recreate" id="force-recreate">
+                                        <label class="form-check-label" for="force-recreate">
+                                            Force recreate containers
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="pull_images" id="pull-images" checked>
+                                        <label class="form-check-label" for="pull-images">
+                                            Pull latest images before operation
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="remove_orphans" id="remove-orphans">
+                                        <label class="form-check-label" for="remove-orphans">
+                                            Remove orphaned containers
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="wait_healthy" id="wait-healthy" checked>
+                                        <label class="form-check-label" for="wait-healthy">
+                                            Wait for containers to be healthy
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Monitoring Options -->
+                        <div id="monitoring-config" class="d-none">
+                            <label class="form-label">Monitoring Configuration</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Monitor Duration (minutes)</label>
+                                        <input type="number" class="form-control" name="monitor_duration" value="30" min="1" max="1440">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Sample Interval (seconds)</label>
+                                        <input type="number" class="form-control" name="sample_interval" value="30" min="5" max="300">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Target Selection -->
+                    <div class="form-group">
+                        <label class="form-label">Container Target Selection</label>
+                        <div class="selection-method-tabs">
+                            <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                                <label class="btn btn-outline-primary active">
+                                    <input type="radio" name="selection_method" value="all" checked> All Containers
+                                </label>
+                                <label class="btn btn-outline-primary">
+                                    <input type="radio" name="selection_method" value="models"> By AI Models
+                                </label>
+                                <label class="btn btn-outline-primary">
+                                    <input type="radio" name="selection_method" value="running"> Running Only
+                                </label>
+                                <label class="btn btn-outline-primary">
+                                    <input type="radio" name="selection_method" value="custom"> Custom Selection
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Model Selection (Hidden by default) -->
+                        <div id="model-selection" class="mt-3 d-none">
+                            <label class="form-label">Select AI Models</label>
+                            <div class="model-grid" id="model-checkboxes">
+                                <!-- Models loaded via HTMX -->
+                                <div class="text-center py-3">
+                                    <div class="spinner"></div>
+                                    <p class="text-muted">Loading AI models...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Running Containers Selection -->
+                        <div id="running-selection" class="mt-3 d-none">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                This operation will target only currently running containers.
+                            </div>
+                        </div>
+
+                        <!-- Custom Selection (Hidden by default) -->
+                        <div id="custom-selection" class="mt-3 d-none">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">Models (comma-separated)</label>
+                                    <input type="text" class="form-control" name="custom_models" 
+                                           placeholder="e.g., anthropic_claude-3.7-sonnet, openai_gpt-4">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">App Numbers (range or list)</label>
+                                    <input type="text" class="form-control" name="custom_apps" 
+                                           placeholder="e.g., 1-10 or 1,3,5,7">
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">Container Types</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="container_types" value="backend" id="type-backend" checked>
+                                        <label class="form-check-label" for="type-backend">Backend Containers</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="container_types" value="frontend" id="type-frontend" checked>
+                                        <label class="form-check-label" for="type-frontend">Frontend Containers</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Container Status Filter</label>
+                                    <select class="form-control" name="status_filter">
+                                        <option value="">All Statuses</option>
+                                        <option value="running">Running Only</option>
+                                        <option value="stopped">Stopped Only</option>
+                                        <option value="unhealthy">Unhealthy Only</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Execution Configuration -->
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label class="form-label">Concurrency Level</label>
+                                <select class="form-control" name="concurrency">
+                                    <option value="1">Sequential (1 at a time)</option>
+                                    <option value="2">Low (2 concurrent)</option>
+                                    <option value="4" selected>Medium (4 concurrent)</option>
+                                    <option value="8">High (8 concurrent)</option>
+                                    <option value="16">Maximum (16 concurrent)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label class="form-label">Priority</label>
+                                <select class="form-control" name="priority">
+                                    <option value="low">Low</option>
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="critical">Critical</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label class="form-label">Timeout (minutes)</label>
+                                <input type="number" class="form-control" name="timeout" value="30" min="1" max="480">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options -->
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="auto_start" id="auto-start" checked>
+                            <label class="form-check-label" for="auto-start">
+                                Start operation immediately after creation
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="fail_fast" id="fail-fast">
+                            <label class="form-check-label" for="fail-fast">
+                                Stop operation on first failure (fail-fast)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="cleanup_on_error" id="cleanup-error" checked>
+                            <label class="form-check-label" for="cleanup-error">
+                                Cleanup resources on operation failure
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="send_notifications" id="send-notifications">
+                            <label class="form-check-label" for="send-notifications">
+                                Send notifications on completion
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fab fa-docker mr-1"></i>
+                        Create Batch Operation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Container Overview Modal -->
+<div class="modal fade" id="containerOverviewModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-network-wired mr-2"></i>
+                    Container Ecosystem Overview
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="container-overview-content">
+                <!-- Content loaded via HTMX -->
+                <div class="text-center py-5">
+                    <div class="spinner mb-3"></div>
+                    <p class="text-muted">Loading container overview...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Operation Details Modal -->
+<div class="modal fade" id="operationDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-tasks mr-2"></i>
+                    Container Operation Details
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="operation-details-content">
+                <!-- Content loaded via HTMX -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Modal -->
+<div class="modal fade" id="resultsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-bar mr-2"></i>
+                    Operation Results & Analytics
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="results-content">
+                <!-- Content loaded via HTMX -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Container Batch Operations JavaScript
+class ContainerBatchOperations {
+    constructor() {
+        this.autoRefreshInterval = null;
+        this.selectedOperations = new Set();
+        this.containerStats = {};
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+        this.setupSelectionHandlers();
+        this.loadContainerStats();
+    }
+
+    setupEventListeners() {
+        // Filter events
+        document.addEventListener('change', (e) => {
+            if (e.target.matches('#operation-filter, #status-filter, #model-filter')) {
+                this.applyFilters();
+            }
+        });
+
+        // Selection method handling
+        document.addEventListener('change', (e) => {
+            if (e.target.matches('input[name="selection_method"]')) {
+                this.handleSelectionMethodChange(e.target.value);
+            }
+            if (e.target.matches('select[name="operation_type"]')) {
+                this.handleOperationTypeChange(e.target.value);
+            }
+        });
+
+        // HTMX events
+        document.addEventListener('htmx:afterRequest', (e) => {
+            if (e.detail.successful && e.target.id === 'batch-jobs-list') {
+                this.updateStatsFromOperations();
+            }
+        });
+
+        // Container monitoring
+        document.addEventListener('containerStatusChanged', (e) => {
+            this.handleContainerStatusChange(e.detail);
+        });
+    }
+
+    setupAutoRefresh() {
+        // Auto-refresh every 10 seconds for active operations
+        this.autoRefreshInterval = setInterval(() => {
+            if (document.visibilityState === 'visible' && this.hasActiveOperations()) {
+                htmx.trigger('#batch-jobs-list', 'refreshJobs');
+                this.updateContainerStats();
+            }
+        }, 10000);
+    }
+
+    setupSelectionHandlers() {
+        // Load models when model selection is shown
+        document.addEventListener('htmx:configRequest', (e) => {
+            if (e.target.matches('#model-checkboxes')) {
+                e.detail.headers['HX-Target'] = 'model-checkboxes';
+            }
+        });
+    }
+
+    loadContainerStats() {
+        // Load initial container statistics
+        fetch('/api/containers/stats')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.containerStats = data.data;
+                    this.updateContainerDisplayStats();
+                }
+            })
+            .catch(error => console.warn('Failed to load container stats:', error));
+    }
+
+    updateContainerStats() {
+        // Refresh container statistics
+        this.loadContainerStats();
+    }
+
+    updateContainerDisplayStats() {
+        // Update the container status display
+        const stats = this.containerStats;
+        const runningEl = document.getElementById('running-containers');
+        const stoppedEl = document.getElementById('stopped-containers');
+        const healthyEl = document.getElementById('healthy-containers');
+
+        if (runningEl) runningEl.textContent = stats.running || 0;
+        if (stoppedEl) stoppedEl.textContent = stats.stopped || 0;
+        if (healthyEl) healthyEl.textContent = stats.healthy || 0;
+    }
+
+    handleSelectionMethodChange(method) {
+        // Hide all selection divs
+        document.getElementById('model-selection').classList.add('d-none');
+        document.getElementById('running-selection').classList.add('d-none');
+        document.getElementById('custom-selection').classList.add('d-none');
+
+        if (method === 'models') {
+            document.getElementById('model-selection').classList.remove('d-none');
+            // Load models if not already loaded
+            if (!document.querySelector('#model-checkboxes .form-check')) {
+                htmx.ajax('GET', '/batch-testing/api/models', {target: '#model-checkboxes'});
+            }
+        } else if (method === 'running') {
+            document.getElementById('running-selection').classList.remove('d-none');
+        } else if (method === 'custom') {
+            document.getElementById('custom-selection').classList.remove('d-none');
+        }
+    }
+
+    handleOperationTypeChange(operationType) {
+        // Show/hide operation-specific configuration
+        const configDiv = document.getElementById('operation-config');
+        const securityConfig = document.getElementById('security-tools-config');
+        const lifecycleConfig = document.getElementById('lifecycle-config');
+        const monitoringConfig = document.getElementById('monitoring-config');
+
+        // Hide all configs first
+        configDiv.classList.add('d-none');
+        securityConfig.classList.add('d-none');
+        lifecycleConfig.classList.add('d-none');
+        monitoringConfig.classList.add('d-none');
+
+        if (operationType) {
+            configDiv.classList.remove('d-none');
+
+            // Show relevant config based on operation type
+            if (operationType.startsWith('security_') || operationType === 'vulnerability_scan') {
+                securityConfig.classList.remove('d-none');
+            } else if (['start_containers', 'stop_containers', 'restart_containers', 'rebuild_containers'].includes(operationType)) {
+                lifecycleConfig.classList.remove('d-none');
+            } else if (['health_check', 'resource_monitor', 'performance_test'].includes(operationType)) {
+                monitoringConfig.classList.remove('d-none');
+            }
+        }
+    }
+
+    applyFilters() {
+        const operation = document.getElementById('operation-filter')?.value || '';
+        const status = document.getElementById('status-filter')?.value || '';
+        const model = document.getElementById('model-filter')?.value || '';
+
+        const params = new URLSearchParams();
+        if (operation) params.set('operation_type', operation);
+        if (status) params.set('status', status);
+        if (model) params.set('model', model);
+
+        const url = `/batch-testing/api/jobs?${params.toString()}`;
+        htmx.ajax('GET', url, {target: '#batch-jobs-list'});
+    }
+
+    hasActiveOperations() {
+        return document.querySelectorAll('.job-status-running, .job-status-pending').length > 0;
+    }
+
+    updateStatsFromOperations() {
+        try {
+            const operationRows = document.querySelectorAll('#batch-jobs-list .job-row');
+            const activeOperations = document.querySelectorAll('.job-status-running').length;
+            const managedContainers = this.calculateManagedContainers();
+            
+            // Update displayed stats
+            const totalJobsEl = document.getElementById('total-jobs');
+            const activeOperationsEl = document.getElementById('active-operations');
+            const managedContainersEl = document.getElementById('managed-containers');
+            
+            if (totalJobsEl) totalJobsEl.textContent = operationRows.length;
+            if (activeOperationsEl) activeOperationsEl.textContent = activeOperations;
+            if (managedContainersEl) managedContainersEl.textContent = managedContainers;
+        } catch (error) {
+            console.warn('Failed to update stats from operations:', error);
+        }
+    }
+
+    calculateManagedContainers() {
+        // Calculate total managed containers based on operations
+        const operationRows = document.querySelectorAll('#batch-jobs-list .job-row');
+        let totalContainers = 0;
+        
+        operationRows.forEach(row => {
+            const containersText = row.querySelector('.container-count')?.textContent;
+            if (containersText) {
+                const match = containersText.match(/(\d+)/);
+                if (match) {
+                    totalContainers += parseInt(match[1]);
+                }
+            }
+        });
+        
+        return totalContainers;
+    }
+
+    handleContainerStatusChange(details) {
+        // Handle real-time container status changes
+        this.updateContainerStats();
+        
+        // Show notification if significant
+        if (details.severity === 'error') {
+            this.showToast(`Container ${details.container_name}: ${details.message}`, 'danger');
+        }
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 6000);
+    }
+}
+
+// Global functions
+window.showCreateBatchModal = function() {
+    $('#createBatchModal').modal('show');
+};
+
+window.showContainerOverview = function() {
+    htmx.ajax('GET', '/api/containers/overview', {
+        target: '#container-overview-content'
+    });
+    $('#containerOverviewModal').modal('show');
+};
+
+window.showOperationDetails = function(operationId) {
+    htmx.ajax('GET', `/batch-testing/api/job/${operationId}/details`, {
+        target: '#operation-details-content'
+    });
+    $('#operationDetailsModal').modal('show');
+};
+
+window.showOperationResults = function(operationId) {
+    htmx.ajax('GET', `/batch-testing/api/job/${operationId}/results`, {
+        target: '#results-content'
+    });
+    $('#resultsModal').modal('show');
+};
+
+window.startOperation = function(operationId, button) {
+    handleOperationAction('start', operationId, button);
+};
+
+window.pauseOperation = function(operationId, button) {
+    handleOperationAction('pause', operationId, button);
+};
+
+window.cancelOperation = function(operationId, button) {
+    if (confirm('Are you sure you want to cancel this container operation?')) {
+        handleOperationAction('cancel', operationId, button);
+    }
+};
+
+window.deleteOperation = function(operationId, button) {
+    if (confirm('Are you sure you want to delete this operation? This action cannot be undone.')) {
+        handleOperationAction('delete', operationId, button);
+    }
+};
+
+function handleOperationAction(action, operationId, button) {
+    const originalText = button.innerHTML;
+    button.innerHTML = `<div class="spinner"></div> ${action}ing...`;
+    button.disabled = true;
+
+    const method = action === 'delete' ? 'DELETE' : 'POST';
+    const url = `/batch-testing/api/job/${operationId}/${action}`;
+
+    htmx.ajax(method, url)
+        .then(() => {
+            containerBatchOps.showToast(`Operation ${action} successful`, 'success');
+            htmx.trigger('#batch-jobs-list', 'refreshJobs');
+        })
+        .catch(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+            containerBatchOps.showToast(`Operation ${action} failed`, 'danger');
+        });
+}
+
+window.handleOperationTypeChange = function(operationType) {
+    if (window.containerBatchOps) {
+        window.containerBatchOps.handleOperationTypeChange(operationType);
+    }
+};
+
+window.handleBatchCreated = function(event) {
+    if (event.detail.successful) {
+        const response = JSON.parse(event.detail.xhr.response);
+        if (response.success) {
+            $('#createBatchModal').modal('hide');
+            document.getElementById('create-batch-form').reset();
+            // Reset operation config visibility
+            document.getElementById('operation-config').classList.add('d-none');
+            containerBatchOps.showToast(response.message || 'Container batch operation created successfully!', 'success');
+            htmx.trigger('#batch-jobs-list', 'refreshJobs');
+        } else {
+            containerBatchOps.showToast(response.error || 'Failed to create batch operation', 'danger');
+        }
+    }
+};
+
+// Initialize
+let containerBatchOps;
+document.addEventListener('DOMContentLoaded', function() {
+    containerBatchOps = new ContainerBatchOperations();
+    window.containerBatchOps = containerBatchOps;
+});
+</script>
+{% endblock %}
