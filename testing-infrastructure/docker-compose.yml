@@ -196,7 +196,7 @@ volumes:
     driver_opts:
       type: bind
       o: bind
-      device: ${PWD}/../misc/models
+      device: C:\Users\grabowmar\Desktop\ThesisAppRework\misc\models
   
   analysis-results:
     driver: local

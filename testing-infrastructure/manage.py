@@ -19,7 +19,11 @@ import yaml
 
 # Add shared API client to path
 sys.path.append(str(Path(__file__).parent / "shared" / "api-contracts"))
-from testing_api_client import SyncTestingAPIClient
+try:
+    from testing_api_client import SyncTestingAPIClient
+except ImportError:
+    print("Warning: Testing API client not available. Some features may be limited.")
+    SyncTestingAPIClient = None
 
 
 class TestingInfrastructureManager:
@@ -28,7 +32,7 @@ class TestingInfrastructureManager:
     def __init__(self, base_path: Path):
         self.base_path = base_path
         self.compose_file = base_path / "docker-compose.yml"
-        self.client = SyncTestingAPIClient()
+        self.client = SyncTestingAPIClient() if SyncTestingAPIClient else None
     
     def build_containers(self, rebuild: bool = False) -> bool:
         """Build all testing containers."""

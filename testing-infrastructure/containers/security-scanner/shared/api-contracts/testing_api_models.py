@@ -148,19 +148,6 @@ class SecurityTestResult(TestResult):
     medium_count: int = 0
     low_count: int = 0
     tools_used: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'total_issues': self.total_issues,
-            'critical_count': self.critical_count,
-            'high_count': self.high_count,
-            'medium_count': self.medium_count,
-            'low_count': self.low_count,
-            'tools_used': self.tools_used
-        })
-        return base_dict
 
 
 @dataclass
