@@ -1,0 +1,18 @@
+<div class="alert alert-info">
+    <h6><i class="fas fa-rocket"></i> Containerized Security Analysis Submitted</h6>
+    <p>Analysis has been submitted to containerized testing service.</p>
+    <p><strong>Test ID:</strong> <code>{{ test_id }}</code></p>
+    <p><strong>Tools:</strong> {{ tools|join(', ') }}</p>
+    <div class="mt-3">
+        <button class="btn btn-primary btn-sm" 
+                hx-get="/api/analysis/{{ model }}/{{ app_num }}/status/{{ test_id }}"
+                hx-target="#analysis-results"
+                hx-trigger="click, every 5s">
+            <i class="fas fa-sync-alt"></i> Check Status
+        </button>
+        <button class="btn btn-secondary btn-sm ml-2"
+                onclick="document.getElementById('analysis-results').innerHTML='<div class=\'alert alert-info\'>Analysis cancelled by user</div>'">
+            <i class="fas fa-times"></i> Cancel
+        </button>
+    </div>
+</div>

@@ -1,0 +1,10 @@
+<div class="analysis-summary mb-3">
+    <span class="issue-count-badge mr-2">{{ total_issues }} total issues</span>
+    <span class="text-muted">Last updated: {{ last_updated }}</span>
+</div>
+{{ results_html|safe }}
+<script>
+// Update counters
+document.getElementById('security-issues-count').textContent = '{{ total_issues }}';
+document.getElementById('last-scan-time').textContent = '{{ last_scan_time }}';
+</script>

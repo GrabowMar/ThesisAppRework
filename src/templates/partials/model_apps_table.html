@@ -1,0 +1,169 @@
+<!-- Dashboard Model Apps - Compact Table View -->
+<div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+        <thead class="thead-light">
+            <tr>
+                <th width="10%">App</th>
+                <th width="25%">Name</th>
+                <th width="15%">Status</th>
+                <th width="15%">Containers</th>
+                <th width="15%">Ports</th>
+                <th width="15%">Analysis</th>
+                <th width="20%">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for app in apps %}
+            <tr id="app-{{ model_slug|safe_css_id }}-{{ app.app_number }}" class="app-row">
+                <!-- App Number -->
+                <td class="align-middle">
+                    <span class="badge badge-outline-primary px-2">{{ app.app_number }}</span>
+                </td>
+                
+                <!-- App Name -->
+                <td class="align-middle">
+                    <div class="app-info">
+                        <div class="font-weight-medium">{{ app.app_name }}</div>
+                        <small class="text-muted d-block">{{ app.description[:40] }}{% if app.description|length > 40 %}...{% endif %}</small>
+                    </div>
+                </td>
+                
+                <!-- Status -->
+                <td class="align-middle">
+                    <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }} badge-pill">
+                        <i class="fas fa-circle mr-1 icon-sm"></i>
+                        {{ app.status|title }}
+                    </span>
+                </td>
+                
+                <!-- Container Status -->
+                <td class="align-middle">
+                    <div class="d-flex justify-content-start">
+                        <span class="mx-1 {{ 'text-success' if app.containers.frontend_status == 'running' else 'text-muted' }}"
+                              title="Frontend: {{ app.containers.frontend_status|title }}">
+                            <i class="fas fa-globe-americas icon-md"></i>
+                        </span>
+                        <span class="mx-1 {{ 'text-success' if app.containers.backend_status == 'running' else 'text-muted' }}"
+                              title="Backend: {{ app.containers.backend_status|title }}">
+                            <i class="fas fa-cogs icon-md"></i>
+                        </span>
+                        <span class="mx-1 {{ 'text-success' if app.containers.database_status == 'running' else 'text-muted' }}"
+                              title="Database: {{ app.containers.database_status|title }}">
+                            <i class="fas fa-database icon-md"></i>
+                        </span>
+                    </div>
+                </td>
+                
+                <!-- Ports -->
+                <td class="align-middle">
+                    <div class="port-info">
+                        <small class="d-block">
+                            <i class="fas fa-desktop mr-1"></i>{{ app.frontend_port }}
+                        </small>
+                        <small class="d-block">
+                            <i class="fas fa-server mr-1"></i>{{ app.backend_port }}
+                        </small>
+                    </div>
+                </td>
+                
+                <!-- Analysis Summary -->
+                <td class="align-middle">
+                    {% if app.analysis_summary %}
+                    <div class="d-flex justify-content-between analysis-compact">
+                        <span class="text-danger" title="High Issues">
+                            <i class="fas fa-exclamation-triangle"></i> {{ app.analysis_summary.high_issues }}
+                        </span>
+                        <span class="text-warning" title="Medium Issues">
+                            <i class="fas fa-exclamation-circle"></i> {{ app.analysis_summary.medium_issues }}
+                        </span>
+                        <span class="text-success" title="Low Issues">
+                            <i class="fas fa-info-circle"></i> {{ app.analysis_summary.low_issues }}
+                        </span>
+                    </div>
+                    {% if app.performance_summary %}
+                    <div class="mt-1">
+                        <small class="text-muted">
+                            {{ '%.0f'|format(app.performance_summary.avg_response_time) }}ms | 
+                            {{ '%.1f'|format(app.performance_summary.success_rate) }}%
+                        </small>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <small class="text-muted">No analysis</small>
+                    {% endif %}
+                </td>
+                
+                <!-- Actions -->
+                <td class="align-middle">
+                    <div class="btn-group-vertical btn-group-sm w-100" role="group">
+                        <!-- Container Control Row -->
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-success btn-xs"
+                                    hx-post="/api/app/{{ model_slug }}/{{ app.app_number }}/start"
+                                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                                    hx-swap="outerHTML"
+                                    data-toggle="tooltip" title="Start containers">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-xs"
+                                    hx-post="/api/app/{{ model_slug }}/{{ app.app_number }}/stop"
+                                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                                    hx-swap="outerHTML"
+                                    data-toggle="tooltip" title="Stop containers">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-warning btn-xs"
+                                    hx-post="/api/app/{{ model_slug }}/{{ app.app_number }}/restart"
+                                    hx-target="#app-{{ model_slug|safe_css_id }}-{{ app.app_number }}"
+                                    hx-swap="outerHTML"
+                                    data-toggle="tooltip" title="Restart containers">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                        </div>
+                        <!-- Access/View Row -->
+                        <div class="btn-group btn-group-sm mt-1" role="group">
+                            <!-- Frontend Link (First Button) -->
+                            {% if app.status == 'running' and app.frontend_port %}
+                            <a class="btn btn-outline-success btn-xs" 
+                               href="http://localhost:{{ app.frontend_port }}"
+                               target="_blank"
+                               data-toggle="tooltip" title="Open frontend application">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                            {% else %}
+                            <button type="button" class="btn btn-outline-secondary btn-xs" disabled
+                                    data-toggle="tooltip" title="Frontend not available (app not running)">
+                                <i class="fas fa-external-link-alt"></i>
+                            </button>
+                            {% endif %}
+                            
+                            <!-- App Overview Page (Second Button) -->
+                            <a class="btn btn-outline-primary btn-xs" 
+                               href="/app/{{ model_slug|url_encode_model }}/{{ app.app_number }}/overview"
+                               data-toggle="tooltip" title="View detailed application overview">
+                                <i class="fas fa-info-circle"></i>
+                            </a>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- No Apps State -->
+{% if not apps %}
+<div class="text-center py-4">
+    <i class="fas fa-box-open fa-2x text-muted mb-2"></i>
+    <p class="text-muted mb-0">No applications found for this model</p>
+</div>
+{% endif %}
+
+<script>
+// Initialize tooltips for app table
+$(document).ready(function() {
+    $('[title]').tooltip();
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>

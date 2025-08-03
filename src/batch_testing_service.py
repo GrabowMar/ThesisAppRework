@@ -35,17 +35,63 @@ class ContainerBatchOperationService:
         self.active_executors = {}
         self.models_base_dir = Path("misc/models")
         
+"""
+Container Batch Operations Service
+==================================
+
+Service for managing batch container operations using the Docker infrastructure.
+Integrates with DockerManager to orchestrate containerized AI applications at scale.
+Enhanced with comprehensive logging and performance monitoring.
+"""
+
+import asyncio
+import json
+import logging
+import uuid
+import time
+import requests
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+from pathlib import Path
+
+from extensions import db
+from models import ModelCapability
+from core_services import DockerManager, DockerUtils
+
+
+class ContainerBatchOperationService:
+    """Service for managing batch container operations with Docker infrastructure and enhanced logging."""
+    
+    def __init__(self, docker_manager: Optional[DockerManager] = None):
+        self.logger = logging.getLogger(__name__)
+        self.docker_manager = docker_manager or DockerManager()
+        self.security_scanner_url = "http://localhost:8001"
+        self.operations = {}  # In-memory operation storage (could be moved to database)
+        self.operation_lock = threading.RLock()
+        self.active_executors = {}
+        self.models_base_dir = Path("misc/models")
+        
+        # Log service initialization
+        self.logger.info("Container Batch Operation Service initialized")
+        self.logger.debug(f"Models base directory: {self.models_base_dir}")
+        
     def create_batch_operation(self, operation_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new batch container operation."""
+        """Create a new batch container operation with comprehensive logging."""
+        operation_start = time.time()
+        
         try:
             with self.operation_lock:
                 operation_id = str(uuid.uuid4())
+                self.logger.info(f"Creating batch operation [{operation_id}]: {operation_config.get('job_name', 'Unnamed')}")
                 
                 # Validate configuration
                 self._validate_operation_config(operation_config)
                 
                 # Build container list based on selection
                 container_list = self._build_container_list(operation_config)
+                self.logger.info(f"Operation [{operation_id}] will process {len(container_list)} containers")
                 
                 # Create operation object
                 operation = {
@@ -76,6 +122,7 @@ class ContainerBatchOperationService:
                 }
                 
                 # Initialize tasks for each container
+                tasks_created = 0
                 for container in container_list:
                     task = {
                         'task_id': str(uuid.uuid4()),
@@ -92,25 +139,39 @@ class ContainerBatchOperationService:
                         'error_message': None
                     }
                     operation['tasks'].append(task)
+                    tasks_created += 1
                 
                 self.operations[operation_id] = operation
                 
+                # Log operation creation metrics
+                creation_time = (time.time() - operation_start) * 1000
+                self.logger.info(f"Batch operation [{operation_id}] created successfully in {creation_time:.2f}ms with {tasks_created} tasks")
+                
                 # Auto-start if requested
                 if operation_config.get('auto_start', False):
+                    self.logger.info(f"Auto-starting operation [{operation_id}]")
                     self._start_operation_execution(operation_id)
                 
-                self.logger.info(f"Created batch operation {operation_id} with {len(container_list)} containers")
                 return {
                     'success': True,
-                    'job_id': operation_id,  # Keep compatibility
-                    'message': f'Container batch operation created with {len(container_list)} containers'
+                    'operation_id': operation_id,
+                    'message': f'Batch operation created with {len(container_list)} containers',
+                    'details': {
+                        'total_containers': len(container_list),
+                        'operation_type': operation_config['operation_type'],
+                        'tools': operation_config.get('tools', []),
+                        'concurrency': operation['concurrency'],
+                        'timeout_minutes': operation['timeout'] // 60
+                    }
                 }
                 
         except Exception as e:
-            self.logger.error(f"Failed to create batch operation: {str(e)}")
+            creation_time = (time.time() - operation_start) * 1000
+            self.logger.error(f"Failed to create batch operation after {creation_time:.2f}ms: {e}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': str(e),
+                'message': 'Failed to create batch operation'
             }
     
     def start_operation(self, operation_id: str) -> Dict[str, Any]:

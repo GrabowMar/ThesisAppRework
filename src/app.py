@@ -9,7 +9,10 @@ Integrates with database models and configuration from JSON files.
 import os
 import json
 import logging
+import logging.handlers
 import threading
+import time
+import uuid
 import warnings
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -329,52 +332,115 @@ class DatabasePopulator:
 
 
 def setup_logging(app: Flask) -> None:
-    """Initialize application logging with proper configuration."""
-    log_dir = Path(__file__).parent / "logs"
+    """Initialize comprehensive application logging with improved structure."""
+    # Use the centralized LoggingService from core_services
+    try:
+        from core_services import LoggingService
+        LoggingService.setup(app)
+        app.logger.info("Advanced logging system initialized")
+        return
+    except ImportError:
+        app.logger.warning("LoggingService not available, using fallback logging setup")
+    
+    # Fallback logging setup
+    log_dir = Path(__file__).parent.parent / "logs"
     log_dir.mkdir(exist_ok=True)
     
-    # Configure logging format
-    log_format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+    # Enhanced logging format with request correlation
+    detailed_format = '%(asctime)s [%(levelname)s] [%(request_id)s] %(component)s.%(name)s: %(message)s'
+    simple_format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
     date_format = '%Y-%m-%d %H:%M:%S'
     
-    # Configure handlers
-    handlers = [
-        logging.FileHandler(log_dir / "thesis_app.log"),
-        logging.StreamHandler()
-    ]
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format=log_format,
-        datefmt=date_format,
-        handlers=handlers
-    )
-    
-    # Set Flask logger
-    app.logger.setLevel(logging.INFO)
-    
-    # Suppress noisy werkzeug API request logs
-    werkzeug_logger = logging.getLogger('werkzeug')
-    
-    class ApiRequestFilter(logging.Filter):
-        """Filter to suppress noisy API request logs."""
-        
+    # Create context filter for request correlation
+    class ContextFilter(logging.Filter):
         def filter(self, record):
-            # Skip API stats requests and other noisy endpoints
-            if hasattr(record, 'getMessage'):
-                message = record.getMessage()
-                if ('"GET /api/model/' in message and '/stats HTTP/1.1" 200' in message) or \
-                   ('"GET /api/status' in message) or \
-                   ('"GET /static/' in message) or \
-                   ('"GET /favicon.ico' in message):
-                    return False
+            from flask import g, has_request_context
+            record.request_id = getattr(g, 'request_id', '-') if has_request_context() else '-'
+            record.component = record.name.split('.')[0] if '.' in record.name else record.name
             return True
     
-    # Apply filter to werkzeug logger
-    api_filter = ApiRequestFilter()
-    werkzeug_logger.addFilter(api_filter)
+    context_filter = ContextFilter()
     
-    app.logger.info("Logging initialized with API request filtering")
+    # Setup file handlers with rotation
+    # Main application log
+    app_handler = logging.handlers.RotatingFileHandler(
+        log_dir / "app.log", maxBytes=10*1024*1024, backupCount=10
+    )
+    app_handler.setLevel(logging.INFO)
+    app_handler.setFormatter(logging.Formatter(detailed_format, date_format))
+    app_handler.addFilter(context_filter)
+    
+    # Error-only log
+    error_handler = logging.handlers.RotatingFileHandler(
+        log_dir / "errors.log", maxBytes=5*1024*1024, backupCount=5
+    )
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(logging.Formatter(detailed_format, date_format))
+    error_handler.addFilter(context_filter)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(logging.Formatter(simple_format, date_format))
+    console_handler.addFilter(context_filter)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(app_handler)
+    root_logger.addHandler(error_handler)
+    root_logger.addHandler(console_handler)
+    
+    # Configure werkzeug logger with filtering
+    werkzeug_logger = logging.getLogger('werkzeug')
+    werkzeug_logger.handlers.clear()
+    werkzeug_logger.setLevel(logging.INFO)
+    werkzeug_logger.propagate = False
+    
+    # Request filter to reduce noise
+    class RequestFilter(logging.Filter):
+        EXCLUDED_PATHS = {'/api/status', '/static/', '/favicon.ico', '/health'}
+        
+        def filter(self, record):
+            if record.name != 'werkzeug':
+                return True
+            
+            try:
+                if hasattr(record, 'args') and record.args:
+                    request_line = str(record.args[0]) if len(record.args) > 0 else ""
+                    parts = request_line.split()
+                    if len(parts) >= 2:
+                        path = parts[1]
+                        if any(excluded in path for excluded in self.EXCLUDED_PATHS):
+                            return False
+            except Exception:
+                pass
+            return True
+    
+    request_handler = logging.handlers.RotatingFileHandler(
+        log_dir / "requests.log", maxBytes=5*1024*1024, backupCount=3
+    )
+    request_handler.addFilter(RequestFilter())
+    request_handler.setFormatter(logging.Formatter(simple_format, date_format))
+    werkzeug_logger.addHandler(request_handler)
+    
+    # Setup request middleware for correlation IDs
+    @app.before_request
+    def before_request():
+        from flask import g
+        g.request_id = str(uuid.uuid4())[:8]
+        g.start_time = time.time()
+    
+    @app.after_request  
+    def after_request(response):
+        from flask import g
+        if hasattr(g, 'start_time'):
+            duration = (time.time() - g.start_time) * 1000
+            app.logger.info(f"Request completed in {duration:.2f}ms - {response.status_code}")
+        return response
+    
+    app.logger.info("Enhanced logging initialized with request correlation")
 
 
 def load_model_integration_data(app: Flask) -> None:

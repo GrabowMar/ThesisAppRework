@@ -148,32 +148,7 @@
     </div>
 </div>
 
-<!-- Model Details Modal -->
-<div class="modal fade" id="modelDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-xl" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-robot mr-2"></i>
-                    Comprehensive Model Analysis
-                </h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body" id="model-details-content">
-                <!-- Content loaded via HTMX -->
-            </div>
-            <div class="modal-footer">
-                <div class="text-muted small">
-                    <i class="fas fa-info-circle mr-1"></i>
-                    This data is part of a comprehensive research study analyzing AI model capabilities in application development.
-                </div>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Model Details Modal removed - use Models Overview page for detailed model information -->
 
 <!-- Container Logs Modal -->
 <div class="modal fade" id="containerLogsModal" tabindex="-1" role="dialog" aria-hidden="true">
@@ -333,13 +308,7 @@ class Dashboard {
     }
 }
 
-// Global functions for model interactions
-window.showModelDetails = function(modelSlug) {
-    htmx.ajax('GET', `/api/models/${encodeURIComponent(modelSlug)}/details`, {
-        target: '#model-details-content'
-    });
-    $('#modelDetailsModal').modal('show');
-};
+// Note: Model details functionality moved to Models Overview page
 
 window.showContainerLogs = function(modelSlug, appNum) {
     htmx.ajax('GET', `/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/logs`, {

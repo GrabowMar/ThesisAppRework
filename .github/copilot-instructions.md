@@ -6,16 +6,18 @@ This is a Flask-based research platform that analyzes **900+ AI-generated applic
 ## Core Architecture
 
 ### Application Factory Pattern
-- **Entry Point**: `src/app.py` - Uses ApplicationFactory pattern with lazy service initialization
-- **Service Management**: `src/core_services.py` - Consolidated service classes with thread-safe operations
+- **Entry Point**: `src/app.py` - Uses ApplicationFactory pattern with lazy service initialization and comprehensive logging
+- **Service Management**: `src/core_services.py` - Consolidated service classes with thread-safe operations (2500+ lines)
 - **Database Models**: `src/models.py` - SQLAlchemy models for AI models, port configs, and analysis results
-- **Web Routes**: `src/web_routes.py` - HTMX-enabled blueprints with ResponseHandler for partial updates
+- **Web Routes**: `src/web_routes.py` - HTMX-enabled blueprints with ResponseHandler for partial updates (5000+ lines)
+- **Batch Operations**: `src/batch_testing_service.py` - Container batch operations with Docker infrastructure
 
 ### Key Services (all in `core_services.py`)
 - `DockerManager` - Container lifecycle management with project name sanitization
 - `BatchAnalysisService` - Threaded job execution with task workers  
 - `ScanManager` - Security analysis coordination
 - `ModelIntegrationService` - AI model metadata from JSON files
+- `LoggingService` - Centralized logging with request correlation and filtering
 
 ## Critical Development Patterns
 
@@ -35,6 +37,17 @@ This is a Flask-based research platform that analyzes **900+ AI-generated applic
 - **JSON Fields**: Use `get_capabilities()`/`set_capabilities()` helpers for complex data in models
 - **Migration**: Flask-Migrate is configured; run `flask db migrate` for schema changes
 - **Lazy Loading**: Database population happens on first access via `DatabasePopulator`
+
+### Logging Architecture
+- **Centralized Setup**: `LoggingService.setup()` in `core_services.py` provides structured logging
+- **Log Separation**: 
+  - `logs/app.log` - Application events with request correlation
+  - `logs/errors.log` - Error-level events only
+  - `logs/requests.log` - HTTP requests (filtered for noise)
+- **Request Correlation**: Each request gets unique ID available via `g.request_id`
+- **Context Filtering**: Logs include component names and request context
+- **Format**: `%(asctime)s [%(levelname)s] [%(request_id)s] %(component)s.%(name)s: %(message)s`
+- **Usage Pattern**: `logger = logging.getLogger(__name__)` then `logger.info("message")`
 
 ## Essential Commands
 
@@ -85,9 +98,18 @@ python -m locust -f src/performance_service.py
 - **Integration**: Via `npx` for frontend tools, direct Python imports for backend
 
 ### Service Error Handling
-- All services inherit from `BaseService` with cleanup methods
+- All services inherit from `BaseService` with cleanup methods and structured logging
 - Use `@handle_errors` decorator for consistent API error responses
 - Thread-safe operations use `self._lock` (RLock from BaseService)
+- Logger setup: `self.logger = logging.getLogger(__name__)` in service constructors
+- Service initialization errors are logged with full context and don't crash the app
+
+### Batch Operations & Threading
+- `ContainerBatchOperationService` manages large-scale container operations
+- Thread pools use `ThreadPoolExecutor` with configurable concurrency limits
+- Operation tracking via UUIDs with status monitoring in `self.operations`
+- Long-running tasks include progress tracking and cancellation support
+- Background operations log start/completion with timing metrics
 
 ## Common Gotchas
 
@@ -96,6 +118,9 @@ python -m locust -f src/performance_service.py
 3. **Container States**: Cache Docker status for 10 seconds to avoid API overload
 4. **Batch Jobs**: Use `TaskStatus` and `JobStatus` enums, not strings
 5. **JSON Serialization**: Use `CustomJSONEncoder` for datetime/enum handling
+6. **Logging Context**: Always use `logger = logging.getLogger(__name__)` for proper component identification
+7. **Service Initialization**: Services may fail gracefully - check availability before use
+8. **Request IDs**: Use `g.request_id` for tracing requests across service calls
 
 ## File Structure Priorities
 - **Core Logic**: `src/core_services.py` (2500+ lines of consolidated services)

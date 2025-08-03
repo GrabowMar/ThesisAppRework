@@ -1,0 +1,16 @@
+<div class="container-status">
+    <div class="row">
+        <div class="col-6">
+            <div class="d-flex align-items-center">
+                <span class="status-indicator status-{{ 'running' if frontend_status.get('running') else 'stopped' }}"></span>
+                <small class="text-muted ml-2">Frontend</small>
+            </div>
+        </div>
+        <div class="col-6">
+            <div class="d-flex align-items-center">
+                <span class="status-indicator status-{{ 'running' if backend_status.get('running') else 'stopped' }}"></span>
+                <small class="text-muted ml-2">Backend</small>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,13 @@
+<div class="alert alert-info">
+    <h6><i class="fas fa-spinner fa-spin"></i> Security Analysis Running</h6>
+    <p>Status: {{ status|title }}</p>
+    <p>Test ID: <code>{{ test_id }}</code></p>
+    <div class="mt-2">
+        <button class="btn btn-sm btn-primary" 
+                hx-get="/api/analysis/{{ model }}/{{ app_num }}/status/{{ test_id }}"
+                hx-target="#analysis-results"
+                hx-trigger="click, every 5s">
+            <i class="fas fa-sync-alt"></i> Refresh Status
+        </button>
+    </div>
+</div>

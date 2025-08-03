@@ -355,47 +355,128 @@ class TimestampedModel(BaseModel):
 
 
 class BaseService(ABC):
-    """Base service class with common functionality."""
+    """Base service class with enhanced logging and error handling."""
     
     def __init__(self, logger_name: Optional[str] = None):
         self.logger = get_logger(logger_name or self.__class__.__name__)
         self._lock = threading.RLock()
+        self._service_start_time = time.time()
+        self._operation_counter = 0
+        
+        # Log service initialization
+        self.logger.info(f"Service {self.__class__.__name__} initialized")
+    
+    def _log_operation_start(self, operation: str, **context) -> str:
+        """Log the start of an operation and return operation ID."""
+        with self._lock:
+            self._operation_counter += 1
+            operation_id = f"{self.__class__.__name__}_{self._operation_counter}"
+            
+        context_str = ", ".join(f"{k}={v}" for k, v in context.items()) if context else ""
+        self.logger.info(f"Starting {operation} [{operation_id}] {context_str}")
+        
+        return operation_id
+    
+    def _log_operation_end(self, operation_id: str, operation: str, success: bool, 
+                          duration_ms: float, **context):
+        """Log the end of an operation with results."""
+        status = "success" if success else "failed"
+        context_str = ", ".join(f"{k}={v}" for k, v in context.items()) if context else ""
+        
+        self.logger.info(f"Completed {operation} [{operation_id}] - {status} in {duration_ms:.2f}ms {context_str}")
+        
+        if not success:
+            self.logger.warning(f"Operation {operation} [{operation_id}] failed after {duration_ms:.2f}ms")
+    
+    def _safe_execute(self, operation: str, func, *args, **kwargs):
+        """Safely execute a function with comprehensive logging."""
+        operation_id = self._log_operation_start(operation)
+        start_time = time.time()
+        
+        try:
+            result = func(*args, **kwargs)
+            duration_ms = (time.time() - start_time) * 1000
+            self._log_operation_end(operation_id, operation, True, duration_ms)
+            return result
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            self._log_operation_end(operation_id, operation, False, duration_ms, error=str(e))
+            self.logger.error(f"Exception in {operation} [{operation_id}]: {e}", exc_info=True)
+            raise
+    
+    def get_service_stats(self) -> Dict[str, Any]:
+        """Get service statistics."""
+        uptime_seconds = time.time() - self._service_start_time
+        return {
+            'service_name': self.__class__.__name__,
+            'uptime_seconds': uptime_seconds,
+            'operations_count': self._operation_counter,
+            'operations_per_second': self._operation_counter / max(uptime_seconds, 1)
+        }
     
     @abstractmethod
     def cleanup(self):
         """Cleanup resources."""
-        pass
+        self.logger.info(f"Service {self.__class__.__name__} cleanup completed")
 
 
 class CacheableService(BaseService):
-    """Base service with caching capabilities."""
+    """Base service with caching capabilities and enhanced logging."""
     
     def __init__(self, logger_name: Optional[str] = None, cache_ttl: int = 300):
         super().__init__(logger_name)
         self._cache: Dict[str, Tuple[Any, float]] = {}
         self._cache_ttl = cache_ttl
+        self._cache_hits = 0
+        self._cache_misses = 0
+        
+        self.logger.debug(f"Cache initialized with TTL: {cache_ttl}s")
     
     def _get_cached(self, key: str) -> Optional[Any]:
         """Get value from cache if not expired."""
         if key in self._cache:
             value, timestamp = self._cache[key]
             if time.time() - timestamp < self._cache_ttl:
+                self._cache_hits += 1
+                self.logger.debug(f"Cache hit for key: {key}")
                 return value
             else:
                 del self._cache[key]
+                self.logger.debug(f"Cache expired for key: {key}")
+        
+        self._cache_misses += 1
+        self.logger.debug(f"Cache miss for key: {key}")
         return None
     
     def _set_cached(self, key: str, value: Any):
         """Set value in cache."""
         self._cache[key] = (value, time.time())
+        self.logger.debug(f"Cached value for key: {key}")
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        total_requests = self._cache_hits + self._cache_misses
+        hit_rate = (self._cache_hits / max(total_requests, 1)) * 100
+        
+        return {
+            'cache_size': len(self._cache),
+            'cache_hits': self._cache_hits,
+            'cache_misses': self._cache_misses,
+            'hit_rate_percent': hit_rate,
+            'ttl_seconds': self._cache_ttl
+        }
     
     def clear_cache(self):
         """Clear all cached values."""
+        cache_size = len(self._cache)
         self._cache.clear()
+        self.logger.info(f"Cache cleared: {cache_size} entries removed")
     
     def cleanup(self):
         """Cleanup resources."""
         self.clear_cache()
+        super().cleanup()
 
 
 # ===========================

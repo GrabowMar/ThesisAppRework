@@ -64,15 +64,15 @@
                     <div class="row mb-2">
                         <div class="col-5"><strong>Context Window:</strong></div>
                         <div class="col-7">
-                            <span class="font-weight-bold text-info">{{ '{:,}'.format(model.context_window) if model.context_window else 'N/A' }}</span>
-                            {% if model.context_window %}<small class="text-muted"> tokens</small>{% endif %}
+                            <span class="font-weight-bold text-info">{{ '{:,}'.format(details.context_window) if details.context_window else 'N/A' }}</span>
+                            {% if details.context_window %}<small class="text-muted"> tokens</small>{% endif %}
                         </div>
                     </div>
                     <div class="row mb-2">
                         <div class="col-5"><strong>Max Output:</strong></div>
                         <div class="col-7">
-                            <span class="font-weight-bold text-success">{{ '{:,}'.format(model.max_output_tokens) if model.max_output_tokens else 'N/A' }}</span>
-                            {% if model.max_output_tokens %}<small class="text-muted"> tokens</small>{% endif %}
+                            <span class="font-weight-bold text-success">{{ '{:,}'.format(details.max_output_tokens) if details.max_output_tokens else 'N/A' }}</span>
+                            {% if details.max_output_tokens %}<small class="text-muted"> tokens</small>{% endif %}
                         </div>
                     </div>
                     {% if model.architecture %}
@@ -121,13 +121,13 @@
                         <div class="col-6">
                             <div class="capability-item mb-2">
                                 <span class="mr-2">
-                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_function_calling else 'times-circle text-muted' }}"></i>
+                                    <i class="fas fa-{{ 'check-circle text-success' if details.supports_function_calling else 'times-circle text-muted' }}"></i>
                                 </span>
                                 Function Calling
                             </div>
                             <div class="capability-item mb-2">
                                 <span class="mr-2">
-                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_vision else 'times-circle text-muted' }}"></i>
+                                    <i class="fas fa-{{ 'check-circle text-success' if details.supports_vision else 'times-circle text-muted' }}"></i>
                                 </span>
                                 Vision Support
                             </div>
@@ -139,13 +139,13 @@
                             </div>
                             <div class="capability-item mb-2">
                                 <span class="mr-2">
-                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_streaming else 'times-circle text-muted' }}"></i>
+                                    <i class="fas fa-{{ 'check-circle text-success' if details.supports_streaming else 'times-circle text-muted' }}"></i>
                                 </span>
                                 Streaming
                             </div>
                             <div class="capability-item mb-2">
                                 <span class="mr-2">
-                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_json_mode else 'times-circle text-muted' }}"></i>
+                                    <i class="fas fa-{{ 'check-circle text-success' if details.supports_json_mode else 'times-circle text-muted' }}"></i>
                                 </span>
                                 JSON Mode
                             </div>
@@ -196,7 +196,7 @@
                     </h6>
                 </div>
                 <div class="card-body">
-                    {% if model.is_free %}
+                    {% if details.is_free %}
                     <div class="alert alert-success text-center mb-3">
                         <i class="fas fa-gift mr-2"></i>
                         <strong>FREE MODEL</strong>
@@ -205,18 +205,18 @@
                     <div class="row mb-2">
                         <div class="col-6"><strong>Input Cost:</strong></div>
                         <div class="col-6">
-                            <code class="text-success">${{ '%.8f'|format(model.input_price_per_token) if model.input_price_per_token else 'N/A' }}/token</code>
-                            {% if model.input_price_per_token %}
-                            <small class="d-block text-muted">${{ '%.6f'|format(model.input_price_per_token * 1000000) }}/MTok</small>
+                            <code class="text-success">${{ '%.8f'|format(details.input_price_per_token) if details.input_price_per_token else 'N/A' }}/token</code>
+                            {% if details.input_price_per_token %}
+                            <small class="d-block text-muted">${{ '%.6f'|format(details.input_price_per_token * 1000000) }}/MTok</small>
                             {% endif %}
                         </div>
                     </div>
                     <div class="row mb-2">
                         <div class="col-6"><strong>Output Cost:</strong></div>
                         <div class="col-6">
-                            <code class="text-warning">${{ '%.8f'|format(model.output_price_per_token) if model.output_price_per_token else 'N/A' }}/token</code>
-                            {% if model.output_price_per_token %}
-                            <small class="d-block text-muted">${{ '%.6f'|format(model.output_price_per_token * 1000000) }}/MTok</small>
+                            <code class="text-warning">${{ '%.8f'|format(details.output_price_per_token) if details.output_price_per_token else 'N/A' }}/token</code>
+                            {% if details.output_price_per_token %}
+                            <small class="d-block text-muted">${{ '%.6f'|format(details.output_price_per_token * 1000000) }}/MTok</small>
                             {% endif %}
                         </div>
                     </div>
@@ -229,12 +229,12 @@
                         </div>
                     </div>
                     {% endif %}
-                    {% if model.cost_efficiency %}
+                    {% if details.cost_efficiency %}
                     <div class="row mb-2">
                         <div class="col-6"><strong>Cost Efficiency:</strong></div>
                         <div class="col-6">
-                            <span class="badge badge-{{ 'success' if model.cost_efficiency > 8 else 'warning' if model.cost_efficiency > 6 else 'danger' }}">
-                                {{ '%.1f'|format(model.cost_efficiency) }}/10
+                            <span class="badge badge-{{ 'success' if details.cost_efficiency > 8 else 'warning' if details.cost_efficiency > 6 else 'danger' }}">
+                                {{ '%.1f'|format(details.cost_efficiency) }}/10
                             </span>
                         </div>
                     </div>
