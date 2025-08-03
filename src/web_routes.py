@@ -375,19 +375,71 @@ class AppDataProvider:
     def get_port_config(model: str, app_num: int) -> Dict[str, int]:
         """Get port configuration for an app - DIRECT DB QUERY."""
         try:
-            # Simple approach: get all configs and filter in Python
-            configs = PortConfiguration.query.all()
-            for config in configs:
-                metadata = config.get_metadata()
-                if metadata.get("model_name") == model and metadata.get("app_number") == app_num:
+            # Database format: anthropic_claude-3.7-sonnet (underscore between provider and model name)
+            # URL format: anthropic-claude-3.7-sonnet (hyphens throughout)
+            
+            # Try direct database query first with the exact model slug
+            config = PortConfiguration.query.filter_by(
+                model=model,
+                app_num=app_num
+            ).first()
+            
+            if config:
+                logger.debug(f"Found port config in DB for {model}/app{app_num}: frontend={config.frontend_port}, backend={config.backend_port}")
+                return {
+                    'backend_port': config.backend_port,
+                    'frontend_port': config.frontend_port
+                }
+            
+            # Transform URL format to database format
+            # Convert slash to underscore (anthropic/claude-3.7-sonnet -> anthropic_claude-3.7-sonnet)
+            db_format = model.replace('/', '_') if '/' in model else model
+            
+            config = PortConfiguration.query.filter_by(
+                model=db_format,
+                app_num=app_num
+            ).first()
+            
+            if config:
+                logger.debug(f"Found port config in DB for {db_format}/app{app_num} (original: {model}): frontend={config.frontend_port}, backend={config.backend_port}")
+                return {
+                    'backend_port': config.backend_port,
+                    'frontend_port': config.frontend_port
+                }
+            
+            # Try additional format variations for backward compatibility
+            model_variations = [
+                model.replace('/', '_'),  # Convert slashes to underscores  
+                model.replace('-', '_'),  # Convert all hyphens to underscores
+                model.replace('_', '-'),  # Convert all underscores to hyphens
+            ]
+            
+            # Include sanitization function result
+            try:
+                from core_services import DockerUtils
+                sanitized_model = DockerUtils.sanitize_project_name(model)
+                model_variations.append(sanitized_model)
+            except ImportError:
+                pass
+            
+            for model_variant in model_variations:
+                config = PortConfiguration.query.filter_by(
+                    model=model_variant,
+                    app_num=app_num
+                ).first()
+                
+                if config:
+                    logger.debug(f"Found port config in DB for {model_variant}/app{app_num} (original: {model}): frontend={config.frontend_port}, backend={config.backend_port}")
                     return {
                         'backend_port': config.backend_port,
                         'frontend_port': config.frontend_port
                     }
+                
         except Exception as e:
-            logger.warning(f"Error querying port config from DB: {e}")
+            logger.warning(f"Error querying port config from DB for {model}/app{app_num}: {e}")
         
         # Default calculation fallback
+        logger.debug(f"Using calculated port config for {model}/app{app_num}")
         return {
             'backend_port': 6000 + (app_num * 10),
             'frontend_port': 9000 + (app_num * 10)
@@ -1163,18 +1215,50 @@ def api_model_apps(model_slug: str):
         import urllib.parse
         decoded_model_slug = urllib.parse.unquote(model_slug)
         
-        model = ModelCapability.query.filter_by(canonical_slug=decoded_model_slug).first()
+        # Import and use the sanitization function from core_services
+        try:
+            from core_services import DockerUtils
+            sanitized_model = DockerUtils.sanitize_project_name(decoded_model_slug)
+        except ImportError:
+            # Fallback sanitization
+            import re
+            sanitized_model = decoded_model_slug.lower()
+            sanitized_model = re.sub(r'[^a-z0-9_-]', '_', sanitized_model)
+            sanitized_model = re.sub(r'[_-]+', '_', sanitized_model).strip('_-')
+        
+        # Try to find model by canonical slug using sanitized slug first
+        model = ModelCapability.query.filter_by(canonical_slug=sanitized_model).first()
+        
         if not model:
+            # Try variations for backward compatibility  
+            model_variations = [
+                decoded_model_slug,  # Original decoded slug
+                decoded_model_slug.replace('-', '_'),  # Convert hyphens to underscores
+                decoded_model_slug.replace('_', '-'),  # Convert underscores to hyphens
+                decoded_model_slug.replace('/', '_'),  # Convert slashes to underscores
+            ]
+            
+            for variant in model_variations:
+                model = ModelCapability.query.filter_by(canonical_slug=variant).first()
+                if model:
+                    logger.debug(f"Found model using variant: {variant} (original: {decoded_model_slug})")
+                    break
+            
+        if not model:
+            logger.warning(f"Model not found for slug: {decoded_model_slug} (sanitized: {sanitized_model})")
             return ResponseHandler.error_response('Model not found', 404)
+        
+        # Use the actual canonical slug from the database for consistency
+        model_slug_for_lookup = model.canonical_slug
         
         apps_data = []
         for app_num in range(1, 31):
-            app_data = AppDataProvider.get_app_for_dashboard(decoded_model_slug, app_num)
+            app_data = AppDataProvider.get_app_for_dashboard(model_slug_for_lookup, app_num)
             apps_data.append(app_data)
         
         return render_template('partials/model_apps_table.html', 
                              apps=apps_data, 
-                             model_slug=decoded_model_slug)
+                             model_slug=model_slug_for_lookup)
         
     except Exception as e:
         logger.error(f"Error loading apps for model {model_slug}: {e}")

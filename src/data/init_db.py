@@ -53,10 +53,20 @@ def main():
             # Load model capabilities from JSON
             misc_dir = project_root / "misc"
             capabilities_file = misc_dir / "model_capabilities.json"
+            models_summary_file = misc_dir / "models_summary.json"
+            port_config_file = misc_dir / "port_config.json"
             
             logger.info(f"Loading model capabilities from {capabilities_file}")
             with open(capabilities_file) as f:
                 capabilities_data = json.load(f)
+            
+            logger.info(f"Loading models summary from {models_summary_file}")
+            with open(models_summary_file) as f:
+                models_summary_data = json.load(f)
+            
+            logger.info(f"Loading port configurations from {port_config_file}")
+            with open(port_config_file) as f:
+                port_config_data = json.load(f)
             
             # Get the models section
             models_data = capabilities_data['models']
@@ -138,29 +148,28 @@ def main():
                     db.session.add(app_entry)
                     apps_created += 1
                     
-                    # Create sample port configurations for first 10 apps
-                    for app_num in range(1, 11):
-                        frontend_port = 9000 + (models_created * 10) + app_num
-                        backend_port = 6000 + (models_created * 10) + app_num
-                        
-                        port_config = PortConfiguration()
-                        port_config.model = canonical_slug
-                        port_config.app_num = app_num
-                        port_config.frontend_port = frontend_port
-                        port_config.backend_port = backend_port
-                        port_config.is_available = True
-                        port_config.metadata_json = json.dumps({
-                            'model_name': model_id,
-                            'app_type': f'app_{app_num}',
-                            'source': 'initial_load'
-                        })
-                        
-                        db.session.add(port_config)
-                        ports_created += 1
-                    
                 except Exception as e:
                     logger.error(f"Error processing model {model_id}: {e}")
                     continue
+            
+            # Load port configurations from port_config.json
+            logger.info("Loading port configurations from JSON file...")
+            for port_entry in port_config_data:
+                if 'model_name' in port_entry and 'app_number' in port_entry:
+                    port_config = PortConfiguration()
+                    port_config.model = port_entry['model_name']
+                    port_config.app_num = port_entry['app_number']
+                    port_config.frontend_port = port_entry['frontend_port']
+                    port_config.backend_port = port_entry['backend_port']
+                    port_config.is_available = True
+                    port_config.metadata_json = json.dumps({
+                        'model_name': port_entry['model_name'],
+                        'app_type': f'app_{port_entry["app_number"]}',
+                        'source': 'port_config_json'
+                    })
+                    
+                    db.session.add(port_config)
+                    ports_created += 1
             
             # Commit all changes
             logger.info("Committing database changes...")
