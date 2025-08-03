@@ -386,12 +386,21 @@ class BatchJobManager:
     def create_job(self, config: JobConfiguration) -> BatchJob:
         """Create a new batch job."""
         try:
+            import uuid
+            
+            job_id = str(uuid.uuid4())
             job = BatchJob(
                 name=config.name,
                 description=config.description,
-                priority=config.priority,
-                configuration=asdict(config)
+                priority=config.priority
             )
+            job.id = job_id
+            
+            # Set JSON configuration fields using the helper methods
+            job.set_analysis_types([at.value for at in config.analysis_types])
+            job.set_models(config.models)
+            job.set_app_range({'start': config.app_range[0], 'end': config.app_range[1]})
+            job.set_options(config.notifications)  # Store notifications as options
             
             db.session.add(job)
             db.session.flush()  # Get job ID
@@ -422,14 +431,14 @@ class BatchJobManager:
                     tools = self._get_tools_for_analysis_type(analysis_type)
                     
                     for tool_type in tools:
-                        task = BatchTask(
-                            job_id=job.id,
-                            model_name=model,
-                            app_number=app_num,
-                            analysis_type=analysis_type,
-                            tool_type=tool_type,
-                            priority=priority
-                        )
+                        task_id = str(uuid.uuid4())
+                        task = BatchTask()
+                        task.id = task_id
+                        task.job_id = job.id
+                        task.model_slug = model
+                        task.app_number = app_num
+                        task.analysis_type = analysis_type
+                        task.priority = config.priority
                         
                         db.session.add(task)
                         tasks.append(task)

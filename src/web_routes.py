@@ -3121,10 +3121,10 @@ def create_batch_job():
             context = {
                 'available_models': [{'slug': m.canonical_slug, 'name': m.model_name, 'apps_count': 30} for m in models],
                 'analysis_types': [
-                    {'value': 'SECURITY_COMPREHENSIVE', 'name': 'Security Comprehensive', 'description': 'Full security analysis (Backend + Frontend)'},
-                    {'value': 'SECURITY_BACKEND', 'name': 'Security Backend', 'description': 'Bandit, Safety, Semgrep'},
-                    {'value': 'SECURITY_FRONTEND', 'name': 'Security Frontend', 'description': 'ESLint Security, Retire.js'},
-                    {'value': 'PERFORMANCE_LOAD', 'name': 'Performance Load Testing', 'description': 'Locust load testing'}
+                    {'value': 'security_combined', 'name': 'Security Comprehensive', 'description': 'Full security analysis (Backend + Frontend)'},
+                    {'value': 'security_backend', 'name': 'Security Backend', 'description': 'Bandit, Safety, Semgrep'},
+                    {'value': 'security_frontend', 'name': 'Security Frontend', 'description': 'ESLint Security, Retire.js'},
+                    {'value': 'performance', 'name': 'Performance Load Testing', 'description': 'Locust load testing'}
                 ],
                 'page_title': 'Create New Batch Analysis Job'
             }
@@ -4614,89 +4614,12 @@ def api_batch_stats():
 
 @batch_bp.route("/api/create", methods=["POST"])
 def api_create_batch_job():
-    """Create a new batch job (HTMX compatible endpoint)."""
-    try:
-        from models import BatchJob, JobStatus, JobPriority, AnalysisType
-        from extensions import db
-        import uuid
-        
-        # Handle both JSON and form data
-        if request.is_json:
-            data = request.get_json() or {}
-        else:
-            # Convert form data to dict
-            data = request.form.to_dict()
-            # Handle lists (e.g., apps, models)
-            if 'apps' in request.form:
-                data['app_numbers'] = request.form.getlist('apps')
-            if 'models' in request.form:
-                data['models'] = request.form.getlist('models')
-            # Map form field names to expected names
-            if 'job_name' in data:
-                data['name'] = data['job_name']
-            if 'selected_model' in data:
-                data['models'] = [data['selected_model']]
-            if 'analysis_type' in data:
-                data['analysis_type'] = data['analysis_type']
-        
-        # Extract job parameters
-        name = data.get('name', 'Untitled Job')
-        description = data.get('description', '')
-        analysis_type_str = data.get('analysis_type', 'security_backend')
-        priority_str = data.get('priority', 'normal')
-        models = data.get('models', [])
-        app_numbers = data.get('app_numbers', [])
-        
-        # Convert string enums to enum values
-        try:
-            analysis_type = AnalysisType(analysis_type_str)
-        except ValueError:
-            analysis_type = AnalysisType.SECURITY_BACKEND
-            
-        try:
-            priority = JobPriority(priority_str)
-        except ValueError:
-            priority = JobPriority.NORMAL
-        
-        # Create the job with UUID
-        job = BatchJob()
-        job.id = str(uuid.uuid4())
-        job.name = name
-        job.description = description
-        job.status = JobStatus.PENDING
-        job.priority = priority
-        job.total_tasks = len(models) * len(app_numbers) if models and app_numbers else 0
-        job.completed_tasks = 0
-        job.failed_tasks = 0
-        
-        # Set configuration using helper methods
-        job.set_analysis_types([analysis_type_str])
-        job.set_models(models)
-        job.set_app_range({'app_numbers': app_numbers})
-        
-        db.session.add(job)
-        db.session.commit()
-        
-        # Convert to dict
-        job_dict = {
-            'id': job.id,
-            'name': job.name,
-            'description': job.description,
-            'status': job.status.value if hasattr(job.status, 'value') else str(job.status),
-            'priority': job.priority.value if hasattr(job.priority, 'value') else str(job.priority),
-            'analysis_types': job.get_analysis_types(),
-            'created_at': job.created_at.isoformat() if job.created_at else None,
-            'total_tasks': job.total_tasks
-        }
-        
-        return ResponseHandler.success_response(
-            data={'job': job_dict},
-            message=f"Job '{name}' created successfully"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error creating batch job: {e}")
-        return ResponseHandler.error_response(str(e))
+    """Redirect to the new endpoint."""
+    return ResponseHandler.api_response(
+        success=False,
+        error="This endpoint has been moved. Use /api/batch/jobs instead.",
+        message="Please use the new batch job creation endpoint"
+    )
 
 
 @api_bp.route("/batch/jobs/<job_id>/start", methods=["POST"])

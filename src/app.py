@@ -642,25 +642,16 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             
             # Initialize batch service
             try:
-                from core_services import BatchAnalysisService
-                # TODO: Add enhanced batch service when imports are resolved
-                # from batch_service import BatchJobManager
+                from batch_service import BatchService
                 
-                # Initialize legacy batch service (for compatibility)
-                batch_service = BatchAnalysisService()
+                # Initialize the correct batch service
+                batch_service = BatchService()
                 batch_service.init_app(app)
-                app.config['batch_service'] = batch_service
-                
-                # TODO: Initialize new enhanced batch service
-                # batch_manager = BatchJobManager()
-                # batch_manager.init_app(app)
-                # app.config['batch_manager'] = batch_manager
                 
                 app.logger.info("Batch analysis services initialized successfully")
             except Exception as e:
                 app.logger.warning(f"Batch service initialization deferred: {e}")
                 app.config['batch_service'] = None
-                # app.config['batch_manager'] = None
             
             # Use app.config to track initialization state
             app.config['_services_initialized'] = True

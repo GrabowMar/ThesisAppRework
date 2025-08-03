@@ -109,15 +109,6 @@ def validate_job_configuration(config: Dict) -> Tuple[bool, List[str]]:
     if not config.get('analysis_types'):
         errors.append('At least one analysis type must be selected')
     
-    # Validate app range
-    try:
-        start = int(config.get('app_range_start', 1))
-        end = int(config.get('app_range_end', 30))
-        if start < 1 or end > 30 or start > end:
-            errors.append('Invalid app range (must be 1-30)')
-    except (ValueError, TypeError):
-        errors.append('Invalid app range values')
-    
     # Validate priority
     valid_priorities = [p.value for p in JobPriority]
     if config.get('priority', 'normal') not in valid_priorities:
@@ -519,16 +510,15 @@ def create_job():
             # Model selection
             config_data['models'] = form_data.get('models', [])
             
-            # App range
-            try:
-                config_data['app_range_start'] = int(request.form.get('app_range_start', 1))
-                config_data['app_range_end'] = int(request.form.get('app_range_end', 30))
-            except (ValueError, TypeError):
-                config_data['app_range_start'] = 1
-                config_data['app_range_end'] = 30
+            # App range (default to all apps for now)
+            config_data['app_range'] = [1, 30]
             
-            # Analysis types
-            config_data['analysis_types'] = form_data.get('analysis_types', [])
+            # Analysis types - handle single selection from radio button
+            analysis_type = request.form.get('analysis_types')
+            if analysis_type:
+                config_data['analysis_types'] = [analysis_type]
+            else:
+                config_data['analysis_types'] = []
             
             # Tool configurations
             tools_config = {}
@@ -582,7 +572,21 @@ def create_job():
                     Status: <span class="badge badge-{{ 'success' if auto_started else 'warning' }}">
                         {{ 'Started' if auto_started else 'Created' }}
                     </span>
+                    <div class="mt-3">
+                        <a href="/batch/" class="btn btn-primary btn-sm">
+                            <i class="fas fa-list me-1"></i>View All Jobs
+                        </a>
+                        <a href="/batch/jobs/{{ job.id }}" class="btn btn-outline-primary btn-sm ms-2">
+                            <i class="fas fa-eye me-1"></i>View Job Details
+                        </a>
+                    </div>
                 </div>
+                <script>
+                    // Auto-redirect to job list after 3 seconds
+                    setTimeout(function() {
+                        window.location.href = '/batch/';
+                    }, 3000);
+                </script>
             ''', job=job, auto_started=auto_start)
         
         return jsonify({
