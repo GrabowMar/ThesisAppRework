@@ -35,22 +35,11 @@
                 </small>
             </div>
             
-            <div class="app-actions">
-                <button hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/start"
-                        hx-target="closest .app-card .app-status"
-                        hx-confirm="Start containers for {{ model_slug|model_display_name }}/app{{ app.app_number }}?"
-                        class="btn btn-success btn-sm"
-                        onclick="event.stopPropagation()">
-                    <i class="fas fa-play mr-1"></i>Start
-                </button>
-                
-                <button hx-post="/api/containers/{{ model_slug|url_encode_model }}/{{ app.app_number }}/stop"
-                        hx-target="closest .app-card .app-status"
-                        hx-confirm="Stop containers for {{ model_slug|model_display_name }}/app{{ app.app_number }}?"
-                        class="btn btn-danger btn-sm"
-                        onclick="event.stopPropagation()">
-                    <i class="fas fa-stop mr-1"></i>Stop
-                </button>
+            <div class="app-info">
+                <small class="text-info">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Click for details
+                </small>
             </div>
         </div>
         

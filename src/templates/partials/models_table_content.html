@@ -165,48 +165,13 @@
                     </div>
                 </td>
                 <td>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-info"
+                    <div class="text-center">
+                        <button type="button" class="btn btn-outline-info btn-sm"
                                 onclick="showModelDetails('{{ model.canonical_slug }}')"
-                                data-toggle="tooltip" title="View Details">
-                            <i class="fas fa-info-circle"></i>
+                                data-toggle="tooltip" title="View Comprehensive Model Details">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Details
                         </button>
-                        <button type="button" class="btn btn-outline-success"
-                                hx-post="/api/model/{{ model.canonical_slug }}/start-all"
-                                hx-target="#model-row-{{ model.canonical_slug }}"
-                                hx-swap="outerHTML"
-                                hx-confirm="Start all containers for {{ model.model_name }}?"
-                                data-toggle="tooltip" title="Start All">
-                            <i class="fas fa-play"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-danger"
-                                hx-post="/api/model/{{ model.canonical_slug }}/stop-all"
-                                hx-target="#model-row-{{ model.canonical_slug }}"
-                                hx-swap="outerHTML"
-                                hx-confirm="Stop all containers for {{ model.model_name }}?"
-                                data-toggle="tooltip" title="Stop All">
-                            <i class="fas fa-stop"></i>
-                        </button>
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="fas fa-ellipsis-v"></i>
-                            </button>
-                            <div class="dropdown-menu">
-                                <a class="dropdown-item" href="/analysis/{{ model.canonical_slug }}">
-                                    <i class="fas fa-shield-alt mr-2"></i>Security Analysis
-                                </a>
-                                <a class="dropdown-item" href="/performance/{{ model.canonical_slug }}">
-                                    <i class="fas fa-tachometer-alt mr-2"></i>Performance Test
-                                </a>
-                                <a class="dropdown-item" href="/models/{{ model.canonical_slug }}/apps">
-                                    <i class="fas fa-th-large mr-2"></i>View Applications
-                                </a>
-                                <div class="dropdown-divider"></div>
-                                <a class="dropdown-item" href="#" onclick="exportModelData('{{ model.canonical_slug }}')">
-                                    <i class="fas fa-download mr-2"></i>Export Data
-                                </a>
-                            </div>
-                        </div>
                     </div>
                 </td>
             </tr>
@@ -285,25 +250,13 @@
 
 <!-- Table Summary Footer -->
 {% if models %}
-<div class="d-flex justify-content-between align-items-center p-3 bg-light border-top">
+<div class="d-flex justify-content-center align-items-center p-3 bg-light border-top">
     <div class="text-muted">
         <i class="fas fa-info-circle mr-1"></i>
-        Showing {{ models|length }} models
+        Showing {{ models|length }} models with comprehensive research data
         {% if search_query or provider_filter %}
         <span class="badge badge-secondary ml-1">Filtered</span>
         {% endif %}
-    </div>
-    
-    <div class="btn-group btn-group-sm">
-        <button type="button" class="btn btn-outline-secondary" onclick="selectAllModels()">
-            <i class="fas fa-check-square mr-1"></i>Select All
-        </button>
-        <button type="button" class="btn btn-outline-primary" onclick="compareSelectedModels()">
-            <i class="fas fa-balance-scale mr-1"></i>Compare
-        </button>
-        <button type="button" class="btn btn-outline-success" onclick="bulkExportModels()">
-            <i class="fas fa-download mr-1"></i>Export All
-        </button>
     </div>
 </div>
 {% endif %}

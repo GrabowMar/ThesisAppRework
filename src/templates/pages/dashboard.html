@@ -150,12 +150,12 @@
 
 <!-- Model Details Modal -->
 <div class="modal fade" id="modelDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
                     <i class="fas fa-robot mr-2"></i>
-                    Model Details
+                    Comprehensive Model Analysis
                 </h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
@@ -163,6 +163,13 @@
             </div>
             <div class="modal-body" id="model-details-content">
                 <!-- Content loaded via HTMX -->
+            </div>
+            <div class="modal-footer">
+                <div class="text-muted small">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    This data is part of a comprehensive research study analyzing AI model capabilities in application development.
+                </div>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -384,6 +391,46 @@ function handleContainerAction(action, modelSlug, appNum, button) {
         dashboard.showToast(`Container ${action} failed`, 'danger');
     });
 }
+
+// Load applications for a specific model
+window.testLoadApps = function(modelSlug) {
+    const targetId = `apps-content-${modelSlug.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const loadingId = `loading-${modelSlug.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    
+    // Show loading state
+    const loadingElement = document.getElementById(loadingId);
+    if (loadingElement) {
+        loadingElement.innerHTML = `
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+            <small class="d-block mt-2 text-muted">Loading applications...</small>
+        `;
+    }
+    
+    // Load applications via HTMX
+    htmx.ajax('GET', `/api/model/${encodeURIComponent(modelSlug)}/apps`, {
+        target: `#${targetId}`,
+        swap: 'innerHTML'
+    }).then(() => {
+        dashboard.showToast(`Applications loaded for ${modelSlug}`, 'success');
+    }).catch((error) => {
+        console.error('Failed to load applications:', error);
+        const targetElement = document.getElementById(targetId);
+        if (targetElement) {
+            targetElement.innerHTML = `
+                <div class="text-center p-3">
+                    <i class="fas fa-exclamation-triangle text-warning mb-2"></i>
+                    <p class="text-muted mb-2">Failed to load applications</p>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="testLoadApps('${modelSlug}')">
+                        <i class="fas fa-redo mr-1"></i>Retry
+                    </button>
+                </div>
+            `;
+        }
+        dashboard.showToast(`Failed to load applications for ${modelSlug}`, 'danger');
+    });
+};
 
 // Initialize dashboard
 let dashboard;

@@ -1061,8 +1061,8 @@ def api_dashboard_models():
                     </button>
                     <button type="button" class="btn btn-outline-info btn-sm"
                             onclick="showModelDetails('{{ model.canonical_slug|url_encode_model }}')"
-                            data-toggle="tooltip" title="Model Details">
-                        <i class="fas fa-info-circle"></i>
+                            data-toggle="tooltip" title="View Comprehensive Model Details">
+                        <i class="fas fa-info-circle mr-1"></i>Details
                     </button>
                 </div>
             </div>

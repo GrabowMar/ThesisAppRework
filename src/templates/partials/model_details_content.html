@@ -1,36 +1,86 @@
-<!-- Model Details Modal Content - Bootstrap 4.1 -->
+<!-- Comprehensive Model Details Modal Content -->
 <div class="container-fluid">
-    <div class="row mb-3">
+    <!-- Header Section -->
+    <div class="row mb-4">
         <div class="col-12">
-            <h4 class="text-primary">{{ model.model_name }}</h4>
-            <p class="text-muted">{{ model.provider }} - {{ model.model_id }}</p>
+            <div class="model-header-card">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="model-icon mr-3">
+                        {% if model.supports_vision %}
+                        <i class="fas fa-eye fa-2x text-info"></i>
+                        {% elif model.supports_function_calling %}
+                        <i class="fas fa-cogs fa-2x text-success"></i>
+                        {% else %}
+                        <i class="fas fa-brain fa-2x text-primary"></i>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <h3 class="text-primary mb-1">{{ model.model_name }}</h3>
+                        <p class="text-muted mb-1"><strong>{{ model.provider|title }}</strong> - {{ model.model_id }}</p>
+                        <div class="model-badges">
+                            {% if model.is_free %}
+                            <span class="badge badge-success">FREE</span>
+                            {% endif %}
+                            {% if model.supports_vision %}
+                            <span class="badge badge-info">VISION</span>
+                            {% endif %}
+                            {% if model.supports_function_calling %}
+                            <span class="badge badge-warning">FUNCTION CALLING</span>
+                            {% endif %}
+                            {% if model.context_window and model.context_window > 100000 %}
+                            <span class="badge badge-secondary">LONG CONTEXT</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
     <div class="row">
-        <!-- Model Information -->
+        <!-- Core Model Information -->
         <div class="col-lg-6 mb-4">
             <div class="card h-100">
-                <div class="card-header">
-                    <h6 class="mb-0 font-weight-bold">Model Information</h6>
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-microchip mr-2"></i>Core Specifications
+                    </h6>
                 </div>
                 <div class="card-body">
                     <div class="row mb-2">
                         <div class="col-5"><strong>Provider:</strong></div>
-                        <div class="col-7">{{ model.provider }}</div>
+                        <div class="col-7">
+                            <span class="badge badge-primary">{{ model.provider|title }}</span>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Model ID:</strong></div>
+                        <div class="col-7"><code>{{ model.model_id }}</code></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Canonical Slug:</strong></div>
+                        <div class="col-7"><code>{{ model.canonical_slug }}</code></div>
                     </div>
                     <div class="row mb-2">
                         <div class="col-5"><strong>Context Window:</strong></div>
-                        <div class="col-7"><code>{{ '{:,}'.format(model.context_window) }} tokens</code></div>
+                        <div class="col-7">
+                            <span class="font-weight-bold text-info">{{ '{:,}'.format(model.context_window) if model.context_window else 'N/A' }}</span>
+                            {% if model.context_window %}<small class="text-muted"> tokens</small>{% endif %}
+                        </div>
                     </div>
                     <div class="row mb-2">
                         <div class="col-5"><strong>Max Output:</strong></div>
-                        <div class="col-7"><code>{{ '{:,}'.format(model.max_output_tokens) if model.max_output_tokens else 'N/A' }} tokens</code></div>
+                        <div class="col-7">
+                            <span class="font-weight-bold text-success">{{ '{:,}'.format(model.max_output_tokens) if model.max_output_tokens else 'N/A' }}</span>
+                            {% if model.max_output_tokens %}<small class="text-muted"> tokens</small>{% endif %}
+                        </div>
                     </div>
+                    {% if model.architecture %}
                     <div class="row mb-2">
                         <div class="col-5"><strong>Architecture:</strong></div>
                         <div class="col-7">{{ model.architecture or 'N/A' }}</div>
                     </div>
+                    {% endif %}
                     <div class="row">
                         <div class="col-5"><strong>Top Provider:</strong></div>
                         <div class="col-7">
@@ -39,180 +89,501 @@
                             </span>
                         </div>
                     </div>
+                    {% if model.created_at or model.updated_at %}
+                    <hr>
+                    {% if model.created_at %}
+                    <div class="row mb-1">
+                        <div class="col-5"><strong>Created:</strong></div>
+                        <div class="col-7"><small>{{ model.created_at.strftime('%Y-%m-%d %H:%M') }}</small></div>
+                    </div>
+                    {% endif %}
+                    {% if model.updated_at %}
+                    <div class="row">
+                        <div class="col-5"><strong>Updated:</strong></div>
+                        <div class="col-7"><small>{{ model.updated_at.strftime('%Y-%m-%d %H:%M') }}</small></div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
                 </div>
             </div>
         </div>
         
-        <!-- Capabilities -->
+        <!-- Comprehensive Capabilities -->
         <div class="col-lg-6 mb-4">
             <div class="card h-100">
-                <div class="card-header">
-                    <h6 class="mb-0 font-weight-bold">Capabilities</h6>
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-cogs mr-2"></i>Capabilities & Features
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <div class="mb-2">
-                        <span class="mr-2">
-                            <i class="fas fa-{{ 'check-circle text-success' if model.supports_function_calling else 'times-circle text-muted' }}"></i>
-                        </span>
-                        Function Calling
-                    </div>
-                    <div class="mb-2">
-                        <span class="mr-2">
-                            <i class="fas fa-{{ 'check-circle text-success' if model.supports_vision else 'times-circle text-muted' }}"></i>
-                        </span>
-                        Vision Support
-                    </div>
-                    <div class="mb-2">
-                        <span class="mr-2">
-                            <i class="fas fa-{{ 'check-circle text-success' if model.supports_tools else 'times-circle text-muted' }}"></i>
-                        </span>
-                        Tool Usage
-                    </div>
-                    <div class="mb-2">
-                        <span class="mr-2">
-                            <i class="fas fa-{{ 'check-circle text-success' if model.per_request_limits else 'times-circle text-muted' }}"></i>
-                        </span>
-                        Per-Request Limits
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_function_calling else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Function Calling
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_vision else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Vision Support
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_tools else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Tool Usage
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_streaming else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Streaming
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_json_mode else 'times-circle text-muted' }}"></i>
+                                </span>
+                                JSON Mode
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_structured_output else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Structured Output
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_reasoning_tokens else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Reasoning Tokens
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_image_input else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Image Input
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_prompt_caching else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Prompt Caching
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.per_request_limits else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Per-Request Limits
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Pricing -->
+        <!-- Comprehensive Pricing -->
         <div class="col-lg-6 mb-4">
             <div class="card h-100">
-                <div class="card-header">
-                    <h6 class="mb-0 font-weight-bold">Pricing</h6>
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-dollar-sign mr-2"></i>Pricing & Cost Analysis
+                    </h6>
                 </div>
                 <div class="card-body">
+                    {% if model.is_free %}
+                    <div class="alert alert-success text-center mb-3">
+                        <i class="fas fa-gift mr-2"></i>
+                        <strong>FREE MODEL</strong>
+                    </div>
+                    {% else %}
                     <div class="row mb-2">
-                        <div class="col-5"><strong>Input Cost:</strong></div>
-                        <div class="col-7"><code>${{ '%.6f'|format(model.input_price_per_token * 1000000) }}/MTok</code></div>
+                        <div class="col-6"><strong>Input Cost:</strong></div>
+                        <div class="col-6">
+                            <code class="text-success">${{ '%.8f'|format(model.input_price_per_token) if model.input_price_per_token else 'N/A' }}/token</code>
+                            {% if model.input_price_per_token %}
+                            <small class="d-block text-muted">${{ '%.6f'|format(model.input_price_per_token * 1000000) }}/MTok</small>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="row mb-2">
-                        <div class="col-5"><strong>Output Cost:</strong></div>
-                        <div class="col-7"><code>${{ '%.6f'|format(model.output_price_per_token * 1000000) }}/MTok</code></div>
+                        <div class="col-6"><strong>Output Cost:</strong></div>
+                        <div class="col-6">
+                            <code class="text-warning">${{ '%.8f'|format(model.output_price_per_token) if model.output_price_per_token else 'N/A' }}/token</code>
+                            {% if model.output_price_per_token %}
+                            <small class="d-block text-muted">${{ '%.6f'|format(model.output_price_per_token * 1000000) }}/MTok</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if model.image_price_per_token %}
+                    <div class="row mb-2">
+                        <div class="col-6"><strong>Image Cost:</strong></div>
+                        <div class="col-6">
+                            <code class="text-info">${{ '%.8f'|format(model.image_price_per_token) }}/token</code>
+                            <small class="d-block text-muted">${{ '%.6f'|format(model.image_price_per_token * 1000000) }}/MTok</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if model.cost_efficiency %}
+                    <div class="row mb-2">
+                        <div class="col-6"><strong>Cost Efficiency:</strong></div>
+                        <div class="col-6">
+                            <span class="badge badge-{{ 'success' if model.cost_efficiency > 8 else 'warning' if model.cost_efficiency > 6 else 'danger' }}">
+                                {{ '%.1f'|format(model.cost_efficiency) }}/10
+                            </span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                    
+                    {% if model.rate_limits %}
+                    <hr>
+                    <h6 class="font-weight-bold text-muted">Rate Limits</h6>
+                    <div class="row mb-1">
+                        <div class="col-7"><small>Requests/min:</small></div>
+                        <div class="col-5"><small><code>{{ model.rate_limits.requests_per_minute or 'N/A' }}</code></small></div>
+                    </div>
+                    <div class="row mb-1">
+                        <div class="col-7"><small>Tokens/min:</small></div>
+                        <div class="col-5"><small><code>{{ '{:,}'.format(model.rate_limits.tokens_per_minute) if model.rate_limits.tokens_per_minute else 'N/A' }}</code></small></div>
                     </div>
                     <div class="row">
-                        <div class="col-5"><strong>Image Cost:</strong></div>
-                        <div class="col-7"><code>{{ '$%.6f'|format(model.image_price_per_token * 1000000) if model.image_price_per_token else 'N/A' }}/MTok</code></div>
+                        <div class="col-7"><small>Requests/day:</small></div>
+                        <div class="col-5"><small><code>{{ '{:,}'.format(model.rate_limits.requests_per_day) if model.rate_limits.requests_per_day else 'N/A' }}</code></small></div>
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
         
-        <!-- Container Status -->
+        <!-- Container & Research Status -->
         <div class="col-lg-6 mb-4">
             <div class="card h-100">
-                <div class="card-header">
-                    <h6 class="mb-0 font-weight-bold">Container Status</h6>
+                <div class="card-header bg-warning text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-flask mr-2"></i>Research Project Status
+                    </h6>
                 </div>
                 <div class="card-body">
                     <div class="row text-center mb-3">
                         <div class="col-4">
                             <div class="text-success">
-                                <h4>{{ running_count }}</h4>
-                                <small>Running</small>
+                                <h4>{{ running_count or 0 }}</h4>
+                                <small>Running Apps</small>
                             </div>
                         </div>
                         <div class="col-4">
-                            <div class="text-warning">
-                                <h4>{{ stopped_count }}</h4>
-                                <small>Stopped</small>
+                            <div class="text-secondary">
+                                <h4>{{ stopped_count or (30 - (running_count or 0)) }}</h4>
+                                <small>Stopped Apps</small>
                             </div>
                         </div>
                         <div class="col-4">
                             <div class="text-danger">
-                                <h4>{{ error_count }}</h4>
+                                <h4>{{ error_count or 0 }}</h4>
                                 <small>Errors</small>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="btn-group btn-group-sm w-100" role="group">
-                        <button class="btn btn-success" 
-                                hx-post="/api/model/{{ model.canonical_slug }}/start-all"
-                                hx-target="#model-{{ model.canonical_slug }}"
-                                hx-swap="outerHTML"
-                                title="Start All Containers">
-                            <i class="fas fa-play"></i> Start All
-                        </button>
-                        <button class="btn btn-danger" 
-                                hx-post="/api/model/{{ model.canonical_slug }}/stop-all"
-                                hx-target="#model-{{ model.canonical_slug }}"
-                                hx-swap="outerHTML"
-                                title="Stop All Containers">
-                            <i class="fas fa-stop"></i> Stop All
-                        </button>
-                        <button class="btn btn-secondary" 
-                                hx-post="/api/model/{{ model.canonical_slug }}/analyze-all"
-                                hx-target="#model-{{ model.canonical_slug }}"
-                                hx-swap="outerHTML"
-                                title="Analyze All Apps">
-                            <i class="fas fa-shield-alt"></i> Analyze
-                        </button>
+                    <div class="research-stats">
+                        <div class="row mb-2">
+                            <div class="col-6"><strong>Total Apps:</strong></div>
+                            <div class="col-6"><span class="badge badge-primary">30</span></div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6"><strong>Applications Generated:</strong></div>
+                            <div class="col-6">
+                                <span class="badge badge-info">All 30 Types</span>
+                            </div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6"><strong>Research Status:</strong></div>
+                            <div class="col-6">
+                                <span class="badge badge-{{ 'success' if (running_count or 0) > 0 else 'secondary' }}">
+                                    {{ 'Active' if (running_count or 0) > 0 else 'Standby' }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6"><strong>Analysis Ready:</strong></div>
+                            <div class="col-6">
+                                <span class="badge badge-success">
+                                    <i class="fas fa-check mr-1"></i>Yes
+                                </span>
+                            </div>
+                        </div>
                     </div>
+                    
+                    <hr>
+                    <p class="text-muted small">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        This model has generated 30 different application types for comprehensive analysis including security scanning, performance testing, and code quality assessment.
+                    </p>
                 </div>
             </div>
         </div>
         
-        <!-- Performance Metrics -->
+        <!-- Quality & Performance Metrics -->
         <div class="col-lg-6 mb-4">
             <div class="card h-100">
-                <div class="card-header">
-                    <h6 class="mb-0 font-weight-bold">Performance Metrics</h6>
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-chart-line mr-2"></i>Quality & Performance Metrics
+                    </h6>
                 </div>
                 <div class="card-body">
-                    <div class="row mb-2">
-                        <div class="col-6"><strong>Moderation:</strong></div>
+                    {% if model.quality_metrics %}
+                    <div class="row mb-3">
                         <div class="col-6">
-                            <span class="badge badge-info">{{ model.moderation_score or 'N/A' }}</span>
+                            {% if model.quality_metrics.helpfulness %}
+                            <div class="metric-item mb-2">
+                                <strong>Helpfulness:</strong>
+                                <span class="badge badge-{{ 'success' if model.quality_metrics.helpfulness >= 8 else 'warning' if model.quality_metrics.helpfulness >= 6 else 'danger' }}">
+                                    {{ "%.1f"|format(model.quality_metrics.helpfulness) }}/10
+                                </span>
+                            </div>
+                            {% endif %}
+                            {% if model.quality_metrics.accuracy %}
+                            <div class="metric-item mb-2">
+                                <strong>Accuracy:</strong>
+                                <span class="badge badge-{{ 'success' if model.quality_metrics.accuracy >= 8 else 'warning' if model.quality_metrics.accuracy >= 6 else 'danger' }}">
+                                    {{ "%.1f"|format(model.quality_metrics.accuracy) }}/10
+                                </span>
+                            </div>
+                            {% endif %}
+                            {% if model.quality_metrics.creativity %}
+                            <div class="metric-item mb-2">
+                                <strong>Creativity:</strong>
+                                <span class="badge badge-{{ 'success' if model.quality_metrics.creativity >= 8 else 'warning' if model.quality_metrics.creativity >= 6 else 'danger' }}">
+                                    {{ "%.1f"|format(model.quality_metrics.creativity) }}/10
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-6">
+                            {% if model.quality_metrics.coherence %}
+                            <div class="metric-item mb-2">
+                                <strong>Coherence:</strong>
+                                <span class="badge badge-{{ 'success' if model.quality_metrics.coherence >= 8 else 'warning' if model.quality_metrics.coherence >= 6 else 'danger' }}">
+                                    {{ "%.1f"|format(model.quality_metrics.coherence) }}/10
+                                </span>
+                            </div>
+                            {% endif %}
+                            {% if model.quality_metrics.instruction_following %}
+                            <div class="metric-item mb-2">
+                                <strong>Instruction Following:</strong>
+                                <span class="badge badge-{{ 'success' if model.quality_metrics.instruction_following >= 8 else 'warning' if model.quality_metrics.instruction_following >= 6 else 'danger' }}">
+                                    {{ "%.1f"|format(model.quality_metrics.instruction_following) }}/10
+                                </span>
+                            </div>
+                            {% endif %}
+                            {% if model.quality_metrics.safety %}
+                            <div class="metric-item mb-2">
+                                <strong>Safety:</strong>
+                                <span class="badge badge-{{ 'success' if model.quality_metrics.safety >= 8 else 'warning' if model.quality_metrics.safety >= 6 else 'danger' }}">
+                                    {{ "%.1f"|format(model.quality_metrics.safety) }}/10
+                                </span>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
-                    <div class="row mb-2">
-                        <div class="col-6"><strong>Quality:</strong></div>
-                        <div class="col-6">
-                            <span class="badge badge-info">{{ model.quality_score or 'N/A' }}</span>
-                        </div>
-                    </div>
-                    <div class="row mb-2">
-                        <div class="col-6"><strong>Safety:</strong></div>
-                        <div class="col-6">
-                            <span class="badge badge-info">{{ model.safety_score or 'N/A' }}</span>
-                        </div>
-                    </div>
+                    {% endif %}
+                    
+                    {% if model.performance %}
+                    <hr>
+                    <h6 class="font-weight-bold text-muted">Performance Specs</h6>
                     <div class="row">
-                        <div class="col-6"><strong>Instruct:</strong></div>
                         <div class="col-6">
-                            <span class="badge badge-info">{{ model.instruct_score or 'N/A' }}</span>
+                            {% if model.performance.avg_latency_ms %}
+                            <div class="row mb-1">
+                                <div class="col-7"><small>Latency:</small></div>
+                                <div class="col-5"><small><code>{{ model.performance.avg_latency_ms }}ms</code></small></div>
+                            </div>
+                            {% endif %}
+                            {% if model.performance.tokens_per_second %}
+                            <div class="row mb-1">
+                                <div class="col-7"><small>Speed:</small></div>
+                                <div class="col-5"><small><code>{{ model.performance.tokens_per_second }} tok/s</code></small></div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-6">
+                            {% if model.performance.uptime_percentage %}
+                            <div class="row mb-1">
+                                <div class="col-7"><small>Uptime:</small></div>
+                                <div class="col-5"><small><code>{{ model.performance.uptime_percentage }}%</code></small></div>
+                            </div>
+                            {% endif %}
+                            {% if model.performance.quality_score %}
+                            <div class="row mb-1">
+                                <div class="col-7"><small>Quality:</small></div>
+                                <div class="col-5"><small><code>{{ "%.1f"|format(model.performance.quality_score) }}/10</code></small></div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
+                    {% endif %}
+                    
+                    {% if not model.quality_metrics and not model.performance %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-chart-line fa-2x mb-2"></i>
+                        <p>Quality metrics will be available after analysis completion</p>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
         
-        <!-- Technical Details -->
+        <!-- Technical Architecture -->
         <div class="col-lg-6 mb-4">
             <div class="card h-100">
-                <div class="card-header">
-                    <h6 class="mb-0 font-weight-bold">Technical Details</h6>
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-microchip mr-2"></i>Technical Architecture
+                    </h6>
                 </div>
                 <div class="card-body">
+                    {% if model.architecture %}
                     <div class="row mb-2">
-                        <div class="col-5"><strong>Slug:</strong></div>
-                        <div class="col-7"><code>{{ model.canonical_slug }}</code></div>
+                        <div class="col-5"><strong>Tokenizer:</strong></div>
+                        <div class="col-7"><code>{{ model.architecture.tokenizer or 'N/A' }}</code></div>
                     </div>
                     <div class="row mb-2">
-                        <div class="col-5"><strong>Model ID:</strong></div>
-                        <div class="col-7"><code>{{ model.model_id }}</code></div>
+                        <div class="col-5"><strong>Instruct Type:</strong></div>
+                        <div class="col-7"><code>{{ model.architecture.instruct_type or 'N/A' }}</code></div>
                     </div>
                     <div class="row mb-2">
-                        <div class="col-5"><strong>Created:</strong></div>
-                        <div class="col-7">{{ model.created_at.strftime('%Y-%m-%d %H:%M') if model.created_at else 'N/A' }}</div>
+                        <div class="col-5"><strong>Parameters:</strong></div>
+                        <div class="col-7">
+                            <span class="badge badge-info">{{ model.architecture.parameter_count or 'Unknown' }}</span>
+                        </div>
                     </div>
-                    <div class="row">
-                        <div class="col-5"><strong>Updated:</strong></div>
-                        <div class="col-7">{{ model.updated_at.strftime('%Y-%m-%d %H:%M') if model.updated_at else 'N/A' }}</div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Quantization:</strong></div>
+                        <div class="col-7"><code>{{ model.architecture.quantization or 'N/A' }}</code></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Training Cutoff:</strong></div>
+                        <div class="col-7"><code>{{ model.architecture.training_cutoff or 'N/A' }}</code></div>
+                    </div>
+                    {% endif %}
+                    
+                    <hr>
+                    <h6 class="font-weight-bold text-muted">Input/Output Modalities</h6>
+                    {% if model.input_modalities %}
+                    <div class="row mb-2">
+                        <div class="col-4"><strong>Input:</strong></div>
+                        <div class="col-8">
+                            {% for modality in model.input_modalities %}
+                            <span class="badge badge-primary mr-1">{{ modality|title }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if model.output_modalities %}
+                    <div class="row mb-2">
+                        <div class="col-4"><strong>Output:</strong></div>
+                        <div class="col-8">
+                            {% for modality in model.output_modalities %}
+                            <span class="badge badge-secondary mr-1">{{ modality|title }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if model.supported_parameters %}
+                    <hr>
+                    <h6 class="font-weight-bold text-muted">Supported Parameters</h6>
+                    <div class="parameters-list">
+                        {% for param in model.supported_parameters %}
+                        <span class="badge badge-outline-dark mr-1 mb-1">{{ param }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Research Applications Grid -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-th-large mr-2"></i>Generated Research Applications (30 Types)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        This model has generated 30 different application types as part of the comprehensive AI research study. 
+                        Each application includes both frontend and backend components with Docker containerization.
+                    </p>
+                    
+                    <div class="research-applications-summary">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <div class="app-category">
+                                    <h6 class="text-primary">Authentication & User Management</h6>
+                                    <small class="text-muted">Login systems, user profiles, session management</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="app-category">
+                                    <h6 class="text-primary">Communication & Social</h6>
+                                    <small class="text-muted">Chat apps, forums, microblogging platforms</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="app-category">
+                                    <h6 class="text-primary">Content Management</h6>
+                                    <small class="text-muted">Blogs, wikis, file storage, galleries</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="app-category">
+                                    <h6 class="text-primary">Business & Productivity</h6>
+                                    <small class="text-muted">Project management, CRM, analytics dashboards</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="app-category">
+                                    <h6 class="text-primary">E-commerce & Finance</h6>
+                                    <small class="text-muted">Shopping carts, payment systems, financial tracking</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="app-category">
+                                    <h6 class="text-primary">Health & Fitness</h6>
+                                    <small class="text-muted">Fitness trackers, health monitors, wellness apps</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="app-category">
+                                    <h6 class="text-primary">Education & Learning</h6>
+                                    <small class="text-muted">Learning platforms, quiz systems, study tools</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="app-category">
+                                    <h6 class="text-primary">IoT & Real-time Systems</h6>
+                                    <small class="text-muted">Device monitoring, real-time data, automation</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <p class="text-info">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Each application is containerized with Docker and includes comprehensive security analysis, performance testing, and code quality assessment.
+                        </p>
                     </div>
                 </div>
             </div>
