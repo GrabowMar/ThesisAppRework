@@ -650,6 +650,89 @@ class OpenRouterAnalysis(db.Model):
     def __repr__(self):
         return f'<OpenRouterAnalysis {self.id} for App {self.application_id}>'
 
+class ContainerizedTest(db.Model):
+    """Model for tracking tests submitted to containerized services."""
+    __tablename__ = 'containerized_tests'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    test_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
+    
+    # Test configuration
+    test_type = db.Column(db.String(50), nullable=False, index=True)  # security, performance, zap, ai
+    service_endpoint = db.Column(db.String(200))  # Which container service
+    tools_used = db.Column(db.Text)  # JSON list of tools
+    
+    # Test lifecycle
+    status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    
+    # Results
+    result_data = db.Column(db.Text)  # JSON results from containerized service
+    error_message = db.Column(db.Text)
+    
+    # Performance metrics
+    execution_duration = db.Column(db.Float)  # Duration in seconds
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship
+    application = db.relationship('GeneratedApplication', backref=db.backref('containerized_tests', lazy=True))
+    
+    def get_tools_used(self):
+        """Get list of tools used in test."""
+        if self.tools_used:
+            try:
+                return json.loads(self.tools_used)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_tools_used(self, tools_list):
+        """Set list of tools used in test."""
+        self.tools_used = json.dumps(tools_list) if tools_list else None
+    
+    def get_result_data(self):
+        """Get parsed result data."""
+        if self.result_data:
+            try:
+                return json.loads(self.result_data)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_result_data(self, data_dict):
+        """Set result data as JSON."""
+        self.result_data = json.dumps(data_dict) if data_dict else None
+    
+    def to_dict(self):
+        """Convert to dictionary for API responses."""
+        return {
+            'id': self.id,
+            'test_id': self.test_id,
+            'application_id': self.application_id,
+            'test_type': self.test_type,
+            'service_endpoint': self.service_endpoint,
+            'tools_used': self.get_tools_used(),
+            'status': self.status.value if self.status else None,
+            'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'execution_duration': self.execution_duration,
+            'result_data': self.get_result_data(),
+            'error_message': self.error_message,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self):
+        return f'<ContainerizedTest {self.test_id}: {self.test_type} - {self.status}>'
+
+
 class BatchAnalysis(db.Model):
     """Model for storing batch analysis records."""
     __tablename__ = 'batch_analyses'

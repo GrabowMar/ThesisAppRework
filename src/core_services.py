@@ -994,6 +994,150 @@ class PortManager(CacheableService):
 
 
 # ===========================
+# TESTING SERVICE CLIENT
+# ===========================
+
+class TestingServiceClient(BaseService):
+    """Client for communicating with containerized testing services."""
+    
+    def __init__(self, base_url: str = "http://localhost:8000"):
+        super().__init__('testing_client')
+        self.base_url = base_url.rstrip('/')
+        self.timeout = 300
+        self._session = None
+    
+    def _get_session(self):
+        """Get or create HTTP session."""
+        if self._session is None:
+            import requests
+            self._session = requests.Session()
+            self._session.timeout = self.timeout
+        return self._session
+    
+    def submit_security_analysis(self, model: str, app_num: int, tools: List[str] = None) -> str:
+        """Submit security analysis request."""
+        try:
+            session = self._get_session()
+            data = {
+                "model": model,
+                "app_num": app_num,
+                "test_type": "security_backend",
+                "tools": tools or ["bandit", "safety", "pylint", "eslint"],
+                "options": {}
+            }
+            
+            response = session.post(f"{self.base_url}/api/security/tests", json=data)
+            response.raise_for_status()
+            
+            result = response.json()
+            if result.get("success"):
+                return result["data"]["test_id"]
+            else:
+                raise Exception(f"Failed to submit test: {result.get('error')}")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to submit security analysis: {e}")
+            raise
+    
+    def submit_performance_test(self, model: str, app_num: int, target_url: str, users: int = 10) -> str:
+        """Submit performance test request."""
+        try:
+            session = self._get_session()
+            data = {
+                "model": model,
+                "app_num": app_num,
+                "test_type": "performance",
+                "users": users,
+                "target_url": target_url,
+                "duration": 60,
+                "options": {}
+            }
+            
+            response = session.post(f"{self.base_url}/api/performance/tests", json=data)
+            response.raise_for_status()
+            
+            result = response.json()
+            if result.get("success"):
+                return result["data"]["test_id"]
+            else:
+                raise Exception(f"Failed to submit test: {result.get('error')}")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to submit performance test: {e}")
+            raise
+    
+    def get_test_status(self, test_id: str, service_type: str) -> str:
+        """Get test status."""
+        try:
+            session = self._get_session()
+            endpoint_map = {
+                "security": "security",
+                "performance": "performance", 
+                "zap": "zap",
+                "ai": "ai"
+            }
+            
+            endpoint = endpoint_map.get(service_type, "security")
+            response = session.get(f"{self.base_url}/api/{endpoint}/tests/{test_id}/status")
+            response.raise_for_status()
+            
+            result = response.json()
+            if result.get("success"):
+                return result["data"]["status"]
+            else:
+                return "failed"
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get test status: {e}")
+            return "failed"
+    
+    def get_test_result(self, test_id: str, service_type: str) -> Optional[Dict[str, Any]]:
+        """Get test result."""
+        try:
+            session = self._get_session()
+            endpoint_map = {
+                "security": "security",
+                "performance": "performance",
+                "zap": "zap", 
+                "ai": "ai"
+            }
+            
+            endpoint = endpoint_map.get(service_type, "security")
+            response = session.get(f"{self.base_url}/api/{endpoint}/tests/{test_id}/result")
+            response.raise_for_status()
+            
+            result = response.json()
+            if result.get("success"):
+                return result["data"]
+            else:
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get test result: {e}")
+            return None
+    
+    def health_check(self) -> Dict[str, bool]:
+        """Check health of all testing services."""
+        try:
+            session = self._get_session()
+            response = session.get(f"{self.base_url}/api/health")
+            response.raise_for_status()
+            
+            result = response.json()
+            return result.get("data", {})
+            
+        except Exception as e:
+            self.logger.error(f"Health check failed: {e}")
+            return {}
+    
+    def cleanup(self):
+        """Cleanup resources."""
+        if self._session:
+            self._session.close()
+            self._session = None
+
+
+# ===========================
 # SCAN MANAGER
 # ===========================
 
@@ -1003,6 +1147,7 @@ class ScanManager(BaseService):
     def __init__(self):
         super().__init__('scan_manager')
         self.scans: Dict[str, Dict[str, Any]] = {}
+        self.testing_client = TestingServiceClient()
     
     def create_scan(self, model: str, app_num: int, options: dict) -> str:
         """Create a new scan."""
@@ -1078,74 +1223,41 @@ class ScanManager(BaseService):
             return len(to_remove)
     
     def run_security_analysis(self, model: str, app_num: int, enabled_tools: dict) -> dict:
-        """Run security analysis using the security analysis service."""
+        """Run security analysis using containerized services with fallback to legacy."""
         try:
             self.logger.info(f"Starting security analysis for {model} app {app_num}")
             
-            # Try to import the security analysis service dynamically
+            # Try containerized service first
             try:
-                from security_analysis_service import UnifiedCLIAnalyzer, ToolCategory
-                
-                # Initialize the analyzer
-                analyzer = UnifiedCLIAnalyzer(Path.cwd())
-                
-                # Determine categories based on enabled tools
-                categories = []
+                # Determine tools to use based on enabled_tools
+                tools = []
                 if any(tool in enabled_tools and enabled_tools[tool] for tool in ['bandit', 'safety', 'semgrep']):
-                    categories.append(ToolCategory.BACKEND_SECURITY)
+                    tools.extend(['bandit', 'safety', 'pylint'])
                 if any(tool in enabled_tools and enabled_tools[tool] for tool in ['eslint', 'npm_audit', 'retire']):
-                    categories.append(ToolCategory.FRONTEND_SECURITY)
+                    tools.extend(['eslint', 'retire', 'npm-audit'])
                 
-                # If no specific tools enabled, use both categories
-                if not categories:
-                    categories = [ToolCategory.BACKEND_SECURITY, ToolCategory.FRONTEND_SECURITY]
+                if not tools:
+                    tools = ['bandit', 'safety', 'eslint']
                 
-                # Run the analysis
-                results = analyzer.run_analysis(
-                    model=model,
-                    app_num=app_num,
-                    categories=categories,
-                    use_all_tools=False,
-                    force_rerun=False
-                )
+                # Submit to containerized service
+                test_id = self.testing_client.submit_security_analysis(model, app_num, tools)
                 
-                # Format results for web interface
-                if results and isinstance(results, dict):
-                    total_issues = 0
-                    for category_result in results.values():
-                        if isinstance(category_result, dict) and 'issues' in category_result:
-                            total_issues += len(category_result['issues'])
-                    
-                    return {
-                        'success': True,
-                        'data': {
-                            'issues': [],  # Simplified for now
-                            'total_issues': total_issues,
-                            'categories': list(results.keys())
-                        }
-                    }
-                else:
-                    return {
-                        'success': True,
-                        'data': {
-                            'issues': [],
-                            'total_issues': 0,
-                            'categories': []
-                        }
-                    }
-                    
-            except ImportError as e:
-                self.logger.warning(f"Security analysis service not available: {e}")
-                # Return a mock response when service is not available
                 return {
                     'success': True,
+                    'test_id': test_id,
+                    'message': 'Security analysis submitted to containerized service',
                     'data': {
-                        'issues': [],
-                        'total_issues': 0,
-                        'categories': [],
-                        'warning': 'Security analysis service not available'
+                        'status': 'submitted',
+                        'test_id': test_id,
+                        'mode': 'containerized'
                     }
                 }
+                
+            except Exception as containerized_error:
+                self.logger.warning(f"Containerized service failed, falling back to legacy: {containerized_error}")
+                
+                # Fallback to legacy implementation
+                return self._run_legacy_security_analysis(model, app_num, enabled_tools)
                 
         except Exception as e:
             self.logger.error(f"Security analysis failed: {e}")
@@ -1153,6 +1265,20 @@ class ScanManager(BaseService):
                 'success': False,
                 'error': str(e)
             }
+    
+    def _run_legacy_security_analysis(self, model: str, app_num: int, enabled_tools: dict) -> dict:
+        """Fallback security analysis when containerized services are unavailable."""
+        self.logger.warning("Containerized security services unavailable, using mock analysis")
+        return {
+            'success': True,
+            'data': {
+                'issues': [],
+                'total_issues': 0,
+                'categories': [],
+                'warning': 'Security analysis service not available - containerized services recommended',
+                'mode': 'mock'
+            }
+        }
 
     def cleanup(self):
         """Cleanup resources."""

@@ -1,0 +1,236 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8000:80"
+    depends_on:
+      - security-scanner
+      - performance-tester
+      - zap-scanner
+      - openrouter-analyzer
+      - test-coordinator
+    environment:
+      - SECURITY_SCANNER_URL=http://security-scanner:8001
+      - PERFORMANCE_TESTER_URL=http://performance-tester:8002
+      - ZAP_SCANNER_URL=http://zap-scanner:8003
+      - OPENROUTER_ANALYZER_URL=http://openrouter-analyzer:8004
+      - TEST_COORDINATOR_URL=http://test-coordinator:8005
+    networks:
+      - testing-network
+
+  # Security Analysis Container
+  security-scanner:
+    build: ./containers/security-scanner
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./shared:/app/shared:ro
+      - app-sources:/app/sources:ro
+      - analysis-results:/app/results
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - LOG_LEVEL=INFO
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Performance Testing Container
+  performance-tester:
+    build: ./containers/performance-tester
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./shared:/app/shared:ro
+      - performance-reports:/app/reports
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - LOG_LEVEL=INFO
+      - GEVENT_SUPPORT=true
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # ZAP Security Scanner Container
+  zap-scanner:
+    build: ./containers/zap-scanner
+    ports:
+      - "8003:8003"
+      - "8090:8090"  # ZAP proxy port
+    volumes:
+      - ./shared:/app/shared:ro
+      - zap-sessions:/zap/sessions
+      - zap-reports:/app/reports
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - ZAP_PORT=8090
+      - LOG_LEVEL=INFO
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: '1.0'
+
+  # OpenRouter AI Analyzer Container
+  openrouter-analyzer:
+    build: ./containers/openrouter-analyzer
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./shared:/app/shared:ro
+      - app-sources:/app/sources:ro
+      - ai-analysis-results:/app/results
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LOG_LEVEL=INFO
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Test Coordinator Container
+  test-coordinator:
+    build: ./containers/test-coordinator
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./shared:/app/shared:ro
+      - coordinator-data:/app/data
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://coordinator:password@postgres:5432/coordinator
+      - LOG_LEVEL=INFO
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Redis for task queue
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+  # PostgreSQL for coordinator state
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=coordinator
+      - POSTGRES_USER=coordinator
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.2'
+
+  # Monitoring and Logging
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - testing-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - testing-network
+
+volumes:
+  app-sources:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: ${PWD}/../misc/models
+  
+  analysis-results:
+    driver: local
+  
+  performance-reports:
+    driver: local
+  
+  zap-sessions:
+    driver: local
+  
+  zap-reports:
+    driver: local
+  
+  ai-analysis-results:
+    driver: local
+  
+  coordinator-data:
+    driver: local
+  
+  redis-data:
+    driver: local
+  
+  postgres-data:
+    driver: local
+  
+  prometheus-data:
+    driver: local
+  
+  grafana-data:
+    driver: local
+
+networks:
+  testing-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -796,12 +796,11 @@ def app_performance(model: str, app_num: int):
         }
         
         try:
-            from performance_service import LocustPerformanceTester
-            tester = LocustPerformanceTester(Path.cwd() / "performance_reports")
-            context['existing_results'] = tester.load_performance_results(decoded_model, app_num)
-            context['has_results'] = context['existing_results'] is not None
-            context['performance_available'] = True
-        except ImportError:
+            # Performance service is now containerized
+            context['performance_available'] = False  # Will be enabled when containers are available
+            context['existing_results'] = None
+            context['has_results'] = False
+        except Exception:
             context['performance_available'] = False
             context['existing_results'] = None
             context['has_results'] = False
@@ -2999,7 +2998,6 @@ def load_daily_statistics():
 
 # Import batch coordinator and models
 try:
-    from batch_coordinator import BatchAnalysisCoordinator
     from models import BatchJob, BatchTask, JobStatus, TaskStatus, AnalysisType
 except ImportError:
     # Fallback for environments where batch system is not available
@@ -3015,7 +3013,6 @@ def get_batch_coordinator():
     if _batch_coordinator is None:
         try:
             # Import the new BatchService
-            from batch_service import BatchService
             
             # Create service instance
             _batch_coordinator = BatchService(current_app)
@@ -4087,6 +4084,95 @@ def run_performance_test(model, app_num):
 
 @api_bp.route("/analysis/<model>/<int:app_num>/security", methods=["POST"])
 def run_security_analysis(model, app_num):
+    """Run CLI security analysis on specified app with containerized service support."""
+    try:
+        logger.info(f"Starting security analysis for {model} app {app_num}")
+        
+        # Check if containerized services should be used
+        use_containerized = request.form.get('use_containerized') == 'on'
+        
+        if use_containerized:
+            return _run_containerized_security_analysis(model, app_num)
+        else:
+            return _run_legacy_security_analysis(model, app_num)
+        
+    except Exception as e:
+        logger.error(f"Security analysis error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def _run_containerized_security_analysis(model, app_num):
+    """Run security analysis via containerized services."""
+    try:
+        # Get enabled tools from form
+        tools = []
+        if request.form.get('bandit') == 'on':
+            tools.append('bandit')
+        if request.form.get('safety') == 'on':
+            tools.append('safety')
+        if request.form.get('pylint') == 'on':
+            tools.append('pylint')
+        if request.form.get('eslint') == 'on':
+            tools.append('eslint')
+        if request.form.get('retire') == 'on':
+            tools.append('retire')
+        if request.form.get('npm_audit') == 'on':
+            tools.append('npm-audit')
+        
+        # Default tools if none selected
+        if not tools:
+            tools = ['bandit', 'safety', 'eslint']
+        
+        # Get scan manager and submit to containerized service
+        scan_manager = ServiceLocator.get_service('scan_manager')
+        if not scan_manager or not hasattr(scan_manager, 'testing_client'):
+            return jsonify({'error': 'Containerized testing service not available'}), 503
+        
+        # Submit analysis
+        test_id = scan_manager.testing_client.submit_security_analysis(model, app_num, tools)
+        
+        return render_template_string("""
+        <div class="alert alert-info">
+            <h6><i class="fas fa-rocket"></i> Containerized Security Analysis Submitted</h6>
+            <p>Analysis has been submitted to containerized testing service.</p>
+            <p><strong>Test ID:</strong> <code>{{ test_id }}</code></p>
+            <p><strong>Tools:</strong> {{ tools|join(', ') }}</p>
+            <div class="mt-3">
+                <button class="btn btn-primary btn-sm" 
+                        hx-get="/api/analysis/{{ model }}/{{ app_num }}/status/{{ test_id }}"
+                        hx-target="#analysis-results"
+                        hx-trigger="click, every 5s">
+                    <i class="fas fa-sync-alt"></i> Check Status
+                </button>
+                <button class="btn btn-secondary btn-sm ml-2"
+                        onclick="document.getElementById('analysis-results').innerHTML='<div class=\\'alert alert-info\\'>Analysis cancelled by user</div>'">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            </div>
+        </div>
+        """, 
+        test_id=test_id,
+        tools=tools,
+        model=model, 
+        app_num=app_num)
+        
+    except Exception as e:
+        logger.error(f"Containerized security analysis failed: {e}")
+        return render_template_string("""
+        <div class="alert alert-warning">
+            <h6><i class="fas fa-exclamation-triangle"></i> Containerized Service Unavailable</h6>
+            <p>Falling back to legacy analysis: {{ error }}</p>
+        </div>
+        """, error=str(e)) + _run_legacy_security_analysis(model, app_num)
+
+
+def _run_legacy_security_analysis(model, app_num):
+    """Legacy security analysis is no longer available - use containerized services."""
+    return jsonify({
+        'success': False,
+        'error': 'Legacy security analysis service has been removed. Please use containerized testing services.',
+        'recommendation': 'Deploy containerized services with: python testing-infrastructure/manage.py start'
+    }), 503
     """Run CLI security analysis on specified app."""
     try:
         logger.info(f"Starting CLI security analysis for {model} app {app_num}")
@@ -4117,7 +4203,6 @@ def run_security_analysis(model, app_num):
         
         # Get the CLI analyzer
         from pathlib import Path
-        from security_analysis_service import UnifiedCLIAnalyzer
         
         # Initialize with base path (misc/models directory)
         base_path = Path(current_app.root_path).parent / "misc" / "models"
@@ -4146,7 +4231,6 @@ def run_security_analysis(model, app_num):
             )
         else:
             # Run selective analysis
-            from security_analysis_service import ToolCategory
             categories = [ToolCategory.BACKEND_SECURITY, ToolCategory.FRONTEND_SECURITY]
             if include_quality:
                 categories.extend([ToolCategory.BACKEND_QUALITY, ToolCategory.FRONTEND_QUALITY])
@@ -4478,6 +4562,90 @@ def run_zap_scan(model, app_num):
         return jsonify({'error': str(e)}), 500
 
 
+@api_bp.route("/analysis/<model>/<int:app_num>/status/<test_id>")
+def get_analysis_status(model, app_num, test_id):
+    """Get status of containerized analysis test."""
+    try:
+        # Get testing client from scan manager
+        scan_manager = ServiceLocator.get_service('scan_manager')
+        if not scan_manager or not hasattr(scan_manager, 'testing_client'):
+            return jsonify({'error': 'Testing client not available'}), 503
+        
+        # Check test status
+        status = scan_manager.testing_client.get_test_status(test_id, 'security')
+        
+        if status in ['completed', 'failed']:
+            # Get results
+            result = scan_manager.testing_client.get_test_result(test_id, 'security')
+            
+            if result and status == 'completed':
+                issues = result.get('issues', [])
+                return render_template_string("""
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-shield-alt"></i> Security Analysis Complete</h6>
+                    <p>Found {{ total_issues }} security issues</p>
+                    <p><strong>Test ID:</strong> <code>{{ test_id }}</code></p>
+                    
+                    {% if issues %}
+                    <div class="mt-3">
+                        <h6>Top Issues:</h6>
+                        <ul class="mb-0">
+                        {% for issue in issues[:5] %}
+                            <li>
+                                <span class="badge badge-{{ 'danger' if issue.severity == 'critical' or issue.severity == 'high' else 'warning' if issue.severity == 'medium' else 'info' }}">
+                                    {{ issue.severity|upper }}
+                                </span>
+                                {{ issue.tool }}: {{ issue.message }}
+                            </li>
+                        {% endfor %}
+                        {% if issues|length > 5 %}
+                            <li><em>... and {{ issues|length - 5 }} more issues</em></li>
+                        {% endif %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+                """, 
+                total_issues=result.get('total_issues', 0),
+                test_id=test_id,
+                issues=issues)
+            elif status == 'failed':
+                return render_template_string("""
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle"></i> Security Analysis Failed</h6>
+                    <p>Test ID: <code>{{ test_id }}</code></p>
+                    <p>Error: {{ error }}</p>
+                </div>
+                """, 
+                test_id=test_id,
+                error=result.get('error_message', 'Unknown error') if result else 'No error details available')
+        else:
+            # Still running
+            return render_template_string("""
+            <div class="alert alert-info">
+                <h6><i class="fas fa-spinner fa-spin"></i> Security Analysis Running</h6>
+                <p>Status: {{ status|title }}</p>
+                <p>Test ID: <code>{{ test_id }}</code></p>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-primary" 
+                            hx-get="/api/analysis/{{ model }}/{{ app_num }}/status/{{ test_id }}"
+                            hx-target="#analysis-results"
+                            hx-trigger="click, every 5s">
+                        <i class="fas fa-sync-alt"></i> Refresh Status
+                    </button>
+                </div>
+            </div>
+            """, 
+            status=status,
+            test_id=test_id,
+            model=model,
+            app_num=app_num)
+        
+    except Exception as e:
+        logger.error(f"Failed to get analysis status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @api_bp.route("/status/<model>/<int:app_num>")
 def get_app_status_api(model, app_num):
     """Get app status for HTMX updates."""
@@ -4718,7 +4886,6 @@ def register_blueprints(app):
     
     # Register new enhanced batch blueprints
     try:
-        import batch_routes
         app.register_blueprint(batch_routes.batch_routes_bp)
         app.register_blueprint(batch_routes.batch_api_bp)
         logger.info("Enhanced batch blueprints registered successfully")
