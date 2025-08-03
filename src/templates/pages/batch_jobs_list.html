@@ -18,7 +18,7 @@
         
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-primary btn-sm" 
-                    hx-get="/batch/api/jobs"
+                    hx-get="/api/batch/jobs"
                     hx-target="#jobs-container"
                     hx-indicator="#loading-overlay">
                 <i class="fas fa-sync-alt mr-1"></i>
@@ -387,7 +387,7 @@ function bulkJobAction(action) {
 
 // Utility functions
 function refreshJobs() {
-    htmx.ajax('GET', '/batch/api/jobs', {
+    htmx.ajax('GET', '/api/batch/jobs', {
         target: '#jobs-container',
         swap: 'innerHTML'
     });

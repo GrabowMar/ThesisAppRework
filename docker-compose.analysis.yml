@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  analysis-container:
+    build:
+      context: ./analysis-container
+      dockerfile: Dockerfile
+    container_name: thesis-analysis-container
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount the models directory for analysis
+      - ./misc/models:/workspace/models:ro
+      # Mount results directory
+      - ./analysis-results:/results
+      # Mount logs directory
+      - ./logs:/app/logs
+      # Mount temporary directory
+      - ./temp:/temp
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - MAX_CONCURRENT_JOBS=4
+      - ANALYSIS_TIMEOUT=3600
+    networks:
+      - analysis-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
+  redis:
+    image: redis:7-alpine
+    container_name: thesis-analysis-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - analysis-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+networks:
+  analysis-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local

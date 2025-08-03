@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "timeout": 300,
+  "max_memory": "512M",
+  "parallel": false,
+  "options": {
+    "format": "json",
+    "extensions": [".js", ".jsx", ".ts", ".tsx"],
+    "plugins": [
+      "eslint:recommended",
+      "@typescript-eslint/recommended",
+      "react/recommended",
+      "security"
+    ],
+    "ignore_warnings": false,
+    "max_warnings": 100
+  }
+}

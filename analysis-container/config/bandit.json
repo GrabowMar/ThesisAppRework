@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "timeout": 300,
+  "max_memory": "512M",
+  "parallel": false,
+  "options": {
+    "format": "json",
+    "recursive": true,
+    "severity_level": "low",
+    "skip_tests": true,
+    "exclude_dirs": [
+      ".git",
+      "node_modules",
+      "__pycache__",
+      ".venv",
+      "venv"
+    ],
+    "include_tests": false
+  }
+}

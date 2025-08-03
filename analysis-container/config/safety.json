@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "timeout": 180,
+  "max_memory": "256M",
+  "parallel": false,
+  "options": {
+    "format": "json",
+    "ignore_ids": [],
+    "ignore_cve_severity": [],
+    "check_only": false
+  }
+}

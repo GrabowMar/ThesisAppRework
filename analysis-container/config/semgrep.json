@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "timeout": 600,
+  "max_memory": "1G",
+  "parallel": false,
+  "options": {
+    "config": "auto",
+    "format": "json",
+    "severity": ["ERROR", "WARNING"],
+    "exclude_rules": [],
+    "max_lines_per_finding": 10
+  }
+}
