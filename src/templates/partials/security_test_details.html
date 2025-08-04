@@ -93,43 +93,120 @@
         
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0">Progress</h6>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-line mr-2"></i>
+                        Real-time Progress
+                    </h6>
+                    <button class="btn btn-sm btn-outline-secondary"
+                            hx-get="/testing/api/test/{{ test.job_id }}/details"
+                            hx-target="#test-details-content"
+                            hx-swap="innerHTML"
+                            title="Refresh Progress">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
                 </div>
                 <div class="card-body">
                     {% if test.progress %}
-                        <div class="progress mb-3">
-                            <div class="progress-bar" role="progressbar" 
-                                 style="width: {{ test.progress.percentage or 0 }}%"
-                                 aria-valuenow="{{ test.progress.percentage or 0 }}" 
-                                 aria-valuemin="0" aria-valuemax="100">
-                                {{ test.progress.percentage or 0 }}%
+                        <!-- Main Progress Bar -->
+                        <div class="progress mb-3" style="height: 25px;">
+                            {% if test.progress.estimated %}
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                                     role="progressbar" 
+                                     style="width: {{ test.progress.percentage or 0 }}%"
+                                     aria-valuenow="{{ test.progress.percentage or 0 }}" 
+                                     aria-valuemin="0" aria-valuemax="100">
+                                    ~{{ test.progress.percentage or 0 }}%
+                                </div>
+                            {% else %}
+                                <div class="progress-bar bg-success" 
+                                     role="progressbar" 
+                                     style="width: {{ test.progress.percentage or 0 }}%"
+                                     aria-valuenow="{{ test.progress.percentage or 0 }}" 
+                                     aria-valuemin="0" aria-valuemax="100">
+                                    {{ test.progress.percentage or 0 }}%
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Current Stage -->
+                        {% if test.progress.current_stage %}
+                        <div class="mb-3">
+                            <strong>Current Stage:</strong>
+                            <span class="badge badge-primary">
+                                <i class="fas fa-cog fa-spin mr-1"></i>
+                                {{ test.progress.current_stage }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Time Information -->
+                        <div class="row mb-3">
+                            {% if test.runtime_seconds %}
+                            <div class="col-6">
+                                <small class="text-muted">Runtime:</small><br>
+                                <strong>{{ (test.runtime_seconds / 60)|round(1) }} min</strong>
+                            </div>
+                            {% endif %}
+                            {% if test.progress.eta_seconds and test.progress.eta_seconds > 0 %}
+                            <div class="col-6">
+                                <small class="text-muted">ETA:</small><br>
+                                <strong>{{ (test.progress.eta_seconds / 60)|round(1) }} min</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Progress Details -->
+                        {% if test.progress.items_processed or test.progress.total_items %}
+                        <div class="mb-3">
+                            <small class="text-muted">Items Processed:</small><br>
+                            <strong>{{ test.progress.items_processed or 0 }} / {{ test.progress.total_items or 0 }}</strong>
+                        </div>
+                        {% endif %}
+                        
+                        {% if test.progress.current_file %}
+                        <div class="mb-3">
+                            <small class="text-muted">Current File:</small><br>
+                            <code class="small">{{ test.progress.current_file }}</code>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Detailed Stages -->
+                        {% if test.progress.stages %}
+                        <div class="stages-container">
+                            <h6 class="mb-2">Analysis Stages:</h6>
+                            <div class="list-group list-group-flush">
+                                {% for stage in test.progress.stages %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center p-2 
+                                     {{ 'border-success' if stage.completed else 'border-primary' if stage.active else '' }}">
+                                    <div class="d-flex align-items-center">
+                                        {% if stage.completed %}
+                                            <i class="fas fa-check-circle text-success mr-2"></i>
+                                        {% elif stage.active %}
+                                            <i class="fas fa-spinner fa-spin text-primary mr-2"></i>
+                                        {% else %}
+                                            <i class="fas fa-circle text-muted mr-2"></i>
+                                        {% endif %}
+                                        <div>
+                                            <div class="font-weight-bold small">{{ stage.name }}</div>
+                                            {% if stage.description %}
+                                            <div class="text-muted" style="font-size: 0.75rem;">{{ stage.description }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    {% if stage.progress and stage.progress > 0 and not stage.completed %}
+                                    <div class="progress ml-2" style="width: 60px; height: 8px;">
+                                        <div class="progress-bar" 
+                                             style="width: {{ stage.progress }}%"></div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
-                        
-                        {% if test.progress.current_stage %}
-                        <p class="mb-2">
-                            <strong>Current Stage:</strong> {{ test.progress.current_stage }}
-                        </p>
                         {% endif %}
                         
-                        {% if test.progress.stages %}
-                        <div class="small">
-                            <strong>Stages:</strong>
-                            <ul class="mb-0">
-                                {% for stage in test.progress.stages %}
-                                <li class="{{ 'text-success' if stage.completed else 'text-muted' }}">
-                                    {% if stage.completed %}
-                                        <i class="fas fa-check text-success"></i>
-                                    {% else %}
-                                        <i class="fas fa-circle text-muted"></i>
-                                    {% endif %}
-                                    {{ stage.name }}
-                                </li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                        {% endif %}
                     {% else %}
                         <div class="text-center text-muted">
                             <i class="fas fa-info-circle"></i>
@@ -138,6 +215,50 @@
                     {% endif %}
                 </div>
             </div>
+            
+            <!-- Resource Usage Card -->
+            {% if test.resource_usage %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-server mr-2"></i>
+                        Container Resources
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="d-flex justify-content-between">
+                                <span class="small">CPU:</span>
+                                <strong>{{ test.resource_usage.cpu_percent }}%</strong>
+                            </div>
+                            <div class="progress mb-2" style="height: 6px;">
+                                <div class="progress-bar bg-info" 
+                                     style="width: {{ test.resource_usage.cpu_percent }}%"></div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="d-flex justify-content-between">
+                                <span class="small">Memory:</span>
+                                <strong>{{ test.resource_usage.memory_usage_mb }}MB</strong>
+                            </div>
+                            <div class="progress mb-2" style="height: 6px;">
+                                <div class="progress-bar bg-warning" 
+                                     style="width: {{ (test.resource_usage.memory_usage_mb / 512 * 100)|round }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <span class="small text-muted">Disk I/O: {{ test.resource_usage.disk_io_mb }}MB</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="small text-muted">Network: {{ test.resource_usage.network_io_kb }}KB</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
     
@@ -281,23 +402,109 @@
     {% endif %}
     
     <!-- Live Output/Logs -->
-    {% if test.output or test.logs %}
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h6 class="mb-0">
                 <i class="fas fa-terminal mr-2"></i>
-                Live Output
+                Live Container Output
             </h6>
-            <button class="btn btn-sm btn-outline-secondary" 
-                    hx-get="/testing/test/{{ test.id }}/logs"
-                    hx-target="#test-output"
-                    hx-swap="innerHTML">
-                <i class="fas fa-sync-alt"></i> Refresh
-            </button>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" 
+                        hx-get="/testing/api/test/{{ test.job_id }}/logs"
+                        hx-target="#live-logs-container"
+                        hx-swap="innerHTML"
+                        title="Refresh Logs">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="checkbox" id="auto-refresh-logs" 
+                           onchange="toggleAutoRefresh(this.checked)">
+                    <label class="form-check-label small" for="auto-refresh-logs">
+                        Auto-refresh
+                    </label>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <div id="test-output" style="max-height: 300px; overflow-y: auto;">
-                <pre class="bg-dark text-light p-3 rounded">{% if test.output %}{{ test.output }}{% elif test.logs %}{{ test.logs }}{% else %}No output available{% endif %}</pre>
+        <div class="card-body p-0">
+            <div id="live-logs-container" style="max-height: 400px; overflow-y: auto;">
+                {% if test.live_logs %}
+                    <div class="logs-output bg-dark text-light p-3">
+                        {% for log_entry in test.live_logs %}
+                        <div class="log-entry mb-1">
+                            <span class="text-muted small">{{ log_entry.timestamp[:19] }}</span>
+                            <span class="badge badge-{{ 'danger' if log_entry.level == 'ERROR' else 'warning' if log_entry.level == 'WARN' else 'info' if log_entry.level == 'INFO' else 'secondary' }}">
+                                {{ log_entry.level }}
+                            </span>
+                            <span class="text-primary small">[{{ log_entry.source }}]</span>
+                            <span class="log-message">{{ log_entry.message }}</span>
+                            {% if log_entry.details %}
+                            <div class="text-muted small ml-4">{{ log_entry.details }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% elif test.output or test.logs %}
+                    <pre class="bg-dark text-light p-3 m-0">{{ test.output or test.logs }}</pre>
+                {% else %}
+                    <div class="text-center text-muted p-4">
+                        <i class="fas fa-clock mr-2"></i>
+                        Waiting for container output...
+                        <div class="spinner-border spinner-border-sm mt-2" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Advanced Metrics (if available) -->
+    {% if test.status == 'running' %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-area mr-2"></i>
+                        Live Analysis Metrics
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="metric-box text-center">
+                                <div class="metric-value text-primary">
+                                    {{ test.progress.items_processed or 0 }}
+                                </div>
+                                <div class="metric-label small text-muted">Files Scanned</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-box text-center">
+                                <div class="metric-value text-warning">
+                                    {{ test.findings_count or 0 }}
+                                </div>
+                                <div class="metric-label small text-muted">Issues Found</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-box text-center">
+                                <div class="metric-value text-info">
+                                    {{ test.tools|length if test.tools else 0 }}
+                                </div>
+                                <div class="metric-label small text-muted">Tools Running</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-box text-center">
+                                <div class="metric-value text-success">
+                                    {{ ((test.runtime_seconds or 0) / 60)|round(1) }}m
+                                </div>
+                                <div class="metric-label small text-muted">Runtime</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

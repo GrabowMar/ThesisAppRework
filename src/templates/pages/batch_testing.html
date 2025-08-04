@@ -984,6 +984,111 @@ class SecurityTestingPlatform {
             toast.remove();
         }, 6000);
     }
+
+    startLiveProgressTracking(testId) {
+        // Start real-time progress updates for running tests
+        if (this.progressTrackingInterval) {
+            clearInterval(this.progressTrackingInterval);
+        }
+
+        this.progressTrackingInterval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                // Update test details if modal is open
+                const testDetailsModal = document.getElementById('testDetailsModal');
+                if (testDetailsModal && testDetailsModal.classList.contains('show')) {
+                    htmx.ajax('GET', `/testing/api/test/${testId}/details`, {
+                        target: '#test-details-content',
+                        swap: 'innerHTML'
+                    });
+                }
+
+                // Update main test list
+                this.updateTestStatusInList(testId);
+            }
+        }, 3000); // Update every 3 seconds
+    }
+
+    stopLiveProgressTracking() {
+        if (this.progressTrackingInterval) {
+            clearInterval(this.progressTrackingInterval);
+            this.progressTrackingInterval = null;
+        }
+    }
+
+    updateTestStatusInList(testId) {
+        // Update individual test status in the main list
+        const testRow = document.querySelector(`[data-test-id="${testId}"]`);
+        if (testRow) {
+            htmx.ajax('GET', `/testing/api/test/${testId}/status`, {
+                target: `[data-test-id="${testId}"] .test-status`,
+                swap: 'outerHTML'
+            });
+        }
+    }
+
+    enableRealtimeMetrics() {
+        // Enable real-time resource monitoring
+        if (this.metricsInterval) {
+            clearInterval(this.metricsInterval);
+        }
+
+        this.metricsInterval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                const runningTests = document.querySelectorAll('.test-status-running');
+                runningTests.forEach(testElement => {
+                    const testId = testElement.closest('[data-test-id]')?.getAttribute('data-test-id');
+                    if (testId) {
+                        // Update metrics in test details if open
+                        const metricsContainer = document.querySelector('#live-metrics-container');
+                        if (metricsContainer) {
+                            htmx.ajax('GET', `/testing/api/test/${testId}/metrics`, {
+                                target: '#live-metrics-container',
+                                swap: 'innerHTML'
+                            });
+                        }
+                    }
+                });
+            }
+        }, 5000); // Update metrics every 5 seconds
+    }
+
+    refreshLiveData(testId) {
+        // Manual refresh of all live data for a specific test
+        console.log(`Refreshing live data for test: ${testId}`);
+        
+        // Refresh test details
+        const testDetailsContent = document.querySelector('#test-details-content');
+        if (testDetailsContent) {
+            htmx.ajax('GET', `/testing/api/test/${testId}/details`, {
+                target: '#test-details-content',
+                swap: 'innerHTML'
+            });
+        }
+
+        // Refresh live metrics
+        const metricsContainer = document.querySelector('#live-metrics-container');
+        if (metricsContainer) {
+            htmx.ajax('GET', `/testing/api/test/${testId}/live-metrics`, {
+                target: '#live-metrics-container',
+                swap: 'innerHTML'
+            });
+        }
+
+        // Refresh logs
+        const logsContainer = document.querySelector('#live-logs-container');
+        if (logsContainer) {
+            htmx.ajax('GET', `/testing/api/test/${testId}/logs`, {
+                target: '#live-logs-container',
+                swap: 'innerHTML'
+            });
+        }
+
+        // Update status in main list
+        this.updateTestStatusInList(testId);
+
+        // Show feedback to user
+        this.showToast('Live data refreshed', 'success');
+    }
 }
 
 // Global functions
@@ -1003,6 +1108,9 @@ window.showTestDetails = function(testId) {
         target: '#test-details-content'
     });
     $('#testDetailsModal').modal('show');
+    
+    // Start live progress tracking for this test
+    securityTestingPlatform.startLiveProgressTracking(testId);
 };
 
 window.showTestResults = function(testId) {
@@ -1010,6 +1118,86 @@ window.showTestResults = function(testId) {
         target: '#test-results-content'
     });
     $('#testResultsModal').modal('show');
+};
+
+window.toggleAutoRefresh = function(enabled) {
+    if (enabled) {
+        window.autoRefreshLogs = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                const refreshBtn = document.querySelector('#live-logs-container ~ .card-header button[hx-get*="/logs"]');
+                if (refreshBtn) {
+                    htmx.trigger(refreshBtn, 'click');
+                }
+            }
+        }, 2000); // Refresh logs every 2 seconds
+    } else {
+        if (window.autoRefreshLogs) {
+            clearInterval(window.autoRefreshLogs);
+            window.autoRefreshLogs = null;
+        }
+    }
+};
+
+window.showLiveMetrics = function(testId) {
+    // Show expanded live metrics view
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-chart-line mr-2"></i>
+                        Live Test Metrics - ${testId}
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="live-metrics-content">
+                    <div class="text-center p-4">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">Loading metrics...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    $(modal).modal('show');
+    
+    // Load live metrics
+    htmx.ajax('GET', `/testing/api/test/${testId}/live-metrics`, {
+        target: '#live-metrics-content'
+    });
+    
+    // Auto-refresh metrics
+    const metricsInterval = setInterval(() => {
+        if ($(modal).hasClass('show')) {
+            htmx.ajax('GET', `/testing/api/test/${testId}/live-metrics`, {
+                target: '#live-metrics-content'
+            });
+        } else {
+            clearInterval(metricsInterval);
+        }
+    }, 3000);
+    
+    // Clean up when modal closes
+    $(modal).on('hidden.bs.modal', function() {
+        clearInterval(metricsInterval);
+        modal.remove();
+    });
+};
+
+window.refreshLiveData = function(testId) {
+    // Global function to refresh live data for any test
+    if (window.securityTestingPlatform) {
+        window.securityTestingPlatform.refreshLiveData(testId);
+    } else {
+        console.warn('Security testing platform not initialized');
+    }
 };
 
 window.handleTestTypeChange = function(testType) {

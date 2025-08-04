@@ -4808,6 +4808,124 @@ def api_get_infrastructure_status():
         return ResponseHandler.error_response(str(e))
 
 
+@testing_bp.route("/api/test/<test_id>/logs")
+def api_get_test_logs(test_id: str):
+    """Get live logs from a running test."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        result = service.get_job_status(test_id)
+        
+        if not result['success']:
+            return ResponseHandler.error_response(result['error'], 404)
+        
+        test_data = result['job']
+        live_logs = test_data.get('live_logs', [])
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/test_live_logs.html", logs=live_logs)
+        
+        return ResponseHandler.success_response(data={'logs': live_logs})
+        
+    except Exception as e:
+        logger.error(f"Error getting test logs for {test_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/test/<test_id>/metrics")
+def api_get_test_metrics(test_id: str):
+    """Get live resource metrics from a running test."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        result = service.get_job_status(test_id)
+        
+        if not result['success']:
+            return ResponseHandler.error_response(result['error'], 404)
+        
+        test_data = result['job']
+        metrics = test_data.get('resource_usage', {})
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/test_metrics.html", metrics=metrics, test=test_data)
+        
+        return ResponseHandler.success_response(data={'metrics': metrics})
+        
+    except Exception as e:
+        logger.error(f"Error getting test metrics for {test_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/test/<test_id>/live-metrics")
+def api_get_live_metrics(test_id: str):
+    """Get comprehensive live metrics dashboard for a test."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        result = service.get_job_status(test_id)
+        
+        if not result['success']:
+            return ResponseHandler.error_response(result['error'], 404)
+        
+        test_data = result['job']
+        
+        # Compile comprehensive metrics
+        metrics_data = {
+            'test': test_data,
+            'progress': test_data.get('progress', {}),
+            'resource_usage': test_data.get('resource_usage', {}),
+            'live_logs': test_data.get('live_logs', [])[-20:],  # Last 20 log entries
+            'performance_stats': {
+                'runtime_seconds': test_data.get('runtime_seconds', 0),
+                'files_processed': test_data.get('progress', {}).get('items_processed', 0),
+                'issues_found': test_data.get('findings_count', 0),
+                'tools_running': len(test_data.get('tools', []))
+            }
+        }
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/live_metrics_dashboard.html", **metrics_data)
+        
+        return ResponseHandler.success_response(data=metrics_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting live metrics for {test_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/test/<test_id>/status")
+def api_get_test_status_only(test_id: str):
+    """Get just the status of a test for quick updates."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        result = service.get_job_status(test_id)
+        
+        if not result['success']:
+            return ResponseHandler.error_response(result['error'], 404)
+        
+        test_data = result['job']
+        status_info = {
+            'status': test_data.get('status'),
+            'progress_percentage': test_data.get('progress', {}).get('percentage', 0),
+            'current_stage': test_data.get('progress', {}).get('current_stage'),
+            'runtime_seconds': test_data.get('runtime_seconds', 0)
+        }
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/test_status_badge.html", test=test_data)
+        
+        return ResponseHandler.success_response(data=status_info)
+        
+    except Exception as e:
+        logger.error(f"Error getting test status for {test_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
 @testing_bp.route("/api/models")
 def api_get_models():
     """Get list of available AI models from database."""
@@ -4834,6 +4952,83 @@ def api_get_models():
         
     except Exception as e:
         logger.error(f"Error getting models from database: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+# ===========================
+# MAIN API ENDPOINTS
+# ===========================
+
+@api_bp.route("/docker/status")
+def api_docker_status():
+    """Get Docker service status information."""
+    try:
+        docker_manager = ServiceLocator.get_docker_manager()
+        
+        if not docker_manager:
+            return ResponseHandler.error_response("Docker manager not available")
+        
+        # Get Docker daemon status
+        try:
+            docker_info = docker_manager.client.info()
+            status = {
+                'status': 'running',
+                'containers_running': docker_info.get('ContainersRunning', 0),
+                'containers_total': docker_info.get('Containers', 0),
+                'images_count': docker_info.get('Images', 0),
+                'server_version': docker_info.get('ServerVersion', 'Unknown'),
+                'architecture': docker_info.get('Architecture', 'Unknown'),
+                'cpus': docker_info.get('NCPU', 0),
+                'memory_total': docker_info.get('MemTotal', 0)
+            }
+        except Exception as e:
+            status = {
+                'status': 'error',
+                'error': str(e),
+                'containers_running': 0,
+                'containers_total': 0
+            }
+        
+        return ResponseHandler.success_response(data=status)
+        
+    except Exception as e:
+        logger.error(f"Error getting Docker status: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/test/status")
+def api_test_status():
+    """Get overall testing system status."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        testing_service = get_testing_infrastructure_service()
+        
+        if not testing_service:
+            return ResponseHandler.error_response("Testing service not available")
+        
+        # Get testing infrastructure status
+        try:
+            infra_status = testing_service.get_infrastructure_status()
+            test_summary = {
+                'infrastructure_status': infra_status.get('status', 'unknown'),
+                'services_available': infra_status.get('services_available', []),
+                'active_tests': len(infra_status.get('running_tests', [])),
+                'total_containers': infra_status.get('total_containers', 0),
+                'healthy_containers': infra_status.get('healthy_containers', 0)
+            }
+        except Exception as e:
+            test_summary = {
+                'infrastructure_status': 'error',
+                'error': str(e),
+                'active_tests': 0,
+                'total_containers': 0,
+                'healthy_containers': 0
+            }
+        
+        return ResponseHandler.success_response(data=test_summary)
+        
+    except Exception as e:
+        logger.error(f"Error getting test status: {e}")
         return ResponseHandler.error_response(str(e))
 
 

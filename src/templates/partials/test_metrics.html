@@ -1,0 +1,41 @@
+<!-- Test Metrics Partial -->
+{% if metrics %}
+<div class="row">
+    <div class="col-6">
+        <div class="d-flex justify-content-between">
+            <span class="small">CPU:</span>
+            <strong>{{ metrics.cpu_percent }}%</strong>
+        </div>
+        <div class="progress mb-2" style="height: 6px;">
+            <div class="progress-bar bg-info" 
+                 style="width: {{ metrics.cpu_percent }}%"></div>
+        </div>
+    </div>
+    <div class="col-6">
+        <div class="d-flex justify-content-between">
+            <span class="small">Memory:</span>
+            <strong>{{ metrics.memory_usage_mb }}MB</strong>
+        </div>
+        <div class="progress mb-2" style="height: 6px;">
+            <div class="progress-bar bg-warning" 
+                 style="width: {{ (metrics.memory_usage_mb / 512 * 100)|round }}%"></div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-6">
+        <span class="small text-muted">Disk I/O: {{ metrics.disk_io_mb }}MB</span>
+    </div>
+    <div class="col-6">
+        <span class="small text-muted">Network: {{ metrics.network_io_kb }}KB</span>
+    </div>
+</div>
+<div class="text-center small text-muted mt-2">
+    Last updated: {{ metrics.last_update[:19] if metrics.last_update else 'N/A' }}
+</div>
+{% else %}
+<div class="text-center text-muted">
+    <i class="fas fa-info-circle"></i>
+    No metrics available
+</div>
+{% endif %}
