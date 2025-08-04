@@ -8,19 +8,23 @@ Provides REST API for security scanning using bandit, safety, pylint, ESLint, et
 import asyncio
 import json
 import logging
+import re
 import subprocess
+import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-import structlog
 
+import structlog
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 import uvicorn
 
-# Import shared models
-from testing_api_models import (
+# Import shared models from local models file
+# Note: VS Code may show import errors here, but these are false positives.
+# The imports work correctly at runtime (verified by test_comprehensive.py)
+from models import (
     SecurityTestRequest, SecurityTestResult, TestResult, TestIssue,
     TestingStatus, SeverityLevel, APIResponse
 )
@@ -60,9 +64,19 @@ class SecurityAnalyzer:
     """Security analysis engine."""
     
     def __init__(self):
-        self.source_path = Path("/app/sources")
-        self.results_path = Path("/app/results")
-        self.results_path.mkdir(exist_ok=True)
+        # Default paths for container environment, fallback to current directory for local testing
+        self.source_path = Path("/app/sources") if Path("/app").exists() else Path("./test_sources")
+        self.results_path = Path("/app/results") if Path("/app").exists() else Path("./test_results")
+        
+        # Create results directory if it doesn't exist
+        try:
+            self.results_path.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            logger.warning(f"Could not create results directory {self.results_path}: {e}")
+            # Fallback to temporary directory
+            import tempfile
+            self.results_path = Path(tempfile.mkdtemp(prefix="security_scanner_"))
+            logger.info(f"Using temporary results directory: {self.results_path}")
     
     async def run_analysis(self, request: SecurityTestRequest) -> SecurityTestResult:
         """Run security analysis based on request parameters."""
@@ -495,7 +509,6 @@ class SecurityAnalyzer:
                             lines = content.split('\n')
                             for line_num, line in enumerate(lines, 1):
                                 for pattern, description, severity in security_patterns:
-                                    import re
                                     if re.search(pattern, line, re.IGNORECASE):
                                         issues.append(TestIssue(
                                             tool="eslint",

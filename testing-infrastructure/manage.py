@@ -17,13 +17,16 @@ from typing import Dict, List, Optional
 import requests
 import yaml
 
-# Add shared API client to path
-sys.path.append(str(Path(__file__).parent / "shared" / "api-contracts"))
+# Import local testing models
 try:
-    from testing_api_client import SyncTestingAPIClient
+    from local_testing_models import LocalTestingAPIClient, TestType, TestingStatus, ServiceHealth
+    SyncTestingAPIClient = LocalTestingAPIClient  # Use local client as replacement
 except ImportError:
     print("Warning: Testing API client not available. Some features may be limited.")
     SyncTestingAPIClient = None
+    TestType = None
+    TestingStatus = None
+    ServiceHealth = None
 
 
 class TestingInfrastructureManager:

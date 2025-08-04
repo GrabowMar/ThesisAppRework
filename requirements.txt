@@ -17,6 +17,7 @@ python-dotenv==1.0.0
 
 # HTTP Requests (for containerized service communication)
 requests==2.31.0
+aiohttp==3.12.15
 
 # Utilities
 pathlib2==2.3.7.post1
