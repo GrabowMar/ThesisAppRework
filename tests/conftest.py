@@ -86,11 +86,14 @@ def app():
     (app_root / "src" / "data").mkdir(exist_ok=True)
     (app_root / "src" / "templates").mkdir(exist_ok=True)
     (app_root / "src" / "static").mkdir(exist_ok=True)
-    
+
+    # Set up AppConfig for services (required for logging)
+    from core_services import AppConfig
+    app_config = AppConfig()
+    app.config['APP_CONFIG'] = app_config
+
     # Initialize logging
-    setup_logging(app)
-    
-    # Initialize extensions (database, cache, etc.)
+    setup_logging(app)    # Initialize extensions (database, cache, etc.)
     init_extensions(app)
     
     # Ensure APPLICATION_ROOT is preserved after extensions init

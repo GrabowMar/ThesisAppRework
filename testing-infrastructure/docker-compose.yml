@@ -28,7 +28,7 @@ services:
       - "8001:8001"
     volumes:
       - ./shared:/app/shared:ro
-      - app-sources:/app/sources:ro
+      - ../misc/models:/app/sources:ro  # Mount actual models directory
       - analysis-results:/app/results
     environment:
       - PYTHONPATH=/app/shared/api-contracts

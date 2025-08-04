@@ -158,6 +158,7 @@ class SecurityAnalyzer:
     
     def _get_app_path(self, model: str, app_num: int) -> Path:
         """Get path to application source code."""
+        # The source_path is mounted to /app/sources which contains the models directory
         return self.source_path / model / f"app{app_num}"
     
     def _has_backend_code(self, app_path: Path) -> bool:
@@ -215,40 +216,59 @@ class SecurityAnalyzer:
         return issues
     
     async def _run_bandit(self, path: Path) -> List[TestIssue]:
-        """Run Bandit security analysis."""
+        """Run Bandit security analysis on real Python code."""
         try:
-            # For demo purposes, create realistic test issues
             python_files = list(path.glob("**/*.py"))
             issues = []
             
-            if python_files:
-                # Simulate finding some common security issues
-                issues.append(TestIssue(
-                    tool="bandit",
-                    severity=SeverityLevel.MEDIUM,
-                    confidence="HIGH",
-                    file_path=str(python_files[0]),
-                    line_number=10,
-                    message="Use of insecure random generator",
-                    description="Consider using secrets.randbelow() for security-sensitive applications",
-                    solution="Replace random.randint() with secrets.randbelow()",
-                    reference="https://bandit.readthedocs.io/en/latest/",
-                    code_snippet="random.randint(1, 100)"
-                ))
-                
-                if len(python_files) > 1:
-                    issues.append(TestIssue(
-                        tool="bandit",
-                        severity=SeverityLevel.LOW,
-                        confidence="MEDIUM",
-                        file_path=str(python_files[0]),
-                        line_number=15,
-                        message="Hardcoded password detected",
-                        description="Possible hardcoded password found in source code",
-                        solution="Use environment variables or secure configuration",
-                        reference="https://bandit.readthedocs.io/en/latest/blacklists/blacklist_calls.html#b106-test-for-use-of-hardcoded-password-strings",
-                        code_snippet="password = 'secret123'"
-                    ))
+            if not python_files:
+                logger.info("No Python files found for Bandit analysis", path=str(path))
+                return issues
+            
+            # Run actual Bandit on each Python file
+            for py_file in python_files:
+                try:
+                    cmd = ["bandit", "-f", "json", str(py_file)]
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await proc.communicate()
+                    
+                    if stdout:
+                        try:
+                            bandit_output = json.loads(stdout.decode())
+                            
+                            # Parse Bandit results
+                            for result in bandit_output.get("results", []):
+                                # Read the actual code snippet
+                                code_snippet = ""
+                                try:
+                                    with open(py_file, 'r', encoding='utf-8') as f:
+                                        lines = f.readlines()
+                                        line_num = result.get("line_number", 1)
+                                        if 1 <= line_num <= len(lines):
+                                            code_snippet = lines[line_num - 1].strip()
+                                except Exception:
+                                    code_snippet = "Unable to read code snippet"
+                                
+                                issues.append(TestIssue(
+                                    tool="bandit",
+                                    severity=self._map_bandit_severity(result.get("issue_severity", "LOW")),
+                                    confidence=result.get("issue_confidence", "MEDIUM"),
+                                    file_path=str(py_file.relative_to(self.source_path)),
+                                    line_number=result.get("line_number"),
+                                    message=result.get("test_name", "Security issue detected"),
+                                    description=result.get("issue_text", ""),
+                                    solution="Review and fix the security issue identified by Bandit",
+                                    reference=f"https://bandit.readthedocs.io/en/latest/plugins/{result.get('test_id', '')}.html",
+                                    code_snippet=code_snippet
+                                ))
+                        except json.JSONDecodeError:
+                            logger.warning("Failed to parse Bandit JSON output", file=str(py_file))
+                    
+                except Exception as e:
+                    logger.warning("Bandit failed on file", file=str(py_file), error=str(e))
+                    continue
             
             logger.info(f"Bandit analysis found {len(issues)} issues", path=str(path))
             return issues
@@ -258,26 +278,61 @@ class SecurityAnalyzer:
             return []
     
     async def _run_safety(self, path: Path) -> List[TestIssue]:
-        """Run Safety dependency analysis."""
+        """Run Safety dependency analysis on real requirements files."""
         try:
-            # For demo purposes, simulate vulnerability check
             requirements_files = list(path.glob("**/requirements.txt"))
             issues = []
             
-            if requirements_files:
-                # Simulate finding a vulnerable package
-                issues.append(TestIssue(
-                    tool="safety",
-                    severity=SeverityLevel.HIGH,
-                    confidence="HIGH",
-                    file_path=str(requirements_files[0]),
-                    line_number=5,
-                    message="Vulnerability in flask package",
-                    description="Flask version 2.0.0 has a known security vulnerability (CVE-2023-XXXX)",
-                    solution="Upgrade to Flask >= 2.3.3",
-                    reference="https://pyup.io/vulnerabilities/CVE-2023-XXXX/",
-                    code_snippet="flask==2.0.0"
-                ))
+            if not requirements_files:
+                logger.info("No requirements.txt files found for Safety analysis", path=str(path))
+                return issues
+            
+            # Run actual Safety on each requirements file
+            for req_file in requirements_files:
+                try:
+                    cmd = ["safety", "check", "--json", "-r", str(req_file)]
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await proc.communicate()
+                    
+                    if stdout:
+                        try:
+                            safety_output = json.loads(stdout.decode())
+                            
+                            # Parse Safety results
+                            for vuln in safety_output:
+                                # Read the requirement line
+                                package_line = ""
+                                try:
+                                    with open(req_file, 'r', encoding='utf-8') as f:
+                                        lines = f.readlines()
+                                        pkg_name = vuln.get("package", "").lower()
+                                        for i, line in enumerate(lines):
+                                            if pkg_name in line.lower():
+                                                package_line = line.strip()
+                                                break
+                                except Exception:
+                                    package_line = f"{vuln.get('package', 'unknown')}=={vuln.get('installed_version', 'unknown')}"
+                                
+                                issues.append(TestIssue(
+                                    tool="safety",
+                                    severity=self._map_safety_severity(vuln.get("vulnerability", "")),
+                                    confidence="HIGH",
+                                    file_path=str(req_file.relative_to(self.source_path)),
+                                    line_number=None,
+                                    message=f"Vulnerability in {vuln.get('package', 'unknown')} package",
+                                    description=vuln.get("vulnerability", "No description available"),
+                                    solution=f"Upgrade to version {vuln.get('vulnerable_spec', 'latest')} or higher",
+                                    reference=vuln.get("more_info_url", "https://pyup.io/safety/"),
+                                    code_snippet=package_line
+                                ))
+                        except json.JSONDecodeError:
+                            logger.warning("Failed to parse Safety JSON output", file=str(req_file))
+                    
+                except Exception as e:
+                    logger.warning("Safety failed on file", file=str(req_file), error=str(e))
+                    continue
             
             logger.info(f"Safety analysis found {len(issues)} vulnerabilities", path=str(path))
             return issues
@@ -320,74 +375,172 @@ class SecurityAnalyzer:
             return []
     
     async def _run_eslint(self, path: Path) -> List[TestIssue]:
-        """Run ESLint analysis."""
+        """Run ESLint analysis on real JavaScript/TypeScript files."""
         try:
-            cmd = ["eslint", str(path), "--format", "json", "--ext", ".js,.ts,.jsx,.tsx"]
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await proc.communicate()
+            js_files = list(path.glob("**/*.js")) + list(path.glob("**/*.jsx")) + list(path.glob("**/*.ts")) + list(path.glob("**/*.tsx"))
+            issues = []
             
-            try:
-                output = json.loads(stdout.decode())
-                issues = []
-                
-                for file_result in output:
-                    for message in file_result.get("messages", []):
-                        issues.append(TestIssue(
-                            tool="eslint",
-                            severity=self._map_eslint_severity(message.get("severity", 1)),
-                            confidence="MEDIUM",
-                            file_path=file_result.get("filePath", ""),
-                            line_number=message.get("line"),
-                            message=message.get("message", ""),
-                            description=message.get("ruleId", "")
-                        ))
-                
+            if not js_files:
+                logger.info("No JavaScript/TypeScript files found for ESLint analysis", path=str(path))
                 return issues
-            except json.JSONDecodeError:
-                return []
+            
+            # Create temporary ESLint config for analysis
+            eslint_config = {
+                "env": {"browser": True, "es2021": True},
+                "extends": ["eslint:recommended"],
+                "rules": {
+                    "no-unused-vars": "error",
+                    "no-console": "warn",
+                    "no-debugger": "error",
+                    "no-eval": "error",
+                    "no-implicit-globals": "error"
+                }
+            }
+            
+            config_file = path / ".eslintrc.json"
+            try:
+                with open(config_file, 'w') as f:
+                    json.dump(eslint_config, f)
+                
+                # Run ESLint on the directory
+                cmd = ["npx", "eslint", str(path), "--format", "json", "--ext", ".js,.jsx,.ts,.tsx"]
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await proc.communicate()
+                
+                if stdout:
+                    try:
+                        eslint_output = json.loads(stdout.decode())
+                        
+                        # Parse ESLint results
+                        for file_result in eslint_output:
+                            file_path = Path(file_result.get("filePath", ""))
+                            for message in file_result.get("messages", []):
+                                # Read the actual code snippet
+                                code_snippet = ""
+                                try:
+                                    with open(file_path, 'r', encoding='utf-8') as f:
+                                        lines = f.readlines()
+                                        line_num = message.get("line", 1)
+                                        if 1 <= line_num <= len(lines):
+                                            code_snippet = lines[line_num - 1].strip()
+                                except Exception:
+                                    code_snippet = "Unable to read code snippet"
+                                
+                                issues.append(TestIssue(
+                                    tool="eslint",
+                                    severity=self._map_eslint_severity(message.get("severity", 1)),
+                                    confidence="MEDIUM",
+                                    file_path=str(file_path.relative_to(self.source_path)) if file_path.is_relative_to(self.source_path) else str(file_path),
+                                    line_number=message.get("line"),
+                                    message=message.get("message", ""),
+                                    description=f"ESLint rule: {message.get('ruleId', 'unknown')}",
+                                    solution="Fix the code quality issue identified by ESLint",
+                                    reference=f"https://eslint.org/docs/rules/{message.get('ruleId', '')}",
+                                    code_snippet=code_snippet
+                                ))
+                    except json.JSONDecodeError:
+                        logger.warning("Failed to parse ESLint JSON output")
+                
+            finally:
+                # Clean up temporary config
+                if config_file.exists():
+                    config_file.unlink()
+            
+            logger.info(f"ESLint analysis found {len(issues)} issues", path=str(path))
+            return issues
                 
         except Exception as e:
             logger.error("ESLint execution failed", error=str(e))
             return []
     
     async def _run_retire(self, path: Path) -> List[TestIssue]:
-        """Run Retire.js vulnerability analysis."""
+        """Run Retire.js vulnerability analysis on real package.json and JS files."""
         try:
-            # For demo purposes, simulate finding vulnerable JS libraries
-            js_files = list(path.glob("**/*.js")) + list(path.glob("**/*.jsx"))
             package_json = path / "package.json"
+            js_files = list(path.glob("**/*.js")) + list(path.glob("**/*.jsx"))
             issues = []
             
-            if js_files or package_json.exists():
-                # Simulate finding a vulnerable JavaScript library
-                issues.append(TestIssue(
-                    tool="retire",
-                    severity=SeverityLevel.MEDIUM,
-                    confidence="HIGH",
-                    file_path="package.json",
-                    line_number=10,
-                    message="jQuery 3.2.1 has known vulnerabilities",
-                    description="jQuery version 3.2.1 contains XSS vulnerabilities",
-                    solution="Upgrade to jQuery >= 3.6.0",
-                    reference="https://github.com/RetireJS/retire.js/",
-                    code_snippet='"jquery": "3.2.1"'
-                ))
+            if not package_json.exists() and not js_files:
+                logger.info("No package.json or JS files found for Retire.js analysis", path=str(path))
+                return issues
+            
+            # Run Retire.js on the directory
+            try:
+                cmd = ["retire", "--outputformat", "json", "--path", str(path)]
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await proc.communicate()
                 
-                if len(js_files) > 0:
-                    issues.append(TestIssue(
-                        tool="retire",
-                        severity=SeverityLevel.LOW,
-                        confidence="MEDIUM", 
-                        file_path=str(js_files[0]),
-                        line_number=25,
-                        message="Outdated React version detected",
-                        description="React version may have security implications",
-                        solution="Update to latest React version",
-                        reference="https://reactjs.org/blog/",
-                        code_snippet="import React from 'react';"
-                    ))
+                if stdout:
+                    try:
+                        retire_output = json.loads(stdout.decode())
+                        
+                        # Parse Retire.js results
+                        for result in retire_output.get("data", []):
+                            file_path = result.get("file", "")
+                            for vulnerability in result.get("results", []):
+                                for vuln_detail in vulnerability.get("vulnerabilities", []):
+                                    # Read package.json content for context
+                                    code_snippet = ""
+                                    if package_json.exists() and "package.json" in file_path:
+                                        try:
+                                            with open(package_json, 'r', encoding='utf-8') as f:
+                                                pkg_data = json.load(f)
+                                                component = vulnerability.get("component", "")
+                                                deps = {**pkg_data.get("dependencies", {}), **pkg_data.get("devDependencies", {})}
+                                                if component in deps:
+                                                    code_snippet = f'"{component}": "{deps[component]}"'
+                                        except Exception:
+                                            component = vulnerability.get("component", "unknown")
+                                            code_snippet = f'Check {component} dependency'
+                                    
+                                    issues.append(TestIssue(
+                                        tool="retire",
+                                        severity=self._map_retire_severity(vuln_detail.get("severity", "medium")),
+                                        confidence="HIGH",
+                                        file_path=str(Path(file_path).relative_to(self.source_path)) if Path(file_path).is_relative_to(self.source_path) else file_path,
+                                        line_number=None,
+                                        message=f"{vulnerability.get('component', 'Unknown')} has known vulnerabilities",
+                                        description=vuln_detail.get("info", [{}])[0].get("summary", "No description available"),
+                                        solution=f"Upgrade {vulnerability.get('component', 'component')} to a secure version",
+                                        reference=vuln_detail.get("info", [{}])[0].get("URL", "https://retirejs.github.io/retire.js/"),
+                                        code_snippet=code_snippet
+                                    ))
+                    except json.JSONDecodeError:
+                        logger.warning("Failed to parse Retire.js JSON output")
+                
+            except FileNotFoundError:
+                # If retire command not found, fall back to basic package.json analysis
+                if package_json.exists():
+                    with open(package_json, 'r', encoding='utf-8') as f:
+                        pkg_data = json.load(f)
+                        
+                    # Check for known vulnerable packages (basic heuristics)
+                    vulnerable_packages = {
+                        "jquery": {"<3.6.0": "XSS vulnerabilities"},
+                        "lodash": {"<4.17.21": "Prototype pollution"},
+                        "moment": {"*": "Deprecated, use dayjs or date-fns"},
+                        "react": {"<16.14.0": "Security vulnerabilities"}
+                    }
+                    
+                    for pkg, version_info in vulnerable_packages.items():
+                        deps = {**pkg_data.get("dependencies", {}), **pkg_data.get("devDependencies", {})}
+                        if pkg in deps:
+                            issues.append(TestIssue(
+                                tool="retire",
+                                severity=SeverityLevel.MEDIUM,
+                                confidence="MEDIUM",
+                                file_path="package.json",
+                                line_number=None,
+                                message=f"{pkg} may have security vulnerabilities",
+                                description=list(version_info.values())[0],
+                                solution=f"Review and update {pkg} dependency",
+                                reference="https://retirejs.github.io/retire.js/",
+                                code_snippet=f'"{pkg}": "{deps[pkg]}"'
+                            ))
             
             logger.info(f"Retire.js analysis found {len(issues)} vulnerabilities", path=str(path))
             return issues

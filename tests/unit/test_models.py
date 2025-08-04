@@ -148,6 +148,8 @@ class TestPortConfiguration:
     def test_create_port_configuration(self, init_database):
         """Test creating a port configuration."""
         port_config = PortConfiguration(
+            model='test_model',
+            app_num=1,
             frontend_port=3000,
             backend_port=5000,
             is_available=True
@@ -164,6 +166,8 @@ class TestPortConfiguration:
     def test_metadata_json_helpers(self, init_database):
         """Test JSON metadata helper methods."""
         port_config = PortConfiguration(
+            model='test_model',
+            app_num=1,
             frontend_port=3000,
             backend_port=5000
         )
@@ -181,6 +185,8 @@ class TestPortConfiguration:
     def test_to_dict_method(self, init_database):
         """Test to_dict method."""
         port_config = PortConfiguration(
+            model='test_model',
+            app_num=1,
             frontend_port=3000,
             backend_port=5000,
             is_available=False
@@ -204,6 +210,8 @@ class TestPortConfiguration:
         """Test unique constraints on ports."""
         # Create first port config
         port_config1 = PortConfiguration(
+            model='test_model',
+            app_num=1,
             frontend_port=3000,
             backend_port=5000
         )
@@ -212,6 +220,8 @@ class TestPortConfiguration:
         
         # Try to create another with same frontend port
         port_config2 = PortConfiguration(
+            model='test_model',
+            app_num=2,
             frontend_port=3000,  # Same as above
             backend_port=5001
         )
@@ -231,7 +241,7 @@ class TestGeneratedApplication:
             app_number=1,
             app_type='chat_application',
             provider='openai',
-            generation_status='completed',
+            generation_status=AnalysisStatus.COMPLETED,
             has_backend=True,
             has_frontend=True,
             backend_framework='Flask',

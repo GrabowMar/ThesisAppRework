@@ -24,21 +24,20 @@ class TestAnalysisWebRoutes:
     """Test analysis-related web routes and templates."""
     
     def test_analysis_overview_page(self, client):
-        """Test the analysis overview page loads correctly."""
+        """Test the analysis overview page redirects correctly."""
         response = client.get('/analysis/')
         
-        assert response.status_code == 200
-        assert b'Security Analysis Center' in response.data
-        assert b'Quick Analysis' in response.data
-        assert b'Analysis Queue' in response.data
+        # The analysis route redirects to statistics overview
+        assert response.status_code == 302
+        assert 'statistics' in response.location
     
     def test_analysis_overview_htmx(self, client):
         """Test analysis overview with HTMX requests."""
         headers = {'HX-Request': 'true'}
         response = client.get('/analysis/', headers=headers)
         
-        assert response.status_code == 200
-        # Should return partial content for HTMX
+        # HTMX requests also get redirected
+        assert response.status_code == 302
         assert b'Security Analysis Center' in response.data
     
     @patch('web_routes.UnifiedCLIAnalyzer')

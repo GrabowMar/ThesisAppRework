@@ -6,11 +6,19 @@ RUN apt-get update && apt-get install -y \
     git \
     nodejs \
     npm \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt /tmp/
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Install Python security tools
+RUN pip install --no-cache-dir \
+    bandit \
+    safety \
+    pylint \
+    semgrep
 
 # Install Node.js security tools globally
 RUN npm install -g \
@@ -18,11 +26,8 @@ RUN npm install -g \
     @typescript-eslint/eslint-plugin \
     @typescript-eslint/parser \
     retire \
-    jshint \
+    npm-audit \
     && npm cache clean --force
-
-# Install Snyk CLI
-RUN npm install -g snyk
 
 # Create app directory
 WORKDIR /app

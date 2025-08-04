@@ -15,12 +15,16 @@ Models include:
 
 import json
 import enum
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 try:
     from .extensions import db
 except ImportError:
     from extensions import db
+
+def utc_now():
+    """Get current UTC time - replacement for deprecated datetime.utcnow()"""
+    return datetime.now(timezone.utc)
 
 class AnalysisStatus(enum.Enum):
     """Status enum for analyses and tests."""
@@ -109,8 +113,8 @@ class ModelCapability(db.Model):
     metadata_json = db.Column(db.Text)      # Additional metadata
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def get_capabilities(self):
         """Get capabilities as dictionary."""
@@ -181,8 +185,8 @@ class PortConfiguration(db.Model):
     metadata_json = db.Column(db.Text)
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     # Unique constraint for model + app combination
     __table_args__ = (db.UniqueConstraint('model', 'app_num', name='unique_model_app_port'),)
@@ -328,8 +332,8 @@ class SecurityAnalysis(db.Model):
     # Timestamps
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def get_enabled_tools(self):
         """Get dictionary of enabled analysis tools."""
@@ -432,8 +436,8 @@ class PerformanceTest(db.Model):
     # Timestamps
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def get_results(self):
         """Get test results as dictionary."""
@@ -513,8 +517,8 @@ class ZAPAnalysis(db.Model):
     # Timestamps
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def get_results(self):
         """Get analysis results as dictionary."""
@@ -595,8 +599,8 @@ class OpenRouterAnalysis(db.Model):
     # Timestamps
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def get_results(self):
         """Get analysis results as dictionary."""
@@ -665,7 +669,7 @@ class ContainerizedTest(db.Model):
     
     # Test lifecycle
     status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
-    submitted_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    submitted_at = db.Column(db.DateTime, default=utc_now, index=True)
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
     
@@ -677,8 +681,8 @@ class ContainerizedTest(db.Model):
     execution_duration = db.Column(db.Float)  # Duration in seconds
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     # Relationship
     application = db.relationship('GeneratedApplication', backref=db.backref('containerized_tests', lazy=True))
@@ -758,8 +762,8 @@ class BatchAnalysis(db.Model):
     # Timestamps
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def get_config(self):
         """Get batch configuration as dictionary."""
@@ -875,8 +879,8 @@ class BatchJob(db.Model):
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
     last_heartbeat = db.Column(db.DateTime)  # For monitoring
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     # Foreign key to user (if user management is added later)
     created_by = db.Column(db.String(100))  # For future user management
@@ -1097,8 +1101,8 @@ class BatchTask(db.Model):
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
     last_heartbeat = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def get_error_details(self):
         """Get error details."""
@@ -1260,8 +1264,8 @@ class BatchWorker(db.Model):
     
     # Timestamps
     started_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def get_supported_analysis_types(self):
         """Get supported analysis types."""
@@ -1288,8 +1292,7 @@ class BatchWorker(db.Model):
         if not self.last_heartbeat:
             return False
         
-        from datetime import timedelta
-        cutoff = datetime.utcnow() - timedelta(minutes=5)
+        cutoff = utc_now() - timedelta(minutes=5)
         return self.last_heartbeat > cutoff and self.status != 'error'
     
     def get_efficiency_rating(self):

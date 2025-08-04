@@ -1086,8 +1086,47 @@ class ContainerBatchOperationService:
             
             if test_type_filter:
                 operations = [op for op in operations if op['operation_type'] == test_type_filter]
+            
+            # Transform operations to job format expected by templates
+            jobs = []
+            for op in operations:
+                # Calculate progress percentage
+                total_tasks = op.get('total_containers', 0)
+                completed_tasks = op.get('completed_containers', 0)
+                progress = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
                 
-            return operations
+                # Calculate duration
+                duration = None
+                duration_formatted = None
+                if op.get('started_at') and op.get('completed_at'):
+                    duration = (op['completed_at'] - op['started_at']).total_seconds()
+                    duration_formatted = f"{int(duration // 60)}m {int(duration % 60)}s"
+                elif op.get('started_at'):
+                    duration = (datetime.now() - op['started_at']).total_seconds()
+                    duration_formatted = f"{int(duration // 60)}m {int(duration % 60)}s"
+                
+                # Calculate relative time
+                created_at_relative = self._format_relative_time(op['created_at'])
+                
+                # Transform operation to job format
+                job = {
+                    'job_id': op['operation_id'],
+                    'job_name': op['operation_name'],
+                    'description': op.get('description', ''),
+                    'test_type': op['operation_type'],
+                    'status': op['status'],
+                    'progress': round(progress, 1),
+                    'completed_tasks': completed_tasks,
+                    'total_tasks': total_tasks,
+                    'total_issues': 0,  # TODO: Calculate from task results when available
+                    'created_at': op['created_at'].isoformat() if hasattr(op['created_at'], 'isoformat') else str(op['created_at']),
+                    'created_at_relative': created_at_relative,
+                    'duration': duration,
+                    'duration_formatted': duration_formatted
+                }
+                jobs.append(job)
+                
+            return jobs
     
     def get_job_details(self, operation_id: str) -> Optional[Dict[str, Any]]:
         """Get operation details (compatibility method for job details)."""
