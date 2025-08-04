@@ -91,13 +91,17 @@ class SecurityAnalyzer:
             if self._has_backend_code(app_path):
                 backend_issues = await self._analyze_backend(app_path, request.tools)
                 issues.extend(backend_issues)
-                tools_used.extend(["bandit", "safety", "pylint"])
+                # Only add tools that were actually requested and used
+                backend_tools = [tool for tool in ["bandit", "safety", "pylint", "semgrep"] if tool in request.tools]
+                tools_used.extend(backend_tools)
             
             # Run frontend analysis
             if self._has_frontend_code(app_path):
                 frontend_issues = await self._analyze_frontend(app_path, request.tools)
                 issues.extend(frontend_issues)
-                tools_used.extend(["eslint", "retire", "npm-audit"])
+                # Only add tools that were actually requested and used
+                frontend_tools = [tool for tool in ["eslint", "retire", "npm-audit"] if tool in request.tools]
+                tools_used.extend(frontend_tools)
             
             # Count issues by severity
             severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
@@ -193,6 +197,10 @@ class SecurityAnalyzer:
         if "pylint" in tools:
             pylint_issues = await self._run_pylint(backend_path)
             issues.extend(pylint_issues)
+        
+        if "semgrep" in tools:
+            semgrep_issues = await self._run_semgrep(backend_path)
+            issues.extend(semgrep_issues)
         
         return issues
     
@@ -386,14 +394,20 @@ class SecurityAnalyzer:
             
             # Create temporary ESLint config for analysis
             eslint_config = {
-                "env": {"browser": True, "es2021": True},
+                "env": {"browser": True, "es2021": True, "node": True},
                 "extends": ["eslint:recommended"],
+                "parserOptions": {"ecmaVersion": 2021, "sourceType": "module"},
                 "rules": {
                     "no-unused-vars": "error",
-                    "no-console": "warn",
+                    "no-console": "warn", 
                     "no-debugger": "error",
                     "no-eval": "error",
-                    "no-implicit-globals": "error"
+                    "no-implied-eval": "error",
+                    "no-new-func": "error",
+                    "no-script-url": "error",
+                    "no-global-assign": "error",
+                    "no-implicit-globals": "error",
+                    "no-unsafe-innerhtml": "error"
                 }
             }
             
@@ -402,14 +416,32 @@ class SecurityAnalyzer:
                 with open(config_file, 'w') as f:
                     json.dump(eslint_config, f)
                 
-                # Run ESLint on the directory
-                cmd = ["npx", "eslint", str(path), "--format", "json", "--ext", ".js,.jsx,.ts,.tsx"]
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await proc.communicate()
+                # Try multiple ESLint execution strategies
+                success = False
+                stdout = None
+                stderr = None
                 
-                if stdout:
+                # Strategy 1: Use globally installed ESLint
+                try:
+                    cmd = ["eslint", str(path), "--format", "json", "--ext", ".js,.jsx,.ts,.tsx"]
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await proc.communicate()
+                    success = True
+                except FileNotFoundError:
+                    # Strategy 2: Use npx eslint
+                    try:
+                        cmd = ["npx", "eslint", str(path), "--format", "json", "--ext", ".js,.jsx,.ts,.tsx"]
+                        proc = await asyncio.create_subprocess_exec(
+                            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                        )
+                        stdout, stderr = await proc.communicate()
+                        success = True
+                    except FileNotFoundError:
+                        logger.warning("ESLint not found, falling back to basic analysis")
+                
+                if success and stdout:
                     try:
                         eslint_output = json.loads(stdout.decode())
                         
@@ -442,6 +474,43 @@ class SecurityAnalyzer:
                                 ))
                     except json.JSONDecodeError:
                         logger.warning("Failed to parse ESLint JSON output")
+                
+                # Fallback: Basic static analysis if ESLint fails
+                if not success or not issues:
+                    logger.info("Running fallback static analysis for JavaScript files")
+                    for js_file in js_files[:5]:  # Limit to first 5 files
+                        try:
+                            with open(js_file, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                
+                            # Basic security pattern matching
+                            security_patterns = [
+                                (r'eval\s*\(', "Use of eval() function", SeverityLevel.HIGH),
+                                (r'innerHTML\s*=', "Potential XSS via innerHTML", SeverityLevel.MEDIUM),
+                                (r'document\.write\s*\(', "Use of document.write", SeverityLevel.MEDIUM),
+                                (r'console\.log\s*\(', "Console log statement", SeverityLevel.LOW),
+                                (r'alert\s*\(', "Use of alert()", SeverityLevel.LOW)
+                            ]
+                            
+                            lines = content.split('\n')
+                            for line_num, line in enumerate(lines, 1):
+                                for pattern, description, severity in security_patterns:
+                                    import re
+                                    if re.search(pattern, line, re.IGNORECASE):
+                                        issues.append(TestIssue(
+                                            tool="eslint",
+                                            severity=severity,
+                                            confidence="LOW",
+                                            file_path=str(js_file.relative_to(self.source_path)),
+                                            line_number=line_num,
+                                            message=description,
+                                            description="Pattern-based static analysis finding",
+                                            solution="Review and fix the identified pattern",
+                                            reference="https://eslint.org/",
+                                            code_snippet=line.strip()
+                                        ))
+                        except Exception as e:
+                            logger.warning(f"Failed to analyze {js_file}: {e}")
                 
             finally:
                 # Clean up temporary config
@@ -553,38 +622,187 @@ class SecurityAnalyzer:
         """Run npm audit for dependency vulnerabilities."""
         try:
             package_json = path / "package.json"
+            issues = []
+            
             if not package_json.exists():
-                return []
-            
-            cmd = ["npm", "audit", "--json"]
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, cwd=str(path), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await proc.communicate()
-            
-            try:
-                output = json.loads(stdout.decode())
-                issues = []
-                
-                for advisory in output.get("advisories", {}).values():
-                    issues.append(TestIssue(
-                        tool="npm-audit",
-                        severity=self._map_npm_severity(advisory.get("severity", "moderate")),
-                        confidence="HIGH",
-                        file_path="package.json",
-                        message=advisory.get("title", ""),
-                        description=advisory.get("overview", ""),
-                        solution=advisory.get("recommendation", ""),
-                        reference=advisory.get("url", "")
-                    ))
-                
+                logger.info("No package.json found for npm audit analysis", path=str(path))
                 return issues
-            except json.JSONDecodeError:
-                return []
+            
+            # Try to run npm audit
+            try:
+                cmd = ["npm", "audit", "--json"]
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd, cwd=str(path), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await proc.communicate()
+                
+                if stdout:
+                    try:
+                        output = json.loads(stdout.decode())
+                        
+                        # Handle different npm audit output formats
+                        if "advisories" in output:
+                            # Legacy format
+                            for advisory in output.get("advisories", {}).values():
+                                issues.append(TestIssue(
+                                    tool="npm-audit",
+                                    severity=self._map_npm_severity(advisory.get("severity", "moderate")),
+                                    confidence="HIGH",
+                                    file_path="package.json",
+                                    message=advisory.get("title", "Dependency vulnerability"),
+                                    description=advisory.get("overview", ""),
+                                    solution=advisory.get("recommendation", "Update dependency"),
+                                    reference=advisory.get("url", ""),
+                                    code_snippet=f'"{advisory.get("module_name", "unknown")}"'
+                                ))
+                        elif "vulnerabilities" in output:
+                            # New format
+                            vulns = output.get("vulnerabilities", {})
+                            for pkg_name, vuln_info in vulns.items():
+                                if isinstance(vuln_info, dict) and vuln_info.get("severity") != "info":
+                                    issues.append(TestIssue(
+                                        tool="npm-audit",
+                                        severity=self._map_npm_severity(vuln_info.get("severity", "moderate")),
+                                        confidence="HIGH",
+                                        file_path="package.json",
+                                        message=f"Vulnerability in {pkg_name}",
+                                        description=vuln_info.get("title", "Dependency vulnerability"),
+                                        solution="Update to secure version",
+                                        reference=vuln_info.get("url", ""),
+                                        code_snippet=f'"{pkg_name}"'
+                                    ))
+                    except json.JSONDecodeError:
+                        logger.warning("Failed to parse npm audit JSON output")
+                        
+            except Exception as e:
+                logger.warning(f"npm audit failed, trying alternative analysis: {e}")
+                
+                # Fallback: Basic package.json analysis for known vulnerable patterns
+                try:
+                    with open(package_json, 'r', encoding='utf-8') as f:
+                        pkg_data = json.load(f)
+                    
+                    # Check for known vulnerable packages (basic heuristics)
+                    vulnerable_packages = {
+                        "lodash": {"versions": ["<4.17.21"], "issue": "Prototype pollution vulnerability"},
+                        "moment": {"versions": ["*"], "issue": "Deprecated package, security unmaintained"},
+                        "jquery": {"versions": ["<3.6.0"], "issue": "XSS vulnerabilities in older versions"},
+                        "handlebars": {"versions": ["<4.7.7"], "issue": "Potential template injection"},
+                        "yargs-parser": {"versions": ["<18.1.2"], "issue": "Prototype pollution"},
+                        "minimist": {"versions": ["<1.2.6"], "issue": "Prototype pollution"},
+                        "serialize-javascript": {"versions": ["<6.0.0"], "issue": "XSS vulnerability"},
+                        "node-fetch": {"versions": ["<2.6.7"], "issue": "Information disclosure"}
+                    }
+                    
+                    all_deps = {**pkg_data.get("dependencies", {}), **pkg_data.get("devDependencies", {})}
+                    
+                    for pkg, version in all_deps.items():
+                        if pkg in vulnerable_packages:
+                            vuln_info = vulnerable_packages[pkg]
+                            issues.append(TestIssue(
+                                tool="npm-audit",
+                                severity=SeverityLevel.MEDIUM,
+                                confidence="MEDIUM",
+                                file_path="package.json",
+                                line_number=None,
+                                message=f"{pkg} may have security vulnerabilities",
+                                description=vuln_info["issue"],
+                                solution=f"Review and update {pkg} dependency",
+                                reference="https://npmjs.com/advisories",
+                                code_snippet=f'"{pkg}": "{version}"'
+                            ))
+                            
+                except Exception as e:
+                    logger.warning(f"Fallback package.json analysis failed: {e}")
+            
+            logger.info(f"npm audit analysis found {len(issues)} vulnerabilities", path=str(path))
+            return issues
                 
         except Exception as e:
             logger.error("npm audit execution failed", error=str(e))
             return []
+    
+    async def _run_semgrep(self, path: Path) -> List[TestIssue]:
+        """Run Semgrep static analysis on real Python code."""
+        try:
+            python_files = list(path.glob("**/*.py"))
+            issues = []
+            
+            if not python_files:
+                logger.info("No Python files found for Semgrep analysis", path=str(path))
+                return issues
+            
+            # Run Semgrep with security-focused rulesets
+            cmd = [
+                "semgrep", 
+                "--config=auto",  # Auto-detect appropriate rules
+                "--json",
+                "--severity=ERROR",
+                "--severity=WARNING", 
+                str(path)
+            ]
+            
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            
+            if stdout:
+                try:
+                    semgrep_output = json.loads(stdout.decode())
+                    
+                    # Parse Semgrep results
+                    for result in semgrep_output.get("results", []):
+                        # Read the actual code snippet
+                        code_snippet = ""
+                        file_path = Path(result.get("path", ""))
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                lines = f.readlines()
+                                start_line = result.get("start", {}).get("line", 1)
+                                end_line = result.get("end", {}).get("line", start_line)
+                                if 1 <= start_line <= len(lines):
+                                    if start_line == end_line:
+                                        code_snippet = lines[start_line - 1].strip()
+                                    else:
+                                        code_snippet = ''.join(lines[start_line-1:min(end_line, len(lines))]).strip()
+                        except Exception:
+                            code_snippet = "Unable to read code snippet"
+                        
+                        # Get rule info
+                        extra = result.get("extra", {})
+                        rule_id = extra.get("metadata", {}).get("owasp", "") or result.get("check_id", "")
+                        
+                        issues.append(TestIssue(
+                            tool="semgrep",
+                            severity=self._map_semgrep_severity(extra.get("severity", "WARNING")),
+                            confidence="HIGH",
+                            file_path=str(file_path.relative_to(self.source_path)) if file_path.is_relative_to(self.source_path) else str(file_path),
+                            line_number=result.get("start", {}).get("line"),
+                            message=extra.get("message", result.get("check_id", "Security issue detected")),
+                            description=extra.get("metadata", {}).get("category", "Static analysis finding"),
+                            solution="Review and fix the security issue identified by Semgrep",
+                            reference=f"https://semgrep.dev/r/{rule_id}" if rule_id else "https://semgrep.dev/",
+                            code_snippet=code_snippet
+                        ))
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse Semgrep JSON output")
+            
+            logger.info(f"Semgrep analysis found {len(issues)} issues", path=str(path))
+            return issues
+                
+        except Exception as e:
+            logger.error("Semgrep execution failed", error=str(e))
+            return []
+    
+    def _map_semgrep_severity(self, severity: str) -> SeverityLevel:
+        """Map Semgrep severity to standard levels."""
+        mapping = {
+            "ERROR": SeverityLevel.HIGH,
+            "WARNING": SeverityLevel.MEDIUM, 
+            "INFO": SeverityLevel.LOW
+        }
+        return mapping.get(severity.upper(), SeverityLevel.MEDIUM)
     
     def _map_bandit_severity(self, severity: str) -> SeverityLevel:
         """Map Bandit severity to standard levels."""

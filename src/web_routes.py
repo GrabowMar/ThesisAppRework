@@ -2192,6 +2192,78 @@ def get_app_info(model: str, app_num: int):
         return ResponseHandler.error_response(f"Failed to get app info: {str(e)}")
 
 
+@api_bp.route("/app/<model>/<int:app_num>/start", methods=["POST"])
+def api_start_app(model: str, app_num: int):
+    """Start a specific app container."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        result = DockerOperations.execute_action('start', decoded_model, app_num)
+        
+        if result['success']:
+            return ResponseHandler.success_response({
+                'message': f'Successfully started {decoded_model} app {app_num}',
+                'model': decoded_model,
+                'app_num': app_num,
+                'action': 'start'
+            })
+        else:
+            return ResponseHandler.error_response(f"Failed to start app: {result.get('error', 'Unknown error')}")
+            
+    except Exception as e:
+        logger.error(f"Error starting app {model}/{app_num}: {e}", exc_info=True)
+        return ResponseHandler.error_response(f"Failed to start app: {str(e)}")
+
+
+@api_bp.route("/app/<model>/<int:app_num>/stop", methods=["POST"])
+def api_stop_app(model: str, app_num: int):
+    """Stop a specific app container."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        result = DockerOperations.execute_action('stop', decoded_model, app_num)
+        
+        if result['success']:
+            return ResponseHandler.success_response({
+                'message': f'Successfully stopped {decoded_model} app {app_num}',
+                'model': decoded_model,
+                'app_num': app_num,
+                'action': 'stop'
+            })
+        else:
+            return ResponseHandler.error_response(f"Failed to stop app: {result.get('error', 'Unknown error')}")
+            
+    except Exception as e:
+        logger.error(f"Error stopping app {model}/{app_num}: {e}", exc_info=True)
+        return ResponseHandler.error_response(f"Failed to stop app: {str(e)}")
+
+
+@api_bp.route("/app/<model>/<int:app_num>/restart", methods=["POST"])
+def api_restart_app(model: str, app_num: int):
+    """Restart a specific app container."""
+    try:
+        import urllib.parse
+        decoded_model = urllib.parse.unquote(model)
+        
+        result = DockerOperations.execute_action('restart', decoded_model, app_num)
+        
+        if result['success']:
+            return ResponseHandler.success_response({
+                'message': f'Successfully restarted {decoded_model} app {app_num}',
+                'model': decoded_model,
+                'app_num': app_num,
+                'action': 'restart'
+            })
+        else:
+            return ResponseHandler.error_response(f"Failed to restart app: {result.get('error', 'Unknown error')}")
+            
+    except Exception as e:
+        logger.error(f"Error restarting app {model}/{app_num}: {e}", exc_info=True)
+        return ResponseHandler.error_response(f"Failed to restart app: {str(e)}")
+
+
 @api_bp.route("/models/export")
 def export_models_data():
     """Export models data in various formats."""
