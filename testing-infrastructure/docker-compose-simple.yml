@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # Security Analysis Container
+  security-scanner:
+    build: ./containers/security-scanner
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./shared:/app/shared:ro
+      - ../misc/models:/app/sources:ro  # Mount actual models directory
+      - analysis-results:/app/results
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - LOG_LEVEL=INFO
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Performance Testing Container
+  performance-tester:
+    build: ./containers/performance-tester
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./shared:/app/shared:ro
+      - performance-reports:/app/reports
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - LOG_LEVEL=INFO
+      - GEVENT_SUPPORT=true
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # ZAP Security Scanner Container
+  zap-scanner:
+    build: ./containers/zap-scanner
+    ports:
+      - "8003:8003"
+      - "8090:8090"  # ZAP proxy port
+    volumes:
+      - ./shared:/app/shared:ro
+      - zap-sessions:/zap/sessions
+      - zap-reports:/app/reports
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - ZAP_PORT=8090
+      - LOG_LEVEL=INFO
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: '1.0'
+
+  # Test Coordinator Container
+  test-coordinator:
+    build: ./containers/test-coordinator
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./shared:/app/shared:ro
+      - coordinator-data:/app/data
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - LOG_LEVEL=INFO
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+volumes:
+  analysis-results:
+    driver: local
+  
+  performance-reports:
+    driver: local
+  
+  zap-sessions:
+    driver: local
+  
+  zap-reports:
+    driver: local
+  
+  coordinator-data:
+    driver: local
+
+networks:
+  testing-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

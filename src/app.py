@@ -573,6 +573,7 @@ def create_minimal_routes(app: Flask) -> None:
 
 def register_template_globals(app: Flask) -> None:
     """Register template global functions."""
+    from datetime import datetime, timezone
     
     @app.template_global()
     def get_app_config():
@@ -599,6 +600,16 @@ def register_template_globals(app: Flask) -> None:
             return GeneratedApplication.query.count()
         except Exception:
             return 0
+    
+    @app.template_global()
+    def now():
+        """Get current datetime for templates."""
+        return datetime.now()
+    
+    @app.template_global()
+    def utcnow():
+        """Get current UTC datetime for templates."""
+        return datetime.now(timezone.utc)
 
 
 def register_error_handlers(app: Flask) -> None:

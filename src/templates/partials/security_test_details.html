@@ -74,10 +74,13 @@
                         <tr>
                             <td><strong>Duration:</strong></td>
                             <td>
-                                {% if test.started_at and test.completed_at %}
-                                    {{ ((test.completed_at - test.started_at).total_seconds() / 60)|round(2) }} minutes
+                                {% if test.runtime_seconds %}
+                                    {{ (test.runtime_seconds / 60)|round(2) }} minutes
+                                {% elif test.started_at and test.completed_at %}
+                                    {% set duration_seconds = (test.completed_at - test.started_at).total_seconds() %}
+                                    {{ (duration_seconds / 60)|round(2) }} minutes
                                 {% elif test.started_at %}
-                                    {{ ((moment.utcnow() - test.started_at).total_seconds() / 60)|round(2) }} minutes (ongoing)
+                                    Calculating...
                                 {% else %}
                                     Not started
                                 {% endif %}

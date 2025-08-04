@@ -4808,6 +4808,35 @@ def api_get_infrastructure_status():
         return ResponseHandler.error_response(str(e))
 
 
+@testing_bp.route("/api/models")
+def api_get_models():
+    """Get list of available AI models from database."""
+    try:
+        from models import ModelCapability
+        
+        # Get all models from database
+        models = ModelCapability.query.all()
+        
+        models_data = []
+        for model in models:
+            models_data.append({
+                'id': model.canonical_slug,
+                'name': model.model_name,
+                'provider': model.provider,
+                'display_name': f"{model.provider} - {model.model_name}",
+                'slug': model.canonical_slug
+            })
+        
+        # Sort by provider then by name
+        models_data.sort(key=lambda x: (x['provider'], x['name']))
+        
+        return ResponseHandler.success_response(data=models_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting models from database: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
 # ===========================
 # BLUEPRINT REGISTRATION
 # ===========================

@@ -10,13 +10,11 @@ services:
       - security-scanner
       - performance-tester
       - zap-scanner
-      - openrouter-analyzer
       - test-coordinator
     environment:
       - SECURITY_SCANNER_URL=http://security-scanner:8001
       - PERFORMANCE_TESTER_URL=http://performance-tester:8002
       - ZAP_SCANNER_URL=http://zap-scanner:8003
-      - OPENROUTER_ANALYZER_URL=http://openrouter-analyzer:8004
       - TEST_COORDINATOR_URL=http://test-coordinator:8005
     networks:
       - testing-network
@@ -82,27 +80,6 @@ services:
         limits:
           memory: 3G
           cpus: '1.0'
-
-  # OpenRouter AI Analyzer Container
-  openrouter-analyzer:
-    build: ./containers/openrouter-analyzer
-    ports:
-      - "8004:8004"
-    volumes:
-      - ./shared:/app/shared:ro
-      - app-sources:/app/sources:ro
-      - ai-analysis-results:/app/results
-    environment:
-      - PYTHONPATH=/app/shared/api-contracts
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - LOG_LEVEL=INFO
-    networks:
-      - testing-network
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '0.5'
 
   # Test Coordinator Container
   test-coordinator:
@@ -208,9 +185,6 @@ volumes:
     driver: local
   
   zap-reports:
-    driver: local
-  
-  ai-analysis-results:
     driver: local
   
   coordinator-data:

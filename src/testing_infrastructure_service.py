@@ -52,6 +52,13 @@ except ImportError:
             self.model = model
             self.app_num = app_num
             self.tools = tools or []
+        
+        def to_dict(self):
+            return {
+                'model': self.model,
+                'app_num': self.app_num,
+                'tools': self.tools
+            }
     
     class PerformanceTestRequest:
         def __init__(self, model=None, app_num=None, target_url=None, users=None, *args, **kwargs):
@@ -59,6 +66,14 @@ except ImportError:
             self.app_num = app_num
             self.target_url = target_url
             self.users = users
+        
+        def to_dict(self):
+            return {
+                'model': self.model,
+                'app_num': self.app_num,
+                'target_url': self.target_url,
+                'users': self.users
+            }
     
     class ZapTestRequest:
         def __init__(self, model=None, app_num=None, target_url=None, scan_type=None, *args, **kwargs):
@@ -66,6 +81,14 @@ except ImportError:
             self.app_num = app_num
             self.target_url = target_url
             self.scan_type = scan_type
+        
+        def to_dict(self):
+            return {
+                'model': self.model,
+                'app_num': self.app_num,
+                'target_url': self.target_url,
+                'scan_type': self.scan_type
+            }
     
     class AIAnalysisRequest:
         def __init__(self, *args, **kwargs):
@@ -104,7 +127,7 @@ logger = logging.getLogger(__name__)
 class TestingInfrastructureService:
     """Service for managing containerized testing infrastructure."""
     
-    def __init__(self, base_url: str = "http://localhost"):
+    def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url
         self.client = SyncTestingAPIClient(base_url)
         self.active_tests = {}  # Track running tests
@@ -485,10 +508,29 @@ class TestingInfrastructureService:
                 
                 job = self.active_tests[job_id].copy()
             
+            # Serialize request object if it exists
+            if 'request' in job and hasattr(job['request'], 'to_dict'):
+                job['request'] = job['request'].to_dict()
+            
             # Add runtime information
             if job['status'] == TestingStatus.RUNNING:
-                runtime = (datetime.utcnow() - job['created_at']).total_seconds()
-                job['runtime_seconds'] = runtime
+                try:
+                    now = datetime.utcnow()
+                    created_at = job['created_at']
+                    
+                    # Handle timezone mismatches
+                    if created_at.tzinfo is not None and now.tzinfo is None:
+                        # created_at is timezone-aware, now is naive
+                        now = now.replace(tzinfo=created_at.tzinfo)
+                    elif created_at.tzinfo is None and now.tzinfo is not None:
+                        # created_at is naive, now is timezone-aware
+                        created_at = created_at.replace(tzinfo=now.tzinfo)
+                    
+                    runtime = (now - created_at).total_seconds()
+                    job['runtime_seconds'] = runtime
+                except Exception as e:
+                    logger.warning(f"Could not calculate runtime for job {job_id}: {e}")
+                    job['runtime_seconds'] = 0
             
             return {'success': True, 'job': job}
             
@@ -520,7 +562,11 @@ class TestingInfrastructureService:
                 # Add active tests
                 for job in self.active_tests.values():
                     if not status_filter or job['status'] == status_filter:
-                        jobs.append(job.copy())
+                        job_copy = job.copy()
+                        # Serialize request object if it exists
+                        if 'request' in job_copy and hasattr(job_copy['request'], 'to_dict'):
+                            job_copy['request'] = job_copy['request'].to_dict()
+                        jobs.append(job_copy)
                 
                 # Add completed tests with results
                 for job_id, result in self.test_results.items():
@@ -711,7 +757,7 @@ def get_testing_infrastructure_service() -> TestingInfrastructureService:
     return _testing_service
 
 
-def initialize_testing_infrastructure_service(base_url: str = "http://localhost") -> TestingInfrastructureService:
+def initialize_testing_infrastructure_service(base_url: str = "http://localhost:8000") -> TestingInfrastructureService:
     """Initialize the testing infrastructure service with custom configuration."""
     global _testing_service
     

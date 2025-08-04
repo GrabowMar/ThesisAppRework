@@ -885,7 +885,7 @@ class SecurityTestingPlatform {
     }
 
     loadAvailableModels() {
-        fetch('/api/models')
+        fetch('/testing/api/models')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
