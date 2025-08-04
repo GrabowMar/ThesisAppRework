@@ -16,13 +16,14 @@ Models include:
 import json
 import enum
 from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, List, Optional
 
 try:
     from .extensions import db
 except ImportError:
     from extensions import db
 
-def utc_now():
+def utc_now() -> datetime:
     """Get current UTC time - replacement for deprecated datetime.utcnow()"""
     return datetime.now(timezone.utc)
 
@@ -116,7 +117,7 @@ class ModelCapability(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
-    def get_capabilities(self):
+    def get_capabilities(self) -> Dict[str, Any]:
         """Get capabilities as dictionary."""
         if self.capabilities_json:
             try:
@@ -125,11 +126,11 @@ class ModelCapability(db.Model):
                 return {}
         return {}
     
-    def set_capabilities(self, capabilities_dict):
+    def set_capabilities(self, capabilities_dict: Dict[str, Any]) -> None:
         """Set capabilities from dictionary."""
         self.capabilities_json = json.dumps(capabilities_dict)
     
-    def get_metadata(self):
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
         if self.metadata_json:
             try:
@@ -138,11 +139,11 @@ class ModelCapability(db.Model):
                 return {}
         return {}
     
-    def set_metadata(self, metadata_dict):
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -167,7 +168,7 @@ class ModelCapability(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<ModelCapability {self.model_id}>'
 
 class PortConfiguration(db.Model):
@@ -191,7 +192,7 @@ class PortConfiguration(db.Model):
     # Unique constraint for model + app combination
     __table_args__ = (db.UniqueConstraint('model', 'app_num', name='unique_model_app_port'),)
     
-    def get_metadata(self):
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
         if self.metadata_json:
             try:
@@ -200,14 +201,16 @@ class PortConfiguration(db.Model):
                 return {}
         return {}
     
-    def set_metadata(self, metadata_dict):
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
+            'model': self.model,
+            'app_num': self.app_num,
             'frontend_port': self.frontend_port,
             'backend_port': self.backend_port,
             'is_available': self.is_available,
@@ -216,8 +219,8 @@ class PortConfiguration(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
-        return f'<PortConfiguration frontend:{self.frontend_port} backend:{self.backend_port}>'
+    def __repr__(self) -> str:
+        return f'<PortConfiguration {self.model}/app{self.app_num} frontend:{self.frontend_port} backend:{self.backend_port}>'
 
 class GeneratedApplication(db.Model):
     """Model for storing information about AI-generated applications."""
@@ -249,7 +252,7 @@ class GeneratedApplication(db.Model):
     # Unique constraint
     __table_args__ = (db.UniqueConstraint('model_slug', 'app_number', name='unique_model_app'),)
     
-    def get_metadata(self):
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
         if self.metadata_json:
             try:
@@ -258,21 +261,21 @@ class GeneratedApplication(db.Model):
                 return {}
         return {}
     
-    def set_metadata(self, metadata_dict):
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
-    def get_directory_path(self):
+    def get_directory_path(self) -> str:
         """Get the directory path for this application."""
         metadata = self.get_metadata()
         return metadata.get('directory_path', f"misc/models/{self.model_slug}/app{self.app_number}")
     
-    def get_ports(self):
+    def get_ports(self) -> Dict[str, Any]:
         """Get port configuration for this application."""
         metadata = self.get_metadata()
         return metadata.get('ports', {})
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -294,7 +297,7 @@ class GeneratedApplication(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<GeneratedApplication {self.model_slug}/app{self.app_number}>'
 
 class SecurityAnalysis(db.Model):
@@ -335,7 +338,7 @@ class SecurityAnalysis(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
-    def get_enabled_tools(self):
+    def get_enabled_tools(self) -> Dict[str, bool]:
         """Get dictionary of enabled analysis tools."""
         return {
             'bandit': self.bandit_enabled,
@@ -346,7 +349,7 @@ class SecurityAnalysis(db.Model):
             'snyk': self.snyk_enabled
         }
     
-    def set_enabled_tools(self, tools_dict):
+    def set_enabled_tools(self, tools_dict: Dict[str, bool]) -> None:
         """Set enabled tools from dictionary."""
         self.bandit_enabled = tools_dict.get('bandit', False)
         self.safety_enabled = tools_dict.get('safety', False)
@@ -355,7 +358,7 @@ class SecurityAnalysis(db.Model):
         self.npm_audit_enabled = tools_dict.get('npm_audit', False)
         self.snyk_enabled = tools_dict.get('snyk', False)
     
-    def get_results(self):
+    def get_results(self) -> Dict[str, Any]:
         """Get analysis results as dictionary."""
         if self.results_json:
             try:
@@ -364,11 +367,11 @@ class SecurityAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_results(self, results_dict):
+    def set_results(self, results_dict: Dict[str, Any]) -> None:
         """Set analysis results from dictionary."""
         self.results_json = json.dumps(results_dict)
     
-    def get_metadata(self):
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
         if self.metadata_json:
             try:
@@ -377,11 +380,11 @@ class SecurityAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_metadata(self, metadata_dict):
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -404,7 +407,7 @@ class SecurityAnalysis(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<SecurityAnalysis {self.id} for App {self.application_id}>'
 
 class PerformanceTest(db.Model):
@@ -439,7 +442,7 @@ class PerformanceTest(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
-    def get_results(self):
+    def get_results(self) -> Dict[str, Any]:
         """Get test results as dictionary."""
         if self.results_json:
             try:
@@ -448,11 +451,11 @@ class PerformanceTest(db.Model):
                 return {}
         return {}
     
-    def set_results(self, results_dict):
+    def set_results(self, results_dict: Dict[str, Any]) -> None:
         """Set test results from dictionary."""
         self.results_json = json.dumps(results_dict)
     
-    def get_metadata(self):
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
         if self.metadata_json:
             try:
@@ -461,11 +464,11 @@ class PerformanceTest(db.Model):
                 return {}
         return {}
     
-    def set_metadata(self, metadata_dict):
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -487,7 +490,7 @@ class PerformanceTest(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<PerformanceTest {self.id} for App {self.application_id}>'
 
 class ZAPAnalysis(db.Model):
@@ -520,7 +523,7 @@ class ZAPAnalysis(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
-    def get_results(self):
+    def get_results(self) -> Dict[str, Any]:
         """Get analysis results as dictionary."""
         if self.results_json:
             try:
@@ -529,11 +532,11 @@ class ZAPAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_results(self, results_dict):
+    def set_results(self, results_dict: Dict[str, Any]) -> None:
         """Set analysis results from dictionary."""
         self.results_json = json.dumps(results_dict)
     
-    def get_metadata(self):
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
         if self.metadata_json:
             try:
@@ -542,11 +545,11 @@ class ZAPAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_metadata(self, metadata_dict):
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -568,7 +571,7 @@ class ZAPAnalysis(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<ZAPAnalysis {self.id} for App {self.application_id}>'
 
 class OpenRouterAnalysis(db.Model):
@@ -602,7 +605,7 @@ class OpenRouterAnalysis(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
-    def get_results(self):
+    def get_results(self) -> Dict[str, Any]:
         """Get analysis results as dictionary."""
         if self.results_json:
             try:
@@ -611,11 +614,11 @@ class OpenRouterAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_results(self, results_dict):
+    def set_results(self, results_dict: Dict[str, Any]) -> None:
         """Set analysis results from dictionary."""
         self.results_json = json.dumps(results_dict)
     
-    def get_metadata(self):
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
         if self.metadata_json:
             try:
@@ -624,11 +627,11 @@ class OpenRouterAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_metadata(self, metadata_dict):
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -651,7 +654,7 @@ class OpenRouterAnalysis(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<OpenRouterAnalysis {self.id} for App {self.application_id}>'
 
 class ContainerizedTest(db.Model):
@@ -687,7 +690,7 @@ class ContainerizedTest(db.Model):
     # Relationship
     application = db.relationship('GeneratedApplication', backref=db.backref('containerized_tests', lazy=True))
     
-    def get_tools_used(self):
+    def get_tools_used(self) -> List[str]:
         """Get list of tools used in test."""
         if self.tools_used:
             try:
@@ -696,11 +699,11 @@ class ContainerizedTest(db.Model):
                 return []
         return []
     
-    def set_tools_used(self, tools_list):
+    def set_tools_used(self, tools_list: Optional[List[str]]) -> None:
         """Set list of tools used in test."""
         self.tools_used = json.dumps(tools_list) if tools_list else None
     
-    def get_result_data(self):
+    def get_result_data(self) -> Dict[str, Any]:
         """Get parsed result data."""
         if self.result_data:
             try:
@@ -709,11 +712,11 @@ class ContainerizedTest(db.Model):
                 return {}
         return {}
     
-    def set_result_data(self, data_dict):
+    def set_result_data(self, data_dict: Optional[Dict[str, Any]]) -> None:
         """Set result data as JSON."""
         self.result_data = json.dumps(data_dict) if data_dict else None
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""
         return {
             'id': self.id,
@@ -733,7 +736,7 @@ class ContainerizedTest(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<ContainerizedTest {self.test_id}: {self.test_type} - {self.status}>'
 
 
@@ -765,7 +768,7 @@ class BatchAnalysis(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Get batch configuration as dictionary."""
         if self.config_json:
             try:
@@ -774,11 +777,11 @@ class BatchAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_config(self, config_dict):
+    def set_config(self, config_dict: Dict[str, Any]) -> None:
         """Set batch configuration from dictionary."""
         self.config_json = json.dumps(config_dict)
     
-    def get_results(self):
+    def get_results(self) -> Dict[str, Any]:
         """Get batch results as dictionary."""
         if self.results_json:
             try:
@@ -787,11 +790,11 @@ class BatchAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_results(self, results_dict):
+    def set_results(self, results_dict: Dict[str, Any]) -> None:
         """Set batch results from dictionary."""
         self.results_json = json.dumps(results_dict)
     
-    def get_metadata(self):
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
         if self.metadata_json:
             try:
@@ -800,17 +803,17 @@ class BatchAnalysis(db.Model):
                 return {}
         return {}
     
-    def set_metadata(self, metadata_dict):
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
-    def get_progress_percentage(self):
+    def get_progress_percentage(self) -> float:
         """Calculate progress percentage."""
         if self.total_applications == 0:
             return 0
         return round((self.completed_applications + self.failed_applications) / self.total_applications * 100, 1)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -831,7 +834,7 @@ class BatchAnalysis(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<BatchAnalysis {self.name}>'
 
 
@@ -888,7 +891,7 @@ class BatchJob(db.Model):
     # Relationships
     tasks = db.relationship('BatchTask', backref='job', lazy=True, cascade='all, delete-orphan')
     
-    def get_analysis_types(self):
+    def get_analysis_types(self) -> List[str]:
         """Get analysis types as list."""
         if self.analysis_types_json:
             try:
@@ -897,11 +900,11 @@ class BatchJob(db.Model):
                 return []
         return []
     
-    def set_analysis_types(self, types_list):
+    def set_analysis_types(self, types_list: List[str]) -> None:
         """Set analysis types from list."""
         self.analysis_types_json = json.dumps(types_list)
     
-    def get_models(self):
+    def get_models(self) -> List[str]:
         """Get models as list."""
         if self.models_json:
             try:
@@ -910,11 +913,11 @@ class BatchJob(db.Model):
                 return []
         return []
     
-    def set_models(self, models_list):
+    def set_models(self, models_list: List[str]) -> None:
         """Set models from list."""
         self.models_json = json.dumps(models_list)
     
-    def get_app_range(self):
+    def get_app_range(self) -> Dict[str, Any]:
         """Get app range configuration."""
         if self.app_range_json:
             try:
@@ -923,11 +926,11 @@ class BatchJob(db.Model):
                 return {}
         return {}
     
-    def set_app_range(self, app_range_dict):
+    def set_app_range(self, app_range_dict: Dict[str, Any]) -> None:
         """Set app range configuration."""
         self.app_range_json = json.dumps(app_range_dict)
     
-    def get_options(self):
+    def get_options(self) -> Dict[str, Any]:
         """Get additional options."""
         if self.options_json:
             try:
@@ -936,11 +939,11 @@ class BatchJob(db.Model):
                 return {}
         return {}
     
-    def set_options(self, options_dict):
+    def set_options(self, options_dict: Dict[str, Any]) -> None:
         """Set additional options."""
         self.options_json = json.dumps(options_dict)
     
-    def get_error_details(self):
+    def get_error_details(self) -> Dict[str, Any]:
         """Get error details."""
         if self.error_details_json:
             try:
@@ -949,11 +952,11 @@ class BatchJob(db.Model):
                 return {}
         return {}
     
-    def set_error_details(self, error_dict):
+    def set_error_details(self, error_dict: Dict[str, Any]) -> None:
         """Set error details."""
         self.error_details_json = json.dumps(error_dict)
     
-    def get_results_summary(self):
+    def get_results_summary(self) -> Dict[str, Any]:
         """Get results summary."""
         if self.results_summary_json:
             try:
@@ -962,11 +965,11 @@ class BatchJob(db.Model):
                 return {}
         return {}
     
-    def set_results_summary(self, summary_dict):
+    def set_results_summary(self, summary_dict: Dict[str, Any]) -> None:
         """Set results summary."""
         self.results_summary_json = json.dumps(summary_dict)
     
-    def get_artifacts(self):
+    def get_artifacts(self) -> List[str]:
         """Get generated artifacts."""
         if self.artifacts_json:
             try:
@@ -975,37 +978,37 @@ class BatchJob(db.Model):
                 return []
         return []
     
-    def set_artifacts(self, artifacts_list):
+    def set_artifacts(self, artifacts_list: List[str]) -> None:
         """Set generated artifacts."""
         self.artifacts_json = json.dumps(artifacts_list)
     
-    def get_progress_percentage(self):
+    def get_progress_percentage(self) -> float:
         """Calculate progress percentage."""
         if self.total_tasks == 0:
             return 0
         processed = self.completed_tasks + self.failed_tasks + self.cancelled_tasks
         return round(processed / self.total_tasks * 100, 1)
     
-    def get_success_rate(self):
+    def get_success_rate(self) -> float:
         """Calculate success rate percentage."""
         processed = self.completed_tasks + self.failed_tasks
         if processed == 0:
             return 0
         return round(self.completed_tasks / processed * 100, 1)
     
-    def is_active(self):
+    def is_active(self) -> bool:
         """Check if job is currently active."""
         return self.status in [JobStatus.QUEUED, JobStatus.RUNNING]
     
-    def can_be_cancelled(self):
+    def can_be_cancelled(self) -> bool:
         """Check if job can be cancelled."""
         return self.status in [JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.PAUSED]
     
-    def can_be_restarted(self):
+    def can_be_restarted(self) -> bool:
         """Check if job can be restarted."""
         return self.status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -1044,7 +1047,7 @@ class BatchJob(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<BatchJob {self.name} ({self.status.value if self.status else "unknown"})>'
 
 
@@ -1104,7 +1107,7 @@ class BatchTask(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
-    def get_error_details(self):
+    def get_error_details(self) -> Dict[str, Any]:
         """Get error details."""
         if self.error_details_json:
             try:
@@ -1113,11 +1116,11 @@ class BatchTask(db.Model):
                 return {}
         return {}
     
-    def set_error_details(self, error_dict):
+    def set_error_details(self, error_dict: Dict[str, Any]) -> None:
         """Set error details."""
         self.error_details_json = json.dumps(error_dict)
     
-    def get_results(self):
+    def get_results(self) -> Dict[str, Any]:
         """Get task results."""
         if self.results_json:
             try:
@@ -1126,11 +1129,11 @@ class BatchTask(db.Model):
                 return {}
         return {}
     
-    def set_results(self, results_dict):
+    def set_results(self, results_dict: Dict[str, Any]) -> None:
         """Set task results."""
         self.results_json = json.dumps(results_dict)
     
-    def get_artifacts(self):
+    def get_artifacts(self) -> List[str]:
         """Get generated artifacts."""
         if self.artifacts_json:
             try:
@@ -1139,11 +1142,11 @@ class BatchTask(db.Model):
                 return []
         return []
     
-    def set_artifacts(self, artifacts_list):
+    def set_artifacts(self, artifacts_list: List[str]) -> None:
         """Set generated artifacts."""
         self.artifacts_json = json.dumps(artifacts_list)
     
-    def get_depends_on(self):
+    def get_depends_on(self) -> List[str]:
         """Get task dependencies."""
         if self.depends_on_json:
             try:
@@ -1152,26 +1155,26 @@ class BatchTask(db.Model):
                 return []
         return []
     
-    def set_depends_on(self, depends_list):
+    def set_depends_on(self, depends_list: List[str]) -> None:
         """Set task dependencies."""
         self.depends_on_json = json.dumps(depends_list)
     
-    def get_total_issues(self):
+    def get_total_issues(self) -> int:
         """Get total issues count."""
         return self.critical_issues + self.high_issues + self.medium_issues + self.low_issues
     
-    def can_be_retried(self):
+    def can_be_retried(self) -> bool:
         """Check if task can be retried."""
         return (
             self.status in [TaskStatus.FAILED, TaskStatus.CANCELLED] and
             self.retry_count < self.max_retries
         )
     
-    def can_be_cancelled(self):
+    def can_be_cancelled(self) -> bool:
         """Check if task can be cancelled."""
         return self.status in [TaskStatus.PENDING, TaskStatus.QUEUED, TaskStatus.RUNNING]
     
-    def get_execution_summary(self):
+    def get_execution_summary(self) -> Dict[str, Any]:
         """Get execution summary."""
         duration = self.actual_duration_seconds
         if duration and self.estimated_duration_seconds:
@@ -1191,7 +1194,7 @@ class BatchTask(db.Model):
             'execution_host': self.execution_host
         }
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -1225,7 +1228,7 @@ class BatchTask(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<BatchTask {self.model_slug}/app{self.app_number} {self.analysis_type.value if self.analysis_type else "unknown"} ({self.status.value if self.status else "unknown"})>'
 
 
@@ -1267,7 +1270,7 @@ class BatchWorker(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
-    def get_supported_analysis_types(self):
+    def get_supported_analysis_types(self) -> List[str]:
         """Get supported analysis types."""
         if self.supported_analysis_types_json:
             try:
@@ -1276,18 +1279,18 @@ class BatchWorker(db.Model):
                 return []
         return []
     
-    def set_supported_analysis_types(self, types_list):
+    def set_supported_analysis_types(self, types_list: List[str]) -> None:
         """Set supported analysis types."""
         self.supported_analysis_types_json = json.dumps(types_list)
     
-    def is_available(self):
+    def is_available(self) -> bool:
         """Check if worker is available for tasks."""
         return (
             self.status == 'idle' and
             self.current_task_count < self.max_concurrent_tasks
         )
     
-    def is_healthy(self):
+    def is_healthy(self) -> bool:
         """Check if worker is healthy."""
         if not self.last_heartbeat:
             return False
@@ -1295,14 +1298,14 @@ class BatchWorker(db.Model):
         cutoff = utc_now() - timedelta(minutes=5)
         return self.last_heartbeat > cutoff and self.status != 'error'
     
-    def get_efficiency_rating(self):
+    def get_efficiency_rating(self) -> float:
         """Calculate worker efficiency rating."""
         total = self.total_tasks_completed + self.total_tasks_failed
         if total == 0:
             return 0
         return round((self.total_tasks_completed / total) * 100, 1)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
@@ -1331,5 +1334,5 @@ class BatchWorker(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<BatchWorker {self.name} ({self.status})>'

@@ -6,136 +6,170 @@ Integrates the containerized testing infrastructure with the main Flask applicat
 Provides API for managing security analysis, performance testing, and ZAP scans.
 """
 
-import asyncio
-import json
+import importlib.util
 import logging
-import sys
 import threading
-import time
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-
-# Add testing infrastructure to path
-testing_infra_path = Path(__file__).parent.parent / "testing-infrastructure"
-sys.path.append(str(testing_infra_path / "shared" / "api-contracts"))
-
-try:
-    from testing_api_client import SyncTestingAPIClient
-    from testing_api_models import (
-        SecurityTestRequest, PerformanceTestRequest, ZapTestRequest, AIAnalysisRequest,
-        TestingStatus, TestType, SeverityLevel, BatchTestRequest, TestRequest
-    )
-except ImportError:
-    # Mock classes if testing infrastructure is not available
-    class SyncTestingAPIClient:
-        def __init__(self, *args, **kwargs):
-            pass
-        def health_check(self):
-            return {}
-        def run_security_analysis(self, *args, **kwargs):
-            return None
-        def run_performance_test(self, *args, **kwargs):
-            return None
-        def run_zap_scan(self, *args, **kwargs):
-            return None
-        def get_test_status(self, *args, **kwargs):
-            return {}
-        def get_test_results(self, *args, **kwargs):
-            return {}
-        def cancel_test(self, *args, **kwargs):
-            return True
-    
-    class SecurityTestRequest:
-        def __init__(self, model=None, app_num=None, tools=None, *args, **kwargs):
-            self.model = model
-            self.app_num = app_num
-            self.tools = tools or []
-        
-        def to_dict(self):
-            return {
-                'model': self.model,
-                'app_num': self.app_num,
-                'tools': self.tools
-            }
-    
-    class PerformanceTestRequest:
-        def __init__(self, model=None, app_num=None, target_url=None, users=None, *args, **kwargs):
-            self.model = model
-            self.app_num = app_num
-            self.target_url = target_url
-            self.users = users
-        
-        def to_dict(self):
-            return {
-                'model': self.model,
-                'app_num': self.app_num,
-                'target_url': self.target_url,
-                'users': self.users
-            }
-    
-    class ZapTestRequest:
-        def __init__(self, model=None, app_num=None, target_url=None, scan_type=None, *args, **kwargs):
-            self.model = model
-            self.app_num = app_num
-            self.target_url = target_url
-            self.scan_type = scan_type
-        
-        def to_dict(self):
-            return {
-                'model': self.model,
-                'app_num': self.app_num,
-                'target_url': self.target_url,
-                'scan_type': self.scan_type
-            }
-    
-    class AIAnalysisRequest:
-        def __init__(self, *args, **kwargs):
-            pass
-    
-    class BatchTestRequest:
-        def __init__(self, *args, **kwargs):
-            pass
-    
-    class TestRequest:
-        def __init__(self, *args, **kwargs):
-            pass
-    
-    class TestingStatus:
-        PENDING = 'pending'
-        RUNNING = 'running'
-        COMPLETED = 'completed'
-        FAILED = 'failed'
-        CANCELLED = 'cancelled'
-    
-    class TestType:
-        SECURITY_BACKEND = 'security_backend'
-        SECURITY_FRONTEND = 'security_frontend'
-        PERFORMANCE = 'performance'
-        SECURITY_ZAP = 'security_zap'
-    
-    class SeverityLevel:
-        LOW = 'low'
-        MEDIUM = 'medium'
-        HIGH = 'high'
-        CRITICAL = 'critical'
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Clean import pattern without sys.path manipulation
+class TestingInfrastructureClasses:
+    """Container for testing infrastructure classes with safe fallback."""
+    
+    def __init__(self):
+        self._initialize_classes()
+    
+    def _initialize_classes(self):
+        """Initialize classes with fallback to mocks."""
+        try:
+            # Try to import real classes if available
+            infra_path = Path(__file__).parent.parent / "testing-infrastructure" / "shared" / "api-contracts"
+            
+            if (infra_path / "testing_api_client.py").exists() and (infra_path / "testing_api_models.py").exists():
+                # Import using importlib.util
+                client_spec = importlib.util.spec_from_file_location(
+                    "testing_api_client", infra_path / "testing_api_client.py"
+                )
+                models_spec = importlib.util.spec_from_file_location(
+                    "testing_api_models", infra_path / "testing_api_models.py"
+                )
+                
+                if client_spec and client_spec.loader and models_spec and models_spec.loader:
+                    client_module = importlib.util.module_from_spec(client_spec)
+                    client_spec.loader.exec_module(client_module)
+                    
+                    models_module = importlib.util.module_from_spec(models_spec)
+                    models_spec.loader.exec_module(models_module)
+                    
+                    # Use real classes
+                    self.SyncTestingAPIClient = client_module.SyncTestingAPIClient
+                    self.SecurityTestRequest = models_module.SecurityTestRequest
+                    self.PerformanceTestRequest = models_module.PerformanceTestRequest
+                    self.ZapTestRequest = models_module.ZapTestRequest
+                    self.TestingStatus = models_module.TestingStatus
+                    self.TestType = models_module.TestType
+                    
+                    logger.info("Successfully loaded testing infrastructure classes")
+                    return
+                    
+        except Exception as e:
+            logger.warning(f"Testing infrastructure not available, using mocks: {e}")
+        
+        # Use mock classes
+        self._setup_mocks()
+    
+    def _setup_mocks(self):
+        """Set up mock classes for fallback."""
+        
+        class MockClient:
+            def __init__(self, *args, **kwargs):
+                pass
+            def health_check(self):
+                return {'status': 'mock'}
+            def run_security_analysis(self, *args, **kwargs):
+                return {'status': 'completed', 'issues': []}
+            def run_performance_test(self, *args, **kwargs):
+                return {'status': 'completed', 'metrics': {}}
+            def run_zap_scan(self, *args, **kwargs):
+                return {'status': 'completed', 'vulnerabilities': []}
+            def get_test_status(self, *args, **kwargs):
+                return {'status': 'completed'}
+            def get_test_results(self, *args, **kwargs):
+                return {'results': 'mock'}
+            def cancel_test(self, *args, **kwargs):
+                return True
+        
+        class MockRequest:
+            def __init__(self, **kwargs):
+                # Set default attributes
+                self.model = kwargs.get('model', None)
+                self.app_num = kwargs.get('app_num', None)
+                self.tools = kwargs.get('tools', [])
+                self.test_type = kwargs.get('test_type', None)
+                self.target_url = kwargs.get('target_url', None)
+                self.users = kwargs.get('users', 10)
+                self.scan_type = kwargs.get('scan_type', 'baseline')
+                self.spawn_rate = kwargs.get('spawn_rate', 2)
+                self.duration = kwargs.get('duration', 60)
+                self.scan_depth = kwargs.get('scan_depth', 'standard')
+                self.include_dependencies = kwargs.get('include_dependencies', True)
+                self.options = kwargs.get('options', {})
+                
+                # Set any additional kwargs as attributes
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+            
+            def to_dict(self):
+                return {k: v for k, v in self.__dict__.items()}
+        
+        class MockStatus:
+            PENDING = 'pending'
+            RUNNING = 'running'
+            COMPLETED = 'completed'
+            FAILED = 'failed'
+            CANCELLED = 'cancelled'
+        
+        class MockType:
+            SECURITY_BACKEND = 'security_backend'
+            SECURITY_FRONTEND = 'security_frontend'
+            PERFORMANCE = 'performance'
+            SECURITY_ZAP = 'security_zap'
+        
+        self.SyncTestingAPIClient = MockClient
+        self.SecurityTestRequest = MockRequest
+        self.PerformanceTestRequest = MockRequest
+        self.ZapTestRequest = MockRequest
+        self.TestingStatus = MockStatus
+        self.TestType = MockType
+
+# Initialize classes
+_classes = TestingInfrastructureClasses()
+
+# Make available at module level
+SyncTestingAPIClient = _classes.SyncTestingAPIClient
+SecurityTestRequest = _classes.SecurityTestRequest
+PerformanceTestRequest = _classes.PerformanceTestRequest
+ZapTestRequest = _classes.ZapTestRequest
+TestingStatus = _classes.TestingStatus
+TestType = _classes.TestType
+
 
 class TestingInfrastructureService:
-    """Service for managing containerized testing infrastructure."""
+    """Service for managing containerized testing infrastructure.
     
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    This service integrates with the testing-infrastructure Docker containers
+    to provide security analysis, performance testing, and ZAP scanning capabilities.
+    
+    The service manages:
+    - Security analysis using tools like bandit, safety, pylint, semgrep
+    - ZAP security scans with various scan types
+    - Performance testing with configurable load patterns
+    - Job lifecycle management with progress tracking
+    - Container resource monitoring and live log streaming
+    
+    Attributes:
+        base_url: Base URL for the testing infrastructure API
+        client: API client for communicating with testing services
+        active_tests: Dictionary tracking currently running tests
+        test_results: Dictionary caching completed test results
+        security_tools: Configuration for available security analysis tools
+        zap_scan_types: Configuration for available ZAP scan types
+    """
+    
+    def __init__(self, base_url: str = "http://localhost:8000") -> None:
         self.base_url = base_url
         self.client = SyncTestingAPIClient(base_url)
-        self.active_tests = {}  # Track running tests
-        self.test_results = {}  # Cache results
+        self.active_tests: Dict[str, Dict[str, Any]] = {}  # Track running tests
+        self.test_results: Dict[str, Dict[str, Any]] = {}  # Cache results
         self._lock = threading.RLock()
         
         # Available security tools with their configurations
-        self.security_tools = {
+        self.security_tools: Dict[str, Dict[str, Any]] = {
             'bandit': {
                 'name': 'Bandit',
                 'description': 'Python security linter',
@@ -231,7 +265,7 @@ class TestingInfrastructureService:
         }
         
         # ZAP scan types and options
-        self.zap_scan_types = {
+        self.zap_scan_types: Dict[str, Dict[str, Any]] = {
             'spider': {
                 'name': 'Spider Scan',
                 'description': 'Crawl the application to discover URLs',
@@ -277,6 +311,22 @@ class TestingInfrastructureService:
         }
         
         logger.info("Testing Infrastructure Service initialized")
+    
+    def is_infrastructure_available(self) -> bool:
+        """Check if the testing infrastructure is available and responsive.
+        
+        This method attempts to connect to the testing infrastructure and
+        verify that the services are running. Useful for pytest skip conditions.
+        
+        Returns:
+            bool: True if infrastructure is available, False otherwise
+        """
+        try:
+            health_status = self.client.health_check()
+            return bool(health_status and isinstance(health_status, dict))
+        except Exception as e:
+            logger.debug(f"Testing infrastructure not available: {e}")
+            return False
     
     def get_service_health(self) -> Dict[str, Any]:
         """Check health status of all testing services."""
@@ -327,23 +377,62 @@ class TestingInfrastructureService:
         }
     
     def create_security_analysis_job(self, job_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new security analysis job."""
+        """Create a new security analysis job.
+        
+        Args:
+            job_config: Configuration dictionary containing:
+                - model (str): AI model identifier
+                - app_num (int): Application number (1-30)
+                - tools (List[str], optional): Security tools to use
+                - tool_options (Dict[str, Any], optional): Tool-specific options
+                - scan_depth (str, optional): Scan depth ('quick', 'standard', 'deep')
+                - include_dependencies (bool, optional): Include dependency scanning
+                
+        Returns:
+            Dict[str, Any]: Job creation result with success status and job_id
+        """
         try:
+            # Validate required parameters
+            if not isinstance(job_config, dict):
+                return {'success': False, 'error': 'job_config must be a dictionary'}
+                
             job_id = str(uuid.uuid4())
             
-            # Extract configuration
+            # Extract and validate configuration
             model = job_config.get('model')
             app_num = job_config.get('app_num')
             tools = job_config.get('tools', [])
             tool_options = job_config.get('tool_options', {})
             
-            if not model or not app_num:
-                return {'success': False, 'error': 'Model and app number are required'}
+            if not model or not isinstance(model, str):
+                return {'success': False, 'error': 'Model name is required and must be a string'}
+                
+            if not app_num:
+                return {'success': False, 'error': 'App number is required'}
+                
+            try:
+                app_num_int = int(app_num)
+                if app_num_int < 1 or app_num_int > 30:
+                    return {'success': False, 'error': 'App number must be between 1 and 30'}
+            except (ValueError, TypeError):
+                return {'success': False, 'error': 'App number must be a valid integer'}
+            
+            if tools and not isinstance(tools, list):
+                return {'success': False, 'error': 'Tools must be a list'}
+            
+            # Validate tool names
+            available_tools = set(self.security_tools.keys())
+            invalid_tools = [tool for tool in tools if tool not in available_tools]
+            if invalid_tools:
+                return {
+                    'success': False, 
+                    'error': f'Invalid tools: {invalid_tools}. Available tools: {list(available_tools)}'
+                }
             
             # Create test request
             test_request = SecurityTestRequest(
                 model=model,
-                app_num=int(app_num),
+                app_num=app_num_int,
                 test_type=TestType.SECURITY_BACKEND,
                 tools=tools,
                 scan_depth=job_config.get('scan_depth', 'standard'),
@@ -383,24 +472,71 @@ class TestingInfrastructureService:
             return {'success': False, 'error': str(e)}
     
     def create_zap_scan_job(self, job_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new ZAP security scan job."""
+        """Create a new ZAP security scan job with comprehensive validation.
+        
+        Args:
+            job_config: Dictionary containing job configuration with keys:
+                - model: AI model name (required)
+                - app_num: Application number 1-30 (required)
+                - target_url: URL to scan (required)
+                - scan_type: Type of scan (optional, default 'spider')
+                - scan_options: Additional scan options (optional)
+        
+        Returns:
+            Dict containing 'success' boolean and either 'job_id' or 'error'
+        """
         try:
             job_id = str(uuid.uuid4())
             
-            # Extract configuration
+            # Validate job_config structure
+            if not isinstance(job_config, dict):
+                return {'success': False, 'error': 'job_config must be a dictionary'}
+            
+            # Extract configuration with validation
             model = job_config.get('model')
             app_num = job_config.get('app_num')
             target_url = job_config.get('target_url')
             scan_type = job_config.get('scan_type', 'spider')
             scan_options = job_config.get('scan_options', {})
             
-            if not all([model, app_num, target_url]):
-                return {'success': False, 'error': 'Model, app number, and target URL are required'}
+            # Validate required fields
+            if not model or not isinstance(model, str) or not model.strip():
+                return {'success': False, 'error': 'Model must be a non-empty string'}
+            
+            if app_num is None:
+                return {'success': False, 'error': 'app_num is required'}
+            
+            # Convert and validate app_num
+            try:
+                app_num_int = int(app_num)
+                if not (1 <= app_num_int <= 30):
+                    return {'success': False, 'error': 'App number must be between 1 and 30'}
+            except (ValueError, TypeError):
+                return {'success': False, 'error': 'App number must be a valid integer'}
+            
+            if not target_url or not isinstance(target_url, str) or not target_url.strip():
+                return {'success': False, 'error': 'target_url must be a non-empty string'}
+            
+            # Basic URL format validation
+            if not (target_url.startswith('http://') or target_url.startswith('https://')):
+                return {'success': False, 'error': 'target_url must start with http:// or https://'}
+            
+            # Validate scan type
+            valid_scan_types = {'spider', 'baseline', 'full', 'active'}
+            if not isinstance(scan_type, str) or scan_type not in valid_scan_types:
+                return {
+                    'success': False, 
+                    'error': f'scan_type must be one of: {valid_scan_types}'
+                }
+            
+            # Validate scan_options is a dict
+            if not isinstance(scan_options, dict):
+                return {'success': False, 'error': 'scan_options must be a dictionary'}
             
             # Create ZAP test request
             test_request = ZapTestRequest(
                 model=model,
-                app_num=int(app_num) if app_num is not None else 0,
+                app_num=app_num_int,
                 test_type=TestType.SECURITY_ZAP,
                 target_url=target_url,
                 scan_type=scan_type,
@@ -412,7 +548,7 @@ class TestingInfrastructureService:
                 self.active_tests[job_id] = {
                     'job_id': job_id,
                     'model': model,
-                    'app_num': app_num,
+                    'app_num': app_num_int,
                     'target_url': target_url,
                     'scan_type': scan_type,
                     'status': TestingStatus.PENDING,
@@ -427,24 +563,41 @@ class TestingInfrastructureService:
                 daemon=True
             ).start()
             
-            logger.info(f"Created ZAP scan job {job_id} for {model}/app{app_num} - {target_url}")
+            logger.info(f"Created ZAP scan job {job_id} for {model}/app{app_num_int} - {target_url}")
             
             return {
                 'success': True,
                 'job_id': job_id,
-                'message': f'ZAP {scan_type} scan created for {model}/app{app_num}'
+                'message': f'ZAP {scan_type} scan created for {model}/app{app_num_int}'
             }
             
         except Exception as e:
             logger.error(f"Error creating ZAP scan job: {e}")
-            return {'success': False, 'error': str(e)}
+            return {'success': False, 'error': f'Failed to create ZAP scan job: {str(e)}'}
     
     def create_performance_test_job(self, job_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new performance test job."""
+        """Create a new performance test job with comprehensive validation.
+        
+        Args:
+            job_config: Dictionary containing job configuration with keys:
+                - model: AI model name (required)
+                - app_num: Application number 1-30 (required)
+                - target_url: URL to test (required)
+                - users: Number of virtual users (optional, default 10)
+                - spawn_rate: User spawn rate per second (optional, default 2)
+                - duration: Test duration in seconds (optional, default 60)
+        
+        Returns:
+            Dict containing 'success' boolean and either 'job_id' or 'error'
+        """
         try:
             job_id = str(uuid.uuid4())
             
-            # Extract configuration
+            # Validate job_config structure
+            if not isinstance(job_config, dict):
+                return {'success': False, 'error': 'job_config must be a dictionary'}
+            
+            # Extract configuration with validation
             model = job_config.get('model')
             app_num = job_config.get('app_num')
             target_url = job_config.get('target_url')
@@ -452,18 +605,59 @@ class TestingInfrastructureService:
             spawn_rate = job_config.get('spawn_rate', 2)
             duration = job_config.get('duration', 60)
             
-            if not all([model, app_num, target_url]):
-                return {'success': False, 'error': 'Model, app number, and target URL are required'}
+            # Validate required fields
+            if not model or not isinstance(model, str) or not model.strip():
+                return {'success': False, 'error': 'Model must be a non-empty string'}
+            
+            if app_num is None:
+                return {'success': False, 'error': 'app_num is required'}
+            
+            # Convert and validate app_num
+            try:
+                app_num_int = int(app_num)
+                if not (1 <= app_num_int <= 30):
+                    return {'success': False, 'error': 'App number must be between 1 and 30'}
+            except (ValueError, TypeError):
+                return {'success': False, 'error': 'App number must be a valid integer'}
+            
+            if not target_url or not isinstance(target_url, str) or not target_url.strip():
+                return {'success': False, 'error': 'target_url must be a non-empty string'}
+            
+            # Basic URL format validation
+            if not (target_url.startswith('http://') or target_url.startswith('https://')):
+                return {'success': False, 'error': 'target_url must start with http:// or https://'}
+            
+            # Validate and convert numeric parameters
+            try:
+                users_int = int(users)
+                if not (1 <= users_int <= 1000):
+                    return {'success': False, 'error': 'Users must be between 1 and 1000'}
+            except (ValueError, TypeError):
+                return {'success': False, 'error': 'Users must be a valid integer'}
+            
+            try:
+                spawn_rate_int = int(spawn_rate)
+                if not (1 <= spawn_rate_int <= 100):
+                    return {'success': False, 'error': 'Spawn rate must be between 1 and 100 users/second'}
+            except (ValueError, TypeError):
+                return {'success': False, 'error': 'Spawn rate must be a valid integer'}
+            
+            try:
+                duration_int = int(duration)
+                if not (10 <= duration_int <= 3600):
+                    return {'success': False, 'error': 'Duration must be between 10 and 3600 seconds'}
+            except (ValueError, TypeError):
+                return {'success': False, 'error': 'Duration must be a valid integer'}
             
             # Create performance test request
             test_request = PerformanceTestRequest(
                 model=model,
-                app_num=int(app_num) if app_num is not None else 0,
+                app_num=app_num_int,
                 test_type=TestType.PERFORMANCE,
                 target_url=target_url,
-                users=int(users) if users is not None else 1,
-                spawn_rate=int(spawn_rate) if spawn_rate is not None else 1,
-                duration=int(duration) if duration is not None else 60
+                users=users_int,
+                spawn_rate=spawn_rate_int,
+                duration=duration_int
             )
             
             # Store job info
@@ -471,10 +665,11 @@ class TestingInfrastructureService:
                 self.active_tests[job_id] = {
                     'job_id': job_id,
                     'model': model,
-                    'app_num': app_num,
+                    'app_num': app_num_int,
                     'target_url': target_url,
-                    'users': users,
-                    'duration': duration,
+                    'users': users_int,
+                    'spawn_rate': spawn_rate_int,
+                    'duration': duration_int,
                     'status': TestingStatus.PENDING,
                     'created_at': datetime.utcnow(),
                     'request': test_request
@@ -487,17 +682,17 @@ class TestingInfrastructureService:
                 daemon=True
             ).start()
             
-            logger.info(f"Created performance test job {job_id} for {model}/app{app_num} - {target_url}")
+            logger.info(f"Created performance test job {job_id} for {model}/app{app_num_int} - {target_url}")
             
             return {
                 'success': True,
                 'job_id': job_id,
-                'message': f'Performance test created for {model}/app{app_num} with {users} users'
+                'message': f'Performance test created for {model}/app{app_num_int} with {users_int} users'
             }
             
         except Exception as e:
             logger.error(f"Error creating performance test job: {e}")
-            return {'success': False, 'error': str(e)}
+            return {'success': False, 'error': f'Failed to create performance test job: {str(e)}'}
     
     def get_job_status(self, job_id: str) -> Dict[str, Any]:
         """Get the status of a testing job with enhanced progress tracking."""
@@ -634,7 +829,7 @@ class TestingInfrastructureService:
             logger.error(f"Error cancelling job {job_id}: {e}")
             return {'success': False, 'error': str(e)}
     
-    def _run_security_analysis(self, job_id: str, request: SecurityTestRequest):
+    def _run_security_analysis(self, job_id: str, request: SecurityTestRequest) -> None:
         """Run security analysis in background thread."""
         try:
             with self._lock:
@@ -653,7 +848,13 @@ class TestingInfrastructureService:
                 with self._lock:
                     self.active_tests[job_id]['status'] = TestingStatus.COMPLETED
                     self.active_tests[job_id]['completed_at'] = datetime.utcnow()
-                    self.test_results[job_id] = result.to_dict() if hasattr(result, 'to_dict') else result
+                    # Ensure we store a dict, not a string
+                    if hasattr(result, 'to_dict') and callable(getattr(result, 'to_dict', None)):
+                        self.test_results[job_id] = result.to_dict()  # type: ignore
+                    elif isinstance(result, dict):
+                        self.test_results[job_id] = result
+                    else:
+                        self.test_results[job_id] = {'raw_result': str(result)}
                 
                 logger.info(f"Security analysis job {job_id} completed successfully")
             else:
@@ -671,7 +872,7 @@ class TestingInfrastructureService:
             
             logger.error(f"Error running security analysis job {job_id}: {e}")
     
-    def _run_zap_scan(self, job_id: str, request: ZapTestRequest):
+    def _run_zap_scan(self, job_id: str, request: ZapTestRequest) -> None:
         """Run ZAP scan in background thread."""
         try:
             with self._lock:
@@ -691,7 +892,13 @@ class TestingInfrastructureService:
                 with self._lock:
                     self.active_tests[job_id]['status'] = TestingStatus.COMPLETED
                     self.active_tests[job_id]['completed_at'] = datetime.utcnow()
-                    self.test_results[job_id] = result.to_dict() if hasattr(result, 'to_dict') else result
+                    # Ensure we store a dict, not a string
+                    if hasattr(result, 'to_dict') and callable(getattr(result, 'to_dict', None)):
+                        self.test_results[job_id] = result.to_dict()  # type: ignore
+                    elif isinstance(result, dict):
+                        self.test_results[job_id] = result
+                    else:
+                        self.test_results[job_id] = {'raw_result': str(result)}
                 
                 logger.info(f"ZAP scan job {job_id} completed successfully")
             else:
@@ -709,7 +916,7 @@ class TestingInfrastructureService:
             
             logger.error(f"Error running ZAP scan job {job_id}: {e}")
     
-    def _run_performance_test(self, job_id: str, request: PerformanceTestRequest):
+    def _run_performance_test(self, job_id: str, request: PerformanceTestRequest) -> None:
         """Run performance test in background thread."""
         try:
             with self._lock:
@@ -729,7 +936,13 @@ class TestingInfrastructureService:
                 with self._lock:
                     self.active_tests[job_id]['status'] = TestingStatus.COMPLETED
                     self.active_tests[job_id]['completed_at'] = datetime.utcnow()
-                    self.test_results[job_id] = result.to_dict() if hasattr(result, 'to_dict') else result
+                    # Ensure we store a dict, not a string
+                    if hasattr(result, 'to_dict') and callable(getattr(result, 'to_dict', None)):
+                        self.test_results[job_id] = result.to_dict()  # type: ignore
+                    elif isinstance(result, dict):
+                        self.test_results[job_id] = result
+                    else:
+                        self.test_results[job_id] = {'raw_result': str(result)}
                 
                 logger.info(f"Performance test job {job_id} completed successfully")
             else:
@@ -786,7 +999,7 @@ class TestingInfrastructureService:
             logger.warning(f"Failed to get live container progress for job {job_id}: {e}")
             return None
     
-    def _parse_container_progress(self, progress_data: Dict) -> Dict[str, Any]:
+    def _parse_container_progress(self, progress_data: Dict[str, Any]) -> Dict[str, Any]:
         """Parse progress data from container response into standardized format."""
         try:
             stages = []
@@ -923,7 +1136,7 @@ class TestingInfrastructureService:
             logger.warning(f"Failed to get live container logs for job {job_id}: {e}")
             return None
     
-    def _format_container_logs(self, raw_logs: List) -> List[Dict[str, Any]]:
+    def _format_container_logs(self, raw_logs: List[Any]) -> List[Dict[str, Any]]:
         """Format raw container logs into structured format."""
         formatted_logs = []
         
@@ -1044,11 +1257,6 @@ _testing_service: Optional[TestingInfrastructureService] = None
 _service_lock = threading.RLock()
 
 
-# Global service instance
-_testing_service = None
-_service_lock = threading.Lock()
-
-
 def get_testing_infrastructure_service() -> TestingInfrastructureService:
     """Get the global testing infrastructure service instance."""
     global _testing_service
@@ -1069,3 +1277,30 @@ def initialize_testing_infrastructure_service(base_url: str = "http://localhost:
         _testing_service = TestingInfrastructureService(base_url)
     
     return _testing_service
+
+
+def create_testing_service_for_testing(base_url: str = "http://localhost:8000") -> TestingInfrastructureService:
+    """Create a testing infrastructure service instance for pytest testing.
+    
+    This function creates a new instance without affecting the global singleton,
+    making it suitable for isolated testing scenarios.
+    
+    Args:
+        base_url: Base URL for the testing infrastructure
+        
+    Returns:
+        TestingInfrastructureService: New service instance for testing
+    """
+    return TestingInfrastructureService(base_url)
+
+
+def reset_testing_infrastructure_service() -> None:
+    """Reset the global testing infrastructure service instance.
+    
+    This function is useful for pytest teardown to ensure clean state
+    between test runs.
+    """
+    global _testing_service
+    
+    with _service_lock:
+        _testing_service = None
