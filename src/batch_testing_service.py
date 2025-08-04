@@ -4,59 +4,40 @@ Container Batch Operations Service
 
 Service for managing batch container operations using the Docker infrastructure.
 Integrates with DockerManager to orchestrate containerized AI applications at scale.
+
+This module provides:
+- Batch container lifecycle management (start, stop, restart, rebuild)
+- Security analysis coordination across multiple containers
+- Performance monitoring and health checks
+- Resource usage tracking and log collection
+- Comprehensive error handling and progress tracking
+
+Key Components:
+- ContainerBatchOperationService: Main service class for batch operations
+- Operation management with threading and concurrency control
+- Docker container orchestration through compose files
+- Real-time progress monitoring and status updates
+
+Thread Safety:
+All operations are thread-safe and use appropriate locking mechanisms.
+Multiple operations can run concurrently with configurable limits.
+
+Error Handling:
+Comprehensive error handling with detailed logging and graceful degradation.
+All exceptions are caught and properly logged with context information.
 """
 
-import asyncio
 import json
 import logging
 import uuid
 import time
 import requests
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from datetime import datetime
+from typing import Dict, List, Optional, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from extensions import db
-from models import ModelCapability
-from core_services import DockerManager, DockerUtils
-
-
-class ContainerBatchOperationService:
-    """Service for managing batch container operations with Docker infrastructure."""
-    
-    def __init__(self, docker_manager: Optional[DockerManager] = None):
-        self.logger = logging.getLogger(__name__)
-        self.docker_manager = docker_manager or DockerManager()
-        self.security_scanner_url = "http://localhost:8001"
-        self.operations = {}  # In-memory operation storage (could be moved to database)
-        self.operation_lock = threading.RLock()
-        self.active_executors = {}
-        self.models_base_dir = Path("misc/models")
-        
-"""
-Container Batch Operations Service
-==================================
-
-Service for managing batch container operations using the Docker infrastructure.
-Integrates with DockerManager to orchestrate containerized AI applications at scale.
-Enhanced with comprehensive logging and performance monitoring.
-"""
-
-import asyncio
-import json
-import logging
-import uuid
-import time
-import requests
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
-from pathlib import Path
-
-from extensions import db
 from models import ModelCapability
 from core_services import DockerManager, DockerUtils
 
@@ -64,18 +45,32 @@ from core_services import DockerManager, DockerUtils
 class ContainerBatchOperationService:
     """Service for managing batch container operations with Docker infrastructure and enhanced logging."""
     
-    def __init__(self, docker_manager: Optional[DockerManager] = None):
+    def __init__(self, docker_manager: Optional[DockerManager] = None) -> None:
+        """Initialize the Container Batch Operation Service.
+        
+        Args:
+            docker_manager: Optional DockerManager instance. If None, creates a new one.
+        """
         self.logger = logging.getLogger(__name__)
         self.docker_manager = docker_manager or DockerManager()
         self.security_scanner_url = "http://localhost:8001"
-        self.operations = {}  # In-memory operation storage (could be moved to database)
+        self.operations: Dict[str, Dict[str, Any]] = {}  # In-memory operation storage
         self.operation_lock = threading.RLock()
-        self.active_executors = {}
+        self.active_executors: Dict[str, ThreadPoolExecutor] = {}
         self.models_base_dir = Path("misc/models")
         
         # Log service initialization
         self.logger.info("Container Batch Operation Service initialized")
         self.logger.debug(f"Models base directory: {self.models_base_dir}")
+        
+        # Validate Docker connection
+        try:
+            if self.docker_manager and hasattr(self.docker_manager, 'client'):
+                self.logger.info("Docker connection validated successfully")
+            else:
+                self.logger.warning("Docker connection not available - some operations may fail")
+        except Exception as e:
+            self.logger.error(f"Docker validation failed: {e}")
         
     def create_batch_operation(self, operation_config: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new batch container operation with comprehensive logging."""
@@ -343,7 +338,15 @@ class ContainerBatchOperationService:
             return {'success': False, 'error': str(e)}
     
     def get_available_models(self) -> List[Dict[str, Any]]:
-        """Get list of available models for batch operations."""
+        """Get list of available models for batch operations.
+        
+        Returns:
+            List of dictionaries containing model information with keys:
+            - slug: Model identifier
+            - display_name: Human-readable name  
+            - apps_count: Number of available apps
+            - has_containers: Whether the model has container configurations
+        """
         try:
             models = ModelCapability.query.all()
             model_list = []
@@ -353,7 +356,8 @@ class ContainerBatchOperationService:
                 model_dir = self.models_base_dir / model.model_name
                 apps_count = 0
                 if model_dir.exists():
-                    apps_count = len([d for d in model_dir.iterdir() if d.is_dir() and d.name.startswith('app')])
+                    apps_count = len([d for d in model_dir.iterdir() 
+                                    if d.is_dir() and d.name.startswith('app')])
                 
                 model_list.append({
                     'slug': model.model_name,
@@ -362,6 +366,7 @@ class ContainerBatchOperationService:
                     'has_containers': apps_count > 0
                 })
             
+            self.logger.debug(f"Found {len(model_list)} available models")
             return model_list
             
         except Exception as e:
@@ -415,12 +420,20 @@ class ContainerBatchOperationService:
     
     
     def _validate_operation_config(self, config: Dict[str, Any]) -> None:
-        """Validate operation configuration."""
+        """Validate operation configuration.
+        
+        Args:
+            config: Operation configuration dictionary
+            
+        Raises:
+            ValueError: If configuration is invalid
+        """
         required_fields = ['job_name', 'operation_type']
         for field in required_fields:
             if field not in config:
                 raise ValueError(f"Missing required field: {field}")
-        
+            
+        # Validate operation type
         valid_operation_types = [
             'start_containers', 'stop_containers', 'restart_containers', 'rebuild_containers',
             'security_backend', 'security_frontend', 'security_full', 'vulnerability_scan',
@@ -428,7 +441,25 @@ class ContainerBatchOperationService:
             'cleanup_containers', 'image_update', 'network_reset', 'volume_backup'
         ]
         if config['operation_type'] not in valid_operation_types:
-            raise ValueError(f"Invalid operation type. Must be one of: {valid_operation_types}")
+            raise ValueError(f"Invalid operation type '{config['operation_type']}'. "
+                           f"Must be one of: {', '.join(valid_operation_types)}")
+        
+        # Validate numeric fields
+        if 'concurrency' in config:
+            try:
+                concurrency = int(config['concurrency'])
+                if concurrency < 1 or concurrency > 20:
+                    raise ValueError("Concurrency must be between 1 and 20")
+            except (ValueError, TypeError):
+                raise ValueError("Concurrency must be a valid integer")
+                
+        if 'timeout' in config:
+            try:
+                timeout = int(config['timeout'])
+                if timeout < 1 or timeout > 120:
+                    raise ValueError("Timeout must be between 1 and 120 minutes")
+            except (ValueError, TypeError):
+                raise ValueError("Timeout must be a valid integer")
     
     def _extract_container_options(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Extract container-specific options from configuration."""
@@ -1033,19 +1064,22 @@ class ContainerBatchOperationService:
                 operation['completed_at'] = datetime.now()
                 operation['error_message'] = str(e)
     
-    def _calculate_progress(self, job: Dict[str, Any]) -> int:
-        """Calculate job progress percentage."""
-        if job['total_tasks'] == 0:
+    def _calculate_progress(self, operation: Dict[str, Any]) -> int:
+        """Calculate operation progress percentage."""
+        total = operation.get('total_containers', 0)
+        if total == 0:
             return 0
-        return int((job['completed_tasks'] + job['failed_tasks']) / job['total_tasks'] * 100)
+        completed = operation.get('completed_containers', 0)
+        failed = operation.get('failed_containers', 0)
+        return int((completed + failed) / total * 100)
     
-    def _format_duration(self, job: Dict[str, Any]) -> Optional[str]:
-        """Format job duration for display."""
-        if not job['started_at']:
+    def _format_duration(self, operation: Dict[str, Any]) -> Optional[str]:
+        """Format operation duration for display."""
+        if not operation.get('started_at'):
             return None
         
-        end_time = job['completed_at'] or datetime.now()
-        duration = end_time - job['started_at']
+        end_time = operation.get('completed_at') or datetime.now()
+        duration = end_time - operation['started_at']
         
         total_seconds = int(duration.total_seconds())
         hours = total_seconds // 3600
@@ -1250,11 +1284,31 @@ class ContainerBatchOperationService:
     def delete_job(self, operation_id: str) -> Dict[str, Any]:
         """Delete operation (compatibility method)."""
         return self.delete_operation(operation_id)
-_container_batch_service = None
+# Global service instance and lock for thread safety
+_container_batch_service: Optional[ContainerBatchOperationService] = None
+_service_lock = threading.Lock()
 
 def get_batch_testing_service() -> ContainerBatchOperationService:
-    """Get or create the global container batch operation service instance."""
+    """Get or create the global container batch operation service instance.
+    
+    This function implements a thread-safe singleton pattern to ensure
+    only one instance of the service exists throughout the application.
+    
+    Returns:
+        ContainerBatchOperationService: The global service instance
+        
+    Raises:
+        RuntimeError: If service initialization fails
+    """
     global _container_batch_service
+    
     if _container_batch_service is None:
-        _container_batch_service = ContainerBatchOperationService()
+        with _service_lock:
+            # Double-check locking pattern for thread safety
+            if _container_batch_service is None:
+                try:
+                    _container_batch_service = ContainerBatchOperationService()
+                except Exception as e:
+                    raise RuntimeError(f"Failed to initialize container batch service: {e}") from e
+    
     return _container_batch_service

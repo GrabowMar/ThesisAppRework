@@ -15,7 +15,7 @@ import time
 import uuid
 import warnings
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union, List, Tuple
 
 # Suppress Locust monkey patching warnings during app startup
 warnings.filterwarnings("ignore", message=".*MonkeyPatchWarning.*")
@@ -39,31 +39,31 @@ except ImportError:
 class ServiceManager:
     """Manages application services and provides service lookup."""
     
-    def __init__(self, app):
-        self.app = app
-        self.services = {}
-        self.logger = app.logger
+    def __init__(self, app: Flask) -> None:
+        self.app: Flask = app
+        self.services: Dict[str, Any] = {}
+        self.logger: logging.Logger = app.logger
         self._initialize_core_services()
     
-    def _initialize_core_services(self):
+    def _initialize_core_services(self) -> None:
         """Initialize core services."""
         try:
             # Import services from core_services
             from core_services import DockerManager, ScanManager, ModelIntegrationService
             
             # Initialize Docker Manager
-            docker_manager = DockerManager()
+            docker_manager: DockerManager = DockerManager()
             self.services['docker_manager'] = docker_manager
             self.logger.info("Docker manager initialized")
             
             # Initialize Scan Manager
-            scan_manager = ScanManager()
+            scan_manager: ScanManager = ScanManager()
             self.services['scan_manager'] = scan_manager
             self.logger.info("Scan manager initialized")
             
             # Initialize Model Integration Service with correct misc path
-            misc_path = Path(__file__).parent.parent / "misc"
-            model_service = ModelIntegrationService(misc_path)
+            misc_path: Path = Path(__file__).parent.parent / "misc"
+            model_service: ModelIntegrationService = ModelIntegrationService(misc_path)
             model_service.load_all_data()
             self.services['model_service'] = model_service
             self.logger.info("Model service initialized")
@@ -71,26 +71,26 @@ class ServiceManager:
         except Exception as e:
             self.logger.error(f"Error initializing core services: {e}")
     
-    def get_service(self, service_name: str):
+    def get_service(self, service_name: str) -> Optional[Any]:
         """Get a service by name."""
         return self.services.get(service_name)
     
-    def register_service(self, name: str, service):
+    def register_service(self, name: str, service: Any) -> None:
         """Register a service."""
         self.services[name] = service
         self.logger.info(f"Registered service: {name}")
     
-    def get_all_services(self):
+    def get_all_services(self) -> Dict[str, Any]:
         """Get all registered services."""
         return self.services.copy()
 
 class ServiceInitializer:
-    def __init__(self, app, service_manager):
+    def __init__(self, app: Flask, service_manager: ServiceManager) -> None:
         self.app = app
         self.service_manager = service_manager
         self.logger = app.logger
     
-    def initialize_all(self):
+    def initialize_all(self) -> None:
         """Initialize all services."""
         try:
             self.logger.info("Service initialization completed")
@@ -127,27 +127,30 @@ class Config:
 class DatabasePopulator:
     """Handles database population with proper error handling and retry logic."""
     
-    def __init__(self, app: Flask):
-        self.app = app
-        self.logger = app.logger
-        self._lock = threading.Lock()
+    def __init__(self, app: Flask) -> None:
+        self.app: Flask = app
+        self.logger: logging.Logger = app.logger
+        self._lock: threading.Lock = threading.Lock()
         
     def populate_models_from_json(self, capabilities_data: Dict[str, Any]) -> int:
         """
         Populate ModelCapability table from JSON data.
         
+        Args:
+            capabilities_data: Dictionary containing model capabilities data
+            
         Returns:
             Number of models created
         """
         with self._lock:
             try:
-                models_data = self._extract_models_data(capabilities_data)
+                models_data: Optional[Dict[str, Any]] = self._extract_models_data(capabilities_data)
                 if not models_data:
                     self.logger.error("Could not find model data in JSON structure")
                     return 0
                 
-                models_created = 0
-                errors = []
+                models_created: int = 0
+                errors: List[str] = []
                 
                 for model_id, model_data in models_data.items():
                     if not self._is_valid_model_data(model_data):
@@ -204,7 +207,7 @@ class DatabasePopulator:
     def _create_model_capability(self, model_id: str, model_data: Dict[str, Any]) -> bool:
         """Create a ModelCapability record if it doesn't exist."""
         # Check if model already exists
-        existing = ModelCapability.query.filter_by(
+        existing: Optional[ModelCapability] = ModelCapability.query.filter_by(
             model_id=model_data.get('model_id')
         ).first()
         
@@ -213,7 +216,7 @@ class DatabasePopulator:
         
         # Create new model capability record
         # Note: Using the actual column names from the ModelCapability model
-        model_capability = ModelCapability()
+        model_capability: ModelCapability = ModelCapability()
         model_capability.model_id = model_data.get('model_id')
         model_capability.canonical_slug = model_data.get('canonical_slug', model_data.get('model_id'))
         model_capability.provider = model_data.get('provider', 'unknown')
@@ -256,17 +259,20 @@ class DatabasePopulator:
         db.session.add(model_capability)
         return True
     
-    def populate_ports_from_json(self, port_data: list) -> int:
+    def populate_ports_from_json(self, port_data: List[Dict[str, Any]]) -> int:
         """
         Populate PortConfiguration table from JSON data.
         
+        Args:
+            port_data: List of port configuration dictionaries
+            
         Returns:
             Number of port configurations created
         """
         with self._lock:
             try:
-                ports_created = 0
-                batch_size = 100
+                ports_created: int = 0
+                batch_size: int = 100
                 
                 for i, port_entry in enumerate(port_data):
                     try:
@@ -292,14 +298,14 @@ class DatabasePopulator:
     
     def _create_port_configuration(self, port_entry: Dict[str, Any]) -> bool:
         """Create a PortConfiguration record if valid and doesn't exist."""
-        frontend_port = port_entry.get('frontend_port')
-        backend_port = port_entry.get('backend_port')
+        frontend_port: Optional[int] = port_entry.get('frontend_port')
+        backend_port: Optional[int] = port_entry.get('backend_port')
         
         if not frontend_port or not backend_port:
             return False
         
         # Check if port configuration already exists
-        existing = PortConfiguration.query.filter_by(
+        existing: Optional[PortConfiguration] = PortConfiguration.query.filter_by(
             model=port_entry.get('model_name', ''),
             app_num=port_entry.get('app_number', 0)
         ).first()
@@ -308,7 +314,7 @@ class DatabasePopulator:
             return False
         
         # Create new port configuration using attribute assignment
-        port_config = PortConfiguration()
+        port_config: PortConfiguration = PortConfiguration()
         port_config.model = port_entry.get('model_name', '')
         port_config.app_num = port_entry.get('app_number', 0)
         port_config.frontend_port = frontend_port
@@ -407,8 +413,9 @@ def setup_logging(app: Flask) -> None:
                 return True
             
             try:
-                if hasattr(record, 'args') and record.args:
-                    request_line = str(record.args[0]) if len(record.args) > 0 else ""
+                if hasattr(record, 'args') and record.args and len(record.args) > 0:
+                    args_list = list(record.args)
+                    request_line = str(args_list[0]) if args_list else ""
                     parts = request_line.split()
                     if len(parts) >= 2:
                         path = parts[1]
@@ -427,16 +434,16 @@ def setup_logging(app: Flask) -> None:
     
     # Setup request middleware for correlation IDs
     @app.before_request
-    def before_request():
+    def before_request() -> None:
         from flask import g
         g.request_id = str(uuid.uuid4())[:8]
         g.start_time = time.time()
     
     @app.after_request  
-    def after_request(response):
+    def after_request(response: Any) -> Any:
         from flask import g
         if hasattr(g, 'start_time'):
-            duration = (time.time() - g.start_time) * 1000
+            duration: float = (time.time() - g.start_time) * 1000
             app.logger.info(f"Request completed in {duration:.2f}ms - {response.status_code}")
         return response
     
@@ -454,7 +461,7 @@ def load_model_integration_data(app: Flask) -> None:
     misc_dir = project_root / "misc"
     
     try:
-        integration_data = {}
+        integration_data: Dict[str, Any] = {}
         
         # Load model capabilities
         capabilities_file = misc_dir / "model_capabilities.json"
@@ -576,17 +583,17 @@ def register_template_globals(app: Flask) -> None:
     from datetime import datetime, timezone
     
     @app.template_global()
-    def get_app_config():
+    def get_app_config() -> Dict[str, Any]:
         """Make app config available in templates."""
         return app.config
     
     @app.template_global()
-    def debug_mode():
+    def debug_mode() -> bool:
         """Check if app is in debug mode."""
         return app.debug
     
     @app.template_global()
-    def get_model_count():
+    def get_model_count() -> int:
         """Get total number of models in database."""
         try:
             return ModelCapability.query.count()
@@ -594,7 +601,7 @@ def register_template_globals(app: Flask) -> None:
             return 0
     
     @app.template_global()
-    def get_app_count():
+    def get_app_count() -> int:
         """Get total number of generated applications."""
         try:
             return GeneratedApplication.query.count()
@@ -602,12 +609,12 @@ def register_template_globals(app: Flask) -> None:
             return 0
     
     @app.template_global()
-    def now():
+    def now() -> datetime:
         """Get current datetime for templates."""
         return datetime.now()
     
     @app.template_global()
-    def utcnow():
+    def utcnow() -> datetime:
         """Get current UTC datetime for templates."""
         return datetime.now(timezone.utc)
 
@@ -616,7 +623,7 @@ def register_error_handlers(app: Flask) -> None:
     """Register custom error handlers with HTMX support."""
     
     @app.errorhandler(404)
-    def not_found(error):
+    def not_found(error: Any) -> Tuple[str, int]:
         from flask import request
         if request.headers.get('HX-Request'):
             try:
@@ -632,7 +639,7 @@ def register_error_handlers(app: Flask) -> None:
             return "404 - Page not found", 404
     
     @app.errorhandler(500)
-    def internal_error(error):
+    def internal_error(error: Any) -> Tuple[str, int]:
         from flask import request
         app.logger.error(f"Internal server error: {error}")
         if request.headers.get('HX-Request'):
@@ -749,7 +756,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     
     # Add context processor for common template variables
     @app.context_processor
-    def inject_template_vars():
+    def inject_template_vars() -> Dict[str, Union[str, bool]]:
         """Inject common variables into all templates."""
         return {
             'app_name': 'Thesis Research App',
@@ -786,9 +793,9 @@ def main() -> int:
     app = create_app()
     
     # Get configuration from environment
-    host = os.getenv('FLASK_HOST', '127.0.0.1')
-    port = int(os.getenv('FLASK_PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    host: str = os.getenv('FLASK_HOST', '127.0.0.1')
+    port: int = int(os.getenv('FLASK_PORT', '5000'))
+    debug: bool = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     
     # Print a cleaner application banner
     print(f"""
@@ -830,6 +837,87 @@ def main() -> int:
         return 1
     
     return 0
+
+
+def create_test_app() -> Flask:
+    """
+    Create a Flask app specifically configured for testing.
+    
+    This function provides a clean way to create test instances
+    that are compatible with pytest fixtures.
+    
+    Returns:
+        Flask application instance configured for testing
+    """
+    from pathlib import Path
+    
+    class TestConfig(Config):
+        TESTING = True
+        SECRET_KEY = 'test-secret-key-that-is-long-enough-to-be-secure-for-testing'
+        WTF_CSRF_ENABLED = False
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+        SQLALCHEMY_TRACK_MODIFICATIONS = False
+        APPLICATION_ROOT = '/'
+        PREFERRED_URL_SCHEME = 'http'
+        SERVER_NAME = 'localhost'
+        PORT_CONFIG: List[Dict[str, Any]] = []
+    
+    # Create Flask app manually to ensure config is properly loaded
+    src_dir: Path = Path(__file__).parent
+    app: Flask = Flask(__name__, 
+                template_folder=str(src_dir / "templates"),
+                static_folder=str(src_dir / "static"))
+    app.config.from_object(TestConfig)
+    
+    # Explicitly ensure required config for Flask 3.x compatibility
+    app.config.update({
+        'APPLICATION_ROOT': '/',
+        'TESTING': True,
+        'SERVER_NAME': 'localhost',
+        'PREFERRED_URL_SCHEME': 'http',
+        'SECRET_KEY': 'test-secret-key-that-is-long-enough-to-be-secure-for-testing',
+        'WTF_CSRF_ENABLED': False
+    })
+    
+    # Set up AppConfig for services
+    app_config: AppConfig = AppConfig()
+    app.config['APP_CONFIG'] = app_config
+    
+    # Initialize logging (minimal for tests)
+    setup_logging(app)
+    
+    # Initialize extensions
+    init_extensions(app)
+    
+    # Load minimal test data
+    app.config['PORT_CONFIG'] = []
+    app.config['CAPABILITIES_DATA'] = {}
+    app.config['MODELS_SUMMARY'] = {}
+    
+    # Register template globals for tests
+    register_template_globals(app)
+    
+    return app
+
+
+# Pytest compatibility functions
+def pytest_configure() -> None:
+    """Configure pytest for this application."""
+    pass
+
+
+def test_app_creation() -> None:
+    """Test that the application can be created successfully."""
+    app: Flask = create_test_app()
+    assert app is not None
+    assert app.config['TESTING'] is True
+
+
+def test_config_loading() -> None:
+    """Test that configuration is loaded correctly."""
+    app: Flask = create_test_app()
+    assert app.config['SECRET_KEY'] is not None
+    assert app.config['SQLALCHEMY_DATABASE_URI'] is not None
 
 
 if __name__ == '__main__':

@@ -174,8 +174,8 @@ class LoggingService:
                     return True
                 
                 try:
-                    if hasattr(record, 'args') and record.args:
-                        request_line = str(record.args[0]) if record.args else ""
+                    if hasattr(record, 'args') and isinstance(record.args, (tuple, list)) and record.args:
+                        request_line = str(record.args[0])
                         parts = request_line.split()
                         if len(parts) >= 2:
                             path = parts[1]
@@ -1092,10 +1092,9 @@ class TestingServiceClient(BaseService):
         if self._session is None:
             import requests
             self._session = requests.Session()
-            self._session.timeout = self.timeout
         return self._session
     
-    def submit_security_analysis(self, model: str, app_num: int, tools: List[str] = None) -> str:
+    def submit_security_analysis(self, model: str, app_num: int, tools: Optional[List[str]] = None) -> str:
         """Submit security analysis request."""
         try:
             session = self._get_session()
@@ -1108,7 +1107,7 @@ class TestingServiceClient(BaseService):
             }
             
             response = session.post(f"{self.base_url}/api/security/tests", json=data)
-            response.raise_for_status()
+            response = session.post(f"{self.base_url}/api/security/tests", json=data, timeout=self.timeout)
             
             result = response.json()
             if result.get("success"):
@@ -1135,7 +1134,7 @@ class TestingServiceClient(BaseService):
             }
             
             response = session.post(f"{self.base_url}/api/performance/tests", json=data)
-            response.raise_for_status()
+            response = session.post(f"{self.base_url}/api/performance/tests", json=data, timeout=self.timeout)
             
             result = response.json()
             if result.get("success"):
@@ -1160,7 +1159,7 @@ class TestingServiceClient(BaseService):
             
             endpoint = endpoint_map.get(service_type, "security")
             response = session.get(f"{self.base_url}/api/{endpoint}/tests/{test_id}/status")
-            response.raise_for_status()
+            response = session.get(f"{self.base_url}/api/{endpoint}/tests/{test_id}/status", timeout=self.timeout)
             
             result = response.json()
             if result.get("success"):
@@ -1185,7 +1184,7 @@ class TestingServiceClient(BaseService):
             
             endpoint = endpoint_map.get(service_type, "security")
             response = session.get(f"{self.base_url}/api/{endpoint}/tests/{test_id}/result")
-            response.raise_for_status()
+            response = session.get(f"{self.base_url}/api/{endpoint}/tests/{test_id}/result", timeout=self.timeout)
             
             result = response.json()
             if result.get("success"):
@@ -1202,7 +1201,7 @@ class TestingServiceClient(BaseService):
         try:
             session = self._get_session()
             response = session.get(f"{self.base_url}/api/health")
-            response.raise_for_status()
+            response = session.get(f"{self.base_url}/api/health", timeout=self.timeout)
             
             result = response.json()
             return result.get("data", {})
@@ -2334,32 +2333,61 @@ def generation_lookup_service():
 
 
 def main():
-    """Main entry point."""
+    """Main entry point - uses proper application factory from app.py."""
     try:
-        # Import from app.py instead of using local create_app
-        from app import app
+        # Import and use the proper application factory
+        from app import create_app
         
         logger = get_logger('main')
-        logger.info("Starting Flask application from core_services main")
+        logger.info("Starting Flask application using proper app factory")
         
         # Add startup message
         print("""
-╔══════════════════════════════════════════════════════════════╗
-║           Thesis Research App - Core Services                ║
-╚══════════════════════════════════════════════════════════════╝
-
-🚀 Server starting...
-📋 Core services module loaded
+🚀 Server starting with full services...
+📋 Core services, web routes, and database available
+🔧 Using app.py application factory pattern
 """)
         
-        # Run app with basic config
+        # Create app using the proper factory
+        app = create_app()
+        
+        # Get configuration from environment or use defaults
+        host = os.getenv('FLASK_HOST', '127.0.0.1')
+        port = int(os.getenv('FLASK_PORT', '5000'))
+        debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+        
+        logger.info(f"Starting server on {host}:{port} (debug={debug})")
+        
+        # Run app with proper configuration
+        app.run(host=host, port=port, debug=debug, threaded=True)
+        
+    except ImportError as e:
+        print(f"\n❌ Failed to import app factory: {e}")
+        print("💡 Falling back to basic Flask app...")
+        
+        # Fallback to basic app only if app.py is not available
+        from flask import Flask
+        app = Flask(__name__)
+        app.config['APP_CONFIG'] = AppConfig()
+        
+        @app.route('/')
+        def index():
+            return """
+            <h1>Core Services Module</h1>
+            <p>⚠️ Running in fallback mode - app.py not available</p>
+            <p>This provides basic core services functionality only.</p>
+            """
+        
         app.run(host='127.0.0.1', port=5000, debug=False)
+        return 0
         
     except KeyboardInterrupt:
         print("\n👋 Server stopped by user")
         return 0
     except Exception as e:
-        print(f"Failed to start application: {e}")
+        print(f"❌ Failed to start application: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
     
     return 0
