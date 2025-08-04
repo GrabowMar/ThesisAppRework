@@ -1,0 +1,352 @@
+<!-- Security Test Results Partial -->
+<div class="modal-header">
+    <h5 class="modal-title">
+        <i class="fas fa-chart-bar mr-2"></i>
+        Test Results: {{ test.name or test.id }}
+    </h5>
+    <button type="button" class="close" data-dismiss="modal">
+        <span>&times;</span>
+    </button>
+</div>
+
+<div class="modal-body">
+    <!-- Results Summary -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Test Summary</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        {% if results.summary %}
+                            <div class="col-md-3">
+                                <h4 class="text-danger">{{ results.summary.total_issues or 0 }}</h4>
+                                <small class="text-muted">Total Issues</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h4 class="text-warning">{{ results.summary.high_severity or 0 }}</h4>
+                                <small class="text-muted">High Severity</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h4 class="text-info">{{ results.summary.medium_severity or 0 }}</h4>
+                                <small class="text-muted">Medium Severity</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h4 class="text-success">{{ results.summary.low_severity or 0 }}</h4>
+                                <small class="text-muted">Low Severity</small>
+                            </div>
+                        {% else %}
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    No summary data available
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tool-specific Results -->
+    {% if test.type == 'security' %}
+        <!-- Security Test Results -->
+        <div class="row">
+            <!-- Backend Results -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0 text-primary">
+                            <i class="fas fa-server mr-2"></i>
+                            Backend Security Results
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        {% if results.backend %}
+                            {% for tool_name, tool_results in results.backend.items() %}
+                            <div class="mb-3">
+                                <h6 class="text-dark">{{ tool_name|title }} Results</h6>
+                                {% if tool_results.issues %}
+                                    <div class="list-group list-group-flush">
+                                        {% for issue in tool_results.issues[:5] %}
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <h6 class="mb-1">{{ issue.title or issue.message }}</h6>
+                                                    <p class="mb-1 small">{{ issue.description or issue.details }}</p>
+                                                    {% if issue.file %}
+                                                        <small class="text-muted">File: {{ issue.file }}</small>
+                                                        {% if issue.line %}
+                                                            <small class="text-muted">Line: {{ issue.line }}</small>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                </div>
+                                                <span class="badge badge-{{ 'danger' if issue.severity == 'high' else 'warning' if issue.severity == 'medium' else 'info' }}">
+                                                    {{ issue.severity|title }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                        {% if tool_results.issues|length > 5 %}
+                                        <div class="list-group-item text-center">
+                                            <small class="text-muted">... and {{ tool_results.issues|length - 5 }} more issues</small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-check mr-2"></i>
+                                        No issues found by {{ tool_name|title }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                No backend results available
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Frontend Results -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0 text-info">
+                            <i class="fas fa-desktop mr-2"></i>
+                            Frontend Security Results
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        {% if results.frontend %}
+                            {% for tool_name, tool_results in results.frontend.items() %}
+                            <div class="mb-3">
+                                <h6 class="text-dark">{{ tool_name|title }} Results</h6>
+                                {% if tool_results.issues %}
+                                    <div class="list-group list-group-flush">
+                                        {% for issue in tool_results.issues[:5] %}
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <h6 class="mb-1">{{ issue.title or issue.message }}</h6>
+                                                    <p class="mb-1 small">{{ issue.description or issue.details }}</p>
+                                                    {% if issue.file %}
+                                                        <small class="text-muted">File: {{ issue.file }}</small>
+                                                        {% if issue.line %}
+                                                            <small class="text-muted">Line: {{ issue.line }}</small>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                </div>
+                                                <span class="badge badge-{{ 'danger' if issue.severity == 'high' else 'warning' if issue.severity == 'medium' else 'info' }}">
+                                                    {{ issue.severity|title }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                        {% if tool_results.issues|length > 5 %}
+                                        <div class="list-group-item text-center">
+                                            <small class="text-muted">... and {{ tool_results.issues|length - 5 }} more issues</small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-check mr-2"></i>
+                                        No issues found by {{ tool_name|title }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                No frontend results available
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    {% elif test.type == 'zap' %}
+        <!-- ZAP Scan Results -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0 text-warning">
+                    <i class="fas fa-spider mr-2"></i>
+                    ZAP Security Scan Results
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if results.vulnerabilities %}
+                    {% for vuln in results.vulnerabilities %}
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">{{ vuln.name or vuln.alert }}</h6>
+                            <span class="badge badge-{{ 'danger' if vuln.risk == 'High' else 'warning' if vuln.risk == 'Medium' else 'info' }}">
+                                {{ vuln.risk }} Risk
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Description:</strong> {{ vuln.description }}</p>
+                            {% if vuln.solution %}
+                                <p><strong>Solution:</strong> {{ vuln.solution }}</p>
+                            {% endif %}
+                            {% if vuln.instances %}
+                                <p><strong>Instances:</strong> {{ vuln.instances|length }}</p>
+                                <div class="small">
+                                    {% for instance in vuln.instances[:3] %}
+                                        <div class="mb-1">
+                                            <strong>URL:</strong> {{ instance.uri or instance.url }}<br>
+                                            {% if instance.param %}
+                                                <strong>Parameter:</strong> {{ instance.param }}<br>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                    {% if vuln.instances|length > 3 %}
+                                        <div class="text-muted">... and {{ vuln.instances|length - 3 }} more instances</div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check mr-2"></i>
+                        No vulnerabilities found by ZAP scan
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+    {% elif test.type == 'performance' %}
+        <!-- Performance Test Results -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Performance Metrics</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if results.metrics %}
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Total Requests:</strong></td>
+                                    <td>{{ results.metrics.total_requests or 'N/A' }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Failed Requests:</strong></td>
+                                    <td>{{ results.metrics.failed_requests or 'N/A' }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Average Response Time:</strong></td>
+                                    <td>{{ results.metrics.avg_response_time or 'N/A' }}ms</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>95th Percentile:</strong></td>
+                                    <td>{{ results.metrics.percentile_95 or 'N/A' }}ms</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Requests per Second:</strong></td>
+                                    <td>{{ results.metrics.requests_per_second or 'N/A' }}</td>
+                                </tr>
+                            </table>
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                No performance metrics available
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Response Time Distribution</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if results.response_times %}
+                            <div class="mb-2">
+                                <small>Min: {{ results.response_times.min }}ms</small>
+                                <div class="progress" style="height: 5px;">
+                                    <div class="progress-bar bg-success" style="width: 25%"></div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <small>50th percentile: {{ results.response_times.percentile_50 }}ms</small>
+                                <div class="progress" style="height: 5px;">
+                                    <div class="progress-bar bg-info" style="width: 50%"></div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <small>95th percentile: {{ results.response_times.percentile_95 }}ms</small>
+                                <div class="progress" style="height: 5px;">
+                                    <div class="progress-bar bg-warning" style="width: 95%"></div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <small>Max: {{ results.response_times.max }}ms</small>
+                                <div class="progress" style="height: 5px;">
+                                    <div class="progress-bar bg-danger" style="width: 100%"></div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                No response time data available
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    
+    <!-- Raw Results -->
+    {% if results.raw_data %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <h6 class="mb-0">
+                <i class="fas fa-code mr-2"></i>
+                Raw Results Data
+            </h6>
+        </div>
+        <div class="card-body">
+            <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;"><code>{{ results.raw_data | tojson(indent=2) }}</code></pre>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal-footer">
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-primary"
+                hx-get="/testing/test/{{ test.id }}/export"
+                hx-target="_blank">
+            <i class="fas fa-file-export"></i> Export Results
+        </button>
+        
+        <button type="button" class="btn btn-info"
+                hx-get="/testing/test/{{ test.id }}/report"
+                hx-target="_blank">
+            <i class="fas fa-file-pdf"></i> Generate Report
+        </button>
+        
+        <button type="button" class="btn btn-success"
+                hx-post="/testing/test/{{ test.id }}/rerun"
+                hx-target="#testDetailsModal .modal-content"
+                hx-confirm="Are you sure you want to rerun this test with the same configuration?">
+            <i class="fas fa-redo"></i> Rerun Test
+        </button>
+    </div>
+    
+    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+</div>

@@ -4519,6 +4519,296 @@ def api_get_available_models():
 
 
 # ===========================
+# TESTING INFRASTRUCTURE ROUTES
+# ===========================
+
+testing_bp = Blueprint("testing", __name__, url_prefix="/testing")
+
+@testing_bp.route("/")
+def testing_dashboard():
+    """Security testing dashboard page."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        # Get basic stats for dashboard
+        all_jobs = service.get_all_jobs()
+        stats = {
+            'total_jobs': len(all_jobs),
+            'running_jobs': len([j for j in all_jobs if j['status'] == 'running']),
+            'completed_jobs': len([j for j in all_jobs if j['status'] == 'completed']),
+            'total_issues': sum(j.get('total_issues', 0) for j in all_jobs if j['status'] == 'completed'),
+            'analyzed_apps': len(set((j.get('model'), j.get('app_num')) for j in all_jobs if j['status'] == 'completed'))
+        }
+        
+        return ResponseHandler.render_response("batch_testing.html", stats=stats)
+        
+    except Exception as e:
+        logger.error(f"Error loading testing dashboard: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/health")
+def api_get_infrastructure_health():
+    """Get testing infrastructure health status."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        health_data = service.get_service_health()
+        return ResponseHandler.success_response(data=health_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting infrastructure health: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/tools")
+def api_get_available_tools():
+    """Get information about available security testing tools."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        tools_data = service.get_available_tools()
+        return ResponseHandler.success_response(data=tools_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting available tools: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/jobs")
+def api_get_testing_jobs():
+    """Get list of testing jobs with optional filtering."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        status_filter = request.args.get('status')
+        test_type_filter = request.args.get('test_type')
+        model_filter = request.args.get('model')
+        
+        jobs = service.get_all_jobs(status_filter)
+        
+        # Apply additional filters
+        if test_type_filter:
+            jobs = [j for j in jobs if j.get('test_type') == test_type_filter]
+        if model_filter:
+            jobs = [j for j in jobs if j.get('model') == model_filter]
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/security_testing_jobs_list.html", jobs=jobs)
+        
+        return ResponseHandler.success_response(data=jobs)
+        
+    except Exception as e:
+        logger.error(f"Error getting testing jobs: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/create", methods=["POST"])
+def api_create_testing_job():
+    """Create a new security testing job."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        test_type = request.form.get('test_type')
+        
+        if test_type == 'security_analysis':
+            result = service.create_security_analysis_job({
+                'model': request.form.get('model'),
+                'app_num': request.form.get('app_num'),
+                'tools': request.form.getlist('tools'),
+                'scan_depth': request.form.get('scan_depth', 'standard'),
+                'include_dependencies': request.form.get('include_dependencies') == 'on',
+                'tool_options': {
+                    'bandit': {
+                        'severity': request.form.get('bandit_severity', 'MEDIUM'),
+                        'confidence': request.form.get('bandit_confidence', 'MEDIUM'),
+                        'skip': request.form.get('bandit_skip', '')
+                    },
+                    'safety': {
+                        'apply_fixes': request.form.get('safety_apply_fixes') == 'on',
+                        'detailed': request.form.get('safety_detailed') == 'on',
+                        'ignore': request.form.get('safety_ignore', '')
+                    },
+                    'pylint': {
+                        'types': request.form.getlist('pylint_types'),
+                        'disable': request.form.get('pylint_disable', '')
+                    },
+                    'semgrep': {
+                        'config': request.form.get('semgrep_config', 'auto'),
+                        'max_memory': request.form.get('semgrep_max_memory', '2000'),
+                        'timeout': request.form.get('semgrep_timeout', '30')
+                    },
+                    'eslint': {
+                        'config': request.form.get('eslint_config', 'recommended'),
+                        'fix': request.form.get('eslint_fix') == 'on',
+                        'max_warnings': request.form.get('eslint_max_warnings', '50')
+                    },
+                    'retire': {
+                        'severity': request.form.get('retire_severity', 'medium'),
+                        'include_dev': request.form.get('retire_include_dev') == 'on'
+                    },
+                    'npm_audit': {
+                        'level': request.form.get('npm_audit_level', 'moderate'),
+                        'production': request.form.get('npm_production') == 'on',
+                        'fix': request.form.get('npm_fix') == 'on'
+                    }
+                }
+            })
+            
+        elif test_type == 'zap_scan':
+            zap_options = {
+                'scan_type': request.form.get('zap_scan_type', 'spider')
+            }
+            
+            # Add scan-specific options
+            scan_type = request.form.get('zap_scan_type', 'spider')
+            if scan_type == 'spider':
+                zap_options.update({
+                    'max_depth': request.form.get('zap_max_depth', '5'),
+                    'max_children': request.form.get('zap_max_children', '100'),
+                    'recurse': request.form.get('zap_recurse') == 'on'
+                })
+            elif scan_type == 'active':
+                zap_options.update({
+                    'strength': request.form.get('zap_strength', 'Medium'),
+                    'max_rule_duration': request.form.get('zap_max_rule_duration', '5'),
+                    'in_scope_only': request.form.get('zap_in_scope_only') == 'on'
+                })
+            elif scan_type == 'baseline':
+                zap_options.update({
+                    'duration': request.form.get('zap_duration', '10'),
+                    'level': request.form.get('zap_level', 'Warn')
+                })
+            elif scan_type == 'passive':
+                zap_options.update({
+                    'max_alerts': request.form.get('zap_max_alerts', '1000'),
+                    'context_name': request.form.get('zap_context_name', '')
+                })
+            
+            result = service.create_zap_scan_job({
+                'model': request.form.get('model'),
+                'app_num': request.form.get('app_num'),
+                'target_url': request.form.get('target_url'),
+                'scan_type': scan_type,
+                'scan_options': zap_options
+            })
+            
+        elif test_type == 'performance_test':
+            result = service.create_performance_test_job({
+                'model': request.form.get('model'),
+                'app_num': request.form.get('app_num'),
+                'target_url': request.form.get('performance_target_url'),
+                'users': request.form.get('performance_users', '10'),
+                'spawn_rate': request.form.get('performance_spawn_rate', '2'),
+                'duration': request.form.get('performance_duration', '60')
+            })
+            
+        else:
+            return ResponseHandler.error_response("Invalid test type")
+        
+        if result['success']:
+            return ResponseHandler.success_response(
+                data={'job_id': result['job_id']},
+                message=result['message']
+            )
+        else:
+            return ResponseHandler.error_response(result['error'])
+        
+    except Exception as e:
+        logger.error(f"Error creating testing job: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/test/<test_id>/details")
+def api_get_test_details(test_id: str):
+    """Get detailed information about a test."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        result = service.get_job_status(test_id)
+        
+        if not result['success']:
+            return ResponseHandler.error_response(result['error'], 404)
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/security_test_details.html", test=result['job'])
+        
+        return ResponseHandler.success_response(data=result['job'])
+        
+    except Exception as e:
+        logger.error(f"Error getting test details for {test_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/test/<test_id>/results")
+def api_get_test_results(test_id: str):
+    """Get comprehensive results for a completed test."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        result = service.get_job_result(test_id)
+        
+        if not result['success']:
+            return ResponseHandler.error_response(result['error'], 404)
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/security_test_results.html", results=result['result'])
+        
+        return ResponseHandler.success_response(data=result['result'])
+        
+    except Exception as e:
+        logger.error(f"Error getting test results for {test_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/test/<test_id>/cancel", methods=["POST"])
+def api_cancel_test(test_id: str):
+    """Cancel a running test."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        result = service.cancel_job(test_id)
+        
+        if result['success']:
+            return ResponseHandler.success_response(message=result['message'])
+        else:
+            return ResponseHandler.error_response(result['error'])
+        
+    except Exception as e:
+        logger.error(f"Error cancelling test {test_id}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@testing_bp.route("/api/infrastructure-status")
+def api_get_infrastructure_status():
+    """Get detailed infrastructure status for modal display."""
+    try:
+        from testing_infrastructure_service import get_testing_infrastructure_service
+        service = get_testing_infrastructure_service()
+        
+        health_data = service.get_service_health()
+        tools_data = service.get_available_tools()
+        
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/infrastructure_status_details.html", 
+                                 health=health_data, tools=tools_data)
+        
+        return ResponseHandler.success_response(data={'health': health_data, 'tools': tools_data})
+        
+    except Exception as e:
+        logger.error(f"Error getting infrastructure status: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+# ===========================
 # BLUEPRINT REGISTRATION
 # ===========================
 
@@ -4534,6 +4824,9 @@ def register_blueprints(app):
     # Register batch testing blueprint
     app.register_blueprint(batch_testing_bp)
     
+    # Register testing infrastructure blueprint
+    app.register_blueprint(testing_bp)
+    
     app.register_blueprint(docker_bp)
     
     # Register template helpers
@@ -4544,6 +4837,6 @@ def register_blueprints(app):
 
 # Export blueprints for use in app factory
 __all__ = [
-    'main_bp', 'api_bp', 'statistics_bp', 'batch_bp', 'docker_bp', 'batch_testing_bp',
+    'main_bp', 'api_bp', 'statistics_bp', 'batch_bp', 'docker_bp', 'batch_testing_bp', 'testing_bp',
     'register_blueprints'
 ]
