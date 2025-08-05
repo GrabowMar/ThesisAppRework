@@ -5,7 +5,7 @@ Flask Web Routes - Thesis Research App
 Complete refactored implementation with consolidated code and improved organization.
 All functionality preserved with enhanced logging and error handling.
 
-Version: 3.0.0
+Version: 3.1.0
 """
 
 import json
@@ -24,23 +24,34 @@ from flask import (
 )
 from sqlalchemy import func
 
+# Core imports with proper error handling
 try:
     from extensions import db
     from models import (
         ModelCapability, GeneratedApplication, PortConfiguration,
-        SecurityAnalysis, JobStatus, TaskStatus
+        SecurityAnalysis, JobStatus
     )
     from core_services import get_container_names
     from batch_testing_service import get_batch_testing_service
-except ImportError:
+    # Add missing imports
+    from unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
+except ImportError as e:
     # Fallback for direct script execution
-    from .extensions import db
-    from .models import (
-        ModelCapability, GeneratedApplication, PortConfiguration,
-        SecurityAnalysis
-    )
-    from .core_services import get_container_names
-    from .batch_testing_service import get_batch_testing_service
+    try:
+        from .extensions import db
+        from .models import (
+            ModelCapability, GeneratedApplication, PortConfiguration,
+            SecurityAnalysis, JobStatus
+        )
+        from .core_services import get_container_names
+        from .batch_testing_service import get_batch_testing_service
+        from .unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
+    except ImportError:
+        # If imports still fail, set them to None for graceful degradation
+        UnifiedCLIAnalyzer = None
+        ToolCategory = None
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Some imports failed: {e}")
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -573,7 +584,7 @@ class DockerOperations:
             compose_path = project_root / "misc" / "models" / model / f"app{app_num}" / "docker-compose.yml"
             
             if not compose_path.exists():
-                return {'success': False, 'error': f'Docker compose file not found'}
+                return {'success': False, 'error': 'Docker compose file not found'}
             
             logger.info(f"Executing {action} for {model}/app{app_num}")
             
@@ -709,6 +720,7 @@ statistics_bp = Blueprint("statistics", __name__, url_prefix="/statistics")
 batch_bp = Blueprint("batch", __name__, url_prefix="/batch")
 docker_bp = Blueprint("docker", __name__, url_prefix="/docker")
 batch_testing_bp = Blueprint("batch_testing", __name__, url_prefix="/batch-testing")
+testing_bp = Blueprint("testing", __name__, url_prefix="/testing")
 
 # ===========================
 # MAIN ROUTES
@@ -1150,6 +1162,38 @@ def models_overview():
     except Exception as e:
         logger.error(f"Error loading models: {e}", exc_info=True)
         return ResponseHandler.error_response(str(e))
+
+
+# ===========================
+# LEGACY ROUTES - REDIRECT TO STATISTICS
+# ===========================
+
+@main_bp.route("/analysis")
+@main_bp.route("/analysis/")
+def analysis_redirect():
+    """Redirect analysis routes to statistics page."""
+    return redirect(url_for('statistics.statistics_overview'))
+
+@main_bp.route("/analysis/<path:subpath>")
+def analysis_subpath_redirect(subpath):
+    """Redirect all analysis subpaths to statistics."""
+    return redirect(url_for('statistics.statistics_overview'))
+
+@main_bp.route("/performance")
+@main_bp.route("/performance/")
+def performance_redirect():
+    """Redirect performance routes to statistics page."""
+    return redirect(url_for('statistics.statistics_overview'))
+
+@main_bp.route("/performance/<path:subpath>")
+def performance_subpath_redirect(subpath):
+    """Redirect all performance subpaths to statistics."""
+    return redirect(url_for('statistics.statistics_overview'))
+
+@main_bp.route("/batch-analysis")
+def batch_analysis_redirect():
+    """Redirect to batch job creation page."""
+    return redirect(url_for('batch.create_batch_job'))
 
 
 # ===========================
@@ -1742,101 +1786,6 @@ def api_model_analyze_all(model_slug: str):
 
 
 # ===========================
-# API ROUTES - Sidebar & System (deprecated)
-# ===========================
-# Note: These routes are kept for backward compatibility but sidebar content is now static
-
-@api_bp.route("/sidebar/stats")
-def sidebar_stats():
-    """Get sidebar statistics - kept for API compatibility."""
-    try:
-        model_count = ModelCapability.query.count()
-        app_count = model_count * 30
-        running_count = 0  # Calculate based on Docker status
-        active_scans = 0  # Calculate based on active analyses
-        
-        stats = {
-            'total_models': model_count,
-            'total_apps': app_count,
-            'running_containers': running_count,
-            'active_scans': active_scans
-        }
-        return ResponseHandler.success_response(data=stats)
-    except Exception as e:
-        logger.error(f"Sidebar stats error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@api_bp.route("/sidebar/activity")
-def sidebar_activity():
-    """Get recent activity - kept for API compatibility."""
-    try:
-        # Mock activity data - replace with actual activity tracking
-        activities = [
-            {
-                "content": "Container started: anthropic/app1",
-                "time": "2 min ago",
-                "icon": "fas fa-play text-success"
-            },
-            {
-                "content": "Analysis completed: openai/app5",
-                "time": "5 min ago",
-                "icon": "fas fa-check text-success"
-            }
-        ]
-        
-        return ResponseHandler.success_response(data=activities)
-    except Exception as e:
-        logger.error(f"Sidebar activity error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@api_bp.route("/sidebar/system-status")
-def sidebar_system_status():
-    """Get system status - kept for API compatibility."""
-    try:
-        docker_manager = ServiceLocator.get_docker_manager()
-        
-        # Return legacy format for JSON API
-        status = {
-            'docker': 'healthy' if docker_manager else 'unavailable',
-            'database': 'healthy',
-            'services': 'healthy'
-        }
-        return ResponseHandler.success_response(data=status)
-    except Exception as e:
-        logger.error(f"System status error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@api_bp.route("/settings")
-def get_settings():
-    """Get application settings."""
-    try:
-        settings = {
-            'theme': 'light',
-            'auto_refresh': True,
-            'notifications': True
-        }
-        return ResponseHandler.success_response(data=settings)
-    except Exception as e:
-        logger.error(f"Settings error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@api_bp.route("/notifications/count")
-def notifications_count():
-    """Get notification count."""
-    try:
-        # Mock notification count - replace with actual notification system
-        count = 3
-        return ResponseHandler.success_response(data={'count': count})
-    except Exception as e:
-        logger.error(f"Notifications count error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-# ===========================
 # API ROUTES - Container Operations
 # ===========================
 
@@ -2077,7 +2026,7 @@ def get_file_content(model: str, app_num: int):
         except UnicodeDecodeError:
             try:
                 content = full_path.read_text(encoding='latin-1')
-            except:
+            except Exception:
                 content = "Binary file - cannot display content"
         
         language = FileOperations.get_language_from_extension(full_path.suffix)
@@ -2356,38 +2305,6 @@ def export_models_data():
 
 
 # ===========================
-# LEGACY ROUTES - REDIRECT TO STATISTICS
-# ===========================
-
-@main_bp.route("/analysis")
-@main_bp.route("/analysis/")
-def analysis_redirect():
-    """Redirect analysis routes to statistics page."""
-    return redirect(url_for('statistics.statistics_overview'))
-
-@main_bp.route("/analysis/<path:subpath>")
-def analysis_subpath_redirect(subpath):
-    """Redirect all analysis subpaths to statistics."""
-    return redirect(url_for('statistics.statistics_overview'))
-
-@main_bp.route("/performance")
-@main_bp.route("/performance/")
-def performance_redirect():
-    """Redirect performance routes to statistics page."""
-    return redirect(url_for('statistics.statistics_overview'))
-
-@main_bp.route("/performance/<path:subpath>")
-def performance_subpath_redirect(subpath):
-    """Redirect all performance subpaths to statistics."""
-    return redirect(url_for('statistics.statistics_overview'))
-
-@main_bp.route("/batch-analysis")
-def batch_analysis_redirect():
-    """Redirect to batch job creation page."""
-    return redirect(url_for('batch.create_batch_job'))
-
-
-# ===========================
 # STATISTICS ROUTES
 # ===========================
 
@@ -2433,9 +2350,6 @@ def export_statistics():
         return ResponseHandler.success_response({"message": "Export not implemented yet"})
     except Exception as e:
         return ResponseHandler.error_response(str(e))
-        
-        # Placeholder for successful statistics loading
-        return ResponseHandler.success_response({"message": "Statistics page loaded"})
 
 
 # Helper functions for loading generation data
@@ -2641,14 +2555,6 @@ def load_daily_statistics():
 # BATCH ROUTES - Enhanced with Coordinator Integration
 # ===========================
 
-# Import batch coordinator and models
-try:
-    from models import BatchJob, BatchTask, JobStatus, TaskStatus, AnalysisType
-except ImportError:
-    # Fallback for environments where batch system is not available
-    BatchAnalysisCoordinator = None
-    logger.warning("Batch coordinator not available")
-
 # Global coordinator instance
 _batch_coordinator = None
 
@@ -2739,18 +2645,6 @@ def batch_overview():
         
     except Exception as e:
         logger.error(f"Batch overview error: {e}")
-        context = {
-            'jobs': [],
-            'total_jobs': 0,
-            'running_jobs': 0,
-            'completed_jobs': 0,
-            'failed_jobs': 0,
-            'pending_jobs': 0,
-            'cancelled_jobs': 0,
-            'stats': {'total': 0, 'pending': 0, 'running': 0, 'completed': 0, 'failed': 0, 'cancelled': 0, 'archived': 0},
-            'error_message': f"Service temporarily unavailable: {str(e)}",
-            'page_title': 'Batch Analysis Jobs'
-        }
         # Redirect to the new container-centric batch testing interface
         return redirect(url_for('batch_testing.batch_testing_dashboard'))
 
@@ -2807,7 +2701,7 @@ def create_batch_job():
             
             job_data['analysis_types'] = analysis_types
             
-            # Extract target models and apps
+            # Extract target models
             target_models = request.form.getlist('target_models')
             if not target_models:
                 return ResponseHandler.error_response("At least one target model must be selected")
@@ -2973,698 +2867,6 @@ def view_job(job_id: str):
         logger.error(f"View job error: {e}")
         return ResponseHandler.error_response(str(e))
 
-@batch_bp.route("/job/<job_id>/start", methods=["POST"])
-def start_job(job_id: str):
-    """Start a batch job."""
-    try:
-        coordinator = get_batch_coordinator()
-        if not coordinator:
-            return ResponseHandler.error_response("Batch coordinator not available")
-        
-        success = coordinator.start_job(job_id)
-        if success:
-            return ResponseHandler.success_response(message="Job started successfully")
-        else:
-            return ResponseHandler.error_response("Failed to start job")
-            
-    except Exception as e:
-        logger.error(f"Start job error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-@batch_bp.route("/job/<job_id>/cancel", methods=["POST"])
-def cancel_job(job_id: str):
-    """Cancel a running batch job."""
-    try:
-        batch_service = get_batch_coordinator()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        # Use stop_job instead of cancel_job
-        success = batch_service.stop_job(job_id)
-        if success:
-            return ResponseHandler.success_response(message="Job cancelled successfully")
-        else:
-            return ResponseHandler.error_response("Failed to cancel job")
-            
-    except Exception as e:
-        logger.error(f"Cancel job error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-@batch_bp.route("/api/jobs", methods=["GET"])
-def api_jobs_list():
-    """API endpoint for jobs list (HTMX compatible) - REMOVED - USE BATCH ROUTES INSTEAD."""
-    return jsonify({
-        'error': 'This endpoint has been moved. Use /api/batch/jobs instead.',
-        'redirect': '/api/batch/jobs'
-    }), 301
-
-
-@batch_bp.route("/api/job/<job_id>/status", methods=["GET"])
-def api_job_status(job_id: str):
-    """API endpoint for job status updates."""
-    try:
-        batch_service = get_batch_coordinator()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        # Use get_job with string ID as expected
-        job = batch_service.get_job(job_id)
-        if not job:
-            return ResponseHandler.error_response("Job not found", 404)
-        
-        job_status = {
-            "id": job.id,
-            "status": job.status.value if job.status else "unknown",
-            "progress": job.get_progress_percentage(),  # Use the method instead
-            "error_message": job.error_message or "",
-            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
-            "completed_tasks": job.completed_tasks,
-            "total_tasks": job.total_tasks
-        }
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/job_status.html", **job_status)
-        
-        return ResponseHandler.success_response(job_status)
-        
-    except Exception as e:
-        logger.error(f"API job status error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-@batch_bp.route("/api/statistics", methods=["GET"])
-def api_statistics():
-    """API endpoint for batch processing statistics."""
-    try:
-        batch_service = get_batch_coordinator()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        # Use get_stats instead of get_statistics
-        stats = batch_service.get_stats()
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/batch_statistics.html", stats=stats)
-        
-        return ResponseHandler.success_response(stats)
-        
-    except Exception as e:
-        logger.error(f"API statistics error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-@batch_bp.route("/templates", methods=["GET"])
-def job_templates():
-    """Manage batch job templates."""
-    try:
-        batch_service = get_batch_coordinator()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        # Since BatchService doesn't have template support yet, return empty list
-        context = {
-            'templates': [],
-            'page_title': 'Batch Job Templates'
-        }
-        
-        return render_template("pages/batch_templates.html", **context)
-        
-    except Exception as e:
-        logger.error(f"Job templates error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-@batch_bp.route("/reports", methods=["GET"])
-def batch_reports():
-    """View batch analysis reports."""
-    try:
-        batch_service = get_batch_coordinator()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        # Since BatchService doesn't have reports support yet, return empty list
-        context = {
-            'reports': [],
-            'page_title': 'Batch Analysis Reports'
-        }
-        
-        return render_template("pages/batch_reports.html", **context)
-        
-    except Exception as e:
-        logger.error(f"Batch reports error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-@batch_bp.route("/api/models", methods=["GET"])
-def api_models():
-    """API endpoint for available models."""
-    try:
-        models = ModelCapability.query.all()
-        models_data = [
-            {
-                'slug': model.canonical_slug,
-                'name': model.model_name,
-                'apps_count': 30,  # Assuming 30 apps per model
-                'capabilities': model.capabilities if hasattr(model, 'capabilities') else {}
-            }
-            for model in models
-        ]
-        
-        return ResponseHandler.success_response({'models': models_data})
-        
-    except Exception as e:
-        logger.error(f"API models error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@batch_bp.route("/job/<job_id>/cancel", methods=["POST"])
-def cancel_batch_job(job_id: str):
-    """Cancel a batch job."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        success = batch_service.cancel_job(job_id)
-        if success:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.success_response("Job cancelled successfully")
-            flash("Job cancelled successfully", "success")
-        else:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.error_response("Failed to cancel job")
-            flash("Failed to cancel job", "error")
-        
-        return redirect(url_for('batch.batch_overview'))
-        
-    except Exception as e:
-        logger.error(f"Cancel job error: {e}")
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return ResponseHandler.error_response(f"Error cancelling job: {str(e)}")
-        flash(f"Error cancelling job: {str(e)}", "error")
-        return redirect(url_for('batch.batch_overview'))
-
-
-@batch_bp.route("/job/<job_id>/pause", methods=["POST"])
-def pause_job(job_id: str):
-    """Pause a batch job."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        success = batch_service.pause_job(job_id)
-        if success:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.success_response("Job paused successfully")
-            flash("Job paused successfully", "success")
-        else:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.error_response("Failed to pause job")
-            flash("Failed to pause job", "error")
-        
-        return redirect(url_for('batch.batch_overview'))
-        
-    except Exception as e:
-        logger.error(f"Pause job error: {e}")
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return ResponseHandler.error_response(f"Error pausing job: {str(e)}")
-        flash(f"Error pausing job: {str(e)}", "error")
-        return redirect(url_for('batch.batch_overview'))
-
-
-@batch_bp.route("/job/<job_id>/resume", methods=["POST"])
-def resume_job(job_id: str):
-    """Resume a paused batch job."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        success = batch_service.resume_job(job_id)
-        if success:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.success_response("Job resumed successfully")
-            flash("Job resumed successfully", "success")
-        else:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.error_response("Failed to resume job")
-            flash("Failed to resume job", "error")
-        
-        return redirect(url_for('batch.batch_overview'))
-        
-    except Exception as e:
-        logger.error(f"Resume job error: {e}")
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return ResponseHandler.error_response(f"Error resuming job: {str(e)}")
-        flash(f"Error resuming job: {str(e)}", "error")
-        return redirect(url_for('batch.batch_overview'))
-
-
-@batch_bp.route("/job/<job_id>/start", methods=["POST"])
-def start_batch_job(job_id: str):
-    """Start a pending batch job."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        success = batch_service.start_job(job_id)
-        if success:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.success_response("Job started successfully")
-            flash("Job started successfully", "success")
-        else:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.error_response("Failed to start job")
-            flash("Failed to start job", "error")
-        
-        return redirect(url_for('batch.batch_overview'))
-        
-    except Exception as e:
-        logger.error(f"Start job error: {e}")
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return ResponseHandler.error_response(f"Error starting job: {str(e)}")
-        flash(f"Error starting job: {str(e)}", "error")
-        return redirect(url_for('batch.batch_overview'))
-
-
-@batch_bp.route("/job/<job_id>", methods=["DELETE"])
-def delete_job(job_id: str):
-    """Delete a batch job."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        success = batch_service.delete_job(job_id)
-        if success:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.success_response("Job deleted successfully")
-            flash("Job deleted successfully", "success")
-        else:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return ResponseHandler.error_response("Failed to delete job")
-            flash("Failed to delete job", "error")
-        
-        return redirect(url_for('batch.batch_overview'))
-        
-    except Exception as e:
-        logger.error(f"Delete job error: {e}")
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return ResponseHandler.error_response(f"Error deleting job: {str(e)}")
-        flash(f"Error deleting job: {str(e)}", "error")
-        return redirect(url_for('batch.batch_overview'))
-
-
-@batch_bp.route("/job/<job_id>/export")
-def export_job(job_id: str):
-    """Export job results."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        job = batch_service.get_job(job_id)
-        if not job:
-            return ResponseHandler.error_response("Job not found", 404)
-        
-        tasks = batch_service.get_job_tasks(job_id)
-        
-        export_data = {
-            'job': job.to_dict(),
-            'tasks': [task.to_dict() for task in tasks],
-            'exported_at': datetime.now().isoformat(),
-            'export_version': '1.0'
-        }
-        
-        return jsonify(export_data)
-        
-    except Exception as e:
-        logger.error(f"Export job error: {e}")
-        return ResponseHandler.error_response(f"Error exporting job: {str(e)}")
-
-
-@batch_bp.route("/export-all")
-def export_all_jobs():
-    """Export all jobs data."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        jobs = batch_service.get_all_jobs()
-        stats = batch_service.get_job_stats()
-        
-        export_data = {
-            'jobs': [job.to_dict() for job in jobs],
-            'statistics': stats,
-            'exported_at': datetime.now().isoformat(),
-            'export_version': '1.0',
-            'total_jobs': len(jobs)
-        }
-        
-        return jsonify(export_data)
-        
-    except Exception as e:
-        logger.error(f"Export all jobs error: {e}")
-        return ResponseHandler.error_response(f"Error exporting jobs: {str(e)}")
-
-
-@batch_bp.route("/api/status")
-def api_status():
-    """Get batch system status."""
-    try:
-        batch_service = ServiceLocator.get_batch_service()
-        if not batch_service:
-            return ResponseHandler.error_response("Batch service not available")
-        
-        stats = batch_service.get_detailed_statistics()
-        
-        return ResponseHandler.success_response(stats, "Status retrieved")
-        
-    except Exception as e:
-        logger.error(f"API status error: {e}")
-        return ResponseHandler.error_response(f"Error getting status: {str(e)}")
-
-
-# ===========================
-# DOCKER ROUTES
-# ===========================
-
-@docker_bp.route("/")
-def docker_overview():
-    """Docker management overview."""
-    try:
-        docker_manager = ServiceLocator.get_docker_manager()
-        
-        # Get Docker info
-        docker_available = False
-        docker_info = {}
-        docker_version = {}
-        
-        if docker_manager:
-            try:
-                docker_info = docker_manager.client.info()
-                docker_version = docker_manager.client.version()
-                docker_available = True
-            except Exception:
-                pass
-        
-        # Get container statistics
-        all_apps = AppDataProvider.get_all_apps()
-        container_stats = {
-            'total_apps': len(all_apps),
-            'running': sum(1 for app in all_apps if app.get('status') == 'running'),
-            'stopped': sum(1 for app in all_apps if app.get('status') != 'running'),
-            'models': len(set(app['model'] for app in all_apps))
-        }
-        
-        context = {
-            'docker_available': docker_available,
-            'docker_info': docker_info,
-            'docker_version': docker_version,
-            'container_stats': container_stats,
-            'recent_apps': all_apps[:10]
-        }
-        
-        return ResponseHandler.render_response("docker_overview.html", **context)
-        
-    except Exception as e:
-        logger.error(f"Docker overview error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@docker_bp.route("/<action>/<model>/<int:app_num>", methods=["POST"])
-def docker_action(action: str, model: str, app_num: int):
-    """Handle Docker action."""
-    return container_action(model, app_num, action)  # Reuse API handler
-
-
-@docker_bp.route("/bulk-action", methods=["POST"])
-def bulk_docker_action():
-    """Handle bulk Docker actions."""
-    try:
-        action = request.form.get('action')
-        if not action:
-            return ResponseHandler.error_response("No action specified", 400)
-        
-        valid_actions = ['start', 'stop', 'restart', 'cleanup']
-        if action not in valid_actions:
-            return ResponseHandler.error_response(f"Invalid action: {action}", 400)
-        
-        # Parse filters
-        model_filter = request.form.get('model_filter', '').strip()
-        app_range = request.form.get('app_range', '1-30').strip()
-        
-        # Parse app range
-        if '-' in app_range:
-            start, end = map(int, app_range.split('-'))
-            app_numbers = list(range(start, end + 1))
-        else:
-            app_numbers = [int(app_range)]
-        
-        # Get matching apps
-        apps = []
-        for model in ModelCapability.query.all():
-            if model_filter and model_filter not in model.canonical_slug:
-                continue
-            for app_num in app_numbers:
-                apps.append((model.canonical_slug, app_num))
-        
-        # Execute bulk action
-        result = DockerOperations.bulk_action(action, apps[:20])  # Limit for safety
-        
-        context = {
-            'action': action,
-            'results': result['results'],
-            'total_attempted': result['total'],
-            'successful': result['successful'],
-            'failed': result['failed']
-        }
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/bulk_action_results.html", **context)
-        
-        return ResponseHandler.success_response(data=context)
-        
-    except Exception as e:
-        logger.error(f"Bulk action error: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-# ===========================
-# ERROR HANDLERS
-# ===========================
-
-@main_bp.errorhandler(404)
-def not_found_error(error):
-    """Handle 404 errors."""
-    return ResponseHandler.error_response("Page not found", 404)
-
-
-@main_bp.errorhandler(500)
-def internal_error(error):
-    """Handle 500 errors."""
-    logger.error(f"Internal error: {error}")
-    
-    # Avoid template rendering for specific errors that might cause template issues
-    error_str = str(error)
-    if 'strftime' in error_str or 'template' in error_str.lower():
-        if request.headers.get('HX-Request') == 'true':
-            return f'<div class="alert alert-danger">Server Error: {error_str}</div>', 500
-        else:
-            return jsonify({'success': False, 'error': error_str}), 500
-    
-    return ResponseHandler.error_response("Internal server error", 500)
-
-
-# ===========================
-# TEMPLATE HELPERS
-# ===========================
-
-def register_template_helpers(app):
-    """Register Jinja2 template helpers."""
-    
-    @app.template_filter('format_datetime')
-    def format_datetime(value):
-        """Format datetime for display."""
-        try:
-            if not value:
-                return ''
-            
-            # If it's already a string, just return it (might be pre-formatted)
-            if isinstance(value, str):
-                # Try to parse it, but if it fails, just return the string
-                try:
-                    if 'T' in value:
-                        parsed_dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                        return parsed_dt.strftime('%Y-%m-%d %H:%M:%S')
-                    else:
-                        # Assume it's already formatted
-                        return value
-                except (ValueError, TypeError):
-                    # If parsing fails, return the original string
-                    return str(value)
-            
-            # If it's a datetime object, format it
-            if hasattr(value, 'strftime'):
-                return value.strftime('%Y-%m-%d %H:%M:%S')
-            
-            # Fallback - convert to string
-            return str(value)
-            
-        except Exception as e:
-            # Ultimate fallback
-            return str(value) if value else ''
-    
-    @app.template_filter('format_duration')
-    def format_duration(seconds):
-        """Format duration in seconds to human readable."""
-        if not seconds:
-            return '0s'
-        
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        
-        parts = []
-        if hours:
-            parts.append(f"{hours}h")
-        if minutes:
-            parts.append(f"{minutes}m")
-        if secs or not parts:
-            parts.append(f"{secs}s")
-        
-        return ' '.join(parts)
-    
-    @app.template_filter('to_datetime')
-    def to_datetime(value):
-        """Convert string to datetime object."""
-        if isinstance(value, str):
-            try:
-                return datetime.fromisoformat(value)
-            except ValueError:
-                return None
-        return value
-    
-    @app.template_filter('url_encode_model')
-    def url_encode_model(model_name):
-        """Encode model name for safe use in URLs."""
-        if not model_name:
-            return ''
-        # For Flask routes, we need to ensure special characters are URL-encoded
-        import urllib.parse
-        return urllib.parse.quote(model_name, safe='')
-    
-    @app.template_filter('model_display_name')
-    def model_display_name(model_slug):
-        """Convert model slug to display name."""
-        if not model_slug:
-            return ''
-        
-        # Try to get the actual model from database for more accurate display name
-        try:
-            model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
-            if model and model.model_name:
-                # Use the model_name from database and improve it
-                display_name = model.model_name
-                
-                # Common transformations for better display names
-                display_name = display_name.replace('-', ' ').replace('_', ' ')
-                
-                # Handle specific patterns
-                if 'claude' in display_name.lower():
-                    # Claude models: claude-3.7-sonnet -> Claude 3.7 Sonnet
-                    if 'claude' in display_name and not display_name.startswith('Claude'):
-                        display_name = display_name.replace('claude', 'Claude')
-                
-                # Handle version patterns like gpt-4.1 -> GPT-4.1
-                if 'gpt' in display_name.lower():
-                    display_name = display_name.upper().replace('GPT', 'GPT-')
-                    if 'GPT--' in display_name:
-                        display_name = display_name.replace('GPT--', 'GPT-')
-                
-                # Handle other common patterns
-                display_name = display_name.replace('gemini', 'Gemini')
-                display_name = display_name.replace('qwen', 'Qwen')
-                display_name = display_name.replace('deepseek', 'DeepSeek')
-                display_name = display_name.replace('mistral', 'Mistral')
-                
-                # Title case each word but preserve version numbers
-                words = display_name.split()
-                result_words = []
-                for word in words:
-                    if any(char.isdigit() for char in word) and ('.' in word or '-' in word):
-                        # Keep version numbers as-is
-                        result_words.append(word)
-                    else:
-                        # Title case regular words
-                        result_words.append(word.capitalize())
-                
-                return ' '.join(result_words)
-        except Exception:
-            # Fall back to simple transformation if database lookup fails
-            pass
-        
-        # Fallback: Simple transformation of the slug
-        # Convert underscores to spaces, handle hyphens carefully
-        display_name = model_slug.replace('_', ' ')
-        
-        # Split on spaces and improve each part
-        parts = display_name.split(' ')
-        result_parts = []
-        
-        for part in parts:
-            if 'claude' in part.lower():
-                part = part.replace('claude', 'Claude').replace('-', ' ')
-            elif 'gpt' in part.lower():
-                part = part.upper().replace('-', ' ')
-            elif 'gemini' in part.lower():
-                part = part.replace('gemini', 'Gemini').replace('-', ' ')
-            elif 'qwen' in part.lower():
-                part = part.replace('qwen', 'Qwen').replace('-', ' ')
-            elif 'deepseek' in part.lower():
-                part = part.replace('deepseek', 'DeepSeek').replace('-', ' ')
-            else:
-                part = part.title().replace('-', ' ')
-            
-            result_parts.append(part)
-        
-        return ' '.join(result_parts)
-    
-    @app.template_filter('safe_css_id')
-    def safe_css_id(value):
-        """Convert any string to a safe CSS ID by replacing problematic characters."""
-        if not value:
-            return ''
-        # Replace dots, hyphens, and other problematic characters with underscores
-        import re
-        # Replace any non-alphanumeric character (except underscore) with underscore
-        safe_id = re.sub(r'[^a-zA-Z0-9_]', '_', str(value))
-        # Ensure it starts with a letter or underscore (CSS requirement)
-        if safe_id and not safe_id[0].isalpha() and safe_id[0] != '_':
-            safe_id = 'id_' + safe_id
-        return safe_id
-    
-    @app.template_global()
-    def url_decode_model(encoded_model):
-        """Decode URL-encoded model name."""
-        if not encoded_model:
-            return ''
-        import urllib.parse
-        return urllib.parse.unquote(encoded_model)
-    
-    @app.template_global()
-    def is_htmx():
-        """Check if current request is from HTMX."""
-        return ResponseHandler.is_htmx_request()
-    
-    @app.template_global()
-    def get_app_url(model, app_num):
-        """Generate app URL."""
-        try:
-            port_config = AppDataProvider.get_port_config(model, app_num)
-            return f"http://localhost:{port_config['frontend_port']}"
-        except Exception:
-            return None
-
 
 # ===========================
 # PERFORMANCE & SECURITY ANALYSIS ROUTES
@@ -3766,14 +2968,16 @@ def _run_containerized_security_analysis(model, app_num):
 
 
 def _run_legacy_security_analysis(model, app_num):
-    """Legacy security analysis is no longer available - use containerized services."""
-    return jsonify({
-        'success': False,
-        'error': 'Legacy security analysis service has been removed. Please use containerized testing services.',
-        'recommendation': 'Deploy containerized services with: python testing-infrastructure/manage.py start'
-    }), 503
-    """Run CLI security analysis on specified app."""
+    """Run CLI security analysis on specified app (fallback when containerized not available)."""
     try:
+        # Check if UnifiedCLIAnalyzer is available
+        if not UnifiedCLIAnalyzer or not ToolCategory:
+            return jsonify({
+                'success': False,
+                'error': 'CLI Analysis tools not available. Please ensure unified_cli_analyzer is installed.',
+                'recommendation': 'Install the required dependencies or use containerized testing services.'
+            }), 503
+        
         logger.info(f"Starting CLI security analysis for {model} app {app_num}")
         
         # Check for "use all tools" option
@@ -3806,9 +3010,6 @@ def _run_legacy_security_analysis(model, app_num):
         # Initialize with base path (misc/models directory)
         base_path = Path(current_app.root_path).parent / "misc" / "models"
         cli_analyzer = UnifiedCLIAnalyzer(base_path)
-        
-        # Get application info
-        app_info = AppDataProvider.get_app_info(model, app_num)
         
         # Check if application directory exists
         app_dir = base_path / model / f"app{app_num}"
@@ -4007,165 +3208,9 @@ def get_analysis_results(model, app_num):
         return jsonify({'error': str(e)}), 500
 
 
-@api_bp.route("/analysis/<model>/<int:app_num>/export", methods=["GET"])
-def export_analysis_results(model, app_num):
-    """Export analysis results as JSON."""
-    try:
-        # Get the most recent SecurityAnalysis record
-        analysis = db.session.query(SecurityAnalysis)\
-            .join(GeneratedApplication)\
-            .filter(GeneratedApplication.model_slug == model,
-                   GeneratedApplication.app_number == app_num)\
-            .order_by(SecurityAnalysis.created_at.desc())\
-            .first()
-        
-        if not analysis:
-            return jsonify({'error': 'No analysis results found'}), 404
-        
-        # Prepare export data
-        export_data = {
-            'model': model,
-            'app_number': app_num,
-            'analysis_id': analysis.id,
-            'created_at': analysis.created_at.isoformat(),
-            'status': analysis.status,
-            'total_issues': analysis.total_issues,
-            'severity_counts': {
-                'critical': analysis.critical_severity_count,
-                'high': analysis.high_severity_count,
-                'medium': analysis.medium_severity_count,
-                'low': analysis.low_severity_count
-            },
-            'enabled_tools': analysis.get_enabled_tools(),
-            'results': analysis.get_results()
-        }
-        
-        # Create response with JSON download
-        response = make_response(jsonify(export_data))
-        response.headers['Content-Disposition'] = f'attachment; filename=analysis_{model}_app{app_num}_{analysis.created_at.strftime("%Y%m%d_%H%M%S")}.json'
-        response.headers['Content-Type'] = 'application/json'
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error exporting analysis results: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@api_bp.route("/analysis/<model>/<int:app_num>/zap", methods=["POST"])
-def run_zap_scan(model, app_num):
-    """Run ZAP security scan on specified app."""
-    try:
-        logger.info(f"Starting ZAP scan for {model} app {app_num}")
-        
-        # Get scan type
-        scan_type = request.form.get('scan_type', 'spider')
-        
-        # Get ZAP service
-        zap_service = ServiceLocator.get_service('zap_service')
-        if not zap_service:
-            return jsonify({'error': 'ZAP service not available'}), 503
-        
-        # Run the scan
-        results = zap_service.run_zap_scan(
-            model=model,
-            app_num=app_num,
-            scan_type=scan_type
-        )
-        
-        if results['success']:
-            vulnerabilities = results.get('data', {}).get('vulnerabilities', [])
-            return render_template("partials/zap_scan_completed.html", 
-                                 vulnerabilities=vulnerabilities)
-        else:
-            return render_template("partials/zap_scan_failed.html", 
-                                 error=results.get('error', 'Unknown error'))
-            
-    except Exception as e:
-        logger.error(f"ZAP scan error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@api_bp.route("/analysis/<model>/<int:app_num>/status/<test_id>")
-def get_analysis_status(model, app_num, test_id):
-    """Get status of containerized analysis test."""
-    try:
-        # Get testing client from scan manager
-        scan_manager = ServiceLocator.get_service('scan_manager')
-        if not scan_manager or not hasattr(scan_manager, 'testing_client'):
-            return jsonify({'error': 'Testing client not available'}), 503
-        
-        # Check test status
-        status = scan_manager.testing_client.get_test_status(test_id, 'security')
-        
-        if status in ['completed', 'failed']:
-            # Get results
-            result = scan_manager.testing_client.get_test_result(test_id, 'security')
-            
-            if result and status == 'completed':
-                issues = result.get('issues', [])
-                return render_template("partials/security_analysis_complete.html", 
-                                     total_issues=result.get('total_issues', 0),
-                                     test_id=test_id,
-                                     issues=issues)
-            elif status == 'failed':
-                return render_template("partials/security_analysis_test_failed.html", 
-                                     test_id=test_id,
-                                     error=result.get('error_message', 'Unknown error') if result else 'No error details available')
-        else:
-            # Still running
-            return render_template('partials/security_analysis_running.html',
-                                 status=status,
-                                 test_id=test_id,
-                                 model=model,
-                                 app_num=app_num)
-        
-    except Exception as e:
-        logger.error(f"Failed to get analysis status: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@api_bp.route("/status/<model>/<int:app_num>")
-def get_app_status_api(model, app_num):
-    """Get app status for HTMX updates."""
-    try:
-        # Get container status
-        docker_service = ServiceLocator.get_docker_manager()
-        if not docker_service:
-            return render_template('partials/docker_service_unavailable.html')
-        
-        # Get port configuration
-        app_info = AppDataProvider.get_app_info(model, app_num)
-        if not app_info:
-            return render_template('partials/app_info_not_found.html')
-        
-        # Check container status
-        frontend_status = docker_service.get_container_status(
-            model, app_num, 'frontend', app_info['frontend_port']
-        )
-        backend_status = docker_service.get_container_status(
-            model, app_num, 'backend', app_info['backend_port']
-        )
-        
-        return render_template('partials/container_status_display.html',
-                             frontend_status=frontend_status, backend_status=backend_status)
-        
-    except Exception as e:
-        logger.error(f"Status check error: {e}")
-        return render_template('partials/status_check_failed.html')
-
-
 # ===========================
 # BATCH API ENDPOINTS (For HTMX compatibility)
 # ===========================
-
-@api_bp.route("/batch/jobs")
-def api_batch_jobs():
-    """Get list of batch jobs (HTMX compatible endpoint) - REMOVED - USE BATCH ROUTES INSTEAD."""
-    return jsonify({
-        'error': 'This endpoint has been moved. Use /api/batch/jobs instead.',
-        'redirect': '/api/batch/jobs'
-    }), 301
-
 
 # Rate limiting cache for batch stats endpoint - per client
 _batch_stats_clients = {}
@@ -4224,97 +3269,6 @@ def api_batch_stats():
         
     except Exception as e:
         logger.error(f"Error getting batch stats: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@batch_bp.route("/api/create", methods=["POST"])
-def api_create_batch_job():
-    """Redirect to the new endpoint."""
-    return ResponseHandler.api_response(
-        success=False,
-        error="This endpoint has been moved. Use /api/batch/jobs instead.",
-        message="Please use the new batch job creation endpoint"
-    )
-
-
-@api_bp.route("/batch/jobs/<job_id>/start", methods=["POST"])
-def api_start_batch_job(job_id: str):
-    """Start a batch job (HTMX compatible endpoint)."""
-    try:
-        from models import BatchJob, JobStatus
-        from extensions import db
-        
-        job = BatchJob.query.get_or_404(job_id)
-        
-        if job.status != JobStatus.PENDING:
-            return ResponseHandler.error_response(f"Job {job_id} is not in pending status")
-        
-        # Update job status
-        job.status = JobStatus.RUNNING
-        job.started_at = datetime.utcnow()
-        db.session.commit()
-        
-        # TODO: Start actual job processing with BatchAnalysisService
-        
-        return ResponseHandler.success_response(
-            message=f"Job {job_id} started successfully"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error starting batch job {job_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@api_bp.route("/batch/jobs/<job_id>/stop", methods=["POST"])
-def api_stop_batch_job(job_id: str):
-    """Stop a batch job (HTMX compatible endpoint)."""
-    try:
-        from models import BatchJob, JobStatus
-        from extensions import db
-        
-        job = BatchJob.query.get_or_404(job_id)
-        
-        if job.status != JobStatus.RUNNING:
-            return ResponseHandler.error_response(f"Job {job_id} is not running")
-        
-        # Update job status
-        job.status = JobStatus.CANCELLED
-        job.completed_at = datetime.utcnow()
-        db.session.commit()
-        
-        # TODO: Stop actual job processing
-        
-        return ResponseHandler.success_response(
-            message=f"Job {job_id} stopped successfully"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error stopping batch job {job_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@api_bp.route("/batch/jobs/<job_id>", methods=["DELETE"])
-def api_delete_batch_job(job_id: str):
-    """Delete a batch job (HTMX compatible endpoint)."""
-    try:
-        from models import BatchJob
-        from extensions import db
-        
-        job = BatchJob.query.get_or_404(job_id)
-        
-        # Delete associated tasks first (cascade should handle this, but be explicit)
-        for task in job.tasks:
-            db.session.delete(task)
-        
-        db.session.delete(job)
-        db.session.commit()
-        
-        return ResponseHandler.success_response(
-            message=f"Job {job_id} deleted successfully"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error deleting batch job {job_id}: {e}")
         return ResponseHandler.error_response(str(e))
 
 
@@ -4415,624 +3369,268 @@ def api_create_batch_testing_job():
         return ResponseHandler.error_response(str(e))
 
 
-@batch_testing_bp.route("/api/job/<job_id>/details")
-def api_get_job_details(job_id: str):
-    """Get detailed information about a batch job."""
-    try:
-        service = get_batch_testing_service()
-        job = service.get_job_details(job_id)
-        
-        if not job:
-            return ResponseHandler.error_response("Job not found", 404)
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/batch_job_details.html", job=job)
-        
-        return ResponseHandler.success_response(data=job)
-        
-    except Exception as e:
-        logger.error(f"Error getting job details for {job_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@batch_testing_bp.route("/api/job/<job_id>/results")
-def api_get_job_results(job_id: str):
-    """Get comprehensive results for a completed job."""
-    try:
-        service = get_batch_testing_service()
-        results = service.get_job_results(job_id)
-        
-        if not results:
-            return ResponseHandler.error_response("Job not found or not completed", 404)
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/batch_job_results.html", results=results)
-        
-        return ResponseHandler.success_response(data=results)
-        
-    except Exception as e:
-        logger.error(f"Error getting job results for {job_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@batch_testing_bp.route("/api/job/<job_id>/start", methods=["POST"])
-def api_start_job(job_id: str):
-    """Start execution of a batch job."""
-    try:
-        service = get_batch_testing_service()
-        result = service.start_job(job_id)
-        
-        if result['success']:
-            return ResponseHandler.success_response(message=result['message'])
-        else:
-            return ResponseHandler.error_response(result['error'])
-        
-    except Exception as e:
-        logger.error(f"Error starting job {job_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@batch_testing_bp.route("/api/job/<job_id>/cancel", methods=["POST"])
-def api_cancel_job(job_id: str):
-    """Cancel a running batch job."""
-    try:
-        service = get_batch_testing_service()
-        result = service.cancel_job(job_id)
-        
-        if result['success']:
-            return ResponseHandler.success_response(message=result['message'])
-        else:
-            return ResponseHandler.error_response(result['error'])
-        
-    except Exception as e:
-        logger.error(f"Error cancelling job {job_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@batch_testing_bp.route("/api/job/<job_id>/delete", methods=["DELETE"])
-def api_delete_job(job_id: str):
-    """Delete a batch job."""
-    try:
-        service = get_batch_testing_service()
-        result = service.delete_job(job_id)
-        
-        if result['success']:
-            return ResponseHandler.success_response(message=result['message'])
-        else:
-            return ResponseHandler.error_response(result['error'])
-        
-    except Exception as e:
-        logger.error(f"Error deleting job {job_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@batch_testing_bp.route("/api/models")
-def api_get_available_models():
-    """Get list of available models for batch testing."""
-    try:
-        service = get_batch_testing_service()
-        models = service.get_available_models()
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/batch_model_selection.html", models=models)
-        
-        return ResponseHandler.success_response(data=models)
-        
-    except Exception as e:
-        logger.error(f"Error getting available models: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
 # ===========================
-# TESTING INFRASTRUCTURE ROUTES
+# DOCKER ROUTES
 # ===========================
 
-testing_bp = Blueprint("testing", __name__, url_prefix="/testing")
-
-@testing_bp.route("/")
-def testing_dashboard():
-    """Security testing dashboard page."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        # Get basic stats for dashboard
-        all_jobs = service.get_all_jobs()
-        stats = {
-            'total_jobs': len(all_jobs),
-            'running_jobs': len([j for j in all_jobs if j['status'] == 'running']),
-            'completed_jobs': len([j for j in all_jobs if j['status'] == 'completed']),
-            'total_issues': sum(j.get('total_issues', 0) for j in all_jobs if j['status'] == 'completed'),
-            'analyzed_apps': len(set((j.get('model'), j.get('app_num')) for j in all_jobs if j['status'] == 'completed'))
-        }
-        
-        return ResponseHandler.render_response("batch_testing.html", stats=stats)
-        
-    except Exception as e:
-        logger.error(f"Error loading testing dashboard: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/health")
-def api_get_infrastructure_health():
-    """Get testing infrastructure health status."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        health_data = service.get_service_health()
-        return ResponseHandler.success_response(data=health_data)
-        
-    except Exception as e:
-        logger.error(f"Error getting infrastructure health: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/tools")
-def api_get_available_tools():
-    """Get information about available security testing tools."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        tools_data = service.get_available_tools()
-        return ResponseHandler.success_response(data=tools_data)
-        
-    except Exception as e:
-        logger.error(f"Error getting available tools: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/jobs")
-def api_get_testing_jobs():
-    """Get list of testing jobs with optional filtering."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        status_filter = request.args.get('status')
-        test_type_filter = request.args.get('test_type')
-        model_filter = request.args.get('model')
-        
-        jobs = service.get_all_jobs(status_filter)
-        
-        # Apply additional filters
-        if test_type_filter:
-            jobs = [j for j in jobs if j.get('test_type') == test_type_filter]
-        if model_filter:
-            jobs = [j for j in jobs if j.get('model') == model_filter]
-        
-        # Always return JSON data since partials are no longer used
-        return ResponseHandler.success_response(data=jobs)
-        
-    except Exception as e:
-        logger.error(f"Error getting testing jobs: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/create", methods=["POST"])
-def api_create_testing_job():
-    """Create a new security testing job."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        test_type = request.form.get('test_type')
-        
-        if test_type == 'security_analysis':
-            result = service.create_security_analysis_job({
-                'model': request.form.get('model'),
-                'app_num': request.form.get('app_num'),
-                'tools': request.form.getlist('tools'),
-                'scan_depth': request.form.get('scan_depth', 'standard'),
-                'include_dependencies': request.form.get('include_dependencies') == 'on',
-                'tool_options': {
-                    'bandit': {
-                        'severity': request.form.get('bandit_severity', 'MEDIUM'),
-                        'confidence': request.form.get('bandit_confidence', 'MEDIUM'),
-                        'skip': request.form.get('bandit_skip', '')
-                    },
-                    'safety': {
-                        'apply_fixes': request.form.get('safety_apply_fixes') == 'on',
-                        'detailed': request.form.get('safety_detailed') == 'on',
-                        'ignore': request.form.get('safety_ignore', '')
-                    },
-                    'pylint': {
-                        'types': request.form.getlist('pylint_types'),
-                        'disable': request.form.get('pylint_disable', '')
-                    },
-                    'semgrep': {
-                        'config': request.form.get('semgrep_config', 'auto'),
-                        'max_memory': request.form.get('semgrep_max_memory', '2000'),
-                        'timeout': request.form.get('semgrep_timeout', '30')
-                    },
-                    'eslint': {
-                        'config': request.form.get('eslint_config', 'recommended'),
-                        'fix': request.form.get('eslint_fix') == 'on',
-                        'max_warnings': request.form.get('eslint_max_warnings', '50')
-                    },
-                    'retire': {
-                        'severity': request.form.get('retire_severity', 'medium'),
-                        'include_dev': request.form.get('retire_include_dev') == 'on'
-                    },
-                    'npm_audit': {
-                        'level': request.form.get('npm_audit_level', 'moderate'),
-                        'production': request.form.get('npm_production') == 'on',
-                        'fix': request.form.get('npm_fix') == 'on'
-                    }
-                }
-            })
-            
-        elif test_type == 'zap_scan':
-            zap_options = {
-                'scan_type': request.form.get('zap_scan_type', 'spider')
-            }
-            
-            # Add scan-specific options
-            scan_type = request.form.get('zap_scan_type', 'spider')
-            if scan_type == 'spider':
-                zap_options.update({
-                    'max_depth': request.form.get('zap_max_depth', '5'),
-                    'max_children': request.form.get('zap_max_children', '100'),
-                    'recurse': request.form.get('zap_recurse') == 'on'
-                })
-            elif scan_type == 'active':
-                zap_options.update({
-                    'strength': request.form.get('zap_strength', 'Medium'),
-                    'max_rule_duration': request.form.get('zap_max_rule_duration', '5'),
-                    'in_scope_only': request.form.get('zap_in_scope_only') == 'on'
-                })
-            elif scan_type == 'baseline':
-                zap_options.update({
-                    'duration': request.form.get('zap_duration', '10'),
-                    'level': request.form.get('zap_level', 'Warn')
-                })
-            elif scan_type == 'passive':
-                zap_options.update({
-                    'max_alerts': request.form.get('zap_max_alerts', '1000'),
-                    'context_name': request.form.get('zap_context_name', '')
-                })
-            
-            result = service.create_zap_scan_job({
-                'model': request.form.get('model'),
-                'app_num': request.form.get('app_num'),
-                'target_url': request.form.get('target_url'),
-                'scan_type': scan_type,
-                'scan_options': zap_options
-            })
-            
-        elif test_type == 'performance_test':
-            result = service.create_performance_test_job({
-                'model': request.form.get('model'),
-                'app_num': request.form.get('app_num'),
-                'target_url': request.form.get('performance_target_url'),
-                'users': request.form.get('performance_users', '10'),
-                'spawn_rate': request.form.get('performance_spawn_rate', '2'),
-                'duration': request.form.get('performance_duration', '60')
-            })
-            
-        else:
-            return ResponseHandler.error_response("Invalid test type")
-        
-        if result['success']:
-            return ResponseHandler.success_response(
-                data={'job_id': result['job_id']},
-                message=result['message']
-            )
-        else:
-            return ResponseHandler.error_response(result['error'])
-        
-    except Exception as e:
-        logger.error(f"Error creating testing job: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/test/<test_id>/details")
-def api_get_test_details(test_id: str):
-    """Get detailed information about a test."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        result = service.get_job_status(test_id)
-        
-        if not result['success']:
-            return ResponseHandler.error_response(result['error'], 404)
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/security_test_details.html", test=result['job'])
-        
-        return ResponseHandler.success_response(data=result['job'])
-        
-    except Exception as e:
-        logger.error(f"Error getting test details for {test_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/test/<test_id>/results")
-def api_get_test_results(test_id: str):
-    """Get comprehensive results for a completed test."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        result = service.get_job_result(test_id)
-        
-        if not result['success']:
-            return ResponseHandler.error_response(result['error'], 404)
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/security_test_results.html", results=result['result'])
-        
-        return ResponseHandler.success_response(data=result['result'])
-        
-    except Exception as e:
-        logger.error(f"Error getting test results for {test_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/test/<test_id>/cancel", methods=["POST"])
-def api_cancel_test(test_id: str):
-    """Cancel a running test."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        result = service.cancel_job(test_id)
-        
-        if result['success']:
-            return ResponseHandler.success_response(message=result['message'])
-        else:
-            return ResponseHandler.error_response(result['error'])
-        
-    except Exception as e:
-        logger.error(f"Error cancelling test {test_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/infrastructure-status")
-def api_get_infrastructure_status():
-    """Get detailed infrastructure status for modal display."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        health_data = service.get_service_health()
-        tools_data = service.get_available_tools()
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/infrastructure_status_details.html", 
-                                 health=health_data, tools=tools_data)
-        
-        return ResponseHandler.success_response(data={'health': health_data, 'tools': tools_data})
-        
-    except Exception as e:
-        logger.error(f"Error getting infrastructure status: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/test/<test_id>/logs")
-def api_get_test_logs(test_id: str):
-    """Get live logs from a running test."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        result = service.get_job_status(test_id)
-        
-        if not result['success']:
-            return ResponseHandler.error_response(result['error'], 404)
-        
-        test_data = result['job']
-        live_logs = test_data.get('live_logs', [])
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/test_live_logs.html", logs=live_logs)
-        
-        return ResponseHandler.success_response(data={'logs': live_logs})
-        
-    except Exception as e:
-        logger.error(f"Error getting test logs for {test_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/test/<test_id>/metrics")
-def api_get_test_metrics(test_id: str):
-    """Get live resource metrics from a running test."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        result = service.get_job_status(test_id)
-        
-        if not result['success']:
-            return ResponseHandler.error_response(result['error'], 404)
-        
-        test_data = result['job']
-        metrics = test_data.get('resource_usage', {})
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/test_metrics.html", metrics=metrics, test=test_data)
-        
-        return ResponseHandler.success_response(data={'metrics': metrics})
-        
-    except Exception as e:
-        logger.error(f"Error getting test metrics for {test_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/test/<test_id>/live-metrics")
-def api_get_live_metrics(test_id: str):
-    """Get comprehensive live metrics dashboard for a test."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        result = service.get_job_status(test_id)
-        
-        if not result['success']:
-            return ResponseHandler.error_response(result['error'], 404)
-        
-        test_data = result['job']
-        
-        # Compile comprehensive metrics
-        metrics_data = {
-            'test': test_data,
-            'progress': test_data.get('progress', {}),
-            'resource_usage': test_data.get('resource_usage', {}),
-            'live_logs': test_data.get('live_logs', [])[-20:],  # Last 20 log entries
-            'performance_stats': {
-                'runtime_seconds': test_data.get('runtime_seconds', 0),
-                'files_processed': test_data.get('progress', {}).get('items_processed', 0),
-                'issues_found': test_data.get('findings_count', 0),
-                'tools_running': len(test_data.get('tools', []))
-            }
-        }
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/live_metrics_dashboard.html", **metrics_data)
-        
-        return ResponseHandler.success_response(data=metrics_data)
-        
-    except Exception as e:
-        logger.error(f"Error getting live metrics for {test_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/test/<test_id>/status")
-def api_get_test_status_only(test_id: str):
-    """Get just the status of a test for quick updates."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        service = get_testing_infrastructure_service()
-        
-        result = service.get_job_status(test_id)
-        
-        if not result['success']:
-            return ResponseHandler.error_response(result['error'], 404)
-        
-        test_data = result['job']
-        status_info = {
-            'status': test_data.get('status'),
-            'progress_percentage': test_data.get('progress', {}).get('percentage', 0),
-            'current_stage': test_data.get('progress', {}).get('current_stage'),
-            'runtime_seconds': test_data.get('runtime_seconds', 0)
-        }
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/test_status_badge.html", test=test_data)
-        
-        return ResponseHandler.success_response(data=status_info)
-        
-    except Exception as e:
-        logger.error(f"Error getting test status for {test_id}: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-@testing_bp.route("/api/models")
-def api_get_models():
-    """Get list of available AI models from database."""
-    try:
-        from models import ModelCapability
-        
-        # Get all models from database
-        models = ModelCapability.query.all()
-        
-        models_data = []
-        for model in models:
-            models_data.append({
-                'id': model.canonical_slug,
-                'name': model.model_name,
-                'provider': model.provider,
-                'display_name': f"{model.provider} - {model.model_name}",
-                'slug': model.canonical_slug
-            })
-        
-        # Sort by provider then by name
-        models_data.sort(key=lambda x: (x['provider'], x['name']))
-        
-        return ResponseHandler.success_response(data=models_data)
-        
-    except Exception as e:
-        logger.error(f"Error getting models from database: {e}")
-        return ResponseHandler.error_response(str(e))
-
-
-# ===========================
-# MAIN API ENDPOINTS
-# ===========================
-
-@api_bp.route("/docker/status")
-def api_docker_status():
-    """Get Docker service status information."""
+@docker_bp.route("/")
+def docker_overview():
+    """Docker management overview."""
     try:
         docker_manager = ServiceLocator.get_docker_manager()
         
-        if not docker_manager:
-            return ResponseHandler.error_response("Docker manager not available")
+        # Get Docker info
+        docker_available = False
+        docker_info = {}
+        docker_version = {}
         
-        # Get Docker daemon status
-        try:
-            docker_info = docker_manager.client.info()
-            status = {
-                'status': 'running',
-                'containers_running': docker_info.get('ContainersRunning', 0),
-                'containers_total': docker_info.get('Containers', 0),
-                'images_count': docker_info.get('Images', 0),
-                'server_version': docker_info.get('ServerVersion', 'Unknown'),
-                'architecture': docker_info.get('Architecture', 'Unknown'),
-                'cpus': docker_info.get('NCPU', 0),
-                'memory_total': docker_info.get('MemTotal', 0)
-            }
-        except Exception as e:
-            status = {
-                'status': 'error',
-                'error': str(e),
-                'containers_running': 0,
-                'containers_total': 0
-            }
+        if docker_manager:
+            try:
+                docker_info = docker_manager.client.info()
+                docker_version = docker_manager.client.version()
+                docker_available = True
+            except Exception:
+                pass
         
-        return ResponseHandler.success_response(data=status)
+        # Get container statistics
+        all_apps = AppDataProvider.get_all_apps()
+        container_stats = {
+            'total_apps': len(all_apps),
+            'running': sum(1 for app in all_apps if app.get('status') == 'running'),
+            'stopped': sum(1 for app in all_apps if app.get('status') != 'running'),
+            'models': len(set(app['model'] for app in all_apps))
+        }
+        
+        context = {
+            'docker_available': docker_available,
+            'docker_info': docker_info,
+            'docker_version': docker_version,
+            'container_stats': container_stats,
+            'recent_apps': all_apps[:10]
+        }
+        
+        return ResponseHandler.render_response("docker_overview.html", **context)
         
     except Exception as e:
-        logger.error(f"Error getting Docker status: {e}")
+        logger.error(f"Docker overview error: {e}")
         return ResponseHandler.error_response(str(e))
 
 
-@api_bp.route("/test/status")
-def api_test_status():
-    """Get overall testing system status."""
-    try:
-        from testing_infrastructure_service import get_testing_infrastructure_service
-        testing_service = get_testing_infrastructure_service()
-        
-        if not testing_service:
-            return ResponseHandler.error_response("Testing service not available")
-        
-        # Get testing infrastructure status
+# ===========================
+# ERROR HANDLERS
+# ===========================
+
+@main_bp.errorhandler(404)
+def not_found_error(error):
+    """Handle 404 errors."""
+    return ResponseHandler.error_response("Page not found", 404)
+
+
+@main_bp.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors."""
+    logger.error(f"Internal error: {error}")
+    
+    # Avoid template rendering for specific errors that might cause template issues
+    error_str = str(error)
+    if 'strftime' in error_str or 'template' in error_str.lower():
+        if request.headers.get('HX-Request') == 'true':
+            return f'<div class="alert alert-danger">Server Error: {error_str}</div>', 500
+        else:
+            return jsonify({'success': False, 'error': error_str}), 500
+    
+    return ResponseHandler.error_response("Internal server error", 500)
+
+
+# ===========================
+# TEMPLATE HELPERS
+# ===========================
+
+def register_template_helpers(app):
+    """Register Jinja2 template helpers."""
+    
+    @app.template_filter('format_datetime')
+    def format_datetime(value):
+        """Format datetime for display."""
         try:
-            infra_status = testing_service.get_infrastructure_status()
-            test_summary = {
-                'infrastructure_status': infra_status.get('status', 'unknown'),
-                'services_available': infra_status.get('services_available', []),
-                'active_tests': len(infra_status.get('running_tests', [])),
-                'total_containers': infra_status.get('total_containers', 0),
-                'healthy_containers': infra_status.get('healthy_containers', 0)
-            }
-        except Exception as e:
-            test_summary = {
-                'infrastructure_status': 'error',
-                'error': str(e),
-                'active_tests': 0,
-                'total_containers': 0,
-                'healthy_containers': 0
-            }
+            if not value:
+                return ''
+            
+            # If it's already a string, just return it (might be pre-formatted)
+            if isinstance(value, str):
+                # Try to parse it, but if it fails, just return the string
+                try:
+                    if 'T' in value:
+                        parsed_dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        return parsed_dt.strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        # Assume it's already formatted
+                        return value
+                except (ValueError, TypeError):
+                    # If parsing fails, return the original string
+                    return str(value)
+            
+            # If it's a datetime object, format it
+            if hasattr(value, 'strftime'):
+                return value.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Fallback - convert to string
+            return str(value) if value else ''
+            
+        except Exception:
+            # Ultimate fallback
+            return str(value) if value else ''
+    
+    @app.template_filter('format_duration')
+    def format_duration(seconds):
+        """Format duration in seconds to human readable."""
+        if not seconds:
+            return '0s'
         
-        return ResponseHandler.success_response(data=test_summary)
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
         
-    except Exception as e:
-        logger.error(f"Error getting test status: {e}")
-        return ResponseHandler.error_response(str(e))
+        parts = []
+        if hours:
+            parts.append(f"{hours}h")
+        if minutes:
+            parts.append(f"{minutes}m")
+        if secs or not parts:
+            parts.append(f"{secs}s")
+        
+        return ' '.join(parts)
+    
+    @app.template_filter('to_datetime')
+    def to_datetime(value):
+        """Convert string to datetime object."""
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError:
+                return None
+        return value
+    
+    @app.template_filter('url_encode_model')
+    def url_encode_model(model_name):
+        """Encode model name for safe use in URLs."""
+        if not model_name:
+            return ''
+        # For Flask routes, we need to ensure special characters are URL-encoded
+        import urllib.parse
+        return urllib.parse.quote(model_name, safe='')
+    
+    @app.template_filter('model_display_name')
+    def model_display_name(model_slug):
+        """Convert model slug to display name."""
+        if not model_slug:
+            return ''
+        
+        # Try to get the actual model from database for more accurate display name
+        try:
+            model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+            if model and model.model_name:
+                # Use the model_name from database and improve it
+                display_name = model.model_name
+                
+                # Common transformations for better display names
+                display_name = display_name.replace('-', ' ').replace('_', ' ')
+                
+                # Handle specific patterns
+                if 'claude' in display_name.lower():
+                    # Claude models: claude-3.7-sonnet -> Claude 3.7 Sonnet
+                    if 'claude' in display_name and not display_name.startswith('Claude'):
+                        display_name = display_name.replace('claude', 'Claude')
+                
+                # Handle version patterns like gpt-4.1 -> GPT-4.1
+                if 'gpt' in display_name.lower():
+                    display_name = display_name.upper().replace('GPT', 'GPT-')
+                    if 'GPT--' in display_name:
+                        display_name = display_name.replace('GPT--', 'GPT-')
+                
+                # Handle other common patterns
+                display_name = display_name.replace('gemini', 'Gemini')
+                display_name = display_name.replace('qwen', 'Qwen')
+                display_name = display_name.replace('deepseek', 'DeepSeek')
+                display_name = display_name.replace('mistral', 'Mistral')
+                
+                # Title case each word but preserve version numbers
+                words = display_name.split()
+                result_words = []
+                for word in words:
+                    if any(char.isdigit() for char in word) and ('.' in word or '-' in word):
+                        # Keep version numbers as-is
+                        result_words.append(word)
+                    else:
+                        # Title case regular words
+                        result_words.append(word.capitalize())
+                
+                return ' '.join(result_words)
+        except Exception:
+            # Fall back to simple transformation if database lookup fails
+            pass
+        
+        # Fallback: Simple transformation of the slug
+        # Convert underscores to spaces, handle hyphens carefully
+        display_name = model_slug.replace('_', ' ')
+        
+        # Split on spaces and improve each part
+        parts = display_name.split(' ')
+        result_parts = []
+        
+        for part in parts:
+            if 'claude' in part.lower():
+                part = part.replace('claude', 'Claude').replace('-', ' ')
+            elif 'gpt' in part.lower():
+                part = part.upper().replace('-', ' ')
+            elif 'gemini' in part.lower():
+                part = part.replace('gemini', 'Gemini').replace('-', ' ')
+            elif 'qwen' in part.lower():
+                part = part.replace('qwen', 'Qwen').replace('-', ' ')
+            elif 'deepseek' in part.lower():
+                part = part.replace('deepseek', 'DeepSeek').replace('-', ' ')
+            else:
+                part = part.title().replace('-', ' ')
+            
+            result_parts.append(part)
+        
+        return ' '.join(result_parts)
+    
+    @app.template_filter('safe_css_id')
+    def safe_css_id(value):
+        """Convert any string to a safe CSS ID by replacing problematic characters."""
+        if not value:
+            return ''
+        # Replace dots, hyphens, and other problematic characters with underscores
+        import re
+        # Replace any non-alphanumeric character (except underscore) with underscore
+        safe_id = re.sub(r'[^a-zA-Z0-9_]', '_', str(value))
+        # Ensure it starts with a letter or underscore (CSS requirement)
+        if safe_id and not safe_id[0].isalpha() and safe_id[0] != '_':
+            safe_id = 'id_' + safe_id
+        return safe_id
+    
+    @app.template_global()
+    def url_decode_model(encoded_model):
+        """Decode URL-encoded model name."""
+        if not encoded_model:
+            return ''
+        import urllib.parse
+        return urllib.parse.unquote(encoded_model)
+    
+    @app.template_global()
+    def is_htmx():
+        """Check if current request is from HTMX."""
+        return ResponseHandler.is_htmx_request()
+    
+    @app.template_global()
+    def get_app_url(model, app_num):
+        """Generate app URL."""
+        try:
+            port_config = AppDataProvider.get_port_config(model, app_num)
+            return f"http://localhost:{port_config['frontend_port']}"
+        except Exception:
+            return None
 
 
 # ===========================
