@@ -208,9 +208,7 @@
                         Recent Generation Activity
                     </h6>
                     <button type="button" class="btn btn-outline-primary btn-sm"
-                            hx-get="/api/statistics/recent"
-                            hx-target="#recent-activity-table"
-                            hx-indicator="#recent-activity-loading">
+                            onclick="refreshRecentActivity()">
                         <i class="fas fa-sync-alt mr-1"></i>Refresh
                     </button>
                 </div>
@@ -313,8 +311,7 @@
                         Error Analysis
                     </h6>
                     <button type="button" class="btn btn-outline-warning btn-sm"
-                            hx-get="/api/statistics/errors"
-                            hx-target="#error-analysis-content">
+                            onclick="refreshErrorAnalysis()">
                         <i class="fas fa-sync-alt mr-1"></i>Refresh
                     </button>
                 </div>
@@ -511,24 +508,8 @@ class StatisticsOverview {
     }
 
     refreshStatistics() {
-        // Refresh main stats
-        htmx.ajax('GET', '/api/statistics/overview', {
-            target: '.stats-grid',
-            swap: 'innerHTML'
-        });
-
-        // Refresh chart data
-        htmx.ajax('GET', `/api/statistics/trends?range=${this.settings.timeRange}&group=${this.settings.groupBy}`, {
-            target: '#trends-chart-container',
-            swap: 'innerHTML'
-        }).then(() => {
-            this.initializeChart();
-        });
-
-        // Refresh recent activity
-        htmx.trigger('#recent-activity-table', 'refresh');
-
-        this.showToast('Statistics refreshed', 'success');
+        // Refresh by reloading the page for now
+        location.reload();
     }
 
     updateTimeRange() {
@@ -557,12 +538,8 @@ class StatisticsOverview {
     }
 
     refreshChartData() {
-        htmx.ajax('GET', `/api/statistics/trends?range=${this.settings.timeRange}&group=${this.settings.groupBy}`, {
-            target: '#trends-chart-container',
-            swap: 'innerHTML'
-        }).then(() => {
-            this.initializeChart();
-        });
+        // For now, reload the page to get updated chart data
+        location.reload();
     }
 
     showTrendMetric(metric) {
@@ -640,6 +617,30 @@ class StatisticsOverview {
 }
 
 // Global functions
+window.refreshErrorAnalysis = function() {
+    fetch('/api/statistics/errors')
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('error-analysis-content').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('error-analysis-content').innerHTML = 
+                '<div class="alert alert-danger">Error loading error analysis</div>';
+        });
+};
+
+window.refreshRecentActivity = function() {
+    fetch('/api/statistics/recent')
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('recent-activity-table').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('recent-activity-table').innerHTML = 
+                '<div class="alert alert-danger">Error loading recent activity</div>';
+        });
+};
+
 window.refreshStatistics = function() {
     statisticsOverview.refreshStatistics();
 };

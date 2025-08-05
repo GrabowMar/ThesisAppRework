@@ -18,9 +18,7 @@
         
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-primary btn-sm" 
-                    hx-get="/api/dashboard/refresh"
-                    hx-target="#dashboard-content"
-                    hx-indicator="#loading-overlay">
+                    onclick="dashboard.refreshDashboard()">
                 <i class="fas fa-sync-alt mr-1"></i>
                 Refresh
             </button>
@@ -68,7 +66,7 @@
             <div class="stats-card-icon">
                 <i class="fas fa-shield-alt"></i>
             </div>
-            <div class="stats-card-value" id="analyses-completed">
+            <div class="stats-card-value" id="active-analyses">
                 {{ summary_stats.analyzed_apps or 0 }}
             </div>
             <div class="stats-card-label">Analyses</div>
@@ -133,16 +131,28 @@
     <!-- Dashboard Content -->
     <div id="dashboard-content">
         <!-- Models Grid -->
-        <div id="models-grid" 
-             hx-get="/api/dashboard/models"
-             hx-trigger="load, refreshModels from:body"
-             hx-swap="innerHTML"
-             hx-indicator="#loading-overlay">
+        <div id="models-grid">
+            <!-- Loading state -->
+            <div id="models-loading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading models...</span>
+                </div>
+                <p class="mt-3 text-muted">Loading AI models...</p>
+            </div>
             
-            <!-- Loading State -->
-            <div class="text-center py-5">
-                <div class="spinner mb-3"></div>
-                <p class="text-muted">Loading AI models...</p>
+            <!-- Models will be loaded here via JavaScript -->
+            <div id="models-content" style="display: none;"></div>
+            
+            <!-- Empty state -->
+            <div id="models-empty" class="empty-state" style="display: none;">
+                <div class="empty-state-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <h5>No Models Found</h5>
+                <p class="text-muted">No AI models are currently configured in the system.</p>
+                <button class="btn btn-outline-primary" onclick="dashboard.loadModels()">
+                    <i class="fas fa-sync-alt mr-1"></i> Refresh
+                </button>
             </div>
         </div>
     </div>
@@ -180,11 +190,18 @@ class Dashboard {
     constructor() {
         this.autoRefreshInterval = null;
         this.refreshEnabled = false;
+        this.models = [];
+        this.currentFilters = {
+            status: '',
+            provider: '',
+            search: ''
+        };
         this.init();
     }
 
     init() {
         this.setupEventListeners();
+        this.loadModels();
         this.setupAutoRefresh();
         this.setupKeyboardShortcuts();
     }
@@ -203,21 +220,405 @@ class Dashboard {
                 this.debounce(() => this.applyFilters(), 300)();
             }
         });
+    }
 
-        // HTMX events - only update stats when models grid is refreshed
-        document.addEventListener('htmx:afterRequest', (e) => {
-            if (e.detail.successful && e.target.id === 'models-grid') {
-                // Only update stats when the models grid is refreshed, not on every request
-                this.updateStatsFromGrid();
+    async loadModels() {
+        try {
+            this.showLoadingState();
+            
+            const response = await fetch('/api/dashboard/models');
+            const data = await response.json();
+            
+            if (data.success && data.data.models.length > 0) {
+                this.models = data.data.models;
+                this.renderModels(this.models);
+                this.updateStats();
+            } else {
+                this.showEmptyState();
             }
+        } catch (error) {
+            console.error('Error loading models:', error);
+            this.showEmptyState();
+            this.showToast('Failed to load models', 'danger');
+        }
+    }
+
+    showLoadingState() {
+        document.getElementById('models-loading').style.display = 'block';
+        document.getElementById('models-content').style.display = 'none';
+        document.getElementById('models-empty').style.display = 'none';
+    }
+
+    showEmptyState() {
+        document.getElementById('models-loading').style.display = 'none';
+        document.getElementById('models-content').style.display = 'none';
+        document.getElementById('models-empty').style.display = 'block';
+    }
+
+    renderModels(models) {
+        const contentDiv = document.getElementById('models-content');
+        
+        if (models.length === 0) {
+            this.showEmptyState();
+            return;
+        }
+
+        let html = '<div class="row">';
+        
+        models.forEach(model => {
+            html += this.createModelCard(model);
         });
+        
+        html += '</div>';
+        
+        contentDiv.innerHTML = html;
+        
+        // Show content and hide loading/empty states
+        document.getElementById('models-loading').style.display = 'none';
+        document.getElementById('models-content').style.display = 'block';
+        document.getElementById('models-empty').style.display = 'none';
+    }
+
+    createModelCard(model) {
+        return `
+            <div class="col-12 mb-4">
+                <div class="card model-card" id="model-${model.slug}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1 font-weight-bold text-primary">
+                                ${model.name}
+                            </h6>
+                            <small class="text-muted">${model.provider}</small>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    onclick="dashboard.toggleAppsView('${model.slug}')"
+                                    title="Toggle apps view">
+                                <i class="fas fa-chevron-down" id="toggle-icon-${model.slug}"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <!-- Model Stats -->
+                        <div class="row mb-3">
+                            <div class="col-3">
+                                <div class="stat-item">
+                                    <div class="stat-value text-info">${model.total_apps || 30}</div>
+                                    <div class="stat-label">Apps</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-item">
+                                    <div class="stat-value text-success">${model.running_containers || 0}</div>
+                                    <div class="stat-label">Running</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-item">
+                                    <div class="stat-value text-secondary">${model.stopped_containers || 30}</div>
+                                    <div class="stat-label">Stopped</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-item">
+                                    <div class="stat-value text-danger">${model.error_containers || 0}</div>
+                                    <div class="stat-label">Errors</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Docker Management Actions -->
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="btn-group w-100" role="group">
+                                    <button type="button" class="btn btn-success btn-sm"
+                                            onclick="startAllContainers('${model.slug}')"
+                                            title="Start all containers for this model">
+                                        <i class="fas fa-play mr-1"></i>Start All
+                                    </button>
+                                    <button type="button" class="btn btn-warning btn-sm"
+                                            onclick="restartAllContainers('${model.slug}')"
+                                            title="Restart all containers for this model">
+                                        <i class="fas fa-redo mr-1"></i>Restart
+                                    </button>
+                                    <button type="button" class="btn btn-danger btn-sm"
+                                            onclick="stopAllContainers('${model.slug}')"
+                                            title="Stop all containers for this model">
+                                        <i class="fas fa-stop mr-1"></i>Stop All
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <a href="/models" class="btn btn-info btn-sm w-100"
+                                   title="View detailed model information">
+                                    <i class="fas fa-info-circle mr-1"></i>Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Apps Table (Initially Hidden) -->
+                    <div class="collapse" id="apps-content-${model.slug}">
+                        <div class="card-footer p-0">
+                            <div id="apps-table-${model.slug}">
+                                <!-- Apps will be loaded here when expanded -->
+                                <div class="text-center py-3">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="sr-only">Loading apps...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async toggleAppsView(modelSlug) {
+        const appsContent = document.getElementById(`apps-content-${modelSlug}`);
+        const toggleIcon = document.getElementById(`toggle-icon-${modelSlug}`);
+        
+        if (appsContent.classList.contains('show')) {
+            // Hide apps
+            appsContent.classList.remove('show');
+            toggleIcon.classList.remove('fa-chevron-up');
+            toggleIcon.classList.add('fa-chevron-down');
+        } else {
+            // Show apps and load them
+            appsContent.classList.add('show');
+            toggleIcon.classList.remove('fa-chevron-down');
+            toggleIcon.classList.add('fa-chevron-up');
+            
+            await this.loadAppsForModel(modelSlug);
+        }
+    }
+
+    async loadAppsForModel(modelSlug) {
+        try {
+            const response = await fetch(`/api/model/${encodeURIComponent(modelSlug)}/apps`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.renderAppsTable(modelSlug, data.data.apps);
+            } else {
+                this.showAppsError(modelSlug, 'Failed to load applications');
+            }
+        } catch (error) {
+            console.error('Error loading apps:', error);
+            this.showAppsError(modelSlug, 'Error loading applications');
+        }
+    }
+
+    renderAppsTable(modelSlug, apps) {
+        const tableContainer = document.getElementById(`apps-table-${modelSlug}`);
+        
+        let html = `
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th width="8%">#</th>
+                            <th width="25%">App Name</th>
+                            <th width="12%">Status</th>
+                            <th width="15%">Containers</th>
+                            <th width="12%">Ports</th>
+                            <th width="15%">Analysis</th>
+                            <th width="13%">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        apps.forEach(app => {
+            html += this.createAppRow(modelSlug, app);
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        tableContainer.innerHTML = html;
+    }
+
+    createAppRow(modelSlug, app) {
+        const statusClass = app.status === 'running' ? 'success' : 
+                           app.status === 'stopped' ? 'warning' : 'danger';
+        
+        return `
+            <tr id="app-${modelSlug.replace(/[^a-zA-Z0-9]/g, '_')}-${app.app_number}" class="app-row">
+                <td class="align-middle">
+                    <span class="badge badge-outline-primary px-2">${app.app_number}</span>
+                </td>
+                <td class="align-middle">
+                    <div class="app-info">
+                        <div class="font-weight-medium">${app.app_name}</div>
+                        <small class="text-muted d-block">${app.description ? app.description.substring(0, 40) + (app.description.length > 40 ? '...' : '') : ''}</small>
+                    </div>
+                </td>
+                <td class="align-middle">
+                    <span class="badge badge-${statusClass} badge-pill">
+                        <i class="fas fa-circle mr-1 icon-sm"></i>
+                        ${app.status ? app.status.charAt(0).toUpperCase() + app.status.slice(1) : 'Unknown'}
+                    </span>
+                </td>
+                <td class="align-middle">
+                    <div class="d-flex justify-content-start">
+                        <span class="mx-1 ${app.containers?.frontend_status === 'running' ? 'text-success' : 'text-muted'}"
+                              title="Frontend: ${app.containers?.frontend_status || 'unknown'}">
+                            <i class="fas fa-globe-americas icon-md"></i>
+                        </span>
+                        <span class="mx-1 ${app.containers?.backend_status === 'running' ? 'text-success' : 'text-muted'}"
+                              title="Backend: ${app.containers?.backend_status || 'unknown'}">
+                            <i class="fas fa-cogs icon-md"></i>
+                        </span>
+                        <span class="mx-1 ${app.containers?.database_status === 'running' ? 'text-success' : 'text-muted'}"
+                              title="Database: ${app.containers?.database_status || 'unknown'}">
+                            <i class="fas fa-database icon-md"></i>
+                        </span>
+                    </div>
+                </td>
+                <td class="align-middle">
+                    <div class="port-info">
+                        <small class="d-block">
+                            <i class="fas fa-desktop mr-1"></i>${app.frontend_port || 'N/A'}
+                        </small>
+                        <small class="d-block">
+                            <i class="fas fa-server mr-1"></i>${app.backend_port || 'N/A'}
+                        </small>
+                    </div>
+                </td>
+                <td class="align-middle">
+                    ${app.analysis_summary ? `
+                        <div class="d-flex justify-content-between analysis-compact">
+                            <span class="text-danger" title="High Issues">
+                                <i class="fas fa-exclamation-triangle"></i> ${app.analysis_summary.high_issues || 0}
+                            </span>
+                            <span class="text-warning" title="Medium Issues">
+                                <i class="fas fa-exclamation-circle"></i> ${app.analysis_summary.medium_issues || 0}
+                            </span>
+                            <span class="text-success" title="Low Issues">
+                                <i class="fas fa-info-circle"></i> ${app.analysis_summary.low_issues || 0}
+                            </span>
+                        </div>
+                    ` : '<small class="text-muted">No analysis</small>'}
+                </td>
+                <td class="align-middle">
+                    <div class="btn-group btn-group-sm" role="group">
+                        ${this.createAppActionButtons(modelSlug, app)}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    createAppActionButtons(modelSlug, app) {
+        let buttons = '';
+        
+        if (app.status === 'stopped') {
+            buttons += `
+                <button class="btn btn-outline-success btn-xs" 
+                        onclick="startContainer('${modelSlug}', ${app.app_number}, this)"
+                        title="Start containers">
+                    <i class="fas fa-play"></i>
+                </button>
+            `;
+        } else if (app.status === 'running') {
+            buttons += `
+                <button class="btn btn-outline-warning btn-xs" 
+                        onclick="restartContainer('${modelSlug}', ${app.app_number}, this)"
+                        title="Restart containers">
+                    <i class="fas fa-redo"></i>
+                </button>
+                <button class="btn btn-outline-danger btn-xs" 
+                        onclick="stopContainer('${modelSlug}', ${app.app_number}, this)"
+                        title="Stop containers">
+                    <i class="fas fa-stop"></i>
+                </button>
+            `;
+        } else if (app.status === 'error') {
+            buttons += `
+                <button class="btn btn-outline-warning btn-xs" 
+                        onclick="restartContainer('${modelSlug}', ${app.app_number}, this)"
+                        title="Restart containers">
+                    <i class="fas fa-redo"></i>
+                </button>
+            `;
+        }
+        
+        if (app.status === 'running') {
+            buttons += `
+                <button class="btn btn-outline-primary btn-xs" 
+                        onclick="window.open('http://localhost:${app.frontend_port}', '_blank')"
+                        title="Open app">
+                    <i class="fas fa-external-link-alt"></i>
+                </button>
+            `;
+        }
+        
+        buttons += `
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary btn-xs dropdown-toggle dropdown-toggle-split" 
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <span class="sr-only">Toggle Dropdown</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                    <a class="dropdown-item" href="#" 
+                       onclick="showContainerLogs('${modelSlug}', ${app.app_number})">
+                        <i class="fas fa-file-alt mr-2"></i>View Logs
+                    </a>
+                    <a class="dropdown-item" 
+                       href="/app/${encodeURIComponent(modelSlug)}/${app.app_number}">
+                        <i class="fas fa-info-circle mr-2"></i>View Details
+                    </a>
+                </div>
+            </div>
+        `;
+        
+        return buttons;
+    }
+
+    showAppsError(modelSlug, message) {
+        const tableContainer = document.getElementById(`apps-table-${modelSlug}`);
+        tableContainer.innerHTML = `
+            <div class="text-center py-3">
+                <i class="fas fa-exclamation-triangle text-danger"></i>
+                <p class="mb-0 mt-2">${message}</p>
+                <button class="btn btn-sm btn-outline-primary mt-2" 
+                        onclick="dashboard.loadAppsForModel('${modelSlug}')">
+                    <i class="fas fa-retry mr-1"></i>Retry
+                </button>
+            </div>
+        `;
+    }
+
+    updateStats() {
+        if (!this.models || this.models.length === 0) return;
+        
+        let totalModels = this.models.length;
+        let totalApps = totalModels * 30;
+        let totalRunning = 0;
+        let totalAnalyses = 0;
+        
+        this.models.forEach(model => {
+            totalRunning += model.running_containers || 0;
+            // Add analysis count logic here if available
+        });
+        
+        document.getElementById('total-models').textContent = totalModels;
+        document.getElementById('total-apps').textContent = totalApps;
+        document.getElementById('running-containers').textContent = totalRunning;
+        document.getElementById('active-analyses').textContent = totalAnalyses;
     }
 
     setupAutoRefresh() {
         // Start auto-refresh every 30 seconds
         this.autoRefreshInterval = setInterval(() => {
             if (document.visibilityState === 'visible') {
-                htmx.trigger('#models-grid', 'refreshModels');
+                this.loadModels();
             }
         }, 30000);
     }
@@ -228,15 +629,11 @@ class Dashboard {
                 e.preventDefault();
                 this.refreshDashboard();
             }
-            if (e.ctrlKey && e.key === 'f') {
-                e.preventDefault();
-                this.toggleAdvancedFilters();
-            }
         });
     }
 
     refreshDashboard() {
-        htmx.trigger('#models-grid', 'refreshModels');
+        this.loadModels();
         this.showToast('Dashboard refreshed', 'success');
     }
 
@@ -245,36 +642,24 @@ class Dashboard {
         const provider = document.getElementById('provider-filter')?.value || '';
         const search = document.getElementById('search-input')?.value || '';
 
-        const params = new URLSearchParams();
-        if (status) params.set('status', status);
-        if (provider) params.set('provider', provider);
-        if (search) params.set('search', search);
+        this.currentFilters = { status, provider, search };
 
-        const url = `/api/dashboard/models?${params.toString()}`;
-        htmx.ajax('GET', url, {target: '#models-grid'});
-    }
+        let filteredModels = [...this.models];
 
-    updateStatsFromGrid() {
-        // Count stats from the current models grid instead of making another API call
-        // This prevents infinite loops and uses already loaded data
-        try {
-            const modelCards = document.querySelectorAll('#models-grid .model-card, #models-grid .card');
-            const runningContainers = document.querySelectorAll('#models-grid .status-running').length;
-            
-            // Update displayed stats if elements exist
-            const totalModelsEl = document.getElementById('total-models');
-            const runningContainersEl = document.getElementById('running-containers');
-            
-            if (modelCards.length > 0 && totalModelsEl) {
-                totalModelsEl.textContent = modelCards.length;
-            }
-            
-            if (runningContainersEl) {
-                runningContainersEl.textContent = runningContainers;
-            }
-        } catch (error) {
-            console.warn('Failed to update stats from grid:', error);
+        if (provider) {
+            filteredModels = filteredModels.filter(model => 
+                model.provider.toLowerCase().includes(provider.toLowerCase())
+            );
         }
+
+        if (search) {
+            filteredModels = filteredModels.filter(model => 
+                model.name.toLowerCase().includes(search.toLowerCase()) ||
+                model.provider.toLowerCase().includes(search.toLowerCase())
+            );
+        }
+
+        this.renderModels(filteredModels);
     }
 
     showToast(message, type = 'info') {
@@ -284,8 +669,8 @@ class Dashboard {
         toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
         toast.innerHTML = `
             ${message}
-            <button type="button" class="close" data-dismiss="alert">
-                <span>&times;</span>
+            <button type="button" class="close" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
             </button>
         `;
         document.body.appendChild(toast);
@@ -293,6 +678,11 @@ class Dashboard {
         setTimeout(() => {
             toast.remove();
         }, 5000);
+
+        // Handle manual close
+        toast.querySelector('.close').addEventListener('click', () => {
+            toast.remove();
+        });
     }
 
     debounce(func, wait) {
@@ -308,13 +698,18 @@ class Dashboard {
     }
 }
 
-// Note: Model details functionality moved to Models Overview page
-
+// Container logs functionality
 window.showContainerLogs = function(modelSlug, appNum) {
-    htmx.ajax('GET', `/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/logs`, {
-        target: '#container-logs-content'
-    });
-    $('#containerLogsModal').modal('show');
+    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/logs`)
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('container-logs-content').innerHTML = data;
+            $('#containerLogsModal').modal('show');
+        })
+        .catch(error => {
+            console.error('Error loading logs:', error);
+            dashboard.showToast('Failed to load container logs', 'danger');
+        });
 };
 
 window.toggleAdvancedFilters = function() {
@@ -346,60 +741,72 @@ window.restartContainer = function(modelSlug, appNum, button) {
 
 function handleContainerAction(action, modelSlug, appNum, button) {
     const originalText = button.innerHTML;
-    button.innerHTML = `<div class="spinner"></div> ${action}ing...`;
+    button.innerHTML = `<div class="spinner-border spinner-border-sm mr-1"></div> ${action}ing...`;
     button.disabled = true;
 
-    htmx.ajax('POST', `/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
-        swap: 'outerHTML',
-        target: button.closest('.container-controls')
-    }).then(() => {
-        dashboard.showToast(`Container ${action} successful`, 'success');
-    }).catch(() => {
+    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            dashboard.showToast(`Container ${action} successful`, 'success');
+            // Reload the apps for this model to show updated status
+            dashboard.loadAppsForModel(modelSlug);
+        } else {
+            throw new Error(data.error || 'Operation failed');
+        }
+    })
+    .catch(error => {
+        console.error(`Error ${action}ing container:`, error);
+        dashboard.showToast(`Container ${action} failed: ${error.message}`, 'danger');
+    })
+    .finally(() => {
         button.innerHTML = originalText;
         button.disabled = false;
-        dashboard.showToast(`Container ${action} failed`, 'danger');
     });
 }
 
-// Load applications for a specific model
-window.testLoadApps = function(modelSlug) {
-    const targetId = `apps-content-${modelSlug.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    const loadingId = `loading-${modelSlug.replace(/[^a-zA-Z0-9]/g, '_')}`;
+// Bulk container actions
+window.startAllContainers = function(modelSlug) {
+    handleBulkContainerAction('start-all', modelSlug);
+};
+
+window.stopAllContainers = function(modelSlug) {
+    handleBulkContainerAction('stop-all', modelSlug);
+};
+
+window.restartAllContainers = function(modelSlug) {
+    handleBulkContainerAction('restart-all', modelSlug);
+};
+
+function handleBulkContainerAction(action, modelSlug) {
+    const actionName = action.replace('-all', '');
     
-    // Show loading state
-    const loadingElement = document.getElementById(loadingId);
-    if (loadingElement) {
-        loadingElement.innerHTML = `
-            <div class="spinner-border spinner-border-sm" role="status">
-                <span class="sr-only">Loading...</span>
-            </div>
-            <small class="d-block mt-2 text-muted">Loading applications...</small>
-        `;
+    if (!confirm(`${actionName.charAt(0).toUpperCase() + actionName.slice(1)} all containers for this model?`)) {
+        return;
     }
     
-    // Load applications via HTMX
-    htmx.ajax('GET', `/api/model/${encodeURIComponent(modelSlug)}/apps`, {
-        target: `#${targetId}`,
-        swap: 'innerHTML'
-    }).then(() => {
-        dashboard.showToast(`Applications loaded for ${modelSlug}`, 'success');
-    }).catch((error) => {
-        console.error('Failed to load applications:', error);
-        const targetElement = document.getElementById(targetId);
-        if (targetElement) {
-            targetElement.innerHTML = `
-                <div class="text-center p-3">
-                    <i class="fas fa-exclamation-triangle text-warning mb-2"></i>
-                    <p class="text-muted mb-2">Failed to load applications</p>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="testLoadApps('${modelSlug}')">
-                        <i class="fas fa-redo mr-1"></i>Retry
-                    </button>
-                </div>
-            `;
+    fetch(`/api/model/${encodeURIComponent(modelSlug)}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            dashboard.showToast(`Bulk ${actionName} operation initiated`, 'success');
+            // Refresh the model's apps and stats
+            setTimeout(() => {
+                dashboard.loadModels();
+            }, 2000);
+        } else {
+            throw new Error(data.error || 'Operation failed');
         }
-        dashboard.showToast(`Failed to load applications for ${modelSlug}`, 'danger');
+    })
+    .catch(error => {
+        console.error(`Error with bulk ${actionName}:`, error);
+        dashboard.showToast(`Bulk ${actionName} failed: ${error.message}`, 'danger');
     });
-};
+}
 
 // Initialize dashboard
 let dashboard;

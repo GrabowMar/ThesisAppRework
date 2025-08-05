@@ -138,20 +138,17 @@
                 <!-- Quick Stats -->
                 <div class="sidebar-section">
                     <h6 class="sidebar-title">Quick Stats</h6>
-                    <div class="quick-stats" 
-                         hx-get="/api/sidebar/stats"
-                         hx-trigger="load, every 60s"
-                         hx-swap="innerHTML">
+                    <div class="quick-stats" id="sidebar-stats">
                         <div class="stat-item">
-                            <span class="stat-value">{{ get_model_count() }}</span>
+                            <span class="stat-value">{{ get_model_count() or 0 }}</span>
                             <span class="stat-label">Models</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-value">{{ get_app_count() }}</span>
+                            <span class="stat-value">{{ get_app_count() or 0 }}</span>
                             <span class="stat-label">Apps</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-value">0</span>
+                            <span class="stat-value" id="running-count">0</span>
                             <span class="stat-label">Running</span>
                         </div>
                     </div>
@@ -160,10 +157,7 @@
                 <!-- Recent Activity -->
                 <div class="sidebar-section">
                     <h6 class="sidebar-title">Recent Activity</h6>
-                    <div class="activity-feed"
-                         hx-get="/api/sidebar/activity"
-                         hx-trigger="load, every 120s"
-                         hx-swap="innerHTML">
+                    <div class="activity-feed" id="recent-activity">
                         <div class="activity-item">
                             <div class="activity-icon">
                                 <i class="fas fa-info text-muted"></i>
@@ -180,13 +174,11 @@
                     <h6 class="sidebar-title">Quick Actions</h6>
                     <div class="quick-actions">
                         <button class="btn btn-sm btn-outline-primary btn-block"
-                                hx-post="/api/bulk/start-all"
-                                hx-confirm="Start all stopped containers?">
+                                onclick="startAllContainers()">
                             <i class="fas fa-play mr-1"></i>Start All
                         </button>
                         <button class="btn btn-sm btn-outline-warning btn-block"
-                                hx-post="/api/bulk/stop-all"
-                                hx-confirm="Stop all running containers?">
+                                onclick="stopAllContainers()">
                             <i class="fas fa-stop mr-1"></i>Stop All
                         </button>
                         <button class="btn btn-sm btn-outline-info btn-block"
@@ -194,8 +186,8 @@
                             <i class="fas fa-chart-bar mr-1"></i>View Statistics
                         </button>
                         <button class="btn btn-sm btn-outline-secondary btn-block"
-                                onclick="window.location.href='/batch'">
-                            <i class="fas fa-tasks mr-1"></i>Batch Analysis
+                                onclick="window.location.href='/batch-testing'">
+                            <i class="fas fa-tasks mr-1"></i>Batch Testing
                         </button>
                     </div>
                 </div>
@@ -203,10 +195,7 @@
                 <!-- System Status -->
                 <div class="sidebar-section">
                     <h6 class="sidebar-title">System Status</h6>
-                    <div class="system-status"
-                         hx-get="/api/sidebar/system-status"
-                         hx-trigger="load, every 90s"
-                         hx-swap="innerHTML">
+                    <div class="system-status">
                         <div class="status-item">
                             <span class="status-dot status-success"></span>
                             <span class="status-label">Database</span>
@@ -218,6 +207,14 @@
                         <div class="status-item">
                             <span class="status-dot status-warning"></span>
                             <span class="status-label">Analysis Queue</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-dot status-success"></span>
+                            <span class="status-label">Memory Usage</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-dot status-info"></span>
+                            <span class="status-label">Disk Space</span>
                         </div>
                     </div>
                 </div>
@@ -515,6 +512,84 @@
                 });
             }
         });
+        // Bulk container operations
+        function startAllContainers() {
+            if (confirm("Start all stopped containers?")) {
+                fetch('/api/bulk/start-all', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Bulk start operation initiated', 'success');
+                        // Refresh page after short delay
+                        setTimeout(() => window.location.reload(), 2000);
+                    } else {
+                        showNotification('Failed to start containers: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error starting containers:', error);
+                    showNotification('Error starting containers', 'error');
+                });
+            }
+        }
+
+        function stopAllContainers() {
+            if (confirm("Stop all running containers?")) {
+                fetch('/api/bulk/stop-all', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Bulk stop operation initiated', 'success');
+                        // Refresh page after short delay
+                        setTimeout(() => window.location.reload(), 2000);
+                    } else {
+                        showNotification('Failed to stop containers: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error stopping containers:', error);
+                    showNotification('Error stopping containers', 'error');
+                });
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+            notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="close" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            `;
+
+            // Add to page
+            document.body.appendChild(notification);
+
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
+
+            // Handle manual close
+            notification.querySelector('.close').addEventListener('click', () => {
+                notification.remove();
+            });
+        }
     </script>
 
     {% block scripts %}{% endblock %}

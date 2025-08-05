@@ -80,8 +80,7 @@
                         
                         {% if error_code == 500 or not error_code %}
                         <button type="button" class="btn btn-outline-primary"
-                                hx-get="/api/system-health"
-                                hx-target="#system-health-content"
+                                onclick="showSystemHealth()"
                                 data-toggle="modal" data-target="#system-health-modal">
                             <i class="fas fa-heartbeat mr-2"></i>
                             System Health
@@ -335,12 +334,6 @@ class ErrorPage {
         });
     }
 
-    showSystemHealth() {
-        htmx.ajax('GET', '/api/system-health', {
-            target: '#system-health-content'
-        });
-    }
-
     showToast(message, type = 'info') {
         const toast = document.createElement('div');
         toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
@@ -362,6 +355,18 @@ class ErrorPage {
 // Global functions
 window.cancelAutoRetry = function() {
     errorPage.cancelAutoRetry();
+};
+
+window.showSystemHealth = function() {
+    fetch('/api/system-health')
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('system-health-content').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('system-health-content').innerHTML = 
+                '<div class="alert alert-danger">Error loading system health</div>';
+        });
 };
 
 // Initialize error page

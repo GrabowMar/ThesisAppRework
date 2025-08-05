@@ -1200,7 +1200,23 @@ def api_dashboard_models():
             model.stopped_containers = stopped_containers
             model.error_containers = error_containers
         
-        return render_template('partials/dashboard_models_grid.html', models=models)
+        # Prepare models data for JSON response since partials are no longer used
+        models_data = []
+        for model in models:
+            model_data = {
+                'id': getattr(model, 'id', model.canonical_slug),
+                'name': model.model_name,
+                'slug': model.canonical_slug,
+                'provider': model.provider,
+                'total_apps': 30,
+                'running_containers': model.running_containers,
+                'stopped_containers': model.stopped_containers,
+                'error_containers': model.error_containers,
+                'max_context_length': model.context_window
+            }
+            models_data.append(model_data)
+        
+        return ResponseHandler.success_response(data={'models': models_data})
         
     except Exception as e:
         logger.error(f"Error fetching dashboard models: {e}")
@@ -1256,9 +1272,11 @@ def api_model_apps(model_slug: str):
             app_data = AppDataProvider.get_app_for_dashboard(model_slug_for_lookup, app_num)
             apps_data.append(app_data)
         
-        return render_template('partials/model_apps_table.html', 
-                             apps=apps_data, 
-                             model_slug=model_slug_for_lookup)
+        # Return JSON data instead of partial template
+        return ResponseHandler.success_response(data={
+            'apps': apps_data, 
+            'model_slug': model_slug_for_lookup
+        })
         
     except Exception as e:
         logger.error(f"Error loading apps for model {model_slug}: {e}")
@@ -1562,12 +1580,27 @@ def api_model_details(model_slug: str):
             else:
                 stopped_count = 30
             
-            return render_template('partials/model_details_content.html', 
-                                 model=model, 
-                                 details=details,
-                                 running_count=running_count,
-                                 stopped_count=stopped_count,
-                                 error_count=error_count)
+            # Return JSON data with all model information
+            model_data = {
+                'id': model.id,
+                'model_name': model.model_name,
+                'provider': model.provider,
+                'description': model.description or 'No description available',
+                'max_context_length': model.max_context_length,
+                'context_length_formatted': f"{model.max_context_length:,}" if model.max_context_length else "Unknown",
+                'supports_chat': model.supports_chat,
+                'supports_completion': model.supports_completion,
+                'supports_function_calling': model.supports_function_calling,
+                'supports_vision': model.supports_vision,
+                'supports_code_generation': model.supports_code_generation,
+                'input_price_per_token': model.input_price_per_token,
+                'output_price_per_token': model.output_price_per_token,
+                'running_count': running_count,
+                'stopped_count': stopped_count,
+                'error_count': error_count
+            }
+            
+            return ResponseHandler.success_response(data=model_data)
         
         return ResponseHandler.success_response(data=details)
         
@@ -1709,24 +1742,18 @@ def api_model_analyze_all(model_slug: str):
 
 
 # ===========================
-# API ROUTES - Sidebar & System
+# API ROUTES - Sidebar & System (deprecated)
 # ===========================
+# Note: These routes are kept for backward compatibility but sidebar content is now static
 
 @api_bp.route("/sidebar/stats")
 def sidebar_stats():
-    """Get sidebar statistics."""
+    """Get sidebar statistics - kept for API compatibility."""
     try:
         model_count = ModelCapability.query.count()
         app_count = model_count * 30
         running_count = 0  # Calculate based on Docker status
         active_scans = 0  # Calculate based on active analyses
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template('partials/sidebar_stats.html',
-                                 model_count=model_count,
-                                 app_count=app_count,
-                                 running_count=running_count,
-                                 active_scans=active_scans)
         
         stats = {
             'total_models': model_count,
@@ -1742,7 +1769,7 @@ def sidebar_stats():
 
 @api_bp.route("/sidebar/activity")
 def sidebar_activity():
-    """Get recent activity."""
+    """Get recent activity - kept for API compatibility."""
     try:
         # Mock activity data - replace with actual activity tracking
         activities = [
@@ -1758,9 +1785,6 @@ def sidebar_activity():
             }
         ]
         
-        if ResponseHandler.is_htmx_request():
-            return render_template('partials/sidebar_activity.html', activities=activities)
-        
         return ResponseHandler.success_response(data=activities)
     except Exception as e:
         logger.error(f"Sidebar activity error: {e}")
@@ -1769,28 +1793,9 @@ def sidebar_activity():
 
 @api_bp.route("/sidebar/system-status")
 def sidebar_system_status():
-    """Get system status."""
+    """Get system status - kept for API compatibility."""
     try:
         docker_manager = ServiceLocator.get_docker_manager()
-        
-        # Create status list for template
-        statuses = [
-            {
-                "label": "Database",
-                "status": "success"  # Map to CSS class: status-success
-            },
-            {
-                "label": "Docker", 
-                "status": "success" if docker_manager else "warning"
-            },
-            {
-                "label": "Services",
-                "status": "success"
-            }
-        ]
-        
-        if ResponseHandler.is_htmx_request():
-            return render_template('partials/sidebar_system_status.html', statuses=statuses)
         
         # Return legacy format for JSON API
         status = {
@@ -4597,9 +4602,7 @@ def api_get_testing_jobs():
         if model_filter:
             jobs = [j for j in jobs if j.get('model') == model_filter]
         
-        if ResponseHandler.is_htmx_request():
-            return render_template("partials/security_testing_jobs_list.html", jobs=jobs)
-        
+        # Always return JSON data since partials are no longer used
         return ResponseHandler.success_response(data=jobs)
         
     except Exception as e:
