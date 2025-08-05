@@ -49,25 +49,20 @@ import json
 import logging
 import sys
 import time
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+# Import centralized constants
+try:
+    from .constants import ToolCategory
+except ImportError:
+    from constants import ToolCategory
 from core_services import DockerManager, DockerUtils
+
 try:
     from models import ModelCapability
 except ImportError:
     ModelCapability = None
-
-
-class ToolCategory(Enum):
-    """Tool categories for classification."""
-    BACKEND_SECURITY = "backend_security"
-    FRONTEND_SECURITY = "frontend_security"
-    BACKEND_QUALITY = "backend_quality"
-    FRONTEND_QUALITY = "frontend_quality"
-    PERFORMANCE = "performance"
-    VULNERABILITY = "vulnerability"
 
 
 class UnifiedCLIAnalyzer:

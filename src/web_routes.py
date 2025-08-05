@@ -193,33 +193,46 @@ class ServiceLocator:
     
     @staticmethod
     def get_service(service_name: str):
-        """Get service from app context or service manager."""
-        # Direct app context check
-        service = getattr(current_app, service_name, None)
-        if service:
-            return service
-            
-        # Service manager check
-        service_manager = current_app.config.get('service_manager')
-        if service_manager:
-            return service_manager.get_service(service_name)
-        return None
+        """Get service from unified service manager."""
+        try:
+            from service_manager import ServiceLocator as UnifiedServiceLocator
+            return UnifiedServiceLocator.get_service(service_name)
+        except ImportError:
+            # Fallback to app context
+            service_manager = current_app.config.get('service_manager')
+            if service_manager:
+                return service_manager.get_service(service_name)
+            return None
     
     @staticmethod
     def get_model_service():
+        """Get model integration service."""
         return ServiceLocator.get_service('model_service')
     
     @staticmethod
     def get_docker_manager():
+        """Get Docker manager service."""
         return ServiceLocator.get_service('docker_manager')
     
     @staticmethod
     def get_scan_manager():
+        """Get scan manager service."""
         return ServiceLocator.get_service('scan_manager')
     
     @staticmethod
     def get_batch_service():
+        """Get batch analysis service."""
         return ServiceLocator.get_service('batch_service')
+    
+    @staticmethod
+    def get_performance_service():
+        """Get performance testing service."""
+        return ServiceLocator.get_service('performance_service')
+    
+    @staticmethod
+    def get_zap_service():
+        """Get ZAP scanning service."""
+        return ServiceLocator.get_service('zap_service')
 
 
 class DockerCache:

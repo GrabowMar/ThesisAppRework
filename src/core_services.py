@@ -36,25 +36,22 @@ from flask import (
     jsonify, render_template, request
 )
 
+# Import centralized constants and enums
+try:
+    from .constants import (
+        AppDefaults, ScanStatus, TaskStatus, JobStatus, AnalysisType, ContainerState
+    )
+except ImportError:
+    from constants import (
+        AppDefaults, ScanStatus, TaskStatus, JobStatus, AnalysisType, ContainerState
+    )
+
 # Load environment variables
 load_dotenv()
 
 # ===========================
 # CONFIGURATION AND CONSTANTS
 # ===========================
-
-@dataclass(frozen=True)
-class AppDefaults:
-    """Application default configuration values."""
-    CLEANUP_INTERVAL: int = 300  # 5 minutes
-    IDLE_SCAN_TIMEOUT: int = 3600  # 1 hour
-    MAX_ZAP_SCANS: int = 10
-    HOST: str = "127.0.0.1"
-    PORT: int = 5000
-    MAX_THREADS: int = 50
-    REQUEST_TIMEOUT: int = 30
-    DOCKER_TIMEOUT: int = 10
-
 
 class AppConfig:
     """Unified application configuration."""
@@ -243,87 +240,6 @@ class LoggingService:
 def get_logger(component: str) -> logging.Logger:
     """Get a logger for a specific component."""
     return logging.getLogger(component)
-
-
-# ===========================
-# ENUMS
-# ===========================
-
-class BaseEnum(str, Enum):
-    """Base enum class with string values."""
-    def __str__(self):
-        return self.value
-
-
-class ScanStatus(BaseEnum):
-    """Enumeration of possible scan statuses."""
-    NOT_RUN = "Not Run"
-    STARTING = "Starting"
-    SPIDERING = "Spidering"
-    SCANNING = "Scanning"
-    COMPLETE = "Complete"
-    FAILED = "Failed"
-    STOPPED = "Stopped"
-    ERROR = "Error"
-
-
-class JobStatus(BaseEnum):
-    """Status of a batch job."""
-    PENDING = "pending"
-    QUEUED = "queued"
-    INITIALIZING = "initializing"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    CANCELLING = "cancelling"
-    ARCHIVED = "archived"
-    ERROR = "error"
-
-
-class TaskStatus(BaseEnum):
-    """Status of a batch task."""
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    SKIPPED = "skipped"
-    TIMED_OUT = "timed_out"
-
-
-class AnalysisType(BaseEnum):
-    """Types of analysis that can be performed."""
-    FRONTEND_SECURITY = "frontend_security"
-    BACKEND_SECURITY = "backend_security"
-    PERFORMANCE = "performance"
-    ZAP = "zap"
-    GPT4ALL = "gpt4all"
-    CODE_QUALITY = "code_quality"
-
-
-class ContainerState(BaseEnum):
-    """Container state enumeration."""
-    CREATING = "creating"
-    RUNNING = "running"
-    STOPPED = "stopped"
-    PAUSED = "paused"
-    RESTARTING = "restarting"
-    REMOVING = "removing"
-    DEAD = "dead"
-    UNKNOWN = "unknown"
-
-
-class OperationType(BaseEnum):
-    """Container operation types."""
-    CREATE = "create"
-    START = "start"
-    STOP = "stop"
-    RESTART = "restart"
-    BUILD = "build"
-    REMOVE = "remove"
-    PAUSE = "pause"
-    UNPAUSE = "unpause"
 
 
 # ===========================

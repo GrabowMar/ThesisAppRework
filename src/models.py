@@ -14,9 +14,20 @@ Models include:
 """
 
 import json
-import enum
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
+
+# Import centralized constants and enums
+try:
+    from .constants import (
+        AnalysisStatus, JobStatus, TaskStatus, AnalysisType, 
+        JobPriority
+    )
+except ImportError:
+    from constants import (
+        AnalysisStatus, JobStatus, TaskStatus, AnalysisType, 
+        JobPriority
+    )
 
 try:
     from .extensions import db
@@ -26,61 +37,6 @@ except ImportError:
 def utc_now() -> datetime:
     """Get current UTC time - replacement for deprecated datetime.utcnow()"""
     return datetime.now(timezone.utc)
-
-class AnalysisStatus(enum.Enum):
-    """Status enum for analyses and tests."""
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-class JobStatus(enum.Enum):
-    """Status enum for batch jobs."""
-    PENDING = "pending"
-    QUEUED = "queued"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    ARCHIVED = "archived"
-
-class TaskStatus(enum.Enum):
-    """Status enum for batch tasks."""
-    PENDING = "pending"
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    RETRYING = "retrying"
-
-class JobPriority(enum.Enum):
-    """Priority levels for batch jobs."""
-    LOW = "low"
-    NORMAL = "normal"
-    HIGH = "high"
-    URGENT = "urgent"
-
-class AnalysisType(enum.Enum):
-    """Types of analysis that can be performed."""
-    SECURITY_BACKEND = "security_backend"
-    SECURITY_FRONTEND = "security_frontend"
-    SECURITY_COMBINED = "security_combined"
-    PERFORMANCE = "performance"
-    ZAP_SECURITY = "zap_security"
-    OPENROUTER = "openrouter"
-    CODE_QUALITY = "code_quality"
-    DEPENDENCY_CHECK = "dependency_check"
-    DOCKER_SCAN = "docker_scan"
-
-class SeverityLevel(enum.Enum):
-    """Severity levels for security issues."""
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
 
 class ModelCapability(db.Model):
     """Model for storing AI model capabilities and metadata."""

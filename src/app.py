@@ -29,74 +29,15 @@ try:
     from .extensions import init_extensions, db
     from .models import ModelCapability, PortConfiguration, GeneratedApplication
     from .core_services import AppConfig
+    from .service_manager import ServiceManager
+    from .constants import AppDefaults, Paths
 except ImportError:
     # Fall back to absolute imports (when run as script)
     from extensions import init_extensions, db
     from models import ModelCapability, PortConfiguration, GeneratedApplication
     from core_services import AppConfig
-
-# Service management classes
-class ServiceManager:
-    """Manages application services and provides service lookup."""
-    
-    def __init__(self, app: Flask) -> None:
-        self.app: Flask = app
-        self.services: Dict[str, Any] = {}
-        self.logger: logging.Logger = app.logger
-        self._initialize_core_services()
-    
-    def _initialize_core_services(self) -> None:
-        """Initialize core services."""
-        try:
-            # Import services from core_services
-            from core_services import DockerManager, ScanManager, ModelIntegrationService
-            
-            # Initialize Docker Manager
-            docker_manager: DockerManager = DockerManager()
-            self.services['docker_manager'] = docker_manager
-            self.logger.info("Docker manager initialized")
-            
-            # Initialize Scan Manager
-            scan_manager: ScanManager = ScanManager()
-            self.services['scan_manager'] = scan_manager
-            self.logger.info("Scan manager initialized")
-            
-            # Initialize Model Integration Service with correct misc path
-            misc_path: Path = Path(__file__).parent.parent / "misc"
-            model_service: ModelIntegrationService = ModelIntegrationService(misc_path)
-            model_service.load_all_data()
-            self.services['model_service'] = model_service
-            self.logger.info("Model service initialized")
-            
-        except Exception as e:
-            self.logger.error(f"Error initializing core services: {e}")
-    
-    def get_service(self, service_name: str) -> Optional[Any]:
-        """Get a service by name."""
-        return self.services.get(service_name)
-    
-    def register_service(self, name: str, service: Any) -> None:
-        """Register a service."""
-        self.services[name] = service
-        self.logger.info(f"Registered service: {name}")
-    
-    def get_all_services(self) -> Dict[str, Any]:
-        """Get all registered services."""
-        return self.services.copy()
-
-class ServiceInitializer:
-    def __init__(self, app: Flask, service_manager: ServiceManager) -> None:
-        self.app = app
-        self.service_manager = service_manager
-        self.logger = app.logger
-    
-    def initialize_all(self) -> None:
-        """Initialize all services."""
-        try:
-            self.logger.info("Service initialization completed")
-        except Exception as e:
-            self.logger.error(f"Service initialization failed: {e}")
-
+    from service_manager import ServiceManager
+    from constants import AppDefaults, Paths
 
 class Config:
     """Application configuration."""
@@ -543,20 +484,6 @@ def ensure_database_populated(app: Flask) -> None:
                 app.logger.error(f"Failed to populate ports: {e}")
 
 
-def initialize_services_async(app: Flask, service_manager: ServiceManager) -> None:
-    """Initialize services asynchronously with proper error handling."""
-    try:
-        service_initializer = ServiceInitializer(app, service_manager)
-        service_initializer.initialize_all()
-        app.logger.info("Background service initialization completed")
-    except Exception as e:
-        app.logger.error(f"Background service initialization failed: {e}")
-        # Set fallback values
-        with app.app_context():
-            app.config['docker_manager'] = None
-            app.config['scan_manager'] = None
-
-
 def create_minimal_routes(app: Flask) -> None:
     """Create minimal fallback routes when blueprints fail to load."""
     @app.route('/')
@@ -712,17 +639,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
                 app.logger.info("Services already initialized, skipping...")
                 return app
             
-            # Create service manager
+            # Create service manager  
             service_manager = ServiceManager(app)
-            app.config['service_manager'] = service_manager
-            
-            # Start background service initialization
-            service_thread = threading.Thread(
-                target=initialize_services_async,
-                args=(app, service_manager),
-                daemon=True
-            )
-            service_thread.start()
             
             # Unified CLI analyzer provides batch operations and testing infrastructure
             app.logger.info("Unified CLI analyzer services available")
@@ -740,7 +658,10 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     
     # Register blueprints with HTMX routes
     try:
-        from web_routes import register_blueprints
+        try:
+            from .web_routes import register_blueprints
+        except (ImportError, ValueError):
+            from web_routes import register_blueprints
         register_blueprints(app)
         app.logger.info("All blueprints registered successfully")
     except ImportError as e:
