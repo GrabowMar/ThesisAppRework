@@ -229,8 +229,8 @@ class Dashboard {
             const response = await fetch('/api/dashboard/models');
             const data = await response.json();
             
-            if (data.success && data.data.models.length > 0) {
-                this.models = data.data.models;
+            if (data.success && data.data && data.data.length > 0) {
+                this.models = data.data;
                 this.renderModels(this.models);
                 this.updateStats();
             } else {
@@ -397,11 +397,11 @@ class Dashboard {
 
     async loadAppsForModel(modelSlug) {
         try {
-            const response = await fetch(`/api/model/${encodeURIComponent(modelSlug)}/apps`);
+            const response = await fetch(`/api/v1/models/${encodeURIComponent(modelSlug)}/apps`);
             const data = await response.json();
             
             if (data.success) {
-                this.renderAppsTable(modelSlug, data.data.apps);
+                this.renderAppsTable(modelSlug, data.data);
             } else {
                 this.showAppsError(modelSlug, 'Failed to load applications');
             }
@@ -700,7 +700,7 @@ class Dashboard {
 
 // Container logs functionality
 window.showContainerLogs = function(modelSlug, appNum) {
-    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/logs`)
+    fetch(`/api/v1/containers/${encodeURIComponent(modelSlug)}/${appNum}/logs`)
         .then(response => response.text())
         .then(data => {
             document.getElementById('container-logs-content').innerHTML = data;
@@ -744,7 +744,7 @@ function handleContainerAction(action, modelSlug, appNum, button) {
     button.innerHTML = `<div class="spinner-border spinner-border-sm mr-1"></div> ${action}ing...`;
     button.disabled = true;
 
-    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
+    fetch(`/api/v1/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
         method: 'POST'
     })
     .then(response => response.json())
@@ -787,7 +787,7 @@ function handleBulkContainerAction(action, modelSlug) {
         return;
     }
     
-    fetch(`/api/model/${encodeURIComponent(modelSlug)}/${action}`, {
+    fetch(`/api/v1/model/${encodeURIComponent(modelSlug)}/${action}`, {
         method: 'POST'
     })
     .then(response => response.json())

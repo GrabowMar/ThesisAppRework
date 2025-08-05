@@ -32,8 +32,7 @@ try:
         SecurityAnalysis, JobStatus
     )
     from core_services import get_container_names
-    from batch_testing_service import get_batch_testing_service
-    # Add missing imports
+    # Updated imports to use unified CLI analyzer
     from unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
 except ImportError as e:
     # Fallback for direct script execution
@@ -44,7 +43,6 @@ except ImportError as e:
             SecurityAnalysis, JobStatus
         )
         from .core_services import get_container_names
-        from .batch_testing_service import get_batch_testing_service
         from .unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
     except ImportError:
         # If imports still fail, set them to None for graceful degradation
@@ -566,6 +564,52 @@ class AppDataProvider:
                 'database_status': 'unknown'
             }
         }
+    
+    @staticmethod
+    def get_model_dashboard_stats(model_slug: str) -> Dict[str, Any]:
+        """Get model statistics for dashboard display."""
+        try:
+            # Get comprehensive statistics for a model
+            docker_manager = ServiceLocator.get_docker_manager()
+            stats = {
+                'total_apps': 30,
+                'running_containers': 0,
+                'stopped_containers': 0,
+                'error_containers': 0,
+                'analyzed_apps': 0,
+                'performance_tested': 0,
+                'last_activity': None
+            }
+            
+            if docker_manager:
+                for app_num in range(1, 31):
+                    try:
+                        statuses = AppDataProvider.get_container_statuses(model_slug, app_num)
+                        backend = statuses.get('backend', 'stopped')
+                        frontend = statuses.get('frontend', 'stopped')
+                        
+                        if backend == 'running' and frontend == 'running':
+                            stats['running_containers'] += 1
+                        elif backend in ['exited', 'dead'] or frontend in ['exited', 'dead']:
+                            stats['error_containers'] += 1
+                        else:
+                            stats['stopped_containers'] += 1
+                    except Exception:
+                        stats['stopped_containers'] += 1
+            
+            return stats
+            
+        except Exception as e:
+            logger.warning(f"Error getting model dashboard stats for {model_slug}: {e}")
+            return {
+                'total_apps': 30,
+                'running_containers': 0,
+                'stopped_containers': 30,
+                'error_containers': 0,
+                'analyzed_apps': 0,
+                'performance_tested': 0,
+                'last_activity': None
+            }
 
 
 class DockerOperations:
@@ -714,13 +758,104 @@ class FileOperations:
 # BLUEPRINT DEFINITIONS
 # ===========================
 
+# Web interface routes (HTML responses)
 main_bp = Blueprint("main", __name__)
-api_bp = Blueprint("api", __name__, url_prefix="/api")
-statistics_bp = Blueprint("statistics", __name__, url_prefix="/statistics")
-batch_bp = Blueprint("batch", __name__, url_prefix="/batch")
-docker_bp = Blueprint("docker", __name__, url_prefix="/docker")
-batch_testing_bp = Blueprint("batch_testing", __name__, url_prefix="/batch-testing")
-testing_bp = Blueprint("testing", __name__, url_prefix="/testing")
+
+# API routes (JSON responses) - RESTful organization
+api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
+
+# Simple API routes without version prefix (for template compatibility)
+simple_api_bp = Blueprint("simple_api", __name__, url_prefix="/api")
+
+# Statistics blueprint for template compatibility
+statistics_bp = Blueprint("statistics", __name__)
+
+# Specialized route groups
+models_bp = Blueprint("models", __name__, url_prefix="/api/v1/models")
+containers_bp = Blueprint("containers", __name__, url_prefix="/api/v1/containers") 
+
+# ===========================
+# CONTAINER MANAGEMENT ROUTES
+# ===========================
+
+@containers_bp.route("/<model_slug>/<int:app_num>/start", methods=["POST"])
+def container_start(model_slug: str, app_num: int):
+    """Start containers for a specific model/app."""
+    try:
+        result = DockerOperations.execute_action('start', model_slug, app_num)
+        if result['success']:
+            return ResponseHandler.success_response(
+                message=f"Started containers for {model_slug}/app{app_num}",
+                data=result
+            )
+        else:
+            return ResponseHandler.error_response(result.get('error', 'Start operation failed'))
+    except Exception as e:
+        logger.error(f"Container start error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@containers_bp.route("/<model_slug>/<int:app_num>/stop", methods=["POST"])
+def container_stop(model_slug: str, app_num: int):
+    """Stop containers for a specific model/app."""
+    try:
+        result = DockerOperations.execute_action('stop', model_slug, app_num)
+        if result['success']:
+            return ResponseHandler.success_response(
+                message=f"Stopped containers for {model_slug}/app{app_num}",
+                data=result
+            )
+        else:
+            return ResponseHandler.error_response(result.get('error', 'Stop operation failed'))
+    except Exception as e:
+        logger.error(f"Container stop error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@containers_bp.route("/<model_slug>/<int:app_num>/restart", methods=["POST"])
+def container_restart(model_slug: str, app_num: int):
+    """Restart containers for a specific model/app."""
+    try:
+        result = DockerOperations.execute_action('restart', model_slug, app_num)
+        if result['success']:
+            return ResponseHandler.success_response(
+                message=f"Restarted containers for {model_slug}/app{app_num}",
+                data=result
+            )
+        else:
+            return ResponseHandler.error_response(result.get('error', 'Restart operation failed'))
+    except Exception as e:
+        logger.error(f"Container restart error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@containers_bp.route("/<model_slug>/<int:app_num>/logs")
+def container_logs(model_slug: str, app_num: int):
+    """Get container logs for a specific model/app."""
+    try:
+        container_type = request.args.get('type', 'backend')
+        tail = request.args.get('tail', 200, type=int)
+        
+        logs = DockerOperations.get_logs(model_slug, app_num, container_type, tail)
+        
+        # Return as HTML for direct display in modal
+        logs_html = f"""
+        <div class="log-content">
+            <div class="log-header">
+                <h6><i class="fas fa-terminal mr-2"></i>Logs for {model_slug}/app{app_num}/{container_type}</h6>
+            </div>
+            <pre class="log-text">{logs}</pre>
+        </div>
+        """
+        
+        return logs_html
+        
+    except Exception as e:
+        logger.error(f"Container logs error: {e}")
+        return f"<div class='alert alert-danger'>Error loading logs: {str(e)}</div>"
+
+# ===========================
+
+analysis_bp = Blueprint("analysis", __name__, url_prefix="/api/v1/analysis")
+batch_bp = Blueprint("batch", __name__, url_prefix="/api/v1/batch")
+files_bp = Blueprint("files", __name__, url_prefix="/api/v1/files")
 
 # ===========================
 # MAIN ROUTES
@@ -1197,52 +1332,173 @@ def batch_analysis_redirect():
 
 
 # ===========================
-# API ROUTES - Dashboard
+# MODELS API ROUTES - RESTful structure
 # ===========================
 
-@api_bp.route("/dashboard/models")
-def api_dashboard_models():
-    """Get models data for dashboard grid."""
+@models_bp.route("/")
+def get_models():
+    """GET /api/v1/models - List all models."""
     try:
         models = ModelCapability.query.all()
-        docker_manager = ServiceLocator.get_docker_manager()
+        models_data = []
         
-        # Enhance model objects with container statistics
         for model in models:
-            # Get container statistics
-            running_containers = 0
-            stopped_containers = 0
-            error_containers = 0
-            
-            if docker_manager:
-                # Sample first 5 apps for performance
-                for app_num in range(1, 6):
-                    try:
-                        statuses = AppDataProvider.get_container_statuses(model.canonical_slug, app_num)
-                        backend = statuses.get('backend', 'stopped')
-                        frontend = statuses.get('frontend', 'stopped')
-                        
-                        if backend == 'running' and frontend == 'running':
-                            running_containers += 1
-                        elif backend in ['exited', 'dead'] or frontend in ['exited', 'dead']:
-                            error_containers += 1
-                        else:
-                            stopped_containers += 1
-                    except Exception:
-                        stopped_containers += 1
-                
-                # Scale up estimates
-                running_containers = running_containers * 6
-                stopped_containers = stopped_containers * 6
-                error_containers = error_containers * 6
-            else:
-                stopped_containers = 30
-            
-            # Add container statistics as attributes for template access
-            model.total_apps = 30
-            model.running_containers = running_containers
-            model.stopped_containers = stopped_containers
-            model.error_containers = error_containers
+            models_data.append({
+                'id': model.id,
+                'name': model.model_name,
+                'slug': model.canonical_slug,
+                'provider': model.provider,
+                'display_name': model.display_name or model.model_name,
+                'capabilities': model.get_capabilities(),
+                'created_at': model.created_at.isoformat() if model.created_at else None
+            })
+        
+        return ResponseHandler.success_response(data=models_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting models: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@models_bp.route("/<model_slug>")
+def get_model_details(model_slug):
+    """GET /api/v1/models/<slug> - Get detailed model information."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return ResponseHandler.error_response("Model not found", 404)
+        
+        # Get container statistics
+        docker_manager = ServiceLocator.get_docker_manager()
+        container_stats = {'running': 0, 'stopped': 0, 'error': 0}
+        
+        if docker_manager:
+            for app_num in range(1, 31):
+                try:
+                    statuses = AppDataProvider.get_container_statuses(model.canonical_slug, app_num)
+                    backend = statuses.get('backend', 'stopped')
+                    frontend = statuses.get('frontend', 'stopped')
+                    
+                    if backend == 'running' and frontend == 'running':
+                        container_stats['running'] += 1
+                    elif backend in ['exited', 'dead'] or frontend in ['exited', 'dead']:
+                        container_stats['error'] += 1
+                    else:
+                        container_stats['stopped'] += 1
+                except Exception:
+                    container_stats['stopped'] += 1
+        
+        model_data = {
+            'id': model.id,
+            'name': model.model_name,
+            'slug': model.canonical_slug,
+            'provider': model.provider,
+            'display_name': model.display_name or model.model_name,
+            'capabilities': model.get_capabilities(),
+            'container_stats': container_stats,
+            'total_apps': 30,
+            'created_at': model.created_at.isoformat() if model.created_at else None
+        }
+        
+        return ResponseHandler.success_response(data=model_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting model details: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@models_bp.route("/<model_slug>/apps")
+def get_model_apps(model_slug):
+    """GET /api/v1/models/<slug>/apps - Get apps for a specific model."""
+    try:
+        apps = []
+        for app_num in range(1, 31):
+            app_info = AppDataProvider.get_app_for_dashboard(model_slug, app_num)
+            apps.append(app_info)
+        
+        return ResponseHandler.success_response(data=apps)
+        
+    except Exception as e:
+        logger.error(f"Error getting model apps: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@models_bp.route("/<model_slug>/stats")
+def get_model_stats(model_slug):
+    """GET /api/v1/models/<slug>/stats - Get model statistics."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return ResponseHandler.error_response("Model not found", 404)
+        
+        # Get comprehensive statistics
+        docker_manager = ServiceLocator.get_docker_manager()
+        stats = {
+            'total_apps': 30,
+            'running_containers': 0,
+            'stopped_containers': 0,
+            'error_containers': 0,
+            'analyzed_apps': 0,
+            'performance_tested': 0,
+            'last_activity': None
+        }
+        
+        if docker_manager:
+            for app_num in range(1, 31):
+                try:
+                    statuses = AppDataProvider.get_container_statuses(model.canonical_slug, app_num)
+                    backend = statuses.get('backend', 'stopped')
+                    frontend = statuses.get('frontend', 'stopped')
+                    
+                    if backend == 'running' and frontend == 'running':
+                        stats['running_containers'] += 1
+                    elif backend in ['exited', 'dead'] or frontend in ['exited', 'dead']:
+                        stats['error_containers'] += 1
+                    else:
+                        stats['stopped_containers'] += 1
+                except Exception:
+                    stats['stopped_containers'] += 1
+        
+        return ResponseHandler.success_response(data=stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting model stats: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@models_bp.route("/export")
+def export_models():
+    """GET /api/v1/models/export - Export models data."""
+    try:
+        models = ModelCapability.query.all()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        export_data = []
+        for model in models:
+            export_data.append({
+                'id': model.id,
+                'name': model.model_name,
+                'slug': model.canonical_slug,
+                'provider': model.provider,
+                'display_name': model.display_name,
+                'capabilities': model.get_capabilities(),
+                'created_at': model.created_at.isoformat() if model.created_at else None
+            })
+        
+        export_result = {
+            'export_timestamp': datetime.now().isoformat(),
+            'total_models': len(export_data),
+            'models': export_data
+        }
+        
+        response = make_response(json.dumps(export_result, indent=2, default=str))
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Content-Disposition'] = f'attachment; filename=models_export_{timestamp}.json'
+        return response
+        
+    except Exception as e:
+        logger.error(f"Export error: {e}")
+        return ResponseHandler.error_response(str(e))
         
         # Prepare models data for JSON response since partials are no longer used
         models_data = []
@@ -1324,6 +1580,34 @@ def api_model_apps(model_slug: str):
         
     except Exception as e:
         logger.error(f"Error loading apps for model {model_slug}: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/dashboard/models")
+def api_dashboard_models():
+    """Get updated dashboard models for HTMX partial updates."""
+    try:
+        models = ModelCapability.query.all()
+        models_data = []
+        
+        for model in models:
+            # Get model stats and container status
+            model_data = {
+                'slug': model.canonical_slug,
+                'name': model.model_name,
+                'apps_count': 30,  # Standard app count
+                'stats': AppDataProvider.get_model_dashboard_stats(model.canonical_slug)
+            }
+            models_data.append(model_data)
+        
+        # Return partial template for HTMX updates
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/dashboard_models.html", models=models_data)
+        
+        return ResponseHandler.success_response(data=models_data)
+        
+    except Exception as e:
+        logger.error(f"Error loading dashboard models: {e}")
         return ResponseHandler.error_response(str(e))
 
 
@@ -1470,8 +1754,7 @@ def api_docker_cache_stats():
 def containers_stats():
     """Get container statistics for the batch testing dashboard."""
     try:
-        from batch_testing_service import get_batch_testing_service
-        service = get_batch_testing_service()
+        service = get_unified_cli_analyzer()
         
         stats = service.get_container_stats()
         return jsonify({
@@ -1491,8 +1774,7 @@ def containers_stats():
 def containers_overview():
     """Get container overview for the batch testing dashboard."""
     try:
-        from batch_testing_service import get_batch_testing_service
-        service = get_batch_testing_service()
+        service = get_unified_cli_analyzer()
         
         # Get available models and their container status
         models = service.get_available_models()
@@ -2079,7 +2361,7 @@ def download_app_file(model: str, app_num: int):
 # ===========================
 
 @api_bp.route("/models")
-def get_models():
+def api_get_models():
     """Get all models data for API requests."""
     try:
         models = ModelCapability.query.all()
@@ -2305,12 +2587,13 @@ def export_models_data():
 
 
 # ===========================
-# STATISTICS ROUTES
+# STATISTICS & LEGACY ROUTES
 # ===========================
 
-@statistics_bp.route("/")
-def statistics_overview():
-    """Statistics and generation data overview."""
+# Statistics route - moved to main_bp since statistics_bp is removed
+@main_bp.route("/statistics")
+def main_statistics_overview():
+    """Statistics and generation data overview (main route)."""
     try:
         # Load generation statistics from generateOutputs.py data
         stats = load_generation_statistics()
@@ -2332,7 +2615,32 @@ def statistics_overview():
         return ResponseHandler.error_response(str(e))
 
 
-@statistics_bp.route("/api/refresh", methods=["POST"])
+# Statistics blueprint route for template compatibility
+@statistics_bp.route("/statistics_overview")
+def statistics_overview():
+    """Statistics overview for statistics blueprint (template compatibility)."""
+    try:
+        # Load generation statistics from generateOutputs.py data
+        stats = load_generation_statistics()
+        recent_generations = load_recent_generations()
+        top_models = load_top_performing_models()
+        daily_stats = load_daily_statistics()
+        
+        context = {
+            'stats': stats,
+            'recent_generations': recent_generations,
+            'top_models': top_models,
+            'daily_stats': daily_stats
+        }
+        
+        return ResponseHandler.render_response("statistics_overview.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Statistics overview error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@main_bp.route("/statistics/api/refresh", methods=["POST"])
 def refresh_statistics():
     """Refresh statistics data."""
     try:
@@ -2342,7 +2650,7 @@ def refresh_statistics():
         return ResponseHandler.error_response(str(e))
 
 
-@statistics_bp.route("/api/export")
+@main_bp.route("/statistics/api/export")
 def export_statistics():
     """Export statistics data."""
     try:
@@ -2552,27 +2860,54 @@ def load_daily_statistics():
 
 
 # ===========================
-# BATCH ROUTES - Enhanced with Coordinator Integration
+# UNIFIED SERVICE MANAGEMENT
 # ===========================
 
-# Global coordinator instance
-_batch_coordinator = None
+# Global unified CLI analyzer instance
+_unified_cli_analyzer = None
 
-def get_batch_coordinator():
-    """Get or create batch service instance."""
-    global _batch_coordinator
-    if _batch_coordinator is None:
+def get_unified_cli_analyzer():
+    """Get or create unified CLI analyzer instance."""
+    global _unified_cli_analyzer
+    if _unified_cli_analyzer is None:
         try:
-            # Import the new Container Batch Service
-            from batch_testing_service import get_batch_testing_service
-            
-            # Create service instance
-            _batch_coordinator = get_batch_testing_service()
-            logger.info("Container batch service initialized successfully")
+            # Create unified CLI analyzer instance
+            _unified_cli_analyzer = UnifiedCLIAnalyzer()
+            logger.info("Unified CLI analyzer initialized successfully")
             
         except Exception as e:
-            logger.error(f"Failed to initialize batch service: {e}")
-    return _batch_coordinator
+            logger.error(f"Failed to initialize unified CLI analyzer: {e}")
+            # Return a mock object for graceful degradation
+            class MockAnalyzer:
+                def __init__(self):
+                    self.logger = logger
+                    
+                def get_all_jobs(self, status_filter=None, test_type_filter=None):
+                    return []
+                    
+                def create_batch_job(self, job_config):
+                    return {'success': False, 'error': 'Service unavailable'}
+                    
+                def get_container_stats(self):
+                    return {'total': 0, 'running': 0, 'stopped': 0}
+                    
+                def get_stats(self):
+                    return {'total_jobs': 0, 'running_jobs': 0}
+                    
+            _unified_cli_analyzer = MockAnalyzer()
+    return _unified_cli_analyzer
+
+def get_batch_coordinator():
+    """Legacy compatibility function - redirects to unified CLI analyzer."""
+    return get_unified_cli_analyzer()
+
+def get_batch_testing_service():
+    """Legacy compatibility function - redirects to unified CLI analyzer.""" 
+    return get_unified_cli_analyzer()
+
+# ===========================
+# BATCH ROUTES - Enhanced with Coordinator Integration
+# ===========================
 
 @batch_bp.route("/")
 def batch_overview():
@@ -3273,14 +3608,14 @@ def api_batch_stats():
 
 
 # ===========================
-# BATCH TESTING ROUTES
+# BATCH TESTING ROUTES (moved to main_bp)
 # ===========================
 
-@batch_testing_bp.route("/")
+@main_bp.route("/batch-testing")
 def batch_testing_dashboard():
     """Batch testing dashboard page."""
     try:
-        service = get_batch_testing_service()
+        service = get_unified_cli_analyzer()
         
         # Get basic stats for dashboard
         all_jobs = service.get_all_jobs()
@@ -3298,11 +3633,11 @@ def batch_testing_dashboard():
         return ResponseHandler.error_response(str(e))
 
 
-@batch_testing_bp.route("/api/jobs")
+@api_bp.route("/batch-testing/jobs")
 def api_get_batch_jobs():
     """Get list of batch testing jobs with optional filtering."""
     try:
-        service = get_batch_testing_service()
+        service = get_unified_cli_analyzer()
         
         status_filter = request.args.get('status')
         test_type_filter = request.args.get('test_type')
@@ -3319,11 +3654,11 @@ def api_get_batch_jobs():
         return ResponseHandler.error_response(str(e))
 
 
-@batch_testing_bp.route("/api/create", methods=["POST"])
+@api_bp.route("/batch-testing/create", methods=["POST"])
 def api_create_batch_testing_job():
     """Create a new batch testing job."""
     try:
-        service = get_batch_testing_service()
+        service = get_unified_cli_analyzer()
         
         # Get form data and map to container operation format
         job_config = {
@@ -3370,10 +3705,10 @@ def api_create_batch_testing_job():
 
 
 # ===========================
-# DOCKER ROUTES
+# DOCKER ROUTES (moved to main_bp)
 # ===========================
 
-@docker_bp.route("/")
+@main_bp.route("/docker")
 def docker_overview():
     """Docker management overview."""
     try:
@@ -3634,6 +3969,62 @@ def register_template_helpers(app):
 
 
 # ===========================
+# SIMPLE API ROUTES (Template Compatibility)
+# ===========================
+
+@simple_api_bp.route("/settings")
+def api_settings():
+    """Get application settings for frontend."""
+    try:
+        settings = {
+            'theme': 'light',
+            'auto_refresh': True,
+            'refresh_interval': 15,
+            'max_concurrent_operations': 4,
+            'docker_timeout': 60,
+            'analysis_timeout': 300
+        }
+        return ResponseHandler.success_response(data=settings)
+    except Exception as e:
+        return ResponseHandler.error_response(str(e))
+
+
+@simple_api_bp.route("/dashboard/models")
+def api_simple_dashboard_models():
+    """Get dashboard models without version prefix."""
+    try:
+        models = ModelCapability.query.all()
+        models_data = []
+        
+        for model in models:
+            # Get model stats and flatten them directly into model data
+            stats = AppDataProvider.get_model_dashboard_stats(model.canonical_slug)
+            
+            model_data = {
+                'slug': model.canonical_slug,
+                'name': model.model_name,
+                'provider': model.provider or 'Unknown',
+                'total_apps': stats.get('total_apps', 30),
+                'running_containers': stats.get('running_containers', 0),
+                'stopped_containers': stats.get('stopped_containers', 0),
+                'error_containers': stats.get('error_containers', 0),
+                'analyzed_apps': stats.get('analyzed_apps', 0),
+                'performance_tested': stats.get('performance_tested', 0)
+            }
+            models_data.append(model_data)
+        
+        # Return partial template for HTMX updates
+        if ResponseHandler.is_htmx_request():
+            return render_template("partials/dashboard_models.html", models=models_data)
+        
+        return ResponseHandler.success_response(data=models_data)
+        
+    except Exception as e:
+        logger.error(f"Simple API dashboard models error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+# ===========================
 # BLUEPRINT REGISTRATION
 # ===========================
 
@@ -3641,18 +4032,13 @@ def register_blueprints(app):
     """Register all blueprints with the Flask app."""
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(simple_api_bp)
     app.register_blueprint(statistics_bp)
-    
-    # Register legacy batch blueprint for compatibility
+    app.register_blueprint(models_bp)
+    app.register_blueprint(containers_bp)
+    app.register_blueprint(analysis_bp)
     app.register_blueprint(batch_bp)
-    
-    # Register batch testing blueprint
-    app.register_blueprint(batch_testing_bp)
-    
-    # Register testing infrastructure blueprint
-    app.register_blueprint(testing_bp)
-    
-    app.register_blueprint(docker_bp)
+    app.register_blueprint(files_bp)
     
     # Register template helpers
     register_template_helpers(app)
@@ -3662,6 +4048,6 @@ def register_blueprints(app):
 
 # Export blueprints for use in app factory
 __all__ = [
-    'main_bp', 'api_bp', 'statistics_bp', 'batch_bp', 'docker_bp', 'batch_testing_bp', 'testing_bp',
+    'main_bp', 'api_bp', 'simple_api_bp', 'statistics_bp', 'models_bp', 'containers_bp', 'analysis_bp', 'batch_bp', 'files_bp',
     'register_blueprints'
 ]

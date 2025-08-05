@@ -724,8 +724,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             )
             service_thread.start()
             
-            # Container batch service is initialized via batch_testing_service module
-            app.logger.info("Container batch operation services available")
+            # Unified CLI analyzer provides batch operations and testing infrastructure
+            app.logger.info("Unified CLI analyzer services available")
             
             # Use app.config to track initialization state
             app.config['_services_initialized'] = True
@@ -777,7 +777,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             'version': '2.0.0-htmx',
             'database': 'connected' if db else 'disconnected',
             'services': {
-                'container_batch_service': True,  # Always available via batch_testing_service
+                'unified_cli_analyzer': True,  # Always available via unified CLI analyzer
                 'docker_manager': app.config.get('docker_manager') is not None,
                 'service_manager': app.config.get('service_manager') is not None
             }
