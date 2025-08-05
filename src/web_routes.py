@@ -789,6 +789,38 @@ containers_bp = Blueprint("containers", __name__, url_prefix="/api/v1/containers
 testing_bp = Blueprint("testing", __name__, url_prefix="/testing")  # For template compatibility 
 
 # ===========================
+# TESTING ROUTES (Security Testing Platform)
+# ===========================
+
+@testing_bp.route("/")
+def testing_dashboard():
+    """Main testing dashboard page."""
+    try:
+        from models import BatchJob, JobStatus
+        
+        # Get basic stats for dashboard
+        total_jobs = BatchJob.query.count()
+        running_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.RUNNING).count()
+        completed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.COMPLETED).count()
+        failed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.FAILED).count()
+        pending_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.PENDING).count()
+        
+        stats = {
+            'total_jobs': total_jobs,
+            'running_jobs': running_jobs,
+            'completed_jobs': completed_jobs,
+            'failed_jobs': failed_jobs,
+            'pending_jobs': pending_jobs,
+            'success_rate': round((completed_jobs / max(total_jobs, 1)) * 100, 1)
+        }
+        
+        return ResponseHandler.render_response("batch_testing.html", stats=stats)
+        
+    except Exception as e:
+        logger.error(f"Error loading testing dashboard: {e}")
+        return ResponseHandler.error_response("Error loading testing dashboard", 500) 
+
+# ===========================
 # CONTAINER MANAGEMENT ROUTES
 # ===========================
 
@@ -3739,26 +3771,115 @@ def testing_api_health():
 
 @testing_bp.route("/api/jobs")
 def testing_api_jobs():
-    """Get testing jobs list."""
+    """Get testing jobs list from database."""
     try:
-        service = get_unified_cli_analyzer()
-        jobs = service.get_all_jobs()
-        return jsonify({'success': True, 'jobs': jobs})
+        from models import BatchJob, JobStatus
+        
+        # Get query parameters for filtering
+        status_filter = request.args.get('status')
+        test_type_filter = request.args.get('test_type') 
+        model_filter = request.args.get('model')
+        limit = request.args.get('limit', 50, type=int)
+        
+        # Build query
+        query = BatchJob.query
+        
+        # Apply filters
+        if status_filter and status_filter != 'all':
+            try:
+                status_enum = JobStatus(status_filter)
+                query = query.filter(BatchJob.status == status_enum)
+            except ValueError:
+                pass  # Invalid status, ignore filter
+        
+        # Order by created_at descending (newest first)
+        query = query.order_by(BatchJob.created_at.desc())
+        
+        # Apply limit
+        jobs_db = query.limit(limit).all()
+        
+        # Convert to dictionaries and add additional computed fields
+        jobs = []
+        for job in jobs_db:
+            job_dict = job.to_dict()
+            
+            # Add computed fields for frontend display
+            job_dict['display_status'] = job.status.value if job.status else 'unknown'
+            job_dict['status_class'] = {
+                'pending': 'warning',
+                'queued': 'info', 
+                'running': 'primary',
+                'completed': 'success',
+                'failed': 'danger',
+                'cancelled': 'secondary',
+                'paused': 'warning'
+            }.get(job.status.value if job.status else 'unknown', 'secondary')
+            
+            # Format duration
+            if job.actual_duration_seconds:
+                minutes = int(job.actual_duration_seconds // 60)
+                seconds = int(job.actual_duration_seconds % 60)
+                job_dict['duration_display'] = f"{minutes}m {seconds}s"
+            elif job.estimated_duration_minutes:
+                job_dict['duration_display'] = f"~{job.estimated_duration_minutes}m"
+            else:
+                job_dict['duration_display'] = "Unknown"
+            
+            # Format creation time
+            if job.created_at:
+                job_dict['created_at_display'] = job.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Add models and test types for filtering
+            job_dict['models_display'] = ', '.join(job.get_models()[:3])  # First 3 models
+            if len(job.get_models()) > 3:
+                job_dict['models_display'] += f" (+{len(job.get_models()) - 3} more)"
+            
+            job_dict['test_types_display'] = ', '.join(job.get_analysis_types())
+            
+            jobs.append(job_dict)
+        
+        # Apply additional client-side filters if needed
+        if test_type_filter and test_type_filter != 'all':
+            jobs = [job for job in jobs if test_type_filter in job.get('test_types_display', '')]
+        
+        if model_filter and model_filter != 'all':
+            jobs = [job for job in jobs if model_filter in job.get('models_display', '')]
+        
+        # Check if request is from HTMX (wants HTML response)
+        if request.headers.get('HX-Request'):
+            return render_template('partials/batch_jobs_list.html', jobs=jobs)
+        else:
+            return jsonify({'success': True, 'jobs': jobs})
+        
     except Exception as e:
         logger.error(f"Error getting jobs: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        if request.headers.get('HX-Request'):
+            return render_template('partials/batch_jobs_list.html', jobs=[], error=str(e))
+        else:
+            return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @testing_bp.route("/api/models")
 def testing_api_models():
     """Get available models for testing."""
     try:
-        service = get_unified_cli_analyzer()
-        models = service.get_available_models()
-        return jsonify({'success': True, 'models': models})
+        models = ModelCapability.query.all()
+        models_data = []
+        
+        for model in models:
+            model_data = {
+                'id': model.canonical_slug,
+                'slug': model.canonical_slug,
+                'name': model.model_name,
+                'display_name': model.model_name,
+                'provider': model.provider or 'Unknown'
+            }
+            models_data.append(model_data)
+        
+        return ResponseHandler.success_response(data=models_data)
     except Exception as e:
         logger.error(f"Error getting models: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return ResponseHandler.error_response(str(e))
 
 
 @testing_bp.route("/api/infrastructure-status")
@@ -3798,27 +3919,157 @@ def testing_api_infrastructure_status():
 
 @testing_bp.route("/api/create", methods=["POST"])
 def testing_api_create():
-    """Create a new test."""
+    """Create a new test and save it to database."""
     try:
-        service = get_unified_cli_analyzer()
-        data = request.get_json()
+        from models import BatchJob, JobStatus, JobPriority
+        from extensions import db
+        from datetime import timedelta
+        import uuid
         
-        # Create a mock job for the testing interface
-        job_config = {
-            'operation_type': data.get('test_type', 'security_analysis'),
-            'job_name': data.get('job_name', 'Security Test'),
-            'description': data.get('description', ''),
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+            logger.info("Received JSON data")
+        elif request.form:
+            # Convert form data to dict
+            data = {}
+            for key, value in request.form.items():
+                # Handle array fields
+                if key in ['tools', 'selected_models', 'selected_apps']:
+                    data[key] = request.form.getlist(key)
+                else:
+                    data[key] = value
+            logger.info("Received form data")
+        else:
+            logger.error("No data provided in request")
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        if not data:
+            logger.error("Empty request data")
+            return jsonify({'success': False, 'error': 'Empty request data'}), 400
+        
+        logger.info(f"Creating test with data: {data}")
+        
+        # Validate required fields
+        if not data.get('test_type'):
+            return jsonify({'success': False, 'error': 'Test type is required'}), 400
+        
+        if not data.get('job_name'):
+            return jsonify({'success': False, 'error': 'Job name is required'}), 400
+        
+        # Generate unique job ID
+        job_id = str(uuid.uuid4())
+        
+        # Create new BatchJob record
+        new_job = BatchJob(
+            id=job_id,
+            name=data.get('job_name'),
+            description=data.get('description', ''),
+            status=JobStatus.PENDING,
+            priority=JobPriority(data.get('priority', 'normal')),
+            auto_start=data.get('auto_start', True),
+            auto_retry=False,
+            max_retries=3
+        )
+        
+        # Set analysis types
+        analysis_types = [data.get('test_type')]
+        new_job.set_analysis_types(analysis_types)
+        
+        # Set models
+        models = data.get('selected_models', [])
+        if isinstance(models, str):
+            models = [models]
+        new_job.set_models(models)
+        
+        # Set app range
+        apps = data.get('selected_apps', [])
+        if isinstance(apps, str):
+            apps = [int(apps)]
+        elif isinstance(apps, list):
+            apps = [int(app) if isinstance(app, str) else app for app in apps]
+        
+        app_range = {
+            'apps': apps,
+            'include_all': len(apps) == 0
+        }
+        new_job.set_app_range(app_range)
+        
+        # Set options based on test type
+        options = {
             'tools': data.get('tools', []),
-            'selected_models': data.get('selected_models', []),
             'concurrency': data.get('concurrency', 1),
-            'timeout': data.get('timeout', 300)
+            'timeout': data.get('timeout', 600),
+            'fail_fast': data.get('fail_fast', False),
+            'generate_report': data.get('generate_report', True)
         }
         
-        result = service.create_batch_job(job_config)
+        # Add test-specific configurations
+        if data.get('test_type') == 'zap_scan':
+            options['zap_config'] = data.get('zap_config', {})
+        elif data.get('test_type') == 'performance_test':
+            options['performance_config'] = data.get('performance_config', {})
+        elif data.get('test_type') == 'ai_analysis':
+            options['ai_config'] = data.get('ai_config', {})
+        
+        new_job.set_options(options)
+        
+        # Calculate estimated duration and total tasks
+        total_models = len(models) if models else 1
+        total_apps = len(apps) if apps else 10  # Default assumption
+        new_job.total_tasks = total_models * total_apps
+        new_job.estimated_duration_minutes = new_job.total_tasks * 5  # 5 minutes per task estimate
+        
+        # Set scheduled time if auto_start is false
+        if not data.get('auto_start', True):
+            new_job.scheduled_at = datetime.now() + timedelta(minutes=5)
+        
+        # Save to database
+        db.session.add(new_job)
+        db.session.commit()
+        
+        # Auto-start the job if requested
+        if data.get('auto_start', True):
+            try:
+                service = get_unified_cli_analyzer()
+                # Submit the job to the unified CLI analyzer
+                job_config = new_job.to_dict()
+                service_result = service.create_batch_job(job_config)
+                
+                if service_result.get('success'):
+                    new_job.status = JobStatus.QUEUED
+                    new_job.started_at = datetime.now()
+                    db.session.commit()
+                    logger.info(f"Job {job_id} submitted to unified CLI analyzer")
+                else:
+                    logger.warning(f"Failed to submit job to service: {service_result.get('error')}")
+            except Exception as e:
+                logger.error(f"Error starting job: {e}")
+                # Job is still created but not started
+        
+        result = {
+            'success': True,
+            'message': f'Security test "{data.get("job_name", "Test")}" created successfully',
+            'data': {
+                'job_id': job_id,
+                'test_type': data.get('test_type'),
+                'status': new_job.status.value,
+                'created_at': new_job.created_at.isoformat(),
+                'total_tasks': new_job.total_tasks,
+                'estimated_duration_minutes': new_job.estimated_duration_minutes
+            }
+        }
+        
+        logger.info(f"Test created successfully and saved to database: {job_id}")
         return jsonify(result)
         
     except Exception as e:
         logger.error(f"Error creating test: {e}")
+        # Rollback database changes on error
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -3916,25 +4167,97 @@ def testing_api_test_logs(test_id):
         return jsonify({'error': str(e)}), 500
 
 
-@testing_bp.route("/api/test/<test_id>/<action>", methods=["POST"])
+@testing_bp.route("/api/test/<test_id>/<action>", methods=["POST", "DELETE"])
 def testing_api_test_action(test_id, action):
-    """Perform action on test (start, stop, cancel)."""
+    """Perform action on test (restart, cancel, delete)."""
     try:
-        service = get_unified_cli_analyzer()
+        from models import BatchJob, JobStatus
+        from extensions import db
         
-        if action == 'start':
-            result = {'success': True, 'message': f'Test {test_id} started'}
+        # Find the job in database
+        job = BatchJob.query.filter_by(id=test_id).first()
+        if not job:
+            return jsonify({'success': False, 'error': 'Job not found'}), 404
+        
+        if action == 'restart':
+            if not job.can_be_restarted():
+                return jsonify({'success': False, 'error': 'Job cannot be restarted'}), 400
+            
+            # Reset job status and counters
+            job.status = JobStatus.PENDING
+            job.completed_tasks = 0
+            job.failed_tasks = 0
+            job.cancelled_tasks = 0
+            job.started_at = None
+            job.completed_at = None
+            job.error_message = None
+            job.error_details_json = None
+            
+            db.session.commit()
+            
+            # Try to submit to unified CLI analyzer if auto_start is enabled
+            if job.auto_start:
+                try:
+                    service = get_unified_cli_analyzer()
+                    job_config = job.to_dict()
+                    service_result = service.create_batch_job(job_config)
+                    
+                    if service_result.get('success'):
+                        job.status = JobStatus.QUEUED
+                        job.started_at = datetime.now()
+                        db.session.commit()
+                        logger.info(f"Job {test_id} restarted and submitted to unified CLI analyzer")
+                    else:
+                        logger.warning(f"Failed to submit restarted job to service: {service_result.get('error')}")
+                except Exception as e:
+                    logger.error(f"Error restarting job: {e}")
+                    # Job is still restarted but not queued
+            
+            result = {'success': True, 'message': f'Job {job.name} restarted successfully'}
+            
         elif action == 'cancel':
-            result = {'success': True, 'message': f'Test {test_id} cancelled'}
+            if not job.can_be_cancelled():
+                return jsonify({'success': False, 'error': 'Job cannot be cancelled'}), 400
+            
+            job.status = JobStatus.CANCELLED
+            job.completed_at = datetime.now()
+            
+            # Calculate actual duration if job was running
+            if job.started_at:
+                duration = datetime.now() - job.started_at
+                job.actual_duration_seconds = duration.total_seconds()
+            
+            db.session.commit()
+            
+            # TODO: Send cancellation signal to unified CLI analyzer
+            logger.info(f"Job {test_id} cancelled")
+            
+            result = {'success': True, 'message': f'Job {job.name} cancelled successfully'}
+            
         elif action == 'delete':
-            result = {'success': True, 'message': f'Test {test_id} deleted'}
+            if job.is_active():
+                return jsonify({'success': False, 'error': 'Cannot delete active job. Cancel it first.'}), 400
+            
+            job_name = job.name
+            db.session.delete(job)
+            db.session.commit()
+            
+            logger.info(f"Job {test_id} deleted")
+            
+            result = {'success': True, 'message': f'Job {job_name} deleted successfully'}
+            
         else:
             result = {'success': False, 'error': f'Unknown action: {action}'}
+            return jsonify(result), 400
             
         return jsonify(result)
         
     except Exception as e:
-        logger.error(f"Error performing test action: {e}")
+        logger.error(f"Error performing test action {action} on {test_id}: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -4272,6 +4595,7 @@ def register_blueprints(app):
     app.register_blueprint(containers_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(batch_bp)
+    app.register_blueprint(testing_bp)
     app.register_blueprint(files_bp)
     app.register_blueprint(testing_bp)  # Add testing blueprint for template compatibility
     

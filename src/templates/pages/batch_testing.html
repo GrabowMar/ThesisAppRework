@@ -160,170 +160,23 @@
             </div>
         </div>
         <div class="card-body p-0">
-            <div id="test-jobs-list">
-                <!-- Security Testing Jobs List -->
-                {% if jobs %}
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Test ID</th>
-                                <th>Type</th>
-                                <th>Target</th>
-                                <th>Status</th>
-                                <th>Started</th>
-                                <th>Duration</th>
-                                <th>Issues Found</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for job in jobs %}
-                            <tr class="test-row">
-                                <td>
-                                    <small class="text-monospace">{{ job.job_id[:8] }}...</small>
-                                </td>
-                                <td>
-                                    {% if job.test_type == 'security_analysis' %}
-                                        <span class="badge badge-primary">
-                                            <i class="fas fa-shield-alt mr-1"></i>
-                                            Security Analysis
-                                        </span>
-                                    {% elif job.test_type == 'zap_scan' %}
-                                        <span class="badge badge-warning">
-                                            <i class="fas fa-spider mr-1"></i>
-                                            ZAP Scan
-                                        </span>
-                                    {% elif job.test_type == 'performance_test' %}
-                                        <span class="badge badge-info">
-                                            <i class="fas fa-tachometer-alt mr-1"></i>
-                                            Performance Test
-                                        </span>
-                                    {% elif job.test_type == 'ai_analysis' %}
-                                        <span class="badge badge-success">
-                                            <i class="fas fa-robot mr-1"></i>
-                                            AI Analysis
-                                        </span>
-                                    {% else %}
-                                        <span class="badge badge-secondary">{{ job.test_type|title }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column">
-                                        <span class="font-weight-bold">{{ job.model }}</span>
-                                        <small class="text-muted">App {{ job.app_num }}</small>
-                                        {% if job.target_url %}
-                                        <small class="text-info">{{ job.target_url }}</small>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td>
-                                    {% if job.status == 'pending' %}
-                                        <span class="badge badge-secondary test-status-pending">
-                                            <i class="fas fa-clock mr-1"></i>
-                                            Pending
-                                        </span>
-                                    {% elif job.status == 'running' %}
-                                        <span class="badge badge-primary test-status-running">
-                                            <i class="fas fa-spinner fa-spin mr-1"></i>
-                                            Running
-                                        </span>
-                                    {% elif job.status == 'completed' %}
-                                        <span class="badge badge-success test-status-completed">
-                                            <i class="fas fa-check mr-1"></i>
-                                            Completed
-                                        </span>
-                                    {% elif job.status == 'failed' %}
-                                        <span class="badge badge-danger test-status-failed">
-                                            <i class="fas fa-times mr-1"></i>
-                                            Failed
-                                        </span>
-                                    {% elif job.status == 'cancelled' %}
-                                        <span class="badge badge-warning test-status-cancelled">
-                                            <i class="fas fa-ban mr-1"></i>
-                                            Cancelled
-                                        </span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if job.created_at %}
-                                        <small class="text-muted">{{ job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at.strftime else job.created_at }}</small>
-                                    {% else %}
-                                        <small class="text-muted">Unknown</small>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if job.status == 'running' and job.runtime_seconds %}
-                                        <small class="text-info">{{ "%.0f"|format(job.runtime_seconds) }}s</small>
-                                    {% elif job.duration %}
-                                        <small class="text-success">{{ "%.1f"|format(job.duration) }}s</small>
-                                    {% else %}
-                                        <small class="text-muted">-</small>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if job.status == 'completed' %}
-                                        {% if job.total_issues %}
-                                            <span class="badge badge-danger vuln-count">{{ job.total_issues }}</span>
-                                        {% else %}
-                                            <span class="badge badge-success vuln-count">0</span>
-                                        {% endif %}
-                                        {% if job.tools_used %}
-                                            <br><small class="text-muted">{{ job.tools_used|join(', ') }}</small>
-                                        {% endif %}
-                                    {% else %}
-                                        <small class="text-muted">-</small>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="btn-group-sm">
-                                        <button type="button" class="btn btn-outline-info btn-sm" 
-                                                onclick="showTestDetails('{{ job.job_id }}')"
-                                                title="View Details">
-                                            <i class="fas fa-info-circle"></i>
-                                        </button>
-                                        
-                                        {% if job.status == 'completed' %}
-                                            <button type="button" class="btn btn-outline-success btn-sm" 
-                                                    onclick="showTestResults('{{ job.job_id }}')"
-                                                    title="View Results">
-                                                <i class="fas fa-chart-bar"></i>
-                                            </button>
-                                        {% endif %}
-                                        
-                                        {% if job.status in ['pending', 'running'] %}
-                                            <button type="button" class="btn btn-outline-warning btn-sm" 
-                                                    onclick="cancelTest('{{ job.job_id }}', this)"
-                                                    title="Cancel Test">
-                                                <i class="fas fa-stop"></i>
-                                            </button>
-                                        {% endif %}
-                                        
-                                        {% if job.status in ['completed', 'failed', 'cancelled'] %}
-                                            <button type="button" class="btn btn-outline-danger btn-sm" 
-                                                    onclick="deleteTest('{{ job.job_id }}', this)"
-                                                    title="Delete Test">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
+            <div id="test-jobs-list" 
+                 hx-get="/testing/api/jobs"
+                 hx-trigger="load, every 15s"
+                 hx-swap="innerHTML">
+                <!-- Jobs will be loaded dynamically -->
                 <div class="text-center py-5">
-                    <i class="fas fa-shield-alt fa-3x text-muted mb-3"></i>
-                    <h5 class="text-muted">No Security Tests Found</h5>
-                    <p class="text-muted">Create your first security test to get started with automated vulnerability analysis.</p>
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading jobs...</span>
+                    </div>
+                    <p class="text-muted mt-2">Loading security testing jobs...</p>
+                </div>
+            </div>
                     <button type="button" class="btn btn-primary" onclick="showCreateTestModal()">
                         <i class="fas fa-plus mr-1"></i>
                         Create Security Test
                     </button>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -794,11 +647,9 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <label class="form-label">AI Model</label>
-                                <select class="form-control" name="ai_model">
-                                    <option value="mistralai/mistral-small-3.2-24b-instruct" selected>Mistral Small 3.2</option>
-                                    <option value="openai/gpt-4">GPT-4</option>
-                                    <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
-                                    <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                <select class="form-control" name="ai_model" id="ai-model-select">
+                                    <option value="">Select AI Model...</option>
+                                    <!-- Models will be populated dynamically -->
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -1036,7 +887,7 @@ class SecurityTestingPlatform {
     }
 
     loadAvailableModels() {
-        fetch('/testing/api/models')
+        fetch('/api/dashboard/models')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -1048,7 +899,7 @@ class SecurityTestingPlatform {
     }
 
     populateModelSelects() {
-        const modelSelects = document.querySelectorAll('#model-select, #model-filter');
+        const modelSelects = document.querySelectorAll('#model-select, #model-filter, #ai-model-select');
         
         modelSelects.forEach(select => {
             // Clear existing options (except first one)
@@ -1059,8 +910,8 @@ class SecurityTestingPlatform {
             // Add model options
             this.availableModels.forEach(model => {
                 const option = document.createElement('option');
-                option.value = model.id || model.name;
-                option.textContent = model.display_name || model.name;
+                option.value = model.slug;
+                option.textContent = model.name;
                 select.appendChild(option);
             });
         });
@@ -1085,9 +936,9 @@ class SecurityTestingPlatform {
         const model = document.getElementById('model-filter')?.value || '';
 
         const params = new URLSearchParams();
-        if (testType) params.set('test_type', testType);
-        if (status) params.set('status', status);
-        if (model) params.set('model', model);
+        if (testType && testType !== 'all') params.set('test_type', testType);
+        if (status && status !== 'all') params.set('status', status);
+        if (model && model !== 'all') params.set('model', model);
 
         const url = `/testing/api/jobs?${params.toString()}`;
         htmx.ajax('GET', url, {target: '#test-jobs-list'});
@@ -1400,8 +1251,10 @@ window.handleZapScanTypeChange = function(scanType) {
     }
 };
 
-window.startTest = function(testId, button) {
-    handleTestAction('start', testId, button);
+window.restartTest = function(testId, button) {
+    if (confirm('Are you sure you want to restart this test?')) {
+        handleTestAction('restart', testId, button);
+    }
 };
 
 window.cancelTest = function(testId, button) {
@@ -1424,15 +1277,26 @@ function handleTestAction(action, testId, button) {
     const method = action === 'delete' ? 'DELETE' : 'POST';
     const url = `/testing/api/test/${testId}/${action}`;
 
-    htmx.ajax(method, url)
-        .then(() => {
-            securityTestingPlatform.showToast(`Test ${action} successful`, 'success');
-            htmx.trigger('#test-jobs-list', 'refreshJobs');
+    fetch(url, { method: method })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
         })
-        .catch(() => {
+        .then(data => {
+            if (data.success) {
+                securityTestingPlatform.showToast(`Test ${action} successful`, 'success');
+                // Refresh the jobs table
+                htmx.trigger('#test-jobs-list', 'load');
+            } else {
+                throw new Error(data.error || `Failed to ${action} test`);
+            }
+        })
+        .catch(error => {
             button.innerHTML = originalText;
             button.disabled = false;
-            securityTestingPlatform.showToast(`Test ${action} failed`, 'danger');
+            securityTestingPlatform.showToast(`Test ${action} failed: ${error.message}`, 'danger');
         });
 }
 
@@ -1441,6 +1305,65 @@ window.submitSecurityTestForm = function() {
     const formData = new FormData(form);
     const submitBtn = event.target;
     
+    // Convert FormData to JSON object with proper field mapping
+    const jsonData = {};
+    for (let [key, value] of formData.entries()) {
+        // Handle multiple values (like tools checkboxes)
+        if (jsonData[key]) {
+            if (Array.isArray(jsonData[key])) {
+                jsonData[key].push(value);
+            } else {
+                jsonData[key] = [jsonData[key], value];
+            }
+        } else {
+            jsonData[key] = value;
+        }
+    }
+    
+    // Handle tools array properly
+    if (jsonData.tools && !Array.isArray(jsonData.tools)) {
+        jsonData.tools = [jsonData.tools];
+    }
+    
+    // Map frontend field names to backend expected names
+    const backendData = {
+        test_type: jsonData.test_type,
+        job_name: jsonData.test_name,
+        description: jsonData.description || '',
+        tools: jsonData.tools || [],
+        selected_models: jsonData.model ? [jsonData.model] : [],
+        selected_apps: jsonData.app_num ? [parseInt(jsonData.app_num)] : [],
+        concurrency: parseInt(jsonData.concurrency) || 1,
+        timeout: parseInt(jsonData.timeout) || 600,
+        priority: jsonData.priority || 'normal',
+        auto_start: jsonData.auto_start === 'on',
+        fail_fast: jsonData.fail_fast === 'on',
+        generate_report: jsonData.generate_report === 'on'
+    };
+    
+    // Add test type specific configurations
+    if (jsonData.test_type === 'zap_scan') {
+        backendData.zap_config = {
+            target_url: jsonData.target_url || '',
+            scan_type: jsonData.zap_scan_type || 'spider'
+        };
+    } else if (jsonData.test_type === 'performance_test') {
+        backendData.performance_config = {
+            target_url: jsonData.target_url || '',
+            users: parseInt(jsonData.users) || 10,
+            spawn_rate: parseInt(jsonData.spawn_rate) || 2,
+            duration: parseInt(jsonData.duration) || 60
+        };
+    } else if (jsonData.test_type === 'ai_analysis') {
+        backendData.ai_config = {
+            ai_model: jsonData.ai_model || '',
+            analysis_type: jsonData.ai_analysis_type || 'requirements_check',
+            requirements: jsonData.requirements ? jsonData.requirements.split('\n').filter(r => r.trim()) : []
+        };
+    }
+    
+    console.log('Sending data to backend:', backendData);
+    
     // Disable submit button and show loading
     const originalText = submitBtn.innerHTML;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Creating...';
@@ -1448,10 +1371,20 @@ window.submitSecurityTestForm = function() {
     
     fetch('/testing/api/create', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(backendData)
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
+        console.log('Response data:', data);
         if (data.success) {
             $('#createTestModal').modal('hide');
             form.reset();
@@ -1462,15 +1395,16 @@ window.submitSecurityTestForm = function() {
                 if (element) element.classList.add('d-none');
             });
             securityTestingPlatform.showToast(data.message || 'Security test created successfully!', 'success');
-            // Refresh the jobs list
-            location.reload();
+            
+            // Refresh the jobs table using HTMX
+            htmx.trigger('#test-jobs-list', 'load');
         } else {
             securityTestingPlatform.showToast(data.error || 'Failed to create test', 'danger');
         }
     })
     .catch(error => {
         console.error('Error creating test:', error);
-        securityTestingPlatform.showToast('Error creating security test', 'danger');
+        securityTestingPlatform.showToast(`Error creating security test: ${error.message}`, 'danger');
     })
     .finally(() => {
         // Re-enable submit button
