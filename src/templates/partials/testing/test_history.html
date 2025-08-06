@@ -1,0 +1,156 @@
+{% if tests %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Test ID</th>
+                <th>Application</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Duration</th>
+                <th>Results</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for test in tests %}
+            <tr>
+                <td><code>#{{ test.id }}</code></td>
+                <td>
+                    <div>
+                        <strong>{{ test.model_slug }}</strong><br>
+                        <small class="text-muted">App {{ test.app_number }}</small>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-{{ test.type_color }}">
+                        {{ test.test_type|title }}
+                    </span>
+                </td>
+                <td>
+                    {% if test.status == 'completed' %}
+                        <span class="badge bg-success">
+                            <i class="fas fa-check-circle me-1"></i>Completed
+                        </span>
+                    {% elif test.status == 'failed' %}
+                        <span class="badge bg-danger">
+                            <i class="fas fa-times-circle me-1"></i>Failed
+                        </span>
+                    {% elif test.status == 'running' %}
+                        <span class="badge bg-info">
+                            <i class="fas fa-spinner fa-spin me-1"></i>Running
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary">
+                            <i class="fas fa-clock me-1"></i>{{ test.status|title }}
+                        </span>
+                    {% endif %}
+                </td>
+                <td>
+                    <small>{{ test.started_at|datetime }}</small>
+                </td>
+                <td>
+                    <small>{{ test.duration or '-' }}</small>
+                </td>
+                <td>
+                    {% if test.status == 'completed' %}
+                        {% if test.test_type == 'security' %}
+                            <span class="text-danger">
+                                <i class="fas fa-bug"></i> {{ test.vulnerabilities_count }} issues
+                            </span>
+                        {% elif test.test_type == 'performance' %}
+                            <span class="text-info">
+                                <i class="fas fa-tachometer-alt"></i> {{ test.avg_response_time }}ms
+                            </span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary"
+                                hx-get="/testing/test/{{ test.id }}/report"
+                                hx-target="#modal-container"
+                                hx-swap="innerHTML"
+                                title="View Report">
+                            <i class="fas fa-file-alt"></i>
+                        </button>
+                        {% if test.status == 'completed' or test.status == 'failed' %}
+                        <button class="btn btn-outline-success"
+                                hx-post="/testing/test/{{ test.id }}/rerun"
+                                hx-confirm="Rerun this test?"
+                                hx-target="#test-history"
+                                title="Rerun Test">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-outline-danger"
+                                hx-delete="/testing/test/{{ test.id }}"
+                                hx-confirm="Delete this test result?"
+                                hx-target="#test-history"
+                                title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination if needed -->
+{% if pagination %}
+<nav aria-label="Test history pagination">
+    <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+            <a class="page-link" 
+               hx-get="/testing/history?page={{ pagination.prev_num }}"
+               hx-target="#test-history"
+               hx-swap="innerHTML">
+                Previous
+            </a>
+        </li>
+        {% endif %}
+        
+        {% for page in pagination.pages %}
+        <li class="page-item {% if page == pagination.current %}active{% endif %}">
+            <a class="page-link"
+               hx-get="/testing/history?page={{ page }}"
+               hx-target="#test-history"
+               hx-swap="innerHTML">
+                {{ page }}
+            </a>
+        </li>
+        {% endfor %}
+        
+        {% if pagination.has_next %}
+        <li class="page-item">
+            <a class="page-link"
+               hx-get="/testing/history?page={{ pagination.next_num }}"
+               hx-target="#test-history"
+               hx-swap="innerHTML">
+                Next
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% else %}
+<div class="text-center py-4 text-muted">
+    <i class="fas fa-inbox fs-1 mb-3"></i>
+    <p>No test history available</p>
+    <button class="btn btn-primary"
+            hx-get="/testing/new-test-form"
+            hx-target="#modal-container"
+            hx-swap="innerHTML">
+        <i class="fas fa-plus me-2"></i>Run Your First Test
+    </button>
+</div>
+{% endif %}

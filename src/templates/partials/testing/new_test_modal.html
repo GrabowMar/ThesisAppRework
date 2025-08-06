@@ -1,0 +1,116 @@
+<div class="modal fade" id="newTestModal" tabindex="-1" aria-labelledby="newTestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newTestModalLabel">
+                    <i class="fas fa-shield-alt me-2"></i>Create Security Test
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form hx-post="/testing/create"
+                  hx-target="#test-history"
+                  hx-swap="innerHTML"
+                  hx-on::after-request="bootstrap.Modal.getInstance(document.getElementById('newTestModal')).hide()">
+                <div class="modal-body">
+                    <!-- Step 1: Select Application -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Select Application</label>
+                        <select class="form-select" name="app_id" required
+                                hx-get="/testing/app-details"
+                                hx-trigger="change"
+                                hx-target="#app-details"
+                                hx-swap="innerHTML">
+                            <option value="">Choose an application...</option>
+                            {% for app in applications %}
+                            <option value="{{ app.id }}">
+                                {{ app.model_slug }} - App {{ app.app_number }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- App Details -->
+                    <div id="app-details"></div>
+
+                    <!-- Step 2: Select Test Type -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Test Type</label>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="test_type" 
+                                           id="securityTest" value="security" checked
+                                           hx-get="/testing/test-options/security"
+                                           hx-trigger="change"
+                                           hx-target="#test-options"
+                                           hx-swap="innerHTML">
+                                    <label class="form-check-label" for="securityTest">
+                                        <i class="fas fa-shield-alt text-primary me-1"></i>
+                                        Security Analysis
+                                        <small class="d-block text-muted">Static code analysis and vulnerability scanning</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="test_type" 
+                                           id="performanceTest" value="performance"
+                                           hx-get="/testing/test-options/performance"
+                                           hx-trigger="change"
+                                           hx-target="#test-options"
+                                           hx-swap="innerHTML">
+                                    <label class="form-check-label" for="performanceTest">
+                                        <i class="fas fa-tachometer-alt text-success me-1"></i>
+                                        Performance Test
+                                        <small class="d-block text-muted">Load testing and response time analysis</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="test_type" 
+                                           id="zapTest" value="zap"
+                                           hx-get="/testing/test-options/zap"
+                                           hx-trigger="change"
+                                           hx-target="#test-options"
+                                           hx-swap="innerHTML">
+                                    <label class="form-check-label" for="zapTest">
+                                        <i class="fas fa-bug text-warning me-1"></i>
+                                        OWASP ZAP Scan
+                                        <small class="d-block text-muted">Dynamic application security testing</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="test_type" 
+                                           id="aiTest" value="ai"
+                                           hx-get="/testing/test-options/ai"
+                                           hx-trigger="change"
+                                           hx-target="#test-options"
+                                           hx-swap="innerHTML">
+                                    <label class="form-check-label" for="aiTest">
+                                        <i class="fas fa-robot text-info me-1"></i>
+                                        AI Analysis
+                                        <small class="d-block text-muted">AI-powered code review and suggestions</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Test Options -->
+                    <div id="test-options">
+                        <!-- Dynamic content loaded based on test type -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-play me-2"></i>Start Test
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

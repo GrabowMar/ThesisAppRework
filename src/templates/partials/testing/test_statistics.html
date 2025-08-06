@@ -1,0 +1,59 @@
+<div class="col-md-2 col-sm-6 mb-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+            <i class="fas fa-clipboard-list text-primary fs-3 mb-2"></i>
+            <h3 class="mb-1">{{ stats.total }}</h3>
+            <small class="text-muted">Total Tests</small>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-2 col-sm-6 mb-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+            <i class="fas fa-spinner fa-spin text-info fs-3 mb-2"></i>
+            <h3 class="mb-1">{{ stats.running }}</h3>
+            <small class="text-muted">Running</small>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-2 col-sm-6 mb-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+            <i class="fas fa-clock text-warning fs-3 mb-2"></i>
+            <h3 class="mb-1">{{ stats.pending }}</h3>
+            <small class="text-muted">Pending</small>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-2 col-sm-6 mb-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+            <i class="fas fa-check-circle text-success fs-3 mb-2"></i>
+            <h3 class="mb-1">{{ stats.completed }}</h3>
+            <small class="text-muted">Completed</small>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-2 col-sm-6 mb-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+            <i class="fas fa-times-circle text-danger fs-3 mb-2"></i>
+            <h3 class="mb-1">{{ stats.failed }}</h3>
+            <small class="text-muted">Failed</small>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-2 col-sm-6 mb-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+            <i class="fas fa-percentage text-secondary fs-3 mb-2"></i>
+            <h3 class="mb-1">{{ stats.success_rate }}%</h3>
+            <small class="text-muted">Success Rate</small>
+        </div>
+    </div>
+</div>
