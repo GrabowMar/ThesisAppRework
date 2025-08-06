@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Thesis Research App{% endblock %}</title>
     
-    <!-- Bootstrap 4.6.2 CSS (Updated for security) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" 
-          integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" 
+    <!-- Bootstrap 5.3.7 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" 
+          rel="stylesheet" 
+          integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" 
           crossorigin="anonymous">
     
     <!-- Font Awesome for icons -->
@@ -42,40 +43,40 @@
                 <div class="brand-icon">
                     <i class="fas fa-atom"></i>
                 </div>
-                <span class="brand-text ml-2">TRA</span>
+                <span class="brand-text ms-2">TRA</span>
             </a>
 
             <!-- Mobile toggle -->
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
             <!-- Navbar content -->
             <div class="collapse navbar-collapse" id="navbarNav">
                 <!-- Navigation links -->
-                <ul class="navbar-nav ml-auto">
+                <ul class="navbar-nav ms-auto">
                     <!-- Main navigation -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('main.dashboard') }}">
-                            <i class="fas fa-home mr-2"></i>
+                            <i class="fas fa-home me-2"></i>
                             <span class="nav-text">Dashboard</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('main.models_overview') }}">
-                            <i class="fas fa-robot mr-2"></i>
+                            <i class="fas fa-robot me-2"></i>
                             <span class="nav-text">AI Models</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}">
-                            <i class="fas fa-chart-bar mr-2"></i>
+                            <i class="fas fa-chart-bar me-2"></i>
                             <span class="nav-text">Statistics</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('testing.testing_dashboard') }}">
-                            <i class="fas fa-shield-alt mr-2"></i>
+                            <i class="fas fa-shield-alt me-2"></i>
                             <span class="nav-text">Security Testing</span>
                         </a>
                     </li>
@@ -87,23 +88,23 @@
 
                     <!-- System status -->
                     <li class="nav-item">
-                        <a class="nav-link" href="#" data-toggle="tooltip" title="System Status">
+                        <a class="nav-link" href="#" data-bs-toggle="tooltip" title="System Status">
                             <span class="status-dot status-success"></span>
                         </a>
                     </li>
 
                     <!-- User dropdown -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
                             <div class="user-avatar">
                                 <i class="fas fa-user"></i>
                             </div>
-                            <span class="ml-2 d-none d-lg-inline">Research</span>
+                            <span class="ms-2 d-none d-lg-inline">Research</span>
                         </a>
-                        <div class="dropdown-menu dropdown-menu-right">
+                        <div class="dropdown-menu dropdown-menu-end">
                             <div class="dropdown-header">
                                 <div class="d-flex align-items-center">
-                                    <div class="user-avatar-large mr-2">
+                                    <div class="user-avatar-large me-2">
                                         <i class="fas fa-user"></i>
                                     </div>
                                     <div>
@@ -114,14 +115,14 @@
                             </div>
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item" href="#" onclick="showSettingsModal()">
-                                <i class="fas fa-cog mr-2"></i>Settings
+                                <i class="fas fa-cog me-2"></i>Settings
                             </a>
                             <a class="dropdown-item" href="#" hx-post="/api/cache/clear" hx-target="#flash-messages">
-                                <i class="fas fa-trash mr-2"></i>Clear Cache
+                                <i class="fas fa-trash me-2"></i>Clear Cache
                             </a>
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item" href="#" onclick="showHelpModal()">
-                                <i class="fas fa-question-circle mr-2"></i>Help
+                                <i class="fas fa-question-circle me-2"></i>Help
                             </a>
                         </div>
                     </li>
@@ -175,19 +176,19 @@
                     <div class="quick-actions">
                         <button class="btn btn-sm btn-outline-primary btn-block"
                                 onclick="startAllContainers()">
-                            <i class="fas fa-play mr-1"></i>Start All
+                            <i class="fas fa-play me-1"></i>Start All
                         </button>
                         <button class="btn btn-sm btn-outline-warning btn-block"
                                 onclick="stopAllContainers()">
-                            <i class="fas fa-stop mr-1"></i>Stop All
+                            <i class="fas fa-stop me-1"></i>Stop All
                         </button>
                         <button class="btn btn-sm btn-outline-info btn-block"
                                 onclick="window.location.href='/statistics'">
-                            <i class="fas fa-chart-bar mr-1"></i>View Statistics
+                            <i class="fas fa-chart-bar me-1"></i>View Statistics
                         </button>
                         <button class="btn btn-sm btn-outline-secondary btn-block"
                                 onclick="window.location.href='/testing'">
-                            <i class="fas fa-shield-alt mr-1"></i>Security Testing
+                            <i class="fas fa-shield-alt me-1"></i>Security Testing
                         </button>
                     </div>
                 </div>
@@ -230,9 +231,7 @@
                         {% for category, message in messages %}
                             <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} alert-dismissible fade show mb-3" role="alert">
                                 {{ message }}
-                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>
                         {% endfor %}
                     {% endif %}
@@ -253,7 +252,7 @@
         <div class="d-flex justify-content-center align-items-center h-100">
             <div class="text-center text-white">
                 <div class="spinner-border mb-3" role="status">
-                    <span class="sr-only">Loading...</span>
+                    <span class="visually-hidden">Loading...</span>
                 </div>
                 <h5>Processing...</h5>
             </div>
@@ -266,11 +265,9 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="settingsModalLabel">
-                        <i class="fas fa-cog mr-2"></i>Application Settings
+                        <i class="fas fa-cog me-2"></i>Application Settings
                     </h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body"
                      hx-get="/api/settings"
@@ -278,7 +275,7 @@
                      hx-swap="innerHTML">
                     <div class="text-center">
                         <div class="spinner-border" role="status">
-                            <span class="sr-only">Loading...</span>
+                            <span class="visually-hidden">Loading...</span>
                         </div>
                     </div>
                 </div>
@@ -292,16 +289,14 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="helpModalLabel">
-                        <i class="fas fa-question-circle mr-2"></i>Help & Documentation
+                        <i class="fas fa-question-circle me-2"></i>Help & Documentation
                     </h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <h6><i class="fas fa-keyboard mr-2"></i>Keyboard Shortcuts</h6>
+                            <h6><i class="fas fa-keyboard me-2"></i>Keyboard Shortcuts</h6>
                             <ul class="list-unstyled">
                                 <li><kbd>Ctrl + R</kbd> - Refresh current view</li>
                                 <li><kbd>Ctrl + K</kbd> - Focus search</li>
@@ -309,7 +304,7 @@
                             </ul>
                         </div>
                         <div class="col-md-6">
-                            <h6><i class="fas fa-info-circle mr-2"></i>About</h6>
+                            <h6><i class="fas fa-info-circle me-2"></i>About</h6>
                             <p class="small text-muted">
                                 Thesis Research App for analyzing AI-generated applications
                                 across multiple models and frameworks.
@@ -321,12 +316,9 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS and dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" 
-            integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
-            crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" 
-            integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct"
+    <!-- Bootstrap 5.3.7 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" 
+            integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
             crossorigin="anonymous"></script>
 
     <!-- Custom JavaScript -->
@@ -336,11 +328,13 @@
     <script>
         // Global application functions
         function showSettingsModal() {
-            $('#settingsModal').modal('show');
+            const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
+            modal.show();
         }
         
         function showHelpModal() {
-            $('#helpModal').modal('show');
+            const modal = new bootstrap.Modal(document.getElementById('helpModal'));
+            modal.show();
         }
         
         // Sidebar toggle function
@@ -421,14 +415,21 @@
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize tooltips
-            if (typeof $ !== 'undefined') {
-                $('[data-toggle="tooltip"]').tooltip();
-                
-                // Auto-close mobile menu on nav item click
-                $('.navbar-nav .nav-link').on('click', function() {
-                    $('.navbar-collapse').collapse('hide');
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            
+            // Auto-close mobile menu on nav item click
+            document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    const navbarCollapse = document.querySelector('.navbar-collapse');
+                    if (navbarCollapse.classList.contains('show')) {
+                        const bsCollapse = new bootstrap.Collapse(navbarCollapse);
+                        bsCollapse.hide();
+                    }
                 });
-            }
+            });
             
             // Set active navigation link
             setActiveNavLink();
@@ -469,10 +470,16 @@
             
             // Escape - Close modals and dropdowns
             if (e.key === 'Escape') {
-                if (typeof $ !== 'undefined') {
-                    $('.modal').modal('hide');
-                    $('.dropdown-menu.show').removeClass('show');
-                }
+                // Close all modals
+                document.querySelectorAll('.modal.show').forEach(modal => {
+                    const bsModal = bootstrap.Modal.getInstance(modal);
+                    if (bsModal) bsModal.hide();
+                });
+                
+                // Close all dropdowns
+                document.querySelectorAll('.dropdown-menu.show').forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                });
             }
         });
         
@@ -493,9 +500,10 @@
         
         // Initialize tooltips after HTMX content loads
         document.body.addEventListener('htmx:afterSwap', function() {
-            if (typeof $ !== 'undefined') {
-                $('[data-toggle="tooltip"]').tooltip();
-            }
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
         });
         
         // Auto-refresh when page becomes visible
@@ -570,9 +578,7 @@
             notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
             notification.innerHTML = `
                 ${message}
-                <button type="button" class="close" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             `;
 
             // Add to page
@@ -586,7 +592,7 @@
             }, 5000);
 
             // Handle manual close
-            notification.querySelector('.close').addEventListener('click', () => {
+            notification.querySelector('.btn-close').addEventListener('click', () => {
                 notification.remove();
             });
         }
