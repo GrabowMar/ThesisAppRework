@@ -1,0 +1,151 @@
+<!-- Infrastructure Status Display -->
+<div class="row">
+    {% if data.services %}
+    <div class="col-md-8">
+        <h6>Service Status</h6>
+        <div class="list-group">
+            {% for service_name, is_healthy in data.services.items() %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas 
+                        {% if service_name == 'security-scanner' %}fa-shield-alt
+                        {% elif service_name == 'performance-tester' %}fa-tachometer-alt
+                        {% elif service_name == 'zap-scanner' %}fa-bug
+                        {% elif service_name == 'api-gateway' %}fa-network-wired
+                        {% else %}fa-server{% endif %} me-2"></i>
+                    <strong>{{ service_name|replace('-', ' ')|title }}</strong>
+                    {% if is_healthy %}
+                        <small class="text-muted d-block">Service is running normally</small>
+                    {% else %}
+                        <small class="text-danger d-block">Service is not responding</small>
+                    {% endif %}
+                </div>
+                <span class="badge {% if is_healthy %}bg-success{% else %}bg-danger{% endif %}">
+                    {% if is_healthy %}
+                        <i class="fas fa-check"></i> Healthy
+                    {% else %}
+                        <i class="fas fa-times"></i> Unhealthy
+                    {% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="col-md-4">
+        <h6>Overall Status</h6>
+        <div class="card">
+            <div class="card-body text-center">
+                {% set healthy_count = data.services.values()|list|select('equalto', true)|list|length %}
+                {% set total_count = data.services|length %}
+                
+                {% if healthy_count == total_count %}
+                    <i class="fas fa-check-circle fa-3x text-success mb-2"></i>
+                    <h6 class="text-success">All Systems Operational</h6>
+                    <small class="text-muted">{{ total_count }}/{{ total_count }} services healthy</small>
+                {% elif healthy_count > 0 %}
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-2"></i>
+                    <h6 class="text-warning">Partial Service Outage</h6>
+                    <small class="text-muted">{{ healthy_count }}/{{ total_count }} services healthy</small>
+                {% else %}
+                    <i class="fas fa-times-circle fa-3x text-danger mb-2"></i>
+                    <h6 class="text-danger">System Outage</h6>
+                    <small class="text-muted">{{ healthy_count }}/{{ total_count }} services healthy</small>
+                {% endif %}
+                
+                <div class="progress mt-2">
+                    <div class="progress-bar 
+                        {% if healthy_count == total_count %}bg-success
+                        {% elif healthy_count > 0 %}bg-warning
+                        {% else %}bg-danger{% endif %}" 
+                        role="progressbar" 
+                        style="width: {{ (healthy_count / total_count * 100)|round(1) }}%">
+                        {{ (healthy_count / total_count * 100)|round(1) }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <h6>Quick Actions</h6>
+            <div class="d-grid gap-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="manageInfrastructure('restart')">
+                    <i class="fas fa-redo"></i> Restart All
+                </button>
+                <button class="btn btn-outline-info btn-sm" onclick="showInfrastructureLogs()">
+                    <i class="fas fa-file-text"></i> View Logs
+                </button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Infrastructure Status Unknown</strong>
+            <p class="mb-0">Unable to determine infrastructure status. The testing containers may not be running.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if data.details %}
+<div class="row mt-3">
+    <div class="col-12">
+        <h6>Service Details</h6>
+        <div class="accordion" id="serviceDetailsAccordion">
+            {% for detail in data.details %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="serviceHeading{{ loop.index }}">
+                    <button class="accordion-button collapsed" 
+                            type="button" 
+                            data-bs-toggle="collapse" 
+                            data-bs-target="#serviceCollapse{{ loop.index }}"
+                            aria-expanded="false" 
+                            aria-controls="serviceCollapse{{ loop.index }}">
+                        {{ detail.name or 'Unknown Service' }}
+                        <span class="badge {% if detail.healthy %}bg-success{% else %}bg-danger{% endif %} ms-2">
+                            {% if detail.healthy %}Healthy{% else %}Unhealthy{% endif %}
+                        </span>
+                    </button>
+                </h2>
+                <div id="serviceCollapse{{ loop.index }}" 
+                     class="accordion-collapse collapse" 
+                     aria-labelledby="serviceHeading{{ loop.index }}" 
+                     data-bs-parent="#serviceDetailsAccordion">
+                    <div class="accordion-body">
+                        {% if detail.url %}
+                            <p><strong>URL:</strong> <code>{{ detail.url }}</code></p>
+                        {% endif %}
+                        {% if detail.version %}
+                            <p><strong>Version:</strong> {{ detail.version }}</p>
+                        {% endif %}
+                        {% if detail.uptime %}
+                            <p><strong>Uptime:</strong> {{ detail.uptime }}</p>
+                        {% endif %}
+                        {% if detail.last_check %}
+                            <p><strong>Last Check:</strong> {{ detail.last_check }}</p>
+                        {% endif %}
+                        {% if detail.response_time %}
+                            <p><strong>Response Time:</strong> {{ detail.response_time }}ms</p>
+                        {% endif %}
+                        {% if detail.error %}
+                            <div class="alert alert-danger">
+                                <strong>Error:</strong> {{ detail.error }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row mt-3">
+    <div class="col-12">
+        <small class="text-muted">
+            <i class="fas fa-clock"></i> Last updated: {{ data.timestamp }}
+        </small>
+    </div>
+</div>

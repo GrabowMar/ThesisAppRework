@@ -1,0 +1,1385 @@
+{% extends "base.html" %}
+
+{% block title %}Unified Security Testing & Analysis Platform - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Container Infrastructure Control Panel -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-server"></i> Testing Infrastructure Control
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Infrastructure Status -->
+                        <div class="col-md-6">
+                            <h6>Service Status</h6>
+                            <div id="infrastructure-status" 
+                                 hx-get="/testing/api/infrastructure-status" 
+                                 hx-trigger="load, every 30s"
+                                 hx-swap="innerHTML">
+                                <div class="text-center py-3">
+                                    <i class="fas fa-spinner fa-spin"></i> Checking services...
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Infrastructure Controls -->
+                        <div class="col-md-6">
+                            <h6>Container Management</h6>
+                            <div class="btn-group-vertical w-100" role="group">
+                                <button class="btn btn-success btn-sm" onclick="manageInfrastructure('start')">
+                                    <i class="fas fa-play"></i> Start All Services
+                                </button>
+                                <button class="btn btn-warning btn-sm" onclick="manageInfrastructure('restart')">
+                                    <i class="fas fa-redo"></i> Restart All Services
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="manageInfrastructure('stop')">
+                                    <i class="fas fa-stop"></i> Stop All Services
+                                </button>
+                                <button class="btn btn-info btn-sm" onclick="showInfrastructureLogs()">
+                                    <i class="fas fa-file-text"></i> View Logs
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Container Status -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="d-flex flex-wrap gap-2">
+                                <div class="badge bg-secondary" id="security-scanner-status">
+                                    <i class="fas fa-shield-alt"></i> Security Scanner: <span class="status-text">Unknown</span>
+                                </div>
+                                <div class="badge bg-secondary" id="performance-tester-status">
+                                    <i class="fas fa-tachometer-alt"></i> Performance Tester: <span class="status-text">Unknown</span>
+                                </div>
+                                <div class="badge bg-secondary" id="zap-scanner-status">
+                                    <i class="fas fa-bug"></i> ZAP Scanner: <span class="status-text">Unknown</span>
+                                </div>
+                                <div class="badge bg-secondary" id="api-gateway-status">
+                                    <i class="fas fa-network-wired"></i> API Gateway: <span class="status-text">Unknown</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">Unified Security Testing Platform</h1>
+                <p class="page-subtitle">Comprehensive security analysis with advanced tool configurations and container management</p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group" role="group">
+                    <button class="btn btn-primary" onclick="showCreateTestModal()">
+                        <i class="fas fa-plus"></i> Create Security Test
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshAllData()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                    <button class="btn btn-info" onclick="exportResults()">
+                        <i class="fas fa-download"></i> Export Results
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number" id="total-tests">0</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon bg-success">
+                <i class="fas fa-play"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number" id="running-tests">0</div>
+                <div class="stat-label">Running</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon bg-warning">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number" id="queued-tests">0</div>
+                <div class="stat-label">Queued</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon bg-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number" id="failed-tests">0</div>
+                <div class="stat-label">Failed</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon bg-info">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number" id="completed-tests">0</div>
+                <div class="stat-label">Completed</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Testing Management -->
+    <div class="card">
+        <div class="card-header">
+            <h5>Security Tests</h5>
+            <div class="card-actions">
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="applyFilters()">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                    <div class="form-check form-switch ms-2">
+                        <input class="form-check-input" type="checkbox" id="auto-refresh" onchange="toggleAutoRefresh(this.checked)" checked>
+                        <label class="form-check-label" for="auto-refresh">Auto Refresh</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Filter Panel -->
+            <div class="collapse" id="filter-panel">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="status-filter">
+                            <option value="">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="running">Running</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Test Type</label>
+                        <select class="form-select" id="type-filter">
+                            <option value="">All Types</option>
+                            <option value="security_analysis">Security Analysis</option>
+                            <option value="zap_scan">ZAP Scan</option>
+                            <option value="performance_test">Performance Test</option>
+                            <option value="ai_analysis">AI Analysis</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Date Range</label>
+                        <input type="date" class="form-control" id="date-from">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <input type="date" class="form-control" id="date-to">
+                    </div>
+                </div>
+            </div>
+            
+            <div id="jobs-list" 
+                 hx-get="/testing/api/jobs" 
+                 hx-trigger="load, every 15s[data-auto-refresh='true']"
+                 hx-swap="innerHTML">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin"></i> Loading tests...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Create Security Test Modal -->
+<div class="modal fade" id="createTestModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Security Test</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="securityTestForm" onsubmit="submitSecurityTestForm(); return false;">
+                <div class="modal-body">
+                    <!-- Test Configuration Tabs -->
+                    <ul class="nav nav-tabs" id="testConfigTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic-config" type="button" role="tab">
+                                Basic Configuration
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="models-tab" data-bs-toggle="tab" data-bs-target="#models-config" type="button" role="tab">
+                                Models & Apps
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tools-tab" data-bs-toggle="tab" data-bs-target="#tools-config" type="button" role="tab">
+                                Tool Configuration
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="advanced-tab" data-bs-toggle="tab" data-bs-target="#advanced-config" type="button" role="tab">
+                                Advanced Options
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-3" id="testConfigTabContent">
+                        <!-- Basic Configuration Tab -->
+                        <div class="tab-pane fade show active" id="basic-config" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Test Name</label>
+                                        <input type="text" class="form-control" name="test_name" placeholder="Enter test name" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Test Type</label>
+                                        <select class="form-select" name="test_type" onchange="handleTestTypeChange(this.value)" required>
+                                            <option value="">Select test type</option>
+                                            <option value="security_analysis">Security Analysis</option>
+                                            <option value="zap_scan">ZAP Security Scan</option>
+                                            <option value="performance_test">Performance Testing</option>
+                                            <option value="ai_analysis">AI Code Analysis</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Test Description</label>
+                                <textarea class="form-control" name="description" rows="3" placeholder="Describe what this test should accomplish..."></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Test Requirements</label>
+                                <textarea class="form-control" name="requirements" rows="4" placeholder="Example:
+- Check for SQL injection vulnerabilities
+- Verify input validation on all forms
+- Test authentication and authorization mechanisms
+- Scan for XSS vulnerabilities
+- Assess password security policies
+- Check for sensitive data exposure
+- Verify HTTPS implementation
+- Test session management"></textarea>
+                                <small class="text-muted">Each line will be treated as a separate requirement</small>
+                            </div>
+                        </div>
+
+                        <!-- Models & Apps Configuration Tab -->
+                        <div class="tab-pane fade" id="models-config" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">
+                                            <input type="checkbox" id="select-all-models" onchange="toggleAllModels()"> 
+                                            Select Models
+                                        </label>
+                                        <div id="models-list" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                            <div class="text-center py-3">
+                                                <i class="fas fa-spinner fa-spin"></i> Loading models...
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Application Range</label>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <input type="number" class="form-control" id="app_start" name="app_start" placeholder="Start" min="1" max="30" value="1">
+                                            </div>
+                                            <div class="col-6">
+                                                <input type="number" class="form-control" id="app_end" name="app_end" placeholder="End" min="1" max="30" value="5">
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">Quick ranges:</small>
+                                        <div class="btn-group-sm mt-1">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAppRange(1, 5)">1-5</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAppRange(1, 10)">1-10</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAppRange(1, 30)">All</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tool Configuration Tab -->
+                        <div class="tab-pane fade" id="tools-config" role="tabpanel">
+                            <!-- Security Analysis Tools -->
+                            <div id="security-analysis-config" class="tool-config-section d-none">
+                                <h6>Security Analysis Tools</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="tools" value="bandit" id="tool-bandit">
+                                            <label class="form-check-label" for="tool-bandit">
+                                                <strong>Bandit</strong> - Python security linter
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="tools" value="safety" id="tool-safety">
+                                            <label class="form-check-label" for="tool-safety">
+                                                <strong>Safety</strong> - Dependency vulnerability scanner
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="tools" value="pylint" id="tool-pylint">
+                                            <label class="form-check-label" for="tool-pylint">
+                                                <strong>Pylint</strong> - Code quality analyzer
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="tools" value="semgrep" id="tool-semgrep">
+                                            <label class="form-check-label" for="tool-semgrep">
+                                                <strong>Semgrep</strong> - Static analysis tool
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="tools" value="eslint" id="tool-eslint">
+                                            <label class="form-check-label" for="tool-eslint">
+                                                <strong>ESLint</strong> - JavaScript/TypeScript linter
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="tools" value="retire" id="tool-retire">
+                                            <label class="form-check-label" for="tool-retire">
+                                                <strong>Retire.js</strong> - JavaScript vulnerability scanner
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ZAP Scan Configuration -->
+                            <div id="zap-scan-config" class="tool-config-section d-none">
+                                <h6>ZAP Scan Configuration</h6>
+                                <div class="form-group">
+                                    <label class="form-label">Scan Type</label>
+                                    <select class="form-select" name="zap_scan_type" onchange="handleZapScanTypeChange(this.value)">
+                                        <option value="baseline">Baseline Scan</option>
+                                        <option value="full">Full Scan</option>
+                                        <option value="api">API Scan</option>
+                                        <option value="spider">Spider Scan</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Target URL</label>
+                                    <input type="url" class="form-control" name="target_url" placeholder="http://localhost:3000">
+                                </div>
+                                <div id="zap-api-options" class="d-none">
+                                    <div class="form-group">
+                                        <label class="form-label">API Definition URL</label>
+                                        <input type="url" class="form-control" name="api_definition_url" placeholder="http://localhost:3000/swagger.json">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Performance Test Configuration -->
+                            <div id="performance-test-config" class="tool-config-section d-none">
+                                <h6>Performance Test Configuration</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label class="form-label">Users</label>
+                                            <input type="number" class="form-control" name="users" value="10" min="1" max="1000">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label class="form-label">Spawn Rate</label>
+                                            <input type="number" class="form-control" name="spawn_rate" value="2" min="1" max="100">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label class="form-label">Duration (seconds)</label>
+                                            <input type="number" class="form-control" name="duration" value="60" min="10" max="3600">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- AI Analysis Configuration -->
+                            <div id="ai-analysis-config" class="tool-config-section d-none">
+                                <h6>AI Analysis Configuration</h6>
+                                <div class="form-group">
+                                    <label class="form-label">Analysis Model</label>
+                                    <select class="form-select" name="ai_model">
+                                        <option value="gpt-4">GPT-4</option>
+                                        <option value="claude-3">Claude-3</option>
+                                        <option value="gemini-pro">Gemini Pro</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Analysis Focus</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="ai_focus" value="security" id="ai-security">
+                                        <label class="form-check-label" for="ai-security">Security Issues</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="ai_focus" value="performance" id="ai-performance">
+                                        <label class="form-check-label" for="ai-performance">Performance Bottlenecks</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="ai_focus" value="best_practices" id="ai-best-practices">
+                                        <label class="form-check-label" for="ai-best-practices">Best Practices</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Configuration Tab -->
+                        <div class="tab-pane fade" id="advanced-config" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Priority</label>
+                                        <select class="form-select" name="priority">
+                                            <option value="low">Low</option>
+                                            <option value="normal" selected>Normal</option>
+                                            <option value="high">High</option>
+                                            <option value="critical">Critical</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Timeout (minutes)</label>
+                                        <input type="number" class="form-control" name="timeout" value="30" min="5" max="120">
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="parallel_execution" id="parallel-execution">
+                                            <label class="form-check-label" for="parallel-execution">
+                                                Enable Parallel Execution
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Notification Settings</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="notify_on_completion" id="notify-completion" checked>
+                                            <label class="form-check-label" for="notify-completion">
+                                                Notify on completion
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="notify_on_failure" id="notify-failure" checked>
+                                            <label class="form-check-label" for="notify-failure">
+                                                Notify on failure
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Custom Parameters (JSON)</label>
+                                        <textarea class="form-control" name="custom_params" rows="4" placeholder='{"key": "value"}'></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-rocket"></i> Create Test
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Infrastructure Status Modal -->
+<div class="modal fade" id="infrastructureStatusModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Infrastructure Status Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="infrastructure-details">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin"></i> Loading infrastructure details...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Infrastructure Logs Modal -->
+<div class="modal fade" id="infrastructureLogsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Infrastructure Logs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="infrastructure-logs">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin"></i> Loading logs...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Details Modal -->
+<div class="modal fade" id="testDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Test Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="test-details-content">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin"></i> Loading test details...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Results Modal -->
+<div class="modal fade" id="testResultsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Test Results</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="test-results-content">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin"></i> Loading test results...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <!-- Toast message will be inserted here -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Unified Security Testing Platform JavaScript
+class UnifiedSecurityTestingPlatform {
+    constructor() {
+        this.autoRefreshEnabled = true;
+        this.refreshInterval = null;
+        this.currentTestId = null;
+        this.models = [];
+        this.containerStatuses = {};
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.loadInitialData();
+        this.setupAutoRefresh();
+        this.startInfrastructureMonitoring();
+    }
+
+    setupEventListeners() {
+        // Infrastructure control buttons
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('[onclick*="manageInfrastructure"]')) {
+                e.preventDefault();
+            }
+        });
+
+        // Form validation and submission
+        document.getElementById('securityTestForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.submitSecurityTestForm();
+        });
+
+        // Tool selection handling
+        document.querySelectorAll('input[name="tools"]').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => this.handleToolSelection(e.target));
+        });
+    }
+
+    async loadInitialData() {
+        try {
+            // Load available models
+            await this.loadAvailableModels();
+            
+            // Update stats
+            await this.updateStats();
+            
+            // Load infrastructure status
+            await this.updateInfrastructureStatus();
+            
+        } catch (error) {
+            console.error('Error loading initial data:', error);
+            this.showToast('Error loading initial data', 'error');
+        }
+    }
+
+    setupAutoRefresh() {
+        this.refreshInterval = setInterval(() => {
+            if (this.autoRefreshEnabled) {
+                this.updateStats();
+                this.updateInfrastructureStatus();
+            }
+        }, 15000); // 15 seconds
+    }
+
+    startInfrastructureMonitoring() {
+        // Monitor container statuses every 30 seconds
+        setInterval(() => {
+            this.updateContainerStatuses();
+        }, 30000);
+        
+        // Initial status check
+        this.updateContainerStatuses();
+    }
+
+    async updateContainerStatuses() {
+        try {
+            const response = await fetch('/testing/api/infrastructure-status');
+            const data = await response.json();
+            
+            this.containerStatuses = data.services || {};
+            this.updateContainerBadges();
+            
+        } catch (error) {
+            console.error('Error updating container statuses:', error);
+        }
+    }
+
+    updateContainerBadges() {
+        const services = ['security-scanner', 'performance-tester', 'zap-scanner', 'api-gateway'];
+        
+        services.forEach(service => {
+            const element = document.getElementById(`${service}-status`);
+            if (element) {
+                const statusText = element.querySelector('.status-text');
+                const isHealthy = this.containerStatuses[service] === true;
+                
+                statusText.textContent = isHealthy ? 'Running' : 'Stopped';
+                element.className = `badge ${isHealthy ? 'bg-success' : 'bg-danger'}`;
+            }
+        });
+    }
+
+    async loadAvailableModels() {
+        try {
+            const response = await fetch('/api/models');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.models = data.data || [];
+                this.populateModelsList();
+            }
+        } catch (error) {
+            console.error('Error loading models:', error);
+        }
+    }
+
+    populateModelsList() {
+        const modelsList = document.getElementById('models-list');
+        if (!modelsList || this.models.length === 0) {
+            modelsList.innerHTML = '<div class="text-muted">No models available</div>';
+            return;
+        }
+
+        const modelsHtml = this.models.map(model => `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="selected_models" value="${model.slug}" id="model-${model.slug}">
+                <label class="form-check-label" for="model-${model.slug}">
+                    <strong>${model.name}</strong>
+                    <small class="text-muted d-block">${model.description || ''}</small>
+                </label>
+            </div>
+        `).join('');
+
+        modelsList.innerHTML = modelsHtml;
+    }
+
+    async updateStats() {
+        try {
+            const response = await fetch('/testing/api/stats');
+            const data = await response.json();
+            
+            if (data.success) {
+                const stats = data.data;
+                document.getElementById('total-tests').textContent = stats.total || 0;
+                document.getElementById('running-tests').textContent = stats.running || 0;
+                document.getElementById('queued-tests').textContent = stats.queued || 0;
+                document.getElementById('failed-tests').textContent = stats.failed || 0;
+                document.getElementById('completed-tests').textContent = stats.completed || 0;
+            }
+        } catch (error) {
+            console.error('Error updating stats:', error);
+        }
+    }
+
+    async updateInfrastructureStatus() {
+        try {
+            const response = await fetch('/testing/api/infrastructure-status');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.containerStatuses = data.services;
+                this.updateContainerBadges();
+            }
+        } catch (error) {
+            console.error('Error updating infrastructure status:', error);
+        }
+    }
+
+    handleTestTypeChange(testType) {
+        // Hide all config sections
+        const configSections = ['security-analysis-config', 'zap-scan-config', 'performance-test-config', 'ai-analysis-config'];
+        configSections.forEach(section => {
+            document.getElementById(section).classList.add('d-none');
+        });
+
+        // Show relevant config section
+        if (testType === 'security_analysis') {
+            document.getElementById('security-analysis-config').classList.remove('d-none');
+        } else if (testType === 'zap_scan') {
+            document.getElementById('zap-scan-config').classList.remove('d-none');
+        } else if (testType === 'performance_test') {
+            document.getElementById('performance-test-config').classList.remove('d-none');
+        } else if (testType === 'ai_analysis') {
+            document.getElementById('ai-analysis-config').classList.remove('d-none');
+        }
+    }
+
+    handleZapScanTypeChange(scanType) {
+        const apiOptions = document.getElementById('zap-api-options');
+        if (scanType === 'api') {
+            apiOptions.classList.remove('d-none');
+        } else {
+            apiOptions.classList.add('d-none');
+        }
+    }
+
+    handleToolSelection(checkbox) {
+        // Update form validation based on selected tools
+        this.validateForm();
+    }
+
+    validateForm() {
+        const testType = document.querySelector('select[name="test_type"]').value;
+        const submitBtn = document.querySelector('#securityTestForm button[type="submit"]');
+        
+        let isValid = true;
+        
+        if (!testType) {
+            isValid = false;
+        }
+        
+        // Type-specific validation
+        if (testType === 'security_analysis') {
+            const selectedTools = document.querySelectorAll('input[name="tools"]:checked');
+            if (selectedTools.length === 0) {
+                isValid = false;
+            }
+        }
+        
+        if (testType === 'zap_scan') {
+            const targetUrl = document.querySelector('input[name="target_url"]').value;
+            if (!targetUrl) {
+                isValid = false;
+            }
+        }
+        
+        submitBtn.disabled = !isValid;
+        return isValid;
+    }
+
+    async submitSecurityTestForm() {
+        if (!this.validateForm()) {
+            this.showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        const form = document.getElementById('securityTestForm');
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        // Show loading state
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Test...';
+        submitBtn.disabled = true;
+        
+        try {
+            // Convert FormData to regular object
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (data[key]) {
+                    if (Array.isArray(data[key])) {
+                        data[key].push(value);
+                    } else {
+                        data[key] = [data[key], value];
+                    }
+                } else {
+                    data[key] = value;
+                }
+            }
+            
+            // Handle selected models and apps
+            const selectedModels = formData.getAll('selected_models');
+            const appStart = parseInt(formData.get('app_start')) || 1;
+            const appEnd = parseInt(formData.get('app_end')) || 5;
+            const selectedApps = [];
+            for (let i = appStart; i <= appEnd; i++) {
+                selectedApps.push(i);
+            }
+            
+            data.selected_models = selectedModels;
+            data.selected_apps = selectedApps;
+            
+            const response = await fetch('/testing/api/create-test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showToast('Test created successfully!', 'success');
+                $('#createTestModal').modal('hide');
+                form.reset();
+                this.refreshTestsList();
+            } else {
+                this.showToast(result.message || 'Failed to create test', 'error');
+            }
+            
+        } catch (error) {
+            console.error('Error creating test:', error);
+            this.showToast('Error creating test', 'error');
+        } finally {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }
+    }
+
+    async manageInfrastructure(action) {
+        const actionNames = {
+            'start': 'Starting',
+            'stop': 'Stopping',
+            'restart': 'Restarting'
+        };
+        
+        this.showToast(`${actionNames[action]} infrastructure...`, 'info');
+        
+        try {
+            const response = await fetch(`/testing/api/infrastructure/${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showToast(`Infrastructure ${action}ed successfully!`, 'success');
+                // Update status after a delay
+                setTimeout(() => {
+                    this.updateInfrastructureStatus();
+                }, 3000);
+            } else {
+                this.showToast(result.message || `Failed to ${action} infrastructure`, 'error');
+            }
+            
+        } catch (error) {
+            console.error(`Error ${action}ing infrastructure:`, error);
+            this.showToast(`Error ${action}ing infrastructure`, 'error');
+        }
+    }
+
+    showInfrastructureLogs() {
+        $('#infrastructureLogsModal').modal('show');
+        // Load logs via HTMX
+        htmx.ajax('GET', '/testing/api/infrastructure-logs', {target: '#infrastructure-logs'});
+    }
+
+    toggleAutoRefresh(enabled) {
+        this.autoRefreshEnabled = enabled;
+        
+        // Update HTMX elements
+        document.querySelectorAll('[hx-trigger*="every"]').forEach(element => {
+            element.setAttribute('data-auto-refresh', enabled ? 'true' : 'false');
+        });
+        
+        if (!enabled && this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+        } else if (enabled && !this.refreshInterval) {
+            this.setupAutoRefresh();
+        }
+    }
+
+    refreshAllData() {
+        this.loadInitialData();
+        this.refreshTestsList();
+        this.showToast('Data refreshed', 'info');
+    }
+
+    refreshTestsList() {
+        htmx.trigger(document.getElementById('jobs-list'), 'load');
+    }
+
+    applyFilters() {
+        const filterPanel = document.getElementById('filter-panel');
+        filterPanel.classList.toggle('show');
+        
+        if (filterPanel.classList.contains('show')) {
+            // Apply current filter values
+            const statusFilter = document.getElementById('status-filter').value;
+            const typeFilter = document.getElementById('type-filter').value;
+            const dateFrom = document.getElementById('date-from').value;
+            const dateTo = document.getElementById('date-to').value;
+            
+            const params = new URLSearchParams();
+            if (statusFilter) params.append('status', statusFilter);
+            if (typeFilter) params.append('type', typeFilter);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            
+            const url = `/testing/api/jobs?${params.toString()}`;
+            htmx.ajax('GET', url, {target: '#jobs-list'});
+        }
+    }
+
+    clearFilters() {
+        document.getElementById('status-filter').value = '';
+        document.getElementById('type-filter').value = '';
+        document.getElementById('date-from').value = '';
+        document.getElementById('date-to').value = '';
+        
+        document.getElementById('filter-panel').classList.remove('show');
+        this.refreshTestsList();
+    }
+
+    showTestDetails(testId) {
+        this.currentTestId = testId;
+        $('#testDetailsModal').modal('show');
+        htmx.ajax('GET', `/testing/api/test/${testId}/details`, {target: '#test-details-content'});
+    }
+
+    showTestResults(testId) {
+        $('#testResultsModal').modal('show');
+        htmx.ajax('GET', `/testing/api/test/${testId}/results`, {target: '#test-results-content'});
+    }
+
+    async exportResults() {
+        try {
+            const response = await fetch('/testing/api/export-results', {
+                method: 'GET',
+            });
+            
+            if (response.ok) {
+                // Trigger download
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `security-test-results-${new Date().toISOString().split('T')[0]}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                this.showToast('Results exported successfully!', 'success');
+            } else {
+                this.showToast('Failed to export results', 'error');
+            }
+        } catch (error) {
+            console.error('Error exporting results:', error);
+            this.showToast('Error exporting results', 'error');
+        }
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.getElementById('liveToast');
+        const toastBody = toast.querySelector('.toast-body');
+        const toastHeader = toast.querySelector('.toast-header');
+        
+        // Set message
+        toastBody.textContent = message;
+        
+        // Set color based on type
+        toast.className = `toast bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} text-white`;
+        
+        // Show toast
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+}
+
+// Global functions for template compatibility
+window.showCreateTestModal = function() {
+    $('#createTestModal').modal('show');
+};
+
+window.toggleAllModels = function() {
+    const selectAll = document.getElementById('select-all-models');
+    const modelCheckboxes = document.querySelectorAll('input[name="selected_models"]');
+    
+    modelCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+};
+
+window.setAppRange = function(start, end) {
+    document.getElementById('app_start').value = start;
+    document.getElementById('app_end').value = end;
+};
+
+window.handleTestTypeChange = function(testType) {
+    window.unifiedSecurityTestingPlatform.handleTestTypeChange(testType);
+};
+
+window.handleZapScanTypeChange = function(scanType) {
+    window.unifiedSecurityTestingPlatform.handleZapScanTypeChange(scanType);
+};
+
+window.submitSecurityTestForm = function() {
+    window.unifiedSecurityTestingPlatform.submitSecurityTestForm();
+};
+
+window.manageInfrastructure = function(action) {
+    window.unifiedSecurityTestingPlatform.manageInfrastructure(action);
+};
+
+window.showInfrastructureLogs = function() {
+    window.unifiedSecurityTestingPlatform.showInfrastructureLogs();
+};
+
+window.toggleAutoRefresh = function(enabled) {
+    window.unifiedSecurityTestingPlatform.toggleAutoRefresh(enabled);
+};
+
+window.refreshAllData = function() {
+    window.unifiedSecurityTestingPlatform.refreshAllData();
+};
+
+window.applyFilters = function() {
+    window.unifiedSecurityTestingPlatform.applyFilters();
+};
+
+window.clearFilters = function() {
+    window.unifiedSecurityTestingPlatform.clearFilters();
+};
+
+window.showTestDetails = function(testId) {
+    window.unifiedSecurityTestingPlatform.showTestDetails(testId);
+};
+
+window.showTestResults = function(testId) {
+    window.unifiedSecurityTestingPlatform.showTestResults(testId);
+};
+
+window.exportResults = function() {
+    window.unifiedSecurityTestingPlatform.exportResults();
+};
+
+window.restartTest = function(testId, button) {
+    // Implementation for restarting tests
+};
+
+window.cancelTest = function(testId, button) {
+    // Implementation for cancelling tests
+};
+
+window.deleteTest = function(testId, button) {
+    // Implementation for deleting tests
+};
+
+// Initialize
+let unifiedSecurityTestingPlatform;
+document.addEventListener('DOMContentLoaded', function() {
+    unifiedSecurityTestingPlatform = new UnifiedSecurityTestingPlatform();
+    unifiedSecurityTestingPlatform.init();
+    window.unifiedSecurityTestingPlatform = unifiedSecurityTestingPlatform;
+});
+</script>
+
+<style>
+/* Page styling */
+.page-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.page-title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin-bottom: 0;
+}
+
+/* Stats grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.stat-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.25rem;
+    color: white;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* Tool configuration sections */
+.tool-config-section {
+    padding: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.tool-config-section h6 {
+    color: #374151;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+/* Card styling */
+.card {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    background-color: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: between;
+    align-items: center;
+}
+
+.card-header h5 {
+    margin: 0;
+    font-weight: 600;
+    color: #374151;
+}
+
+.card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Form styling */
+.form-check-label {
+    font-weight: 500;
+}
+
+.form-check-label strong {
+    color: #374151;
+}
+
+/* Container status badges */
+.badge {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+}
+
+/* Infrastructure control panel */
+.border-primary {
+    border-color: #3b82f6 !important;
+}
+
+.bg-primary {
+    background-color: #3b82f6 !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.75rem;
+    }
+    
+    .stat-card {
+        padding: 1rem;
+    }
+    
+    .stat-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        margin-right: 0.75rem;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    
+    .page-header {
+        padding: 1.5rem;
+    }
+    
+    .page-title {
+        font-size: 1.5rem;
+    }
+}
+
+/* Loading states */
+.loading-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #f3f4f6;
+    border-radius: 50%;
+    border-top-color: #3b82f6;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Toast styling */
+.toast-container {
+    z-index: 1080;
+}
+
+.toast {
+    min-width: 300px;
+}
+
+/* Modal improvements */
+.modal-xl {
+    max-width: 1200px;
+}
+
+.nav-tabs .nav-link {
+    border: 1px solid transparent;
+    border-radius: 0.25rem 0.25rem 0 0;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #e5e7eb #e5e7eb #dee2e6;
+}
+
+.nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+
+/* Error states */
+.text-danger {
+    color: #dc3545 !important;
+}
+
+.is-invalid {
+    border-color: #dc3545;
+}
+
+.invalid-feedback {
+    display: block;
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+</style>
+{% endblock %}
