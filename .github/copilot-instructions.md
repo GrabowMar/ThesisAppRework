@@ -1,207 +1,212 @@
-# AI Coding Agent Instructions for Thesis Research App
+# ThesisAppRework - AI Assistant Instructions
 
 ## Project Overview
-This is a thesis research application that generates, containerizes, and analyzes AI-generated web applications across multiple models (OpenAI, Anthropic, Google, etc.). The system orchestrates batch operations on containerized apps for security analysis, performance testing, and vulnerability scanning.
+Flask-based web application for researching and testing AI models with HTMX frontend. The system analyzes model-generated web applications stored in `misc/models/` and communicates with containerized testing infrastructure via API contracts.
 
-## Core Architecture
+## ⚠️ CRITICAL: Database First, Not JSON
+**ALWAYS use SQLAlchemy models from `src/models.py` for data operations.**
+- ❌ DO NOT modify files in `misc/` directory - they are reference data only
+- ✅ DO use database queries via SQLAlchemy for all data operations
+- ✅ DO check `misc/port_config.json` for port allocations (READ-ONLY)
+- ✅ DO reference `misc/models/` for app structure (READ-ONLY)
 
-### Service-Oriented Design with App Factory Pattern
-- **Flask App Factory** (`src/app.py`) - Uses ServiceManager pattern with background service initialization
-- **Containerized Testing Infrastructure** (`testing-infrastructure/`) - Microservices: security-scanner (8001), performance-tester (8002), zap-scanner (8003)
-- **Batch Operations Service** (`src/batch_testing_service.py`) - ContainerBatchOperationService with ThreadPoolExecutor
-- **HTMX Frontend** (`src/web_routes.py`) - Dynamic UI with hx-get/hx-post, performance logging decorators
-- **Core Services** (`src/core_services.py`) - DockerManager, ScanManager, ModelIntegrationService with graceful degradation
+## Available APIs & Services
 
-### Critical Service Initialization Pattern
+### Core Service APIs (via ServiceLocator)
 ```python
-# Services are initialized asynchronously to prevent blocking startup
-service_manager = ServiceManager(app)
-app.config['service_manager'] = service_manager
+from src.service_manager import ServiceLocator
 
-# Background thread initializes services with fallbacks
-service_thread = threading.Thread(target=initialize_services_async, daemon=True)
+# Available services - USE THESE:
+docker_manager = ServiceLocator.get_docker_manager()
+scan_manager = ServiceLocator.get_scan_manager()
+model_service = ServiceLocator.get_model_service()
+port_manager = ServiceLocator.get_port_manager()
+batch_service = ServiceLocator.get_batch_service()
 ```
 
-### Data Flow & Container Orchestration
-1. **App Generation**: `misc/generateApps.py` creates ~30 app types per model with docker-compose.yml
-2. **Port Allocation**: Sequential backend (5001+) and frontend (8001+) ports per model/app combination
-3. **Batch Processing**: ContainerBatchOperationService orchestrates concurrent operations (4 workers default)
-4. **Analysis Pipeline**: Security → Performance → ZAP scanning via containerized microservices
-5. **Results Storage**: SQLAlchemy with AnalysisStatus/JobStatus enums, graceful error handling
+### Web API Endpoints (HTMX)
+All endpoints return HTML fragments for HTMX, NOT JSON:
+- `GET /` - Dashboard
+- `GET /models` - Models overview
+- `GET /models/<model>/apps` - Model's applications
+- `GET /app/<model>/<app_num>` - App details
+- `POST /app/<model>/<app_num>/start` - Start containers
+- `POST /app/<model>/<app_num>/stop` - Stop containers
+- `GET /app/<model>/<app_num>/logs` - Container logs (HTML fragment)
+- `POST /batch/start` - Start batch analysis
+- `GET /batch/<batch_id>/status` - Batch status (HTML fragment)
+- `POST /analysis/security/<model>/<app_num>` - Run security scan
+- `POST /analysis/performance/<model>/<app_num>` - Run performance test
 
-## Critical Development Patterns
-
-### Docker Container Naming & Project Management
+### Database Models (USE THESE, NOT JSON)
 ```python
-# Always use DockerUtils for consistent naming
-project_name = DockerUtils.get_project_name(model, app_num)  # "modelname_app1"
-container_name = f"{project_name}_{container_type}"  # "modelname_app1_backend"
+from src.models import (
+    ModelCapability,        # AI model metadata
+    PortConfiguration,      # Port allocations
+    GeneratedApplication,   # App instances
+    SecurityAnalysis,       # Security results
+    PerformanceTest,       # Performance results
+    BatchAnalysis,         # Batch jobs
+    ContainerizedTest      # Container test tracking
+)
 
-# Execute compose commands with proper project isolation
-docker_manager.execute_compose_command(compose_path, ["up", "-d"], model, app_num)
+# Example: Query models from database
+with get_session() as session:
+    models = session.query(ModelCapability).filter_by(provider='anthropic').all()
+    app = session.query(GeneratedApplication).filter_by(
+        model_slug='anthropic_claude-3.7-sonnet',
+        app_number=1
+    ).first()
 ```
 
-### Service Locator Pattern with Fallback Chain
+## Testing Tools & Infrastructure
+
+### Unified CLI Analyzer (`src/unified_cli_analyzer.py`)
+Primary testing interface that orchestrates all analysis:
 ```python
-# ServiceLocator provides graceful degradation
-service = ServiceLocator.get_service('scan_manager')
-if not service:
-    # Falls back to mock clients when containers unavailable
-    return legacy_implementation()
+from src.unified_cli_analyzer import UnifiedCLIAnalyzer
+
+analyzer = UnifiedCLIAnalyzer()
+# Provides batch operations and testing coordination
 ```
 
-### HTMX Request Patterns
-```html
-<!-- Use hx-target and hx-swap for partial updates -->
-<button hx-post="/api/containers/{{ model }}/{{ app_num }}/start"
-        hx-target="#app-{{ model }}-{{ app_num }}"
-        hx-swap="outerHTML">Start</button>
+### Containerized Testing Services
+Located in `testing-infrastructure/containers/`:
+- **security-scanner**: Bandit, Safety, PyLint, ESLint, npm audit
+- **performance-tester**: Locust-based load testing
+- **zap-scanner**: OWASP ZAP security scanning
+- **ai-analyzer**: OpenRouter-based code analysis
 
-<!-- Auto-refresh with triggers -->
-<div hx-get="/api/status/{{ model }}/{{ app_num }}"
-     hx-trigger="load, every 15s"
-     hx-swap="innerHTML">
-```
-
-### Thread-Safe Batch Operations
+### API Contracts (Pydantic Models)
 ```python
-# Always use operation locks for batch processing
-with self.operation_lock:
-    operation_id = str(uuid.uuid4())
-    self.operations[operation_id] = operation_data
-
-# Use ThreadPoolExecutor with configurable concurrency
-executor = ThreadPoolExecutor(max_workers=operation['concurrency'])
+from testing_infrastructure.shared.api_contracts.testing_api_models import (
+    TestRequest,
+    TestResponse,
+    SecurityTestRequest,
+    PerformanceTestRequest
+)
 ```
 
-## Essential Commands & Infrastructure
+## Architecture & Key Components
 
-### Containerized Testing Infrastructure
-```powershell
-# Start all testing microservices
+### Core Application (MVC-ish Pattern)
+- **Entry**: `src/app.py` - Flask app with service initialization
+- **Routes**: `src/web_routes.py` - HTMX endpoints returning HTML
+- **Services**: `src/core_services.py` - Business logic
+- **Service Manager**: `src/service_manager.py` - Service registry & locator
+- **Models**: `src/models.py` - SQLAlchemy database models
+- **Database**: SQLite in `src/data/thesis_app.db`
+
+### Model Management (`misc/` - READ ONLY!)
+- Apps in `misc/models/{provider}_{model_name}/app{1-30}/`
+- Port config: `misc/port_config.json` - READ for port lookups
+- Each app has: `backend/`, `frontend/`, `docker-compose.yml`
+
+## Development Patterns
+
+### HTMX + Flask Pattern
+```python
+# CORRECT: Return HTML fragments for HTMX
+@web_routes.route('/analysis/status/<id>')
+def get_status(id):
+    analysis = db.session.query(SecurityAnalysis).get(id)
+    return render_template('partials/analysis_status.html', analysis=analysis)
+
+# WRONG: Don't return JSON to HTMX endpoints
+# return jsonify({"status": "complete"})  # ❌
+```
+
+### Service Access Pattern
+```python
+# CORRECT: Use ServiceLocator
+from src.service_manager import ServiceLocator
+
+docker_manager = ServiceLocator.get_docker_manager()
+if docker_manager:
+    containers = docker_manager.list_containers()
+
+# WRONG: Don't create services directly
+# docker_manager = DockerManager()  # ❌
+```
+
+### Database Pattern
+```python
+# CORRECT: Use database models with context managers
+from src.extensions import get_session
+from src.models import GeneratedApplication
+
+with get_session() as session:
+    app = GeneratedApplication(
+        model_slug="anthropic_claude-3.7-sonnet",
+        app_number=1,
+        provider="anthropic"
+    )
+    session.add(app)
+    session.commit()
+
+# WRONG: Don't modify JSON files
+# with open('misc/some_file.json', 'w') as f:  # ❌
+```
+
+## Critical Workflows
+
+### Starting Analysis (Windows)
+```bash
+# Main app
+python src/app.py
+
+# Testing infrastructure (optional, for containerized tests)
 cd testing-infrastructure
-python manage.py build    # Build all containers
-python manage.py start    # Start infrastructure (ports 8001-8003)
-python manage.py status   # Check service health
-
-# Individual service management
-python manage.py restart security-scanner
-python manage.py logs performance-tester
+docker-compose up
 ```
 
-### Development Workflow
-```powershell
-# Initialize and run main application
-cd src
-python app.py  # Uses app factory, auto-initializes services
+### Running Tests
+```bash
+# Unit tests
+pytest tests/unit/ -v
 
-# Generate AI applications from templates
-python misc/generateApps.py  # Creates containerized apps for all models
-
-# Database operations
-flask db upgrade  # Apply migrations
-flask db init     # Initialize migrations (if needed)
-
-# Testing
-pytest tests/ -v                    # Full test suite
-pytest tests/test_containerized_services.py  # Container integration tests
+# Integration tests (requires infrastructure)
+pytest tests/integration/ -v
 ```
 
-## Model Integration & Template System
+## File Structure Rules
+- **Constants**: `src/constants.py` - Enums and constants
+- **Static**: `src/static/js/` - HTMX extensions, error handling
+- **Templates**: `templates/partials/` - HTMX fragments
+- **Model apps**: READ ONLY from `misc/models/`
 
-### App Generation Architecture
-- **Templates**: `misc/app_templates/app_{1-30}_{backend|frontend}.md` define 30 distinct app types
-- **Generated Structure**: `misc/models/{model_slug}/app{1-30}/docker-compose.yml`
-- **Port Configuration**: Auto-generated in `misc/port_config.json` with conflict resolution
-- **Model Metadata**: `misc/models_summary.json` with capabilities, pricing, context windows
+## Windows-Specific Notes
+- Use `pathlib.Path` for file operations
+- Check ports in database (PortConfiguration model)
+- Handle SQLite locks with proper session management
 
-### Container Lifecycle Management
-```python
-# Standard container operations pattern
-docker_manager = get_docker_manager()
-result = docker_manager.start_containers(compose_path, model, app_num)
-if result['success']:
-    # Wait for health check before proceeding
-    healthy = docker_manager._wait_for_container_health(container_name, timeout=60)
-```
+## Common Pitfalls & Solutions
 
-## Database Models & Status Management
+### ❌ DON'T:
+1. Return JSON to HTMX endpoints - return HTML fragments
+2. Modify files in `misc/` - they're reference data
+3. Hardcode ports - query PortConfiguration model
+4. Create services directly - use ServiceLocator
+5. Access JSON files for data - use database models
 
-### Key Models with Status Tracking
-```python
-# Use proper enums for consistent state management
-class AnalysisStatus(enum.Enum):
-    PENDING = "pending"
-    RUNNING = "running" 
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+### ✅ DO:
+1. Use database models for all data operations
+2. Return HTML fragments from web routes
+3. Use ServiceLocator for service access
+4. Check existing patterns in codebase
+5. Use context managers for database sessions
 
-# Models include JSON fields for extensibility
-model_capability.set_capabilities({'supports_vision': True, 'context_window': 128000})
-```
+## Testing Analyzer Integration
+When adding analyzers:
+1. Define models in `testing_api_models.py`
+2. Add service in `core_services.py`
+3. Update `service_manager.py`
+4. Add container in `testing-infrastructure/containers/`
+5. Create database migration if needed
 
-### Critical Model Relationships
-- **ModelCapability**: AI model metadata with capabilities_json field
-- **PortConfiguration**: Model/app → port mappings with availability tracking
-- **GeneratedApplication**: App instances with container_status tracking
-- **SecurityAnalysis/PerformanceTest**: Results with tool-specific boolean flags
-
-## Error Handling & Resilience
-
-### Graceful Service Degradation
-```python
-# All services include fallback mechanisms
-try:
-    return containerized_service.analyze(model, app_num)
-except Exception:
-    logger.warning("Containerized service unavailable, using fallback")
-    return legacy_analyzer.analyze(model, app_num)
-```
-
-### Container Health & Timeout Management
-- **Health Checks**: All containers expose `/health` endpoints
-- **Timeouts**: 60s for container operations, 300s for builds, 30s for API calls
-- **Retry Logic**: 3 attempts with exponential backoff for container operations
-- **Cache Strategy**: 10-second container status cache to reduce Docker API calls
-
-## Testing Strategy
-
-### Test Infrastructure
-- **conftest.py**: SQLite in-memory database with realistic fixtures
-- **Mock Services**: TestingInfrastructureClasses provides fallback mocks
-- **Container Tests**: `test_containerized_services.py` validates microservice integration
-- **HTMX Testing**: Uses test_client with htmx_headers fixture for partial rendering
-
-### Integration Testing Patterns
-```python
-# Test both success and failure paths
-def test_container_operation_with_fallback(mock_docker_manager):
-    mock_docker_manager.client = None  # Simulate Docker unavailable
-    result = service.run_analysis(model, app_num)
-    assert result['status'] == 'fallback_used'
-```
-
-## Performance & Monitoring
-
-### Caching & Optimization
-- **DockerCache**: Caches container statuses with TTL to reduce API calls
-- **Service Manager**: Lazy initialization of heavy services (Docker, scan tools)
-- **HTMX**: Reduces full page reloads, uses targeted partial updates
-- **Background Tasks**: Service initialization and long-running operations run in daemon threads
-
-### Resource Management
-- **Concurrency Limits**: Default 4 workers for batch operations, configurable via BATCH_MAX_WORKERS
-- **Memory Constraints**: Each testing container limited to 512MB via docker-compose
-- **Connection Pooling**: SQLAlchemy connection pooling with 300s recycle time
-
-## Critical Integration Points
-
-When working with this codebase, always consider:
-
-1. **Container Dependencies**: Check if testing infrastructure is running before using analysis features
-2. **Service Boundaries**: Main app coordinates, containers do the work, results flow back via API
-3. **State Consistency**: Use proper enum values and status tracking across all operations
-4. **HTMX Patterns**: Maintain hx-target/hx-swap consistency for UI updates
-5. **Port Conflicts**: Verify port availability before starting new containers
-6. **Graceful Degradation**: Always provide fallback when containerized services unavailable
+## Key Files Reference
+- Port lookups: Check PortConfiguration model (NOT misc/port_config.json)
+- Model data: Query ModelCapability model
+- App status: Query GeneratedApplication model
+- Analysis results: Query SecurityAnalysis, PerformanceTest models
+- Service access: `src/service_manager.py` ServiceLocator class
