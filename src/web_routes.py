@@ -4714,157 +4714,52 @@ def testing_api_export_results():
 
 @testing_bp.route("/api/create", methods=["POST"])
 def testing_api_create():
-    """Create a new test with enhanced tool configurations."""
+    """Create a new test with enhanced tool configurations and comprehensive modal support."""
     try:
         from models import BatchJob, JobStatus, JobPriority
         from extensions import db
-        from datetime import timedelta
+        from datetime import timedelta, datetime
         import uuid
         import traceback
         
         # Handle both JSON and form data with proper content type handling
         if request.is_json or request.content_type == 'application/json':
             data = request.get_json()
-            logger.info("Received JSON data")
-        elif request.form or request.content_type == 'application/x-www-form-urlencoded':
-            # Convert form data to dict
+            logger.info("Received JSON data for test creation")
+            is_form_data = False
+        elif request.form:
+            # Handle comprehensive modal form data
             data = {}
             for key, value in request.form.items():
-                # Handle array fields
-                if key in ['tools', 'selected_models', 'selected_apps']:
+                # Handle array fields for comprehensive modal
+                if key in ['test_types', 'security_tools']:
                     data[key] = request.form.getlist(key)
                 else:
                     data[key] = value
-            logger.info("Received form data")
+            logger.info("Received form data for comprehensive test creation")
+            is_form_data = True
         else:
             logger.error(f"No supported content type. Content-Type: {request.content_type}")
             return jsonify({'success': False, 'error': f'Unsupported content type: {request.content_type}'}), 415
-        
+
         if not data:
             logger.error("Empty request data")
             return jsonify({'success': False, 'error': 'Empty request data'}), 400
-        
-        logger.info(f"Creating test with data: {list(data.keys())}")  # Log keys only for security
-        
-        # Validate required fields
-        if not data.get('test_type'):
-            return jsonify({'success': False, 'error': 'Test type is required'}), 400
-        
-        if not data.get('job_name'):
-            return jsonify({'success': False, 'error': 'Job name is required'}), 400
-        
-        # Generate unique job ID
-        job_id = str(uuid.uuid4())
-        
-        # Create new BatchJob record with proper priority handling
-        priority_value = data.get('priority', 'normal')
-        if isinstance(priority_value, str):
-            if priority_value.lower() in ['low', 'normal', 'high', 'urgent']:
-                job_priority = JobPriority(priority_value.lower())
-            else:
-                logger.warning(f"Invalid priority value: {priority_value}, defaulting to normal")
-                job_priority = JobPriority.NORMAL
-        elif isinstance(priority_value, int):
-            # Handle numeric priority values from HTML select options
-            priority_map = {1: JobPriority.LOW, 2: JobPriority.NORMAL, 3: JobPriority.HIGH, 4: JobPriority.URGENT}
-            job_priority = priority_map.get(priority_value, JobPriority.NORMAL)
+
+        logger.info(f"Creating test with data keys: {list(data.keys())}")
+
+        # Handle comprehensive modal vs legacy formats
+        if is_form_data and 'app_id' in data and 'test_types' in data:
+            # New comprehensive modal format
+            return _handle_comprehensive_test_creation(data)
         else:
-            job_priority = JobPriority.NORMAL
-            
-        new_job = BatchJob(
-            id=job_id,
-            name=data.get('job_name'),
-            description=data.get('description', ''),
-            status=JobStatus.PENDING,
-            priority=job_priority,
-            auto_start=data.get('auto_start', True),
-            auto_retry=False,
-            max_retries=3
-        )
-        
-        # Set analysis types
-        analysis_types = [data.get('test_type')]
-        new_job.set_analysis_types(analysis_types)
-        
-        # Set models
-        models = data.get('selected_models', [])
-        if isinstance(models, str):
-            models = [models]
-        new_job.set_models(models)
-        
-        # Set app range
-        apps = data.get('selected_apps', [])
-        if isinstance(apps, str):
-            apps = [int(apps)]
-        elif isinstance(apps, list):
-            apps = [int(app) if isinstance(app, str) else app for app in apps]
-        
-        app_range = {
-            'apps': apps,
-            'include_all': len(apps) == 0
-        }
-        new_job.set_app_range(app_range)
-        
-        # Enhanced tool configuration processing
-        options = _process_enhanced_tool_config(data)
-        new_job.set_options(options)
-        
-        # Calculate estimated duration and total tasks
-        total_models = len(models) if models else 1
-        total_apps = len(apps) if apps else 10  # Default assumption
-        new_job.total_tasks = total_models * total_apps
-        new_job.estimated_duration_minutes = new_job.total_tasks * 5  # 5 minutes per task estimate
-        
-        # Set scheduled time if auto_start is false
-        if not data.get('auto_start', True):
-            new_job.scheduled_at = datetime.now() + timedelta(minutes=5)
-        
-        # Save to database
-        db.session.add(new_job)
-        db.session.commit()
-        
-        # Auto-start the job if requested
-        if data.get('auto_start', True):
-            try:
-                service = get_unified_cli_analyzer()
-                if service:
-                    # Submit the job to the unified CLI analyzer
-                    job_config = new_job.to_dict()
-                    service_result = service.create_batch_job(job_config)
-                    
-                    if service_result.get('success'):
-                        new_job.status = JobStatus.QUEUED
-                        new_job.started_at = datetime.now()
-                        db.session.commit()
-                        logger.info(f"Job {job_id} submitted to unified CLI analyzer")
-                    else:
-                        logger.warning(f"Failed to submit job to service: {service_result.get('error')}")
-                else:
-                    logger.warning("Unified CLI analyzer service not available")
-            except Exception as e:
-                logger.error(f"Error starting job: {e}")
-                # Job is still created but not started
-        
-        result = {
-            'success': True,
-            'message': f'Security test "{data.get("job_name", "Test")}" created successfully',
-            'data': {
-                'job_id': job_id,
-                'test_type': data.get('test_type'),
-                'status': new_job.status.value,
-                'created_at': new_job.created_at.isoformat(),
-                'total_tasks': new_job.total_tasks,
-                'estimated_duration_minutes': new_job.estimated_duration_minutes
-            }
-        }
-        
-        logger.info(f"Test created successfully and saved to database: {job_id}")
-        return jsonify(result)
-        
+            # Legacy format - maintain backward compatibility
+            return _handle_legacy_test_creation(data)
+
     except Exception as e:
         logger.error(f"Error creating test: {e}")
+        import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        # Rollback database changes on error
         try:
             db.session.rollback()
         except Exception:
@@ -4872,8 +4767,330 @@ def testing_api_create():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _handle_comprehensive_test_creation(data):
+    """Handle comprehensive test creation from enhanced modal."""
+    from models import BatchJob, JobStatus, JobPriority
+    from extensions import db
+    from datetime import datetime
+    import uuid
+    
+    # Extract and validate data
+    app_id = data.get('app_id')
+    if not app_id:
+        return jsonify({'success': False, 'error': 'Please select an application to test'}), 400
+    
+    test_types = data.get('test_types', [])
+    if not test_types:
+        return jsonify({'success': False, 'error': 'Please select at least one test type'}), 400
+    
+    # Get app information
+    app_info = _get_app_info(app_id)
+    
+    # Create meaningful job name
+    job_name = f"Comprehensive Test - {app_info.get('display_name', f'App {app_id}')} - {datetime.now().strftime('%Y%m%d-%H%M')}"
+    
+    # Generate unique job ID
+    job_id = str(uuid.uuid4())
+    
+    # Get priority
+    priority_str = data.get('priority', 'normal')
+    priority_map = {
+        'low': JobPriority.LOW,
+        'normal': JobPriority.NORMAL,
+        'high': JobPriority.HIGH,
+        'urgent': JobPriority.URGENT
+    }
+    job_priority = priority_map.get(priority_str, JobPriority.NORMAL)
+    
+    # Create new BatchJob record
+    new_job = BatchJob(
+        id=job_id,
+        name=job_name,
+        description=data.get('description', f'Comprehensive security test with {", ".join(test_types)}'),
+        status=JobStatus.PENDING,
+        priority=job_priority,
+        auto_start=True,
+        auto_retry=False,
+        max_retries=3
+    )
+    
+    # Set analysis types
+    new_job.set_analysis_types(test_types)
+    
+    # Set the specific app and model
+    models = [app_info.get('model_slug', 'unknown')]
+    new_job.set_models(models)
+    
+    apps = [int(app_info.get('app_number', 1))]
+    app_range = {'apps': apps, 'include_all': False}
+    new_job.set_app_range(app_range)
+    
+    # Process comprehensive options
+    options = _process_comprehensive_options(data, test_types)
+    new_job.set_options(options)
+    
+    # Calculate estimates
+    new_job.total_tasks = len(test_types) * len(models) * len(apps)
+    timeout_minutes = int(data.get('timeout', 30))
+    new_job.estimated_duration_minutes = max(timeout_minutes, new_job.total_tasks * 5)
+    
+    # Save to database
+    db.session.add(new_job)
+    db.session.commit()
+    
+    # Start the job
+    try:
+        analyzer_service = get_unified_cli_analyzer()
+        if analyzer_service:
+            job_config = new_job.to_dict()
+            service_result = analyzer_service.create_batch_job(job_config)
+            
+            if service_result.get('success'):
+                new_job.status = JobStatus.QUEUED
+                new_job.started_at = datetime.now()
+                db.session.commit()
+                logger.info(f"Comprehensive job {job_id} submitted successfully")
+        else:
+            logger.warning("Unified CLI analyzer service not available")
+    except Exception as e:
+        logger.error(f"Error starting comprehensive job: {e}")
+    
+    # Return success response
+    result = {
+        'success': True,
+        'message': f'Test "{job_name}" started successfully!',
+        'data': {
+            'job_id': job_id,
+            'test_types': test_types,
+            'status': new_job.status.value,
+            'created_at': new_job.created_at.isoformat(),
+            'total_tasks': new_job.total_tasks,
+            'estimated_duration_minutes': new_job.estimated_duration_minutes,
+            'app_info': app_info
+        }
+    }
+    
+    logger.info(f"Comprehensive test created: {job_id} with types: {test_types}")
+    return jsonify(result)
+
+
+def _handle_legacy_test_creation(data):
+    """Handle legacy test creation format for backward compatibility."""
+    from models import BatchJob, JobStatus, JobPriority
+    from extensions import db
+    from datetime import datetime, timedelta
+    import uuid
+    
+    # Validate required fields for legacy format
+    if not data.get('test_type'):
+        return jsonify({'success': False, 'error': 'Test type is required'}), 400
+    
+    if not data.get('job_name'):
+        return jsonify({'success': False, 'error': 'Job name is required'}), 400
+    
+    # Generate unique job ID
+    job_id = str(uuid.uuid4())
+    
+    # Handle priority
+    priority_value = data.get('priority', 'normal')
+    if isinstance(priority_value, str):
+        if priority_value.lower() in ['low', 'normal', 'high', 'urgent']:
+            job_priority = JobPriority(priority_value.lower())
+        else:
+            job_priority = JobPriority.NORMAL
+    else:
+        job_priority = JobPriority.NORMAL
+    
+    # Create new BatchJob record
+    new_job = BatchJob(
+        id=job_id,
+        name=data.get('job_name'),
+        description=data.get('description', ''),
+        status=JobStatus.PENDING,
+        priority=job_priority,
+        auto_start=data.get('auto_start', True),
+        auto_retry=False,
+        max_retries=3
+    )
+    
+    # Set analysis types
+    analysis_types = [data.get('test_type')]
+    new_job.set_analysis_types(analysis_types)
+    
+    # Set models
+    models = data.get('selected_models', [])
+    if isinstance(models, str):
+        models = [models]
+    new_job.set_models(models)
+    
+    # Set app range
+    apps = data.get('selected_apps', [])
+    if isinstance(apps, str):
+        apps = [int(apps)]
+    elif isinstance(apps, list):
+        apps = [int(app) if isinstance(app, str) else app for app in apps]
+    
+    app_range = {
+        'apps': apps,
+        'include_all': len(apps) == 0
+    }
+    new_job.set_app_range(app_range)
+    
+    # Process tool configuration
+    options = _process_enhanced_tool_config(data)
+    new_job.set_options(options)
+    
+    # Calculate estimated duration and total tasks
+    total_models = len(models) if models else 1
+    total_apps = len(apps) if apps else 10
+    new_job.total_tasks = total_models * total_apps
+    new_job.estimated_duration_minutes = new_job.total_tasks * 5
+    
+    # Set scheduled time if auto_start is false
+    if not data.get('auto_start', True):
+        new_job.scheduled_at = datetime.now() + timedelta(minutes=5)
+    
+    # Save to database
+    db.session.add(new_job)
+    db.session.commit()
+    
+    # Auto-start the job if requested
+    if data.get('auto_start', True):
+        try:
+            analyzer_service = get_unified_cli_analyzer()
+            if analyzer_service:
+                job_config = new_job.to_dict()
+                service_result = analyzer_service.create_batch_job(job_config)
+                
+                if service_result.get('success'):
+                    new_job.status = JobStatus.QUEUED
+                    new_job.started_at = datetime.now()
+                    db.session.commit()
+                    logger.info(f"Legacy job {job_id} submitted successfully")
+        except Exception as e:
+            logger.error(f"Error starting legacy job: {e}")
+    
+    result = {
+        'success': True,
+        'message': f'Test "{data.get("job_name", "Test")}" created successfully',
+        'data': {
+            'job_id': job_id,
+            'test_type': data.get('test_type'),
+            'status': new_job.status.value,
+            'created_at': new_job.created_at.isoformat(),
+            'total_tasks': new_job.total_tasks,
+            'estimated_duration_minutes': new_job.estimated_duration_minutes
+        }
+    }
+    
+    return jsonify(result)
+
+
+def _get_app_info(app_id):
+    """Get application information from the applications data."""
+    try:
+        from pathlib import Path
+        import json
+        
+        misc_dir = Path(__file__).parent.parent / "misc"
+        port_config_file = misc_dir / "port_config.json"
+        models_dir = misc_dir / "models"
+        
+        if port_config_file.exists() and models_dir.exists():
+            with open(port_config_file, 'r') as f:
+                port_config = json.load(f)
+            
+            for config in port_config:
+                model_name = config['model_name']
+                app_number = config['app_number']
+                config_app_id = f"{model_name}_app{app_number}"
+                
+                if config_app_id == app_id:
+                    app_dir = models_dir / model_name / f"app{app_number}"
+                    docker_compose_path = app_dir / "docker-compose.yml"
+                    
+                    if app_dir.exists() and docker_compose_path.exists():
+                        provider = model_name.split('_')[0] if '_' in model_name else 'unknown'
+                        display_name = f"{model_name.replace('_', ' ').replace('-', ' ')} - App {app_number}"
+                        
+                        return {
+                            'id': config_app_id,
+                            'model_slug': model_name,
+                            'app_number': app_number,
+                            'backend_port': config['backend_port'],
+                            'frontend_port': config['frontend_port'],
+                            'provider': provider,
+                            'display_name': display_name,
+                            'app_path': str(app_dir),
+                            'docker_compose_path': str(docker_compose_path)
+                        }
+        
+        return {
+            'id': app_id,
+            'display_name': f'Application {app_id}',
+            'model_slug': 'unknown',
+            'app_number': 1,
+            'provider': 'unknown'
+        }
+    except Exception as e:
+        logger.error(f"Error getting app info: {e}")
+        return {'id': app_id, 'display_name': f'App {app_id}', 'model_slug': 'unknown', 'app_number': 1}
+
+
+def _process_comprehensive_options(data, test_types):
+    """Process options from the comprehensive test modal."""
+    options = {
+        'comprehensive_test': True,
+        'test_types': test_types,
+        'tools': [],
+        'timeout': int(data.get('timeout', 30)) * 60,
+        'generate_report': True,
+        'fail_fast': False
+    }
+    
+    # Process security tools
+    if 'security' in test_types:
+        security_tools = data.get('security_tools', [])
+        if isinstance(security_tools, str):
+            security_tools = [security_tools]
+        options['tools'].extend(security_tools)
+        options['security_config'] = {
+            'tools': security_tools,
+            'backend_tools': [tool for tool in security_tools if tool in ['bandit', 'safety', 'pylint', 'semgrep']],
+            'frontend_tools': [tool for tool in security_tools if tool in ['eslint', 'retire', 'npm-audit', 'secrets']]
+        }
+    
+    # Process performance options
+    if 'performance' in test_types:
+        options['performance_config'] = {
+            'users': int(data.get('perf_users', 10)),
+            'spawn_rate': float(data.get('perf_spawn_rate', 2.0)),
+            'duration': int(data.get('perf_duration', 60)),
+            'test_type': 'load'
+        }
+    
+    # Process ZAP options
+    if 'zap' in test_types:
+        options['zap_config'] = {
+            'scan_type': data.get('zap_scan_type', 'spider'),
+            'max_depth': int(data.get('zap_max_depth', 5)),
+            'max_children': int(data.get('zap_max_children', 50)),
+            'timeout': int(data.get('timeout', 30)) * 60
+        }
+    
+    # Process AI options
+    if 'ai' in test_types:
+        options['ai_config'] = {
+            'model': data.get('ai_model', 'gpt-4'),
+            'focus': data.get('ai_focus', 'security'),
+            'detailed': data.get('ai_detailed') == 'on'
+        }
+    
+    return options
+
+
 def _process_enhanced_tool_config(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Process enhanced tool configurations based on comprehensive tool options."""
+    """Process enhanced tool configurations based on comprehensive tool options (legacy support)."""
     
     test_type = data.get('test_type')
     options = {

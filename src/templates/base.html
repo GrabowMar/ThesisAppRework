@@ -18,6 +18,7 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal-enhancements.css') }}">
     
     <!-- HTMX for dynamic interactions -->
     <script src="https://unpkg.com/htmx.org@1.9.12" 
@@ -597,6 +598,9 @@
             });
         }
     </script>
+
+    <!-- Modal Enhancement Scripts -->
+    <script src="{{ url_for('static', filename='js/modal-enhancements.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>
