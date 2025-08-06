@@ -4185,6 +4185,66 @@ def testing_api_models():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@testing_bp.route("/api/new-test-form")
+def testing_api_new_test_form():
+    """Get new test form modal HTML."""
+    try:
+        # Get available applications from database (with safer query)
+        applications = []
+        try:
+            from models import GeneratedApplication
+            applications = GeneratedApplication.query.limit(50).all()
+        except Exception as e:
+            logger.warning(f"Could not load applications from database: {e}")
+            # Create some mock applications for testing
+            class MockApp:
+                def __init__(self, id, model_slug, app_number):
+                    self.id = id
+                    self.model_slug = model_slug
+                    self.app_number = app_number
+            
+            applications = [
+                MockApp(1, "gpt-4", 1),
+                MockApp(2, "claude-3", 2),
+                MockApp(3, "gemini-pro", 3)
+            ]
+        
+        # Get available models for the form
+        models_data = []
+        try:
+            model_service = ServiceLocator.get_model_service()
+            if model_service:
+                models_data = model_service.get_available_models()
+        except Exception as e:
+            logger.warning(f"Could not get models from service: {e}")
+            # Fallback to database with error handling
+            try:
+                from models import ModelCapability
+                models = ModelCapability.query.all()
+                for model in models:
+                    models_data.append({
+                        'id': model.canonical_slug,
+                        'slug': model.canonical_slug,
+                        'name': model.model_name,
+                        'provider': model.provider
+                    })
+            except Exception as db_error:
+                logger.warning(f"Database fallback also failed: {db_error}")
+                # Create mock models as final fallback
+                models_data = [
+                    {'id': 'gpt-4', 'slug': 'gpt-4', 'name': 'GPT-4', 'provider': 'openai'},
+                    {'id': 'claude-3-sonnet', 'slug': 'claude-3-sonnet', 'name': 'Claude 3 Sonnet', 'provider': 'anthropic'},
+                    {'id': 'gemini-pro', 'slug': 'gemini-pro', 'name': 'Gemini Pro', 'provider': 'google'}
+                ]
+        
+        return render_template('partials/testing/new_test_modal.html', 
+                             applications=applications,
+                             models=models_data)
+    except Exception as e:
+        logger.error(f"Error loading new test form: {e}")
+        return render_template('partials/error_message.html', 
+                             error="Could not load test form"), 500
+
 @testing_bp.route("/api/infrastructure-status")
 def testing_api_infrastructure_status():
     """Get detailed infrastructure status."""
@@ -4208,6 +4268,8 @@ def testing_api_infrastructure_status():
         }
         
         if request.headers.get('HX-Request'):
+            # Debug: log the status to see what's being passed
+            logger.debug(f"Infrastructure status data: {status}")
             return render_template('partials/infrastructure_status.html', data=status)
         else:
             return jsonify({'success': True, 'data': status})

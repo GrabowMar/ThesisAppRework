@@ -1,21 +1,25 @@
 <!-- Infrastructure Status Display -->
 <div class="row">
-    {% if data.services %}
+    {% if data and data.services %}
     <div class="col-md-8">
         <h6>Service Status</h6>
         <div class="list-group">
-            {% for service_name, is_healthy in data.services.items() %}
+            {% for service_name, service_info in data.services.items() %}
+            {% set is_healthy = (service_info.status == 'healthy') %}
             <div class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
                     <i class="fas 
-                        {% if service_name == 'security-scanner' %}fa-shield-alt
-                        {% elif service_name == 'performance-tester' %}fa-tachometer-alt
-                        {% elif service_name == 'zap-scanner' %}fa-bug
-                        {% elif service_name == 'api-gateway' %}fa-network-wired
+                        {% if service_name == 'security-scanner' or service_name == 'security_scanner' %}fa-shield-alt
+                        {% elif service_name == 'performance-tester' or service_name == 'performance_tester' %}fa-tachometer-alt
+                        {% elif service_name == 'zap-scanner' or service_name == 'zap_scanner' %}fa-bug
+                        {% elif service_name == 'api-gateway' or service_name == 'api_gateway' %}fa-network-wired
                         {% else %}fa-server{% endif %} me-2"></i>
-                    <strong>{{ service_name|replace('-', ' ')|title }}</strong>
+                    <strong>{{ service_name|replace('-', ' ')|replace('_', ' ')|title }}</strong>
                     {% if is_healthy %}
                         <small class="text-muted d-block">Service is running normally</small>
+                        {% if service_info.response_time %}
+                            <small class="text-muted d-block">Response time: {{ service_info.response_time }}ms</small>
+                        {% endif %}
                     {% else %}
                         <small class="text-danger d-block">Service is not responding</small>
                     {% endif %}
@@ -35,13 +39,24 @@
         <h6>Overall Status</h6>
         <div class="card">
             <div class="card-body text-center">
-                {% set healthy_count = data.services.values()|list|select('equalto', true)|list|length %}
-                {% set total_count = data.services|length %}
+                {% if data.metrics %}
+                    {% set healthy_count = data.metrics.healthy_services %}
+                    {% set total_count = data.metrics.total_services %}
+                {% else %}
+                    {% set healthy_services = [] %}
+                    {% for service_name, service_info in data.services.items() %}
+                        {% if service_info.status == 'healthy' %}
+                            {% set _ = healthy_services.append(service_name) %}
+                        {% endif %}
+                    {% endfor %}
+                    {% set healthy_count = healthy_services|length %}
+                    {% set total_count = data.services|length %}
+                {% endif %}
                 
                 {% if healthy_count == total_count %}
                     <i class="fas fa-check-circle fa-3x text-success mb-2"></i>
                     <h6 class="text-success">All Systems Operational</h6>
-                    <small class="text-muted">{{ total_count }}/{{ total_count }} services healthy</small>
+                    <small class="text-muted">{{ healthy_count }}/{{ total_count }} services healthy</small>
                 {% elif healthy_count > 0 %}
                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-2"></i>
                     <h6 class="text-warning">Partial Service Outage</h6>
@@ -58,8 +73,8 @@
                         {% elif healthy_count > 0 %}bg-warning
                         {% else %}bg-danger{% endif %}" 
                         role="progressbar" 
-                        style="width: {{ (healthy_count / total_count * 100)|round(1) }}%">
-                        {{ (healthy_count / total_count * 100)|round(1) }}%
+                        style="width: {{ (healthy_count / total_count * 100)|round(1) if total_count > 0 else 0 }}%">
+                        {{ (healthy_count / total_count * 100)|round(1) if total_count > 0 else 0 }}%
                     </div>
                 </div>
             </div>
@@ -77,6 +92,14 @@
             </div>
         </div>
     </div>
+    {% elif error %}
+    <div class="col-12">
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-circle"></i>
+            <strong>Infrastructure Status Error</strong>
+            <p class="mb-0">{{ error }}</p>
+        </div>
+    </div>
     {% else %}
     <div class="col-12">
         <div class="alert alert-warning">
@@ -88,7 +111,7 @@
     {% endif %}
 </div>
 
-{% if data.details %}
+{% if data and data.details %}
 <div class="row mt-3">
     <div class="col-12">
         <h6>Service Details</h6>
@@ -145,7 +168,7 @@
 <div class="row mt-3">
     <div class="col-12">
         <small class="text-muted">
-            <i class="fas fa-clock"></i> Last updated: {{ data.timestamp }}
+            <i class="fas fa-clock"></i> Last updated: {{ data.timestamp if data and data.timestamp else 'Unknown' }}
         </small>
     </div>
 </div>
