@@ -1,0 +1,1135 @@
+{% extends "base.html" %}
+
+{% block title %}Enhanced Security Testing & Analysis Platform - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    <i class="fas fa-shield-alt text-primary"></i>
+                    Enhanced Security Testing Platform
+                </h1>
+                <p class="text-muted">Comprehensive security analysis with advanced tool configurations</p>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary" onclick="showCreateTestModal()">
+                    <i class="fas fa-plus"></i> Create Security Test
+                </button>
+                <button class="btn btn-outline-secondary" onclick="showInfrastructureStatus()">
+                    <i class="fas fa-server"></i> Infrastructure Status
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card bg-primary">
+            <div class="stat-icon">
+                <i class="fas fa-tasks"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="total-tests">{{ stats.total_jobs or 0 }}</h3>
+                <p>Total Tests</p>
+            </div>
+        </div>
+        <div class="stat-card bg-warning">
+            <div class="stat-icon">
+                <i class="fas fa-play"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="running-tests">{{ stats.running_jobs or 0 }}</h3>
+                <p>Running Tests</p>
+            </div>
+        </div>
+        <div class="stat-card bg-success">
+            <div class="stat-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="completed-tests">{{ stats.completed_jobs or 0 }}</h3>
+                <p>Completed</p>
+            </div>
+        </div>
+        <div class="stat-card bg-danger">
+            <div class="stat-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="total-issues">{{ stats.failed_jobs or 0 }}</h3>
+                <p>Failed Tests</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Testing Management -->
+    <div class="card">
+        <div class="card-header">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-list"></i> Security Tests
+                    </h5>
+                </div>
+                <div class="col-auto">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshTestsList()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportResults()">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Filter Controls -->
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <select class="form-select" id="status-filter" onchange="applyFilters()">
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="running">Running</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="test-type-filter" onchange="applyFilters()">
+                        <option value="all">All Test Types</option>
+                        <option value="security_analysis">Security Analysis</option>
+                        <option value="zap_scan">ZAP Scan</option>
+                        <option value="performance_test">Performance Test</option>
+                        <option value="ai_analysis">AI Analysis</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="model-filter" onchange="applyFilters()">
+                        <option value="all">All Models</option>
+                        <!-- Model options will be populated dynamically -->
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="search-filter" placeholder="Search tests..." onkeyup="applyFilters()">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearFilters()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tests List -->
+            <div id="test-jobs-list" hx-get="/testing/api/jobs" hx-trigger="load, refreshTests from:body" hx-swap="innerHTML">
+                <div class="text-center py-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading security tests...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Create Security Test Modal -->
+<div class="modal fade" id="createTestModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-shield-alt"></i> Create Enhanced Security Test
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="create-test-form" onsubmit="submitEnhancedSecurityTestForm(event)">
+                <div class="modal-body">
+                    <!-- Basic Test Information -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="job_name" class="form-label">Test Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="job_name" name="job_name" required 
+                                   placeholder="Enter descriptive test name">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="test_type" class="form-label">Test Type <span class="text-danger">*</span></label>
+                            <select class="form-select" id="test_type" name="test_type" required onchange="handleTestTypeChange(this.value)">
+                                <option value="">Select Test Type</option>
+                                <option value="security_analysis">Security Analysis (Backend)</option>
+                                <option value="zap_scan">ZAP Security Scan</option>
+                                <option value="performance_test">Performance Testing</option>
+                                <option value="ai_analysis">AI-Powered Analysis</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="2" 
+                                      placeholder="Detailed description of the security test objectives and scope"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Target Selection -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-bullseye"></i> Target Selection
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">Target Models</label>
+                                    <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="select-all-models" onchange="toggleAllModels()">
+                                            <label class="form-check-label fw-bold" for="select-all-models">
+                                                Select All Models
+                                            </label>
+                                        </div>
+                                        <hr>
+                                        <div id="models-list">
+                                            <!-- Models will be populated dynamically -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Target Applications</label>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <label for="app_start" class="form-label">From App</label>
+                                            <input type="number" class="form-control" id="app_start" name="app_start" min="1" max="30" value="1">
+                                        </div>
+                                        <div class="col-6">
+                                            <label for="app_end" class="form-label">To App</label>
+                                            <input type="number" class="form-control" id="app_end" name="app_end" min="1" max="30" value="5">
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <label class="form-label">Quick Select</label>
+                                        <div class="btn-group d-block" role="group">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAppRange(1, 5)">Apps 1-5</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAppRange(1, 10)">Apps 1-10</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAppRange(1, 30)">All Apps</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security Analysis Configuration -->
+                    <div id="security-analysis-config" class="card mb-4 d-none">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-cog"></i> Security Analysis Configuration
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Tool Selection -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <label class="form-label">Security Tools</label>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="tools" value="bandit" id="tool-bandit">
+                                                <label class="form-check-label" for="tool-bandit">
+                                                    <strong>Bandit</strong> - Python Security Issues
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="tools" value="safety" id="tool-safety">
+                                                <label class="form-check-label" for="tool-safety">
+                                                    <strong>Safety</strong> - Dependency Vulnerabilities
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="tools" value="semgrep" id="tool-semgrep">
+                                                <label class="form-check-label" for="tool-semgrep">
+                                                    <strong>Semgrep</strong> - Static Analysis
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bandit Configuration -->
+                            <div id="bandit-config" class="tool-config-section d-none">
+                                <h6><i class="fas fa-python"></i> Bandit Configuration</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Confidence Level</label>
+                                        <select class="form-select" name="bandit_confidence">
+                                            <option value="low">Low</option>
+                                            <option value="medium" selected>Medium</option>
+                                            <option value="high">High</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Severity Level</label>
+                                        <select class="form-select" name="bandit_severity">
+                                            <option value="low">Low</option>
+                                            <option value="medium" selected>Medium</option>
+                                            <option value="high">High</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Output Format</label>
+                                        <select class="form-select" name="bandit_format">
+                                            <option value="json" selected>JSON</option>
+                                            <option value="xml">XML</option>
+                                            <option value="txt">Text</option>
+                                            <option value="csv">CSV</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Include Tests (comma separated)</label>
+                                        <input type="text" class="form-control" name="bandit_include_tests" 
+                                               placeholder="B101,B102,B103">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Skip Tests (comma separated)</label>
+                                        <input type="text" class="form-control" name="bandit_skip_tests" 
+                                               placeholder="B404,B603">
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">Exclude Paths (comma separated)</label>
+                                        <input type="text" class="form-control" name="bandit_exclude_paths" 
+                                               placeholder="*/tests/*,*/venv/*">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Safety Configuration -->
+                            <div id="safety-config" class="tool-config-section d-none">
+                                <h6><i class="fas fa-shield-alt"></i> Safety Configuration</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Check Type</label>
+                                        <select class="form-select" name="safety_check_type">
+                                            <option value="scan" selected>Scan (v3)</option>
+                                            <option value="check">Check (legacy)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Output Format</label>
+                                        <select class="form-select" name="safety_output_format">
+                                            <option value="json" selected>JSON</option>
+                                            <option value="html">HTML</option>
+                                            <option value="spdx">SPDX</option>
+                                            <option value="text">Text</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check mt-4">
+                                            <input class="form-check-input" type="checkbox" name="safety_detailed_output" checked>
+                                            <label class="form-check-label">Detailed Output</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Target Path</label>
+                                        <input type="text" class="form-control" name="safety_target_path" value="." 
+                                               placeholder="Path to scan">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Policy File</label>
+                                        <input type="text" class="form-control" name="safety_policy_file" 
+                                               placeholder="Path to policy file">
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="safety_apply_fixes">
+                                            <label class="form-check-label">Apply Fixes</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="safety_continue_on_error" checked>
+                                            <label class="form-check-label">Continue on Error</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Semgrep Configuration -->
+                            <div id="semgrep-config" class="tool-config-section d-none">
+                                <h6><i class="fas fa-search"></i> Semgrep Configuration</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Rule Configuration</label>
+                                        <select class="form-select" name="semgrep_config">
+                                            <option value="p/security-audit" selected>Security Audit</option>
+                                            <option value="p/owasp-top-ten">OWASP Top 10</option>
+                                            <option value="p/python">Python Rules</option>
+                                            <option value="p/javascript">JavaScript Rules</option>
+                                            <option value="auto">Auto</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Output Format</label>
+                                        <select class="form-select" name="semgrep_output_format">
+                                            <option value="json" selected>JSON</option>
+                                            <option value="sarif">SARIF</option>
+                                            <option value="text">Text</option>
+                                            <option value="gitlab-sast">GitLab SAST</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Minimum Severity</label>
+                                        <select class="form-select" name="semgrep_severity">
+                                            <option value="INFO">Info</option>
+                                            <option value="WARNING" selected>Warning</option>
+                                            <option value="ERROR">Error</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Timeout (seconds)</label>
+                                        <input type="number" class="form-control" name="semgrep_timeout" value="30" min="5" max="300">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Timeout Threshold</label>
+                                        <input type="number" class="form-control" name="semgrep_timeout_threshold" value="3" min="1" max="10">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check mt-4">
+                                            <input class="form-check-input" type="checkbox" name="semgrep_oss_only" checked>
+                                            <label class="form-check-label">OSS Only</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Exclude Patterns (comma separated)</label>
+                                        <input type="text" class="form-control" name="semgrep_exclude_patterns" 
+                                               placeholder="test/*,node_modules/*">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Include Patterns (comma separated)</label>
+                                        <input type="text" class="form-control" name="semgrep_include_patterns" 
+                                               placeholder="src/*,app/*">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ZAP Scan Configuration -->
+                    <div id="zap-scan-config" class="card mb-4 d-none">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-spider"></i> ZAP Scan Configuration
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="zap_target_url" class="form-label">Target URL <span class="text-danger">*</span></label>
+                                    <input type="url" class="form-control" name="zap_target_url" 
+                                           placeholder="https://example.com" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Scan Type</label>
+                                    <select class="form-select" name="zap_scan_type" onchange="handleZapScanTypeChange(this.value)">
+                                        <option value="baseline">Baseline Scan</option>
+                                        <option value="active">Active Scan</option>
+                                        <option value="api">API Scan</option>
+                                        <option value="full">Full Scan</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- API Scan Specific Options -->
+                            <div id="zap-api-options" class="d-none">
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">API Definition</label>
+                                        <input type="text" class="form-control" name="zap_api_definition" 
+                                               placeholder="URL or path to OpenAPI/SOAP definition">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">API Format</label>
+                                        <select class="form-select" name="zap_api_format">
+                                            <option value="openapi">OpenAPI</option>
+                                            <option value="soap">SOAP</option>
+                                            <option value="graphql">GraphQL</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Output Format</label>
+                                    <select class="form-select" name="zap_format">
+                                        <option value="json" selected>JSON</option>
+                                        <option value="html">HTML</option>
+                                        <option value="xml">XML</option>
+                                        <option value="md">Markdown</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Minimum Level</label>
+                                    <select class="form-select" name="zap_min_level">
+                                        <option value="PASS">Pass</option>
+                                        <option value="IGNORE">Ignore</option>
+                                        <option value="INFO">Info</option>
+                                        <option value="WARN" selected>Warning</option>
+                                        <option value="FAIL">Fail</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Listen Port</label>
+                                    <input type="number" class="form-control" name="zap_listen_port" value="8080" min="1024" max="65535">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Passive Scan Delay (seconds)</label>
+                                    <input type="number" class="form-control" name="zap_passive_scan_delay" value="0" min="0" max="300">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Max Time (minutes)</label>
+                                    <input type="number" class="form-control" name="zap_max_time" value="0" min="0" max="1440">
+                                    <small class="text-muted">0 = no limit</small>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="zap_alpha_passive">
+                                        <label class="form-check-label">Include Alpha Rules</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="zap_safe_mode">
+                                        <label class="form-check-label">Safe Mode</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="zap_debug">
+                                        <label class="form-check-label">Debug Mode</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Test Configuration -->
+                    <div id="performance-test-config" class="card mb-4 d-none">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-tachometer-alt"></i> Performance Test Configuration
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="perf_target_url" class="form-label">Target URL <span class="text-danger">*</span></label>
+                                    <input type="url" class="form-control" name="perf_target_url" 
+                                           placeholder="https://example.com" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Test Type</label>
+                                    <select class="form-select" name="perf_test_type">
+                                        <option value="load" selected>Load Test</option>
+                                        <option value="stress">Stress Test</option>
+                                        <option value="spike">Spike Test</option>
+                                        <option value="volume">Volume Test</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Users</label>
+                                    <input type="number" class="form-control" name="perf_users" value="10" min="1" max="1000">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Spawn Rate (users/sec)</label>
+                                    <input type="number" class="form-control" name="perf_spawn_rate" value="2" min="0.1" max="100" step="0.1">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Duration (seconds)</label>
+                                    <input type="number" class="form-control" name="perf_duration" value="60" min="10" max="3600">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Output Format</label>
+                                    <select class="form-select" name="perf_output_format">
+                                        <option value="json" selected>JSON</option>
+                                        <option value="html">HTML</option>
+                                        <option value="csv">CSV</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Web UI Port</label>
+                                    <input type="number" class="form-control" name="perf_web_port" value="8089" min="1024" max="65535">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="perf_web_ui">
+                                        <label class="form-check-label">Enable Web UI</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="perf_headless" checked>
+                                        <label class="form-check-label">Headless Mode</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="perf_html_output" checked>
+                                        <label class="form-check-label">HTML Report</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Analysis Configuration -->
+                    <div id="ai-analysis-config" class="card mb-4 d-none">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-brain"></i> AI Analysis Configuration
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">AI Model</label>
+                                    <select class="form-select" name="ai_model">
+                                        <option value="gpt-4" selected>GPT-4</option>
+                                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                        <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                                        <option value="gemini-pro">Gemini Pro</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Analysis Type</label>
+                                    <select class="form-select" name="ai_analysis_type">
+                                        <option value="comprehensive" selected>Comprehensive</option>
+                                        <option value="security-focused">Security Focused</option>
+                                        <option value="performance-focused">Performance Focused</option>
+                                        <option value="code-quality">Code Quality</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Severity Threshold</label>
+                                    <select class="form-select" name="ai_severity_threshold">
+                                        <option value="low">Low</option>
+                                        <option value="medium" selected>Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="critical">Critical</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Max Tokens</label>
+                                    <input type="number" class="form-control" name="ai_max_tokens" value="4000" min="1000" max="8000">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">Focus Areas (comma separated)</label>
+                                    <input type="text" class="form-control" name="ai_focus_areas" 
+                                           placeholder="security vulnerabilities, performance issues, code quality">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="ai_include_suggestions" checked>
+                                        <label class="form-check-label">Include Fix Suggestions</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- General Test Options -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-sliders-h"></i> General Options
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Priority</label>
+                                    <select class="form-select" name="priority">
+                                        <option value="low">Low</option>
+                                        <option value="normal" selected>Normal</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Concurrency</label>
+                                    <input type="number" class="form-control" name="concurrency" value="2" min="1" max="10">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Timeout (seconds)</label>
+                                    <input type="number" class="form-control" name="timeout" value="600" min="60" max="3600">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="auto_start" checked>
+                                        <label class="form-check-label">Auto Start</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="fail_fast">
+                                        <label class="form-check-label">Fail Fast</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="generate_report" checked>
+                                        <label class="form-check-label">Generate Report</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Create & Start Test
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="fas fa-shield-alt text-primary me-2"></i>
+            <strong class="me-auto">Security Platform</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toast-message">
+            <!-- Toast message content -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Enhanced Security Testing Platform JavaScript
+class EnhancedSecurityTestingPlatform {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.loadAvailableModels();
+        this.setupAutoRefresh();
+    }
+
+    setupEventListeners() {
+        // Tool selection handlers
+        document.querySelectorAll('input[name="tools"]').forEach(checkbox => {
+            checkbox.addEventListener('change', this.handleToolSelection.bind(this));
+        });
+
+        // Auto-refresh toggle
+        const autoRefreshSwitch = document.getElementById('auto-refresh');
+        if (autoRefreshSwitch) {
+            autoRefreshSwitch.addEventListener('change', (e) => {
+                this.toggleAutoRefresh(e.target.checked);
+            });
+        }
+    }
+
+    setupAutoRefresh() {
+        // Auto-refresh every 10 seconds if enabled
+        this.autoRefreshInterval = setInterval(() => {
+            if (this.hasActiveTests()) {
+                this.updateStatsFromTests();
+                htmx.trigger('#test-jobs-list', 'refreshTests');
+            }
+        }, 10000);
+    }
+
+    loadAvailableModels() {
+        fetch('/testing/api/models')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.populateModelSelects(data.models);
+                }
+            })
+            .catch(error => console.error('Error loading models:', error));
+    }
+
+    populateModelSelects(models) {
+        const modelsList = document.getElementById('models-list');
+        const modelFilter = document.getElementById('model-filter');
+        
+        if (modelsList) {
+            modelsList.innerHTML = '';
+            models.forEach(model => {
+                const div = document.createElement('div');
+                div.className = 'form-check';
+                div.innerHTML = `
+                    <input class="form-check-input" type="checkbox" name="selected_models" 
+                           value="${model.slug}" id="model-${model.slug}">
+                    <label class="form-check-label" for="model-${model.slug}">
+                        ${model.name} <small class="text-muted">(${model.apps_count} apps)</small>
+                    </label>
+                `;
+                modelsList.appendChild(div);
+            });
+        }
+
+        if (modelFilter) {
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.slug;
+                option.textContent = model.name;
+                modelFilter.appendChild(option);
+            });
+        }
+    }
+
+    handleToolSelection(event) {
+        const tool = event.target.value;
+        const isChecked = event.target.checked;
+        const configSection = document.getElementById(`${tool}-config`);
+        
+        if (configSection) {
+            if (isChecked) {
+                configSection.classList.remove('d-none');
+            } else {
+                configSection.classList.add('d-none');
+            }
+        }
+    }
+
+    hasActiveTests() {
+        const runningCount = document.getElementById('running-tests');
+        return runningCount && parseInt(runningCount.textContent) > 0;
+    }
+
+    updateStatsFromTests() {
+        // Update stats from the current tests list
+        fetch('/testing/api/stats')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('total-tests').textContent = data.stats.total || 0;
+                    document.getElementById('running-tests').textContent = data.stats.running || 0;
+                    document.getElementById('completed-tests').textContent = data.stats.completed || 0;
+                    document.getElementById('total-issues').textContent = data.stats.failed || 0;
+                }
+            })
+            .catch(error => console.error('Error updating stats:', error));
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.getElementById('liveToast');
+        const toastMessage = document.getElementById('toast-message');
+        
+        // Set message and type
+        toastMessage.textContent = message;
+        toast.className = `toast show bg-${type === 'danger' ? 'danger' : type === 'success' ? 'success' : 'info'} text-white`;
+        
+        // Show toast
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+}
+
+// Global functions for template compatibility
+window.showCreateTestModal = function() {
+    $('#createTestModal').modal('show');
+};
+
+window.toggleAllModels = function() {
+    const selectAll = document.getElementById('select-all-models');
+    const modelCheckboxes = document.querySelectorAll('input[name="selected_models"]');
+    
+    modelCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+};
+
+window.setAppRange = function(start, end) {
+    document.getElementById('app_start').value = start;
+    document.getElementById('app_end').value = end;
+};
+
+window.handleTestTypeChange = function(testType) {
+    // Hide all config sections
+    const configSections = ['security-analysis-config', 'zap-scan-config', 'performance-test-config', 'ai-analysis-config'];
+    configSections.forEach(section => {
+        document.getElementById(section).classList.add('d-none');
+    });
+
+    // Show relevant config section
+    if (testType === 'security_analysis') {
+        document.getElementById('security-analysis-config').classList.remove('d-none');
+    } else if (testType === 'zap_scan') {
+        document.getElementById('zap-scan-config').classList.remove('d-none');
+    } else if (testType === 'performance_test') {
+        document.getElementById('performance-test-config').classList.remove('d-none');
+    } else if (testType === 'ai_analysis') {
+        document.getElementById('ai-analysis-config').classList.remove('d-none');
+    }
+};
+
+window.handleZapScanTypeChange = function(scanType) {
+    const apiOptions = document.getElementById('zap-api-options');
+    if (scanType === 'api') {
+        apiOptions.classList.remove('d-none');
+    } else {
+        apiOptions.classList.add('d-none');
+    }
+};
+
+window.submitEnhancedSecurityTestForm = function(event) {
+    event.preventDefault();
+    
+    const form = document.getElementById('create-test-form');
+    const formData = new FormData(form);
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    // Show loading state
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Test...';
+    submitBtn.disabled = true;
+    
+    // Convert FormData to regular object for easier processing
+    const data = {};
+    for (let [key, value] of formData.entries()) {
+        if (data[key]) {
+            // Handle multiple values (arrays)
+            if (Array.isArray(data[key])) {
+                data[key].push(value);
+            } else {
+                data[key] = [data[key], value];
+            }
+        } else {
+            data[key] = value;
+        }
+    }
+    
+    // Handle selected models and apps
+    const selectedModels = formData.getAll('selected_models');
+    const appStart = parseInt(formData.get('app_start')) || 1;
+    const appEnd = parseInt(formData.get('app_end')) || 5;
+    const selectedApps = [];
+    for (let i = appStart; i <= appEnd; i++) {
+        selectedApps.push(i);
+    }
+    
+    data.selected_models = selectedModels;
+    data.selected_apps = selectedApps;
+    
+    fetch('/testing/api/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            $('#createTestModal').modal('hide');
+            form.reset();
+            // Reset config visibility
+            handleTestTypeChange('');
+            enhancedSecurityTestingPlatform.showToast(data.message || 'Enhanced security test created successfully!', 'success');
+            
+            // Refresh the jobs table
+            htmx.trigger('#test-jobs-list', 'refreshTests');
+        } else {
+            enhancedSecurityTestingPlatform.showToast(data.error || 'Failed to create test', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error creating test:', error);
+        enhancedSecurityTestingPlatform.showToast(`Error creating security test: ${error.message}`, 'danger');
+    })
+    .finally(() => {
+        // Re-enable submit button
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+};
+
+window.applyFilters = function() {
+    const statusFilter = document.getElementById('status-filter').value;
+    const testTypeFilter = document.getElementById('test-type-filter').value;
+    const modelFilter = document.getElementById('model-filter').value;
+    const searchFilter = document.getElementById('search-filter').value;
+    
+    const params = new URLSearchParams();
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (testTypeFilter !== 'all') params.set('test_type', testTypeFilter);
+    if (modelFilter !== 'all') params.set('model', modelFilter);
+    if (searchFilter) params.set('search', searchFilter);
+    
+    const url = '/testing/api/jobs' + (params.toString() ? '?' + params.toString() : '');
+    htmx.ajax('GET', url, '#test-jobs-list');
+};
+
+window.clearFilters = function() {
+    document.getElementById('status-filter').value = 'all';
+    document.getElementById('test-type-filter').value = 'all';
+    document.getElementById('model-filter').value = 'all';
+    document.getElementById('search-filter').value = '';
+    applyFilters();
+};
+
+window.refreshTestsList = function() {
+    htmx.trigger('#test-jobs-list', 'refreshTests');
+};
+
+window.exportResults = function() {
+    window.open('/testing/api/export?format=csv', '_blank');
+};
+
+// Initialize
+let enhancedSecurityTestingPlatform;
+document.addEventListener('DOMContentLoaded', function() {
+    enhancedSecurityTestingPlatform = new EnhancedSecurityTestingPlatform();
+    window.enhancedSecurityTestingPlatform = enhancedSecurityTestingPlatform;
+});
+</script>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    color: white;
+    text-decoration: none;
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    color: white;
+}
+
+.stat-icon {
+    font-size: 2rem;
+    margin-right: 1rem;
+    opacity: 0.8;
+}
+
+.stat-content h3 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.stat-content p {
+    margin: 0;
+    opacity: 0.9;
+}
+
+.tool-config-section {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 1rem;
+    background-color: #f8f9fa;
+}
+
+.tool-config-section h6 {
+    color: #495057;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.page-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.page-title {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 300;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.form-check-label {
+    font-weight: 500;
+}
+
+.text-danger {
+    color: #dc3545 !important;
+}
+</style>
+{% endblock %}

@@ -1286,70 +1286,185 @@ class ScanManager(BaseService):
 # ===========================
 
 class ModelIntegrationService(CacheableService):
-    """Service for integrating model information from JSON files."""
+    """Service for integrating model information from database instead of JSON files."""
     
-    def __init__(self, base_path: Optional[Path] = None):
+    def __init__(self, app=None):
         super().__init__('model_integration')
-        self.base_path = base_path or Path.cwd()
+        self.app = app
         self.models_data = {}
-        self._raw_data = {
+        self._db_data = {
             'port_config': [],
             'model_capabilities': {},
             'models_summary': {}
         }
-        self.load_all_data()
+        if app:
+            self.load_all_data()
     
     def load_all_data(self) -> bool:
-        """Load all model data from JSON files."""
-        success = True
-        
-        # Load port configuration
-        success &= self._load_json_file(
-            'port_config.json', 
-            lambda data: self._raw_data.update({'port_config': data})
-        )
-        
-        # Load model capabilities
-        success &= self._load_json_file(
-            'model_capabilities.json',
-            lambda data: self._raw_data.update({'model_capabilities': data.get('models', {})})
-        )
-        
-        # Load models summary
-        success &= self._load_json_file(
-            'models_summary.json',
-            lambda data: self._raw_data.update({'models_summary': data})
-        )
-        
-        if success:
-            self._integrate_model_data()
-        
-        return success
-    
-    def _load_json_file(self, filename: str, processor) -> bool:
-        """Load a JSON file and process it."""
+        """Load all model data from database."""
         try:
-            path = self.base_path / filename
-            if path.exists():
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                processor(data)
-                self.logger.info(f"Loaded {filename}")
-                return True
-            else:
-                self.logger.warning(f"File not found: {path}")
+            if not self.app:
+                self.logger.warning("No Flask app context available for database access")
                 return False
+                
+            with self.app.app_context():
+                success = True
+                
+                # Load port configuration from database
+                success &= self._load_port_configurations()
+                
+                # Load model capabilities from database  
+                success &= self._load_model_capabilities()
+                
+                # Generate models summary from database data
+                success &= self._generate_models_summary()
+                
+                if success:
+                    self._integrate_model_data()
+                
+                return success
+                
         except Exception as e:
-            self.logger.error(f"Failed to load {filename}: {e}")
+            self.logger.error(f"Failed to load data from database: {e}")
+            return False
+    
+    def _load_port_configurations(self) -> bool:
+        """Load port configurations from database."""
+        try:
+            from .models import PortConfiguration
+            
+            port_configs = PortConfiguration.query.all()
+            self._db_data['port_config'] = []
+            
+            for config in port_configs:
+                self._db_data['port_config'].append({
+                    'model_name': config.model,
+                    'app_number': config.app_num,
+                    'backend_port': config.backend_port,
+                    'frontend_port': config.frontend_port
+                })
+            
+            self.logger.info(f"Loaded {len(port_configs)} port configurations from database")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load port configurations from database: {e}")
+            return False
+    
+    def _load_model_capabilities(self) -> bool:
+        """Load model capabilities from database."""
+        try:
+            from .models import ModelCapability
+            
+            model_capabilities = ModelCapability.query.all()
+            self._db_data['model_capabilities'] = {}
+            
+            for model in model_capabilities:
+                # Extract capabilities from database fields
+                capabilities = []
+                if model.supports_function_calling:
+                    capabilities.append('function_calling')
+                if model.supports_vision:
+                    capabilities.append('vision')
+                if model.supports_streaming:
+                    capabilities.append('streaming')
+                if model.supports_json_mode:
+                    capabilities.append('json_mode')
+                
+                pricing = {
+                    'input': model.input_price_per_token,
+                    'output': model.output_price_per_token
+                }
+                
+                model_data = {
+                    'context_length': model.context_window,
+                    'max_tokens': model.max_output_tokens,
+                    'pricing': pricing,
+                    'capabilities': capabilities,
+                    'supports_vision': model.supports_vision,
+                    'supports_function_calling': model.supports_function_calling,
+                    'description': f"{model.provider} {model.model_name}",
+                    'provider': model.provider,
+                    'is_free': model.is_free,
+                    'cost_efficiency': model.cost_efficiency,
+                    'safety_score': model.safety_score
+                }
+                
+                # Add any additional capabilities from JSON field
+                additional_caps = model.get_capabilities()
+                if additional_caps:
+                    model_data.update(additional_caps)
+                
+                self._db_data['model_capabilities'][model.model_id] = model_data
+            
+            self.logger.info(f"Loaded capabilities for {len(model_capabilities)} models from database")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load model capabilities from database: {e}")
+            return False
+    
+    def _generate_models_summary(self) -> bool:
+        """Generate models summary from database data."""
+        try:
+            from datetime import datetime
+            
+            # Extract unique models from port configurations
+            models = set()
+            for config in self._db_data['port_config']:
+                models.add(config['model_name'])
+            
+            models_list = []
+            for model_name in sorted(models):
+                # Get provider from model capabilities or derive from name
+                provider = model_name.split('_')[0] if '_' in model_name else 'unknown'
+                
+                if model_name in self._db_data['model_capabilities']:
+                    cap_data = self._db_data['model_capabilities'][model_name]
+                    provider = cap_data.get('provider', provider)
+                
+                # Generate color based on provider (simple hash-based approach)
+                color_map = {
+                    'anthropic': '#FF6B6B',
+                    'openai': '#4ECDC4', 
+                    'google': '#45B7D1',
+                    'deepseek': '#9333EA',
+                    'mistralai': '#8B5CF6',
+                    'cognitivecomputations': '#666666',
+                    'featherless': '#F59E0B',
+                    'minimax': '#EF4444',
+                    'nvidia': '#0D9488',
+                    'qwen': '#F43F5E'
+                }
+                color = color_map.get(provider, '#666666')
+                
+                models_list.append({
+                    'name': model_name,
+                    'color': color,
+                    'provider': provider
+                })
+            
+            self._db_data['models_summary'] = {
+                'extraction_timestamp': datetime.now().isoformat(),
+                'total_models': len(models_list),
+                'apps_per_model': 30,  # Default from system
+                'models': models_list
+            }
+            
+            self.logger.info(f"Generated summary for {len(models_list)} models from database")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to generate models summary: {e}")
             return False
     
     def _integrate_model_data(self):
-        """Integrate data from all sources into unified model objects."""
+        """Integrate data from database into unified model objects."""
         self.models_data = {}
         
         # Group port configs by model
         port_configs_by_model = {}
-        for config in self._raw_data['port_config']:
+        for config in self._db_data['port_config']:
             model_name = config.get('model_name', '')
             if model_name:
                 port_configs_by_model.setdefault(model_name, []).append(config)
@@ -1359,15 +1474,15 @@ class ModelIntegrationService(CacheableService):
             model = AIModel(name=model_name)
             
             # Add summary data
-            summary_models = {m['name']: m for m in self._raw_data['models_summary'].get('models', [])}
+            summary_models = {m['name']: m for m in self._db_data['models_summary'].get('models', [])}
             if model_name in summary_models:
                 summary = summary_models[model_name]
                 model.color = summary.get('color', model.color)
                 model.provider = summary.get('provider', model.provider)
             
             # Add capabilities data
-            if model_name in self._raw_data['model_capabilities']:
-                caps = self._raw_data['model_capabilities'][model_name]
+            if model_name in self._db_data['model_capabilities']:
+                caps = self._db_data['model_capabilities'][model_name]
                 model.context_length = caps.get('context_length', 0)
                 model.pricing = caps.get('pricing', {})
                 model.capabilities = caps.get('capabilities', [])
@@ -1379,7 +1494,7 @@ class ModelIntegrationService(CacheableService):
             
             self.models_data[model_name] = model
         
-        self.logger.info(f"Integrated data for {len(self.models_data)} models")
+        self.logger.info(f"Integrated data for {len(self.models_data)} models from database")
     
     def get_all_models(self) -> List[AIModel]:
         """Get all integrated models."""

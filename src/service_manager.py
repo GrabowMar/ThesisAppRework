@@ -125,7 +125,6 @@ class ServiceManager:
     
     def _register_core_factories(self) -> None:
         """Register factory functions for core services."""
-        from pathlib import Path
         
         def docker_manager_factory():
             try:
@@ -158,9 +157,8 @@ class ServiceManager:
                 except ImportError:
                     self.logger.warning("Could not import ModelIntegrationService")
                     return None
-            misc_path = Path(__file__).parent.parent / "misc"
-            service = ModelIntegrationService(misc_path)
-            service.load_all_data()
+            # Initialize with Flask app for database access
+            service = ModelIntegrationService(self.app)
             return service
         
         def port_manager_factory():

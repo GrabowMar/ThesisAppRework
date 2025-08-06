@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 import warnings
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, Union, List, Tuple
 
@@ -392,61 +393,117 @@ def setup_logging(app: Flask) -> None:
 
 
 def load_model_integration_data(app: Flask) -> None:
-    """Load model capabilities and port configurations from JSON files with caching."""
+    """Load model capabilities and port configurations from database with caching."""
     # Check if data is already loaded using app.config instead of custom attributes
     if app.config.get('_data_loaded', False):
         app.logger.info("Model integration data already loaded, skipping...")
         return
     
-    project_root = Path(__file__).parent.parent
-    misc_dir = project_root / "misc"
-    
     try:
         integration_data: Dict[str, Any] = {}
         
-        # Load model capabilities
-        capabilities_file = misc_dir / "model_capabilities.json"
-        if capabilities_file.exists():
-            app.logger.info("Loading model capabilities...")
-            with open(capabilities_file) as f:
-                capabilities_data = json.load(f)
-                models_count = len(capabilities_data.get('models', {}))
-                app.logger.info(f"Loaded capabilities for {models_count} models")
+        # Load data from database using ModelCapability and PortConfiguration models
+        from models import ModelCapability, PortConfiguration
+        
+        with app.app_context():
+            # Load model capabilities from database
+            model_capabilities = ModelCapability.query.all()
+            if model_capabilities:
+                capabilities_data = {'models': {}}
+                
+                for model in model_capabilities:
+                    capabilities_data['models'][model.model_id] = {
+                        'provider': model.provider,
+                        'context_window': model.context_window,
+                        'max_output_tokens': model.max_output_tokens,
+                        'supports_function_calling': model.supports_function_calling,
+                        'supports_vision': model.supports_vision,
+                        'supports_streaming': model.supports_streaming,
+                        'supports_json_mode': model.supports_json_mode,
+                        'input_price_per_token': model.input_price_per_token,
+                        'output_price_per_token': model.output_price_per_token,
+                        'is_free': model.is_free,
+                        'cost_efficiency': model.cost_efficiency,
+                        'safety_score': model.safety_score,
+                        'capabilities': model.get_capabilities(),
+                        'metadata': model.get_metadata()
+                    }
+                
                 integration_data['CAPABILITIES_DATA'] = capabilities_data
-                integration_data['_capabilities_loaded'] = False
-        else:
-            app.logger.warning(f"Model capabilities file not found: {capabilities_file}")
-        
-        # Load port configurations
-        port_file = misc_dir / "port_config.json"
-        if port_file.exists():
-            app.logger.info("Loading port configurations...")
-            with open(port_file) as f:
-                port_data = json.load(f)
+                app.logger.info(f"Loaded capabilities for {len(model_capabilities)} models from database")
+            else:
+                app.logger.warning("No model capabilities found in database")
+            
+            # Load port configurations from database
+            port_configs = PortConfiguration.query.all()
+            if port_configs:
+                port_data = []
+                for config in port_configs:
+                    port_data.append({
+                        'model_name': config.model,
+                        'app_number': config.app_num,
+                        'backend_port': config.backend_port,
+                        'frontend_port': config.frontend_port
+                    })
+                
                 integration_data['PORT_CONFIG'] = port_data
-                app.logger.info(f"Loaded {len(port_data)} port configurations")
-                integration_data['_ports_loaded'] = False
-        else:
-            app.logger.warning(f"Port config file not found: {port_file}")
-            integration_data['PORT_CONFIG'] = []
-        
-        # Load models summary
-        models_file = misc_dir / "models_summary.json"
-        if models_file.exists():
-            with open(models_file) as f:
-                models_data = json.load(f)
-                models_count = len(models_data.get('models', []))
-                integration_data['MODELS_SUMMARY'] = models_data
-                app.logger.info(f"Loaded models summary with {models_count} models")
-        else:
-            app.logger.warning(f"Models summary file not found: {models_file}")
+                app.logger.info(f"Loaded {len(port_configs)} port configurations from database")
+            else:
+                app.logger.warning("No port configurations found in database")
+                integration_data['PORT_CONFIG'] = []
+            
+            # Generate models summary from database data
+            if model_capabilities:
+                models_list = []
+                providers_seen = set()
+                
+                for model in model_capabilities:
+                    providers_seen.add(model.provider)
+                    
+                    # Generate color based on provider
+                    color_map = {
+                        'anthropic': '#FF6B6B',
+                        'openai': '#4ECDC4', 
+                        'google': '#45B7D1',
+                        'deepseek': '#9333EA',
+                        'mistralai': '#8B5CF6',
+                        'cognitivecomputations': '#666666',
+                        'featherless': '#F59E0B',
+                        'minimax': '#EF4444',
+                        'nvidia': '#0D9488',
+                        'qwen': '#F43F5E'
+                    }
+                    color = color_map.get(model.provider, '#666666')
+                    
+                    models_list.append({
+                        'name': model.model_id,
+                        'color': color,
+                        'provider': model.provider
+                    })
+                
+                models_summary = {
+                    'extraction_timestamp': datetime.now().isoformat(),
+                    'total_models': len(models_list),
+                    'apps_per_model': 30,
+                    'models': models_list
+                }
+                
+                integration_data['MODELS_SUMMARY'] = models_summary
+                app.logger.info(f"Generated models summary with {len(models_list)} models from database")
+            else:
+                app.logger.warning("No models found for summary generation")
         
         # Apply the integration data
         app.config.update(integration_data)
         # Use app.config to track loading state
         app.config['_data_loaded'] = True
         
-        app.logger.info("Model integration data loaded successfully")
+        app.logger.info("Model integration data loaded successfully from database")
+        
+    except Exception as e:
+        app.logger.error(f"Failed to load model integration data from database: {e}")
+        app.config['PORT_CONFIG'] = []
+        raise
         
     except Exception as e:
         app.logger.error(f"Failed to load model integration data: {e}")

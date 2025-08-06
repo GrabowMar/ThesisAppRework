@@ -797,6 +797,7 @@ def testing_dashboard():
     """Main testing dashboard page."""
     try:
         from models import BatchJob, JobStatus
+        from flask import current_app
         
         # Get basic stats for dashboard
         total_jobs = BatchJob.query.count()
@@ -814,7 +815,12 @@ def testing_dashboard():
             'success_rate': round((completed_jobs / max(total_jobs, 1)) * 100, 1)
         }
         
-        return ResponseHandler.render_response("batch_testing.html", stats=stats)
+        # Get models data for the form
+        models_data = current_app.config.get('MODELS_SUMMARY', {})
+        
+        return ResponseHandler.render_response("batch_testing.html", 
+                                             stats=stats, 
+                                             models_data=models_data)
         
     except Exception as e:
         logger.error(f"Error loading testing dashboard: {e}")
@@ -3653,8 +3659,8 @@ def api_batch_stats():
 
 @main_bp.route("/batch-testing")
 @main_bp.route("/batch-testing/")
-def batch_testing_dashboard():
-    """Batch testing dashboard page."""
+def comprehensive_security_testing_dashboard():
+    """Comprehensive security testing dashboard with all available tools."""
     try:
         service = get_unified_cli_analyzer()
         
@@ -3667,11 +3673,18 @@ def batch_testing_dashboard():
             'total_issues': sum(j.get('total_issues', 0) for j in all_jobs if j['status'] == 'completed')
         }
         
-        return ResponseHandler.render_response("batch_testing.html", stats=stats)
+        return ResponseHandler.render_response("comprehensive_security_testing.html", stats=stats)
         
     except Exception as e:
-        logger.error(f"Error loading batch testing dashboard: {e}")
+        logger.error(f"Error loading comprehensive security testing dashboard: {e}")
         return ResponseHandler.error_response(str(e))
+
+
+@main_bp.route("/batch-testing-dashboard")
+@main_bp.route("/batch-testing-dashboard/")
+def batch_testing_dashboard():
+    """Main batch testing dashboard - redirects to testing dashboard."""
+    return redirect(url_for('testing.testing_dashboard'))
 
 
 @api_bp.route("/batch-testing/jobs")
@@ -3859,27 +3872,321 @@ def testing_api_jobs():
             return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@testing_bp.route("/api/stats")
+def testing_api_stats():
+    """Get current testing statistics."""
+    try:
+        from models import BatchJob, JobStatus
+        
+        total_jobs = BatchJob.query.count()
+        running_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.RUNNING).count()
+        completed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.COMPLETED).count()
+        failed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.FAILED).count()
+        
+        stats = {
+            'total': total_jobs,
+            'running': running_jobs,
+            'completed': completed_jobs,
+            'failed': failed_jobs
+        }
+        
+        return jsonify({'success': True, 'stats': stats})
+        
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@testing_bp.route("/api/export")
+def testing_api_export():
+    """Export test results."""
+    try:
+        from models import BatchJob
+        import csv
+        import io
+        
+        format_type = request.args.get('format', 'csv')
+        
+        if format_type == 'csv':
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow(['ID', 'Name', 'Status', 'Created At', 'Completed At', 'Duration'])
+            
+            # Write data
+            jobs = BatchJob.query.all()
+            for job in jobs:
+                writer.writerow([
+                    job.id,
+                    job.name,
+                    job.status.value if job.status else 'unknown',
+                    job.created_at.strftime('%Y-%m-%d %H:%M:%S') if job.created_at else '',
+                    job.completed_at.strftime('%Y-%m-%d %H:%M:%S') if job.completed_at else '',
+                    job.actual_duration_seconds or ''
+                ])
+            
+            output.seek(0)
+            return make_response(
+                output.getvalue(),
+                200,
+                {
+                    'Content-Type': 'text/csv',
+                    'Content-Disposition': 'attachment; filename=test_results.csv'
+                }
+            )
+        
+        return jsonify({'success': False, 'error': 'Unsupported format'}), 400
+        
+    except Exception as e:
+        logger.error(f"Error exporting results: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@testing_bp.route("/api/tools")
+def testing_api_tools():
+    """Get available security analysis tools with their configurations."""
+    try:
+        tools = {
+            'sast': [
+                {
+                    'id': 'bandit',
+                    'name': 'Bandit',
+                    'description': 'Python security linter for common security issues',
+                    'language': 'Python',
+                    'category': 'SAST',
+                    'status': 'available',
+                    'options': ['confidence', 'severity', 'exclude_paths', 'config_file']
+                },
+                {
+                    'id': 'safety',
+                    'name': 'Safety',
+                    'description': 'Python dependency vulnerability scanner',
+                    'language': 'Python',
+                    'category': 'Dependency',
+                    'status': 'available',
+                    'options': ['check_type', 'output_format', 'policy_file']
+                },
+                {
+                    'id': 'semgrep',
+                    'name': 'Semgrep',
+                    'description': 'Fast static analysis for 17+ languages',
+                    'language': 'Multi-language',
+                    'category': 'SAST',
+                    'status': 'available',
+                    'options': ['config', 'severity', 'timeout', 'autofix']
+                },
+                {
+                    'id': 'eslint',
+                    'name': 'ESLint',
+                    'description': 'JavaScript/TypeScript static analysis',
+                    'language': 'JavaScript',
+                    'category': 'SAST',
+                    'status': 'available',
+                    'options': ['config', 'rules', 'format']
+                },
+                {
+                    'id': 'sonarqube',
+                    'name': 'SonarQube',
+                    'description': 'Code quality and security platform',
+                    'language': 'Multi-language',
+                    'category': 'SAST',
+                    'status': 'available',
+                    'options': ['project_key', 'quality_gate']
+                },
+                {
+                    'id': 'codeql',
+                    'name': 'CodeQL',
+                    'description': 'GitHub\'s semantic code analysis',
+                    'language': 'Multi-language',
+                    'category': 'SAST',
+                    'status': 'available',
+                    'options': ['database', 'query_suite']
+                }
+            ],
+            'dependency': [
+                {
+                    'id': 'npm-audit',
+                    'name': 'npm audit',
+                    'description': 'Node.js dependency vulnerability scanner',
+                    'language': 'JavaScript',
+                    'category': 'Dependency',
+                    'status': 'available',
+                    'options': ['audit_level', 'production_only']
+                },
+                {
+                    'id': 'retire',
+                    'name': 'Retire.js',
+                    'description': 'JavaScript vulnerability detection',
+                    'language': 'JavaScript',
+                    'category': 'Dependency',
+                    'status': 'available',
+                    'options': ['severity_threshold', 'ignore_file']
+                },
+                {
+                    'id': 'snyk',
+                    'name': 'Snyk',
+                    'description': 'Developer security platform',
+                    'language': 'Multi-language',
+                    'category': 'Dependency',
+                    'status': 'available',
+                    'options': ['severity_threshold', 'file_path', 'fail_on']
+                }
+            ],
+            'secrets': [
+                {
+                    'id': 'trufflehog',
+                    'name': 'TruffleHog',
+                    'description': 'Secret scanning engine',
+                    'language': 'Any',
+                    'category': 'Secrets',
+                    'status': 'available',
+                    'options': ['entropy', 'regex', 'max_depth']
+                },
+                {
+                    'id': 'gitleaks',
+                    'name': 'Gitleaks',
+                    'description': 'Git secrets detection',
+                    'language': 'Any',
+                    'category': 'Secrets',
+                    'status': 'available',
+                    'options': ['config', 'verbose', 'redact']
+                }
+            ],
+            'quality': [
+                {
+                    'id': 'pylint',
+                    'name': 'Pylint',
+                    'description': 'Python code quality analyzer',
+                    'language': 'Python',
+                    'category': 'Quality',
+                    'status': 'available',
+                    'options': ['rcfile', 'disable', 'enable']
+                },
+                {
+                    'id': 'flake8',
+                    'name': 'Flake8',
+                    'description': 'Python style guide enforcement',
+                    'language': 'Python',
+                    'category': 'Quality',
+                    'status': 'available',
+                    'options': ['config', 'max-line-length', 'ignore']
+                },
+                {
+                    'id': 'black',
+                    'name': 'Black',
+                    'description': 'Python code formatter',
+                    'language': 'Python',
+                    'category': 'Quality',
+                    'status': 'available',
+                    'options': ['line-length', 'target-version', 'check']
+                },
+                {
+                    'id': 'isort',
+                    'name': 'isort',
+                    'description': 'Python import sorter',
+                    'language': 'Python',
+                    'category': 'Quality',
+                    'status': 'available',
+                    'options': ['profile', 'line_length', 'multi_line_output']
+                }
+            ]
+        }
+        
+        # Flatten tools list for the response
+        all_tools = []
+        for category, tool_list in tools.items():
+            all_tools.extend(tool_list)
+        
+        return jsonify({
+            'success': True,
+            'tools': all_tools,
+            'categories': tools,
+            'total_count': len(all_tools)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting tools: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @testing_bp.route("/api/models")
 def testing_api_models():
     """Get available models for testing."""
     try:
-        models = ModelCapability.query.all()
+        from core_services import AppDataProvider
+        app_data_provider = AppDataProvider()
+        
+        # Get all available models
         models_data = []
+        try:
+            # Try to get models from the app data provider
+            all_models = app_data_provider.get_all_models()
+            
+            for model_info in all_models:
+                model_data = {
+                    'id': model_info.get('canonical_slug', model_info.get('slug', 'unknown')),
+                    'slug': model_info.get('canonical_slug', model_info.get('slug', 'unknown')),
+                    'name': model_info.get('model_name', model_info.get('name', 'Unknown')),
+                    'display_name': model_info.get('model_name', model_info.get('name', 'Unknown')),
+                    'provider': model_info.get('provider', 'Unknown'),
+                    'status': 'ready',  # Assume ready for now
+                    'apps_count': model_info.get('total_apps', 20)  # Default to 20 apps
+                }
+                models_data.append(model_data)
+                
+        except Exception as e:
+            logger.warning(f"Could not get models from app data provider: {e}")
+            # Fallback: try to get from ModelCapability table
+            try:
+                from models import ModelCapability
+                models = ModelCapability.query.all()
+                
+                for model in models:
+                    model_data = {
+                        'id': model.canonical_slug,
+                        'slug': model.canonical_slug,
+                        'name': model.model_name,
+                        'display_name': model.model_name,
+                        'provider': model.provider or 'Unknown',
+                        'status': 'ready',
+                        'apps_count': 20  # Default assumption
+                    }
+                    models_data.append(model_data)
+                    
+            except Exception as e2:
+                logger.warning(f"Could not get models from database: {e2}")
+                # Ultimate fallback: provide some default models
+                models_data = [
+                    {
+                        'id': 'anthropic_claude-3.7-sonnet',
+                        'slug': 'anthropic_claude-3.7-sonnet',
+                        'name': 'Claude 3.7 Sonnet',
+                        'display_name': 'Claude 3.7 Sonnet',
+                        'provider': 'Anthropic',
+                        'status': 'ready',
+                        'apps_count': 20
+                    },
+                    {
+                        'id': 'test_model',
+                        'slug': 'test_model',
+                        'name': 'Test Model',
+                        'display_name': 'Test Model',
+                        'provider': 'Local',
+                        'status': 'ready',
+                        'apps_count': 20
+                    }
+                ]
         
-        for model in models:
-            model_data = {
-                'id': model.canonical_slug,
-                'slug': model.canonical_slug,
-                'name': model.model_name,
-                'display_name': model.model_name,
-                'provider': model.provider or 'Unknown'
-            }
-            models_data.append(model_data)
+        return jsonify({
+            'success': True,
+            'models': models_data,
+            'total_count': len(models_data)
+        })
         
-        return ResponseHandler.success_response(data=models_data)
     except Exception as e:
         logger.error(f"Error getting models: {e}")
-        return ResponseHandler.error_response(str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @testing_bp.route("/api/infrastructure-status")
@@ -3919,18 +4226,19 @@ def testing_api_infrastructure_status():
 
 @testing_bp.route("/api/create", methods=["POST"])
 def testing_api_create():
-    """Create a new test and save it to database."""
+    """Create a new test with enhanced tool configurations."""
     try:
         from models import BatchJob, JobStatus, JobPriority
         from extensions import db
         from datetime import timedelta
         import uuid
+        import traceback
         
-        # Handle both JSON and form data
-        if request.is_json:
+        # Handle both JSON and form data with proper content type handling
+        if request.is_json or request.content_type == 'application/json':
             data = request.get_json()
             logger.info("Received JSON data")
-        elif request.form:
+        elif request.form or request.content_type == 'application/x-www-form-urlencoded':
             # Convert form data to dict
             data = {}
             for key, value in request.form.items():
@@ -3941,14 +4249,14 @@ def testing_api_create():
                     data[key] = value
             logger.info("Received form data")
         else:
-            logger.error("No data provided in request")
-            return jsonify({'success': False, 'error': 'No data provided'}), 400
+            logger.error(f"No supported content type. Content-Type: {request.content_type}")
+            return jsonify({'success': False, 'error': f'Unsupported content type: {request.content_type}'}), 415
         
         if not data:
             logger.error("Empty request data")
             return jsonify({'success': False, 'error': 'Empty request data'}), 400
         
-        logger.info(f"Creating test with data: {data}")
+        logger.info(f"Creating test with data: {list(data.keys())}")  # Log keys only for security
         
         # Validate required fields
         if not data.get('test_type'):
@@ -3960,13 +4268,27 @@ def testing_api_create():
         # Generate unique job ID
         job_id = str(uuid.uuid4())
         
-        # Create new BatchJob record
+        # Create new BatchJob record with proper priority handling
+        priority_value = data.get('priority', 'normal')
+        if isinstance(priority_value, str):
+            if priority_value.lower() in ['low', 'normal', 'high', 'urgent']:
+                job_priority = JobPriority(priority_value.lower())
+            else:
+                logger.warning(f"Invalid priority value: {priority_value}, defaulting to normal")
+                job_priority = JobPriority.NORMAL
+        elif isinstance(priority_value, int):
+            # Handle numeric priority values from HTML select options
+            priority_map = {1: JobPriority.LOW, 2: JobPriority.NORMAL, 3: JobPriority.HIGH, 4: JobPriority.URGENT}
+            job_priority = priority_map.get(priority_value, JobPriority.NORMAL)
+        else:
+            job_priority = JobPriority.NORMAL
+            
         new_job = BatchJob(
             id=job_id,
             name=data.get('job_name'),
             description=data.get('description', ''),
             status=JobStatus.PENDING,
-            priority=JobPriority(data.get('priority', 'normal')),
+            priority=job_priority,
             auto_start=data.get('auto_start', True),
             auto_retry=False,
             max_retries=3
@@ -3995,23 +4317,8 @@ def testing_api_create():
         }
         new_job.set_app_range(app_range)
         
-        # Set options based on test type
-        options = {
-            'tools': data.get('tools', []),
-            'concurrency': data.get('concurrency', 1),
-            'timeout': data.get('timeout', 600),
-            'fail_fast': data.get('fail_fast', False),
-            'generate_report': data.get('generate_report', True)
-        }
-        
-        # Add test-specific configurations
-        if data.get('test_type') == 'zap_scan':
-            options['zap_config'] = data.get('zap_config', {})
-        elif data.get('test_type') == 'performance_test':
-            options['performance_config'] = data.get('performance_config', {})
-        elif data.get('test_type') == 'ai_analysis':
-            options['ai_config'] = data.get('ai_config', {})
-        
+        # Enhanced tool configuration processing
+        options = _process_enhanced_tool_config(data)
         new_job.set_options(options)
         
         # Calculate estimated duration and total tasks
@@ -4032,17 +4339,20 @@ def testing_api_create():
         if data.get('auto_start', True):
             try:
                 service = get_unified_cli_analyzer()
-                # Submit the job to the unified CLI analyzer
-                job_config = new_job.to_dict()
-                service_result = service.create_batch_job(job_config)
-                
-                if service_result.get('success'):
-                    new_job.status = JobStatus.QUEUED
-                    new_job.started_at = datetime.now()
-                    db.session.commit()
-                    logger.info(f"Job {job_id} submitted to unified CLI analyzer")
+                if service:
+                    # Submit the job to the unified CLI analyzer
+                    job_config = new_job.to_dict()
+                    service_result = service.create_batch_job(job_config)
+                    
+                    if service_result.get('success'):
+                        new_job.status = JobStatus.QUEUED
+                        new_job.started_at = datetime.now()
+                        db.session.commit()
+                        logger.info(f"Job {job_id} submitted to unified CLI analyzer")
+                    else:
+                        logger.warning(f"Failed to submit job to service: {service_result.get('error')}")
                 else:
-                    logger.warning(f"Failed to submit job to service: {service_result.get('error')}")
+                    logger.warning("Unified CLI analyzer service not available")
             except Exception as e:
                 logger.error(f"Error starting job: {e}")
                 # Job is still created but not started
@@ -4065,12 +4375,153 @@ def testing_api_create():
         
     except Exception as e:
         logger.error(f"Error creating test: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         # Rollback database changes on error
         try:
             db.session.rollback()
         except Exception:
             pass
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _process_enhanced_tool_config(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Process enhanced tool configurations based on comprehensive tool options."""
+    
+    test_type = data.get('test_type')
+    options = {
+        'tools': data.get('tools', []),
+        'concurrency': int(data.get('concurrency', 1)),
+        'timeout': int(data.get('timeout', 600)),
+        'fail_fast': data.get('fail_fast', False),
+        'generate_report': data.get('generate_report', True)
+    }
+    
+    # Security Analysis Tool Configurations
+    if test_type == 'security_analysis':
+        security_config = {}
+        
+        # Bandit Configuration
+        if 'bandit' in data.get('tools', []):
+            security_config['bandit'] = {
+                'config_file': data.get('bandit_config_file', ''),
+                'confidence': data.get('bandit_confidence', 'medium'),
+                'severity': data.get('bandit_severity', 'medium'),
+                'exclude_paths': data.get('bandit_exclude_paths', '').split(',') if data.get('bandit_exclude_paths') else [],
+                'include_tests': data.get('bandit_include_tests', '').split(',') if data.get('bandit_include_tests') else [],
+                'skip_tests': data.get('bandit_skip_tests', '').split(',') if data.get('bandit_skip_tests') else [],
+                'format': data.get('bandit_format', 'json'),
+                'output_file': data.get('bandit_output_file', ''),
+                'recursive': data.get('bandit_recursive', True),
+                'aggregate': data.get('bandit_aggregate', 'file')
+            }
+        
+        # Safety Configuration
+        if 'safety' in data.get('tools', []):
+            security_config['safety'] = {
+                'check_type': data.get('safety_check_type', 'scan'),  # scan or check
+                'output_format': data.get('safety_output_format', 'json'),
+                'detailed_output': data.get('safety_detailed_output', True),
+                'policy_file': data.get('safety_policy_file', ''),
+                'target_path': data.get('safety_target_path', '.'),
+                'apply_fixes': data.get('safety_apply_fixes', False),
+                'ignore_unpinned': data.get('safety_ignore_unpinned', False),
+                'continue_on_error': data.get('safety_continue_on_error', True)
+            }
+        
+        # Semgrep Configuration
+        if 'semgrep' in data.get('tools', []):
+            security_config['semgrep'] = {
+                'config': data.get('semgrep_config', 'p/security-audit'),
+                'output_format': data.get('semgrep_output_format', 'json'),
+                'severity': data.get('semgrep_severity', 'WARNING'),
+                'timeout': int(data.get('semgrep_timeout', 30)),
+                'timeout_threshold': int(data.get('semgrep_timeout_threshold', 3)),
+                'exclude_patterns': data.get('semgrep_exclude_patterns', '').split(',') if data.get('semgrep_exclude_patterns') else [],
+                'include_patterns': data.get('semgrep_include_patterns', '').split(',') if data.get('semgrep_include_patterns') else [],
+                'autofix': data.get('semgrep_autofix', False),
+                'dry_run': data.get('semgrep_dry_run', False),
+                'oss_only': data.get('semgrep_oss_only', True),
+                'products': data.get('semgrep_products', '').split(',') if data.get('semgrep_products') else ['code'],
+                'verbose': data.get('semgrep_verbose', False),
+                'debug': data.get('semgrep_debug', False)
+            }
+        
+        options['security_config'] = security_config
+    
+    # ZAP Scan Configuration
+    elif test_type == 'zap_scan':
+        zap_config = {
+            'target_url': data.get('zap_target_url', ''),
+            'scan_type': data.get('zap_scan_type', 'baseline'),  # baseline, active, api, full
+            'format': data.get('zap_format', 'json'),
+            'output_file': data.get('zap_output_file', ''),
+            'config_file': data.get('zap_config_file', ''),
+            'config_url': data.get('zap_config_url', ''),
+            'generate_config': data.get('zap_generate_config', False),
+            'alpha_passive': data.get('zap_alpha_passive', False),
+            'debug': data.get('zap_debug', False),
+            'listen_port': int(data.get('zap_listen_port', 8080)) if data.get('zap_listen_port') else None,
+            'passive_scan_delay': int(data.get('zap_passive_scan_delay', 0)) if data.get('zap_passive_scan_delay') else 0,
+            'info_unspecified': data.get('zap_info_unspecified', False),
+            'no_fail_on_warn': data.get('zap_no_fail_on_warn', False),
+            'min_level': data.get('zap_min_level', 'WARN'),  # PASS, IGNORE, INFO, WARN, FAIL
+            'context_file': data.get('zap_context_file', ''),
+            'progress_file': data.get('zap_progress_file', ''),
+            'short_output': data.get('zap_short_output', False),
+            'safe_mode': data.get('zap_safe_mode', False),
+            'max_time': int(data.get('zap_max_time', 0)) if data.get('zap_max_time') else None,
+            'user': data.get('zap_user', ''),
+            'hostname_override': data.get('zap_hostname_override', ''),
+            'additional_options': data.get('zap_additional_options', ''),
+            'hook_file': data.get('zap_hook_file', ''),
+            'schema_file': data.get('zap_schema_file', '')  # For GraphQL
+        }
+        
+        # Add scan-specific options
+        if zap_config['scan_type'] == 'api':
+            zap_config['api_definition'] = data.get('zap_api_definition', '')
+            zap_config['api_format'] = data.get('zap_api_format', 'openapi')  # openapi, soap, graphql
+        
+        options['zap_config'] = zap_config
+    
+    # Performance Testing Configuration
+    elif test_type == 'performance_test':
+        performance_config = {
+            'target_url': data.get('perf_target_url', ''),
+            'users': int(data.get('perf_users', 10)),
+            'spawn_rate': float(data.get('perf_spawn_rate', 2.0)),
+            'duration': int(data.get('perf_duration', 60)),
+            'test_type': data.get('perf_test_type', 'load'),  # load, stress, spike, volume
+            'output_format': data.get('perf_output_format', 'json'),
+            'output_file': data.get('perf_output_file', ''),
+            'locustfile': data.get('perf_locustfile', ''),
+            'host': data.get('perf_host', ''),
+            'web_ui': data.get('perf_web_ui', False),
+            'web_port': int(data.get('perf_web_port', 8089)) if data.get('perf_web_port') else None,
+            'headless': data.get('perf_headless', True),
+            'csv_output': data.get('perf_csv_output', False),
+            'html_output': data.get('perf_html_output', True),
+            'tags': data.get('perf_tags', '').split(',') if data.get('perf_tags') else [],
+            'exclude_tags': data.get('perf_exclude_tags', '').split(',') if data.get('perf_exclude_tags') else [],
+            'stop_timeout': int(data.get('perf_stop_timeout', 0)) if data.get('perf_stop_timeout') else None
+        }
+        options['performance_config'] = performance_config
+    
+    # AI Analysis Configuration
+    elif test_type == 'ai_analysis':
+        ai_config = {
+            'model': data.get('ai_model', 'gpt-4'),
+            'analysis_type': data.get('ai_analysis_type', 'comprehensive'),
+            'focus_areas': data.get('ai_focus_areas', '').split(',') if data.get('ai_focus_areas') else [],
+            'output_format': data.get('ai_output_format', 'json'),
+            'include_suggestions': data.get('ai_include_suggestions', True),
+            'severity_threshold': data.get('ai_severity_threshold', 'medium'),
+            'max_tokens': int(data.get('ai_max_tokens', 4000)) if data.get('ai_max_tokens') else None,
+            'temperature': float(data.get('ai_temperature', 0.7)) if data.get('ai_temperature') else None
+        }
+        options['ai_config'] = ai_config
+    
+    return options
 
 
 @testing_bp.route("/api/test/<test_id>/details")
@@ -4595,9 +5046,8 @@ def register_blueprints(app):
     app.register_blueprint(containers_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(batch_bp)
-    app.register_blueprint(testing_bp)
-    app.register_blueprint(files_bp)
     app.register_blueprint(testing_bp)  # Add testing blueprint for template compatibility
+    app.register_blueprint(files_bp)
     
     # Register template helpers
     register_template_helpers(app)
