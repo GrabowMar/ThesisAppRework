@@ -4187,55 +4187,137 @@ def testing_api_models():
 
 @testing_bp.route("/api/new-test-form")
 def testing_api_new_test_form():
-    """Get new test form modal HTML."""
+    """Get new test form modal HTML with real applications from misc folder."""
     try:
-        # Get available applications from database (with safer query)
+        # Load real applications from misc folder using port config
         applications = []
+        misc_dir = Path(__file__).parent.parent / "misc"
+        
         try:
-            from models import GeneratedApplication
-            applications = GeneratedApplication.query.limit(50).all()
-        except Exception as e:
-            logger.warning(f"Could not load applications from database: {e}")
-            # Create some mock applications for testing
-            class MockApp:
-                def __init__(self, id, model_slug, app_number):
-                    self.id = id
-                    self.model_slug = model_slug
-                    self.app_number = app_number
+            # Load port configuration
+            port_config_file = misc_dir / "port_config.json"
+            models_dir = misc_dir / "models"
             
-            applications = [
-                MockApp(1, "gpt-4", 1),
-                MockApp(2, "claude-3", 2),
-                MockApp(3, "gemini-pro", 3)
-            ]
+            if port_config_file.exists() and models_dir.exists():
+                import json
+                with open(port_config_file, 'r') as f:
+                    port_config = json.load(f)
+                
+                logger.info(f"Loaded {len(port_config)} port configurations")
+                
+                # Process applications and verify they exist in filesystem
+                app_count = 0
+                for config in port_config:
+                    if app_count >= 50:  # Limit for UI performance
+                        break
+                        
+                    model_name = config['model_name']
+                    app_number = config['app_number']
+                    
+                    # Check if app directory and docker-compose exist
+                    app_dir = models_dir / model_name / f"app{app_number}"
+                    docker_compose_path = app_dir / "docker-compose.yml"
+                    
+                    if app_dir.exists() and docker_compose_path.exists():
+                        # Create application object with all needed info
+                        class RealApp:
+                            def __init__(self, config, app_dir):
+                                self.id = f"{config['model_name']}_app{config['app_number']}"
+                                self.model_slug = config['model_name']
+                                self.app_number = config['app_number']
+                                self.backend_port = config['backend_port']
+                                self.frontend_port = config['frontend_port']
+                                self.app_path = str(app_dir)
+                                self.docker_compose_path = str(docker_compose_path)
+                                # Extract provider from model name
+                                if '_' in self.model_slug:
+                                    self.provider = self.model_slug.split('_')[0]
+                                else:
+                                    self.provider = 'unknown'
+                                # Create display name
+                                self.display_name = f"{self.model_slug.replace('_', ' ').replace('-', ' ')} - App {self.app_number}"
+                        
+                        applications.append(RealApp(config, app_dir))
+                        app_count += 1
+                
+                logger.info(f"Found {len(applications)} real applications with docker-compose files")
+                
+            else:
+                logger.warning(f"Port config or models directory not found")
+                
+        except Exception as e:
+            logger.error(f"Error loading real applications from misc folder: {e}")
+        
+        # If no real applications found, try database as fallback
+        if not applications:
+            logger.info("No real applications found, trying database fallback")
+            try:
+                from models import GeneratedApplication
+                from extensions import db
+                
+                # Use raw SQL to avoid enum issues
+                raw_apps = db.session.execute(
+                    db.text("""
+                    SELECT id, model_slug, app_number, provider
+                    FROM generated_application 
+                    ORDER BY model_slug, app_number
+                    LIMIT 25
+                    """)
+                ).fetchall()
+                
+                for row in raw_apps:
+                    app_id, model_slug, app_number, provider = row
+                    
+                    class DbApp:
+                        def __init__(self, id, model_slug, app_number, provider):
+                            self.id = id
+                            self.model_slug = model_slug
+                            self.app_number = app_number
+                            self.provider = provider
+                            self.display_name = f"{model_slug} - App {app_number}"
+                    
+                    applications.append(DbApp(app_id, model_slug, app_number, provider))
+                    
+                logger.info(f"Loaded {len(applications)} applications from database")
+                
+            except Exception as db_error:
+                logger.warning(f"Database fallback failed: {db_error}")
         
         # Get available models for the form
         models_data = []
         try:
             model_service = ServiceLocator.get_model_service()
-            if model_service:
+            if model_service and hasattr(model_service, 'get_available_models'):
                 models_data = model_service.get_available_models()
+                logger.info(f"Loaded {len(models_data)} models from service")
+            else:
+                raise AttributeError("Model service not available")
         except Exception as e:
             logger.warning(f"Could not get models from service: {e}")
-            # Fallback to database with error handling
-            try:
-                from models import ModelCapability
-                models = ModelCapability.query.all()
-                for model in models:
+            # Create models from applications
+            seen_models = set()
+            for app in applications:
+                model_slug = app.model_slug
+                if model_slug not in seen_models:
+                    seen_models.add(model_slug)
+                    # Extract provider and create display name
+                    if '_' in model_slug:
+                        provider = model_slug.split('_')[0]
+                        display_name = model_slug.replace('_', ' ').replace('-', ' ').title()
+                    else:
+                        provider = 'unknown'
+                        display_name = model_slug.title()
+                    
                     models_data.append({
-                        'id': model.canonical_slug,
-                        'slug': model.canonical_slug,
-                        'name': model.model_name,
-                        'provider': model.provider
+                        'id': model_slug,
+                        'slug': model_slug,
+                        'name': display_name,
+                        'provider': provider
                     })
-            except Exception as db_error:
-                logger.warning(f"Database fallback also failed: {db_error}")
-                # Create mock models as final fallback
-                models_data = [
-                    {'id': 'gpt-4', 'slug': 'gpt-4', 'name': 'GPT-4', 'provider': 'openai'},
-                    {'id': 'claude-3-sonnet', 'slug': 'claude-3-sonnet', 'name': 'Claude 3 Sonnet', 'provider': 'anthropic'},
-                    {'id': 'gemini-pro', 'slug': 'gemini-pro', 'name': 'Gemini Pro', 'provider': 'google'}
-                ]
+            
+            logger.info(f"Created {len(models_data)} models from applications")
+        
+        logger.info(f"Returning {len(applications)} applications and {len(models_data)} models to new test form")
         
         return render_template('partials/testing/new_test_modal.html', 
                              applications=applications,
@@ -4244,6 +4326,98 @@ def testing_api_new_test_form():
         logger.error(f"Error loading new test form: {e}")
         return render_template('partials/error_message.html', 
                              error="Could not load test form"), 500
+
+@testing_bp.route("/app-details")
+def testing_app_details():
+    """Get application details for selected app."""
+    try:
+        app_id = request.args.get('app_id')
+        if not app_id:
+            return '<div class="text-muted">Select an application to see details</div>'
+        
+        # Parse app_id to get model and app number
+        if '_app' in app_id:
+            model_slug = app_id.split('_app')[0]
+            app_number = app_id.split('_app')[1]
+        else:
+            return '<div class="alert alert-warning">Invalid application ID format</div>'
+        
+        # Get app details from misc folder
+        misc_dir = Path(__file__).parent.parent / "misc"
+        models_dir = misc_dir / "models"
+        app_dir = models_dir / model_slug / f"app{app_number}"
+        
+        if not app_dir.exists():
+            return '<div class="alert alert-warning">Application directory not found</div>'
+        
+        # Check for docker-compose file
+        docker_compose_path = app_dir / "docker-compose.yml"
+        has_compose = docker_compose_path.exists()
+        
+        # Get port configuration
+        port_info = None
+        try:
+            port_config_file = misc_dir / "port_config.json"
+            if port_config_file.exists():
+                import json
+                with open(port_config_file, 'r') as f:
+                    port_config = json.load(f)
+                
+                for config in port_config:
+                    if (config['model_name'] == model_slug and 
+                        config['app_number'] == int(app_number)):
+                        port_info = config
+                        break
+        except Exception as e:
+            logger.warning(f"Could not load port config: {e}")
+        
+        # Check if containers are running
+        container_status = {'backend': 'unknown', 'frontend': 'unknown'}
+        if has_compose:
+            try:
+                docker_manager = ServiceLocator.get_docker_manager()
+                if docker_manager:
+                    # Try to get container status
+                    containers = docker_manager.list_containers()
+                    project_name = f"{model_slug.lower().replace('_', '')}-app{app_number}"
+                    
+                    for container in containers:
+                        name = container.get('name', '').lower()
+                        if project_name in name:
+                            status = container.get('status', 'unknown')
+                            if 'backend' in name:
+                                container_status['backend'] = status
+                            elif 'frontend' in name:
+                                container_status['frontend'] = status
+            except Exception as e:
+                logger.warning(f"Could not check container status: {e}")
+        
+        # Check for source files
+        backend_dir = app_dir / "backend"
+        frontend_dir = app_dir / "frontend"
+        
+        file_counts = {
+            'backend': len(list(backend_dir.glob('**/*'))) if backend_dir.exists() else 0,
+            'frontend': len(list(frontend_dir.glob('**/*'))) if frontend_dir.exists() else 0
+        }
+        
+        app_details = {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'app_dir': str(app_dir),
+            'has_compose': has_compose,
+            'port_info': port_info,
+            'container_status': container_status,
+            'file_counts': file_counts,
+            'backend_exists': backend_dir.exists(),
+            'frontend_exists': frontend_dir.exists()
+        }
+        
+        return render_template('partials/testing/app_details.html', app=app_details)
+        
+    except Exception as e:
+        logger.error(f"Error getting app details: {e}")
+        return f'<div class="alert alert-danger">Error loading details: {str(e)}</div>'
 
 @testing_bp.route("/api/infrastructure-status")
 def testing_api_infrastructure_status():

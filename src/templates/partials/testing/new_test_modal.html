@@ -16,14 +16,23 @@
                     <div class="mb-4">
                         <label class="form-label fw-bold">Select Application</label>
                         <select class="form-select" name="app_id" required
-                                hx-get="/testing/app-details"
-                                hx-trigger="change"
-                                hx-target="#app-details"
-                                hx-swap="innerHTML">
+                                onchange="htmx.ajax('GET', '/testing/app-details?app_id=' + this.value, {target:'#app-details', swap:'innerHTML'})">
                             <option value="">Choose an application...</option>
                             {% for app in applications %}
-                            <option value="{{ app.id }}">
-                                {{ app.model_slug }} - App {{ app.app_number }}
+                            <option value="{{ app.id }}" 
+                                    data-model="{{ app.model_slug }}" 
+                                    data-app-number="{{ app.app_number }}"
+                                    {% if app.backend_port %}data-backend-port="{{ app.backend_port }}"{% endif %}
+                                    {% if app.frontend_port %}data-frontend-port="{{ app.frontend_port }}"{% endif %}
+                                    {% if app.provider %}data-provider="{{ app.provider }}"{% endif %}>
+                                {% if app.display_name %}
+                                    {{ app.display_name }}
+                                {% else %}
+                                    {{ app.model_slug }} - App {{ app.app_number }}
+                                {% endif %}
+                                {% if app.backend_port and app.frontend_port %}
+                                    <small>(Backend: {{ app.backend_port }}, Frontend: {{ app.frontend_port }})</small>
+                                {% endif %}
                             </option>
                             {% endfor %}
                         </select>
