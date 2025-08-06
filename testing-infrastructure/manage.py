@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Testing Infrastructure Management Script
 ========================================
@@ -7,15 +8,41 @@ Script to manage the containerized testing infrastructure.
 Provides commands to build, deploy, monitor, and manage testing containers.
 """
 import argparse
-import asyncio
 import json
 import subprocess
 import sys
 import time
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
-import requests
-import yaml
+
+# Set UTF-8 encoding for Windows compatibility
+if sys.platform.startswith('win'):
+    import io
+    # Set stdout and stderr to use UTF-8 encoding
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    else:
+        # Fallback for older Python versions
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    
+    # Set console code page to UTF-8 on Windows
+    try:
+        os.system('chcp 65001 >nul 2>&1')
+    except Exception:
+        pass
+
+# Safe print function that handles encoding issues on Windows
+def safe_print(message: str) -> None:
+    """Print message with fallback for encoding issues."""
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        # Fallback: replace problematic characters with ASCII equivalents
+        safe_message = message.encode('ascii', 'replace').decode('ascii')
+        print(safe_message)
 
 # Import local testing models
 try:
@@ -39,7 +66,7 @@ class TestingInfrastructureManager:
     
     def build_containers(self, rebuild: bool = False) -> bool:
         """Build all testing containers."""
-        print("🏗️  Building testing containers...")
+        safe_print("[BUILD] Building testing containers...")
         
         cmd = ["docker-compose", "-f", str(self.compose_file), "build"]
         if rebuild:
@@ -48,18 +75,18 @@ class TestingInfrastructureManager:
         try:
             result = subprocess.run(cmd, cwd=self.base_path, capture_output=True, text=True)
             if result.returncode == 0:
-                print("✅ All containers built successfully")
+                safe_print("[SUCCESS] All containers built successfully")
                 return True
             else:
-                print(f"❌ Build failed: {result.stderr}")
+                safe_print(f"[ERROR] Build failed: {result.stderr}")
                 return False
         except Exception as e:
-            print(f"❌ Build error: {e}")
+            safe_print(f"[ERROR] Build error: {e}")
             return False
     
     def start_services(self, services: Optional[List[str]] = None) -> bool:
         """Start testing services."""
-        print("🚀 Starting testing services...")
+        safe_print("[START] Starting testing services...")
         
         cmd = ["docker-compose", "-f", str(self.compose_file), "up", "-d"]
         if services:
@@ -68,30 +95,36 @@ class TestingInfrastructureManager:
         try:
             result = subprocess.run(cmd, cwd=self.base_path, capture_output=True, text=True)
             if result.returncode == 0:
-                print("✅ Services started successfully")
+                safe_print("[SUCCESS] Services started successfully")
                 
                 # Wait for services to be ready
-                print("⏳ Waiting for services to be ready...")
+                safe_print("[INFO] Waiting for services to be ready...")
                 time.sleep(10)
                 
                 # Check health
                 health = self.check_health()
-                if all(health.values()):
-                    print("✅ All services are healthy")
+                healthy_services = sum(1 for h in health.values() if h)
+                total_services = len(health)
+                
+                if healthy_services == total_services:
+                    safe_print("[SUCCESS] All services are healthy")
+                    return True
+                elif healthy_services >= total_services * 0.75:  # At least 75% healthy
+                    safe_print(f"[WARNING] Most services are healthy ({healthy_services}/{total_services})")
                     return True
                 else:
-                    print(f"⚠️  Some services are not healthy: {health}")
+                    safe_print(f"[ERROR] Too many services are unhealthy: {health}")
                     return False
             else:
-                print(f"❌ Start failed: {result.stderr}")
+                safe_print(f"[ERROR] Start failed: {result.stderr}")
                 return False
         except Exception as e:
-            print(f"❌ Start error: {e}")
+            safe_print(f"[ERROR] Start error: {e}")
             return False
     
     def stop_services(self, services: Optional[List[str]] = None) -> bool:
         """Stop testing services."""
-        print("🛑 Stopping testing services...")
+        safe_print("[STOP] Stopping testing services...")
         
         cmd = ["docker-compose", "-f", str(self.compose_file), "down"]
         if services:
@@ -101,18 +134,18 @@ class TestingInfrastructureManager:
         try:
             result = subprocess.run(cmd, cwd=self.base_path, capture_output=True, text=True)
             if result.returncode == 0:
-                print("✅ Services stopped successfully")
+                safe_print("[SUCCESS] Services stopped successfully")
                 return True
             else:
-                print(f"❌ Stop failed: {result.stderr}")
+                safe_print(f"[ERROR] Stop failed: {result.stderr}")
                 return False
         except Exception as e:
-            print(f"❌ Stop error: {e}")
+            safe_print(f"[ERROR] Stop error: {e}")
             return False
     
     def restart_services(self, services: Optional[List[str]] = None) -> bool:
         """Restart testing services."""
-        print("🔄 Restarting testing services...")
+        safe_print("[RESTART] Restarting testing services...")
         
         cmd = ["docker-compose", "-f", str(self.compose_file), "restart"]
         if services:
@@ -121,32 +154,44 @@ class TestingInfrastructureManager:
         try:
             result = subprocess.run(cmd, cwd=self.base_path, capture_output=True, text=True)
             if result.returncode == 0:
-                print("✅ Services restarted successfully")
+                safe_print("[SUCCESS] Services restarted successfully")
                 return True
             else:
-                print(f"❌ Restart failed: {result.stderr}")
+                safe_print(f"[ERROR] Restart failed: {result.stderr}")
                 return False
         except Exception as e:
-            print(f"❌ Restart error: {e}")
+            safe_print(f"[ERROR] Restart error: {e}")
             return False
     
     def check_health(self) -> Dict[str, bool]:
         """Check health of all testing services."""
-        print("🏥 Checking service health...")
+        safe_print("[HEALTH] Checking service health...")
         
         try:
+            if not self.client:
+                # Fallback: check container status if client is not available
+                print("[WARNING] Testing API client not available, checking container status instead")
+                status = self.get_status()
+                health = {}
+                for service, state in status.items():
+                    healthy = state == "running"
+                    health[service] = healthy
+                    status_text = "[OK]" if healthy else "[FAIL]"
+                    print(f"  {status_text} {service}: {'Healthy' if healthy else 'Unhealthy'}")
+                return health
+            
             health = self.client.health_check()
             
             # Print health status
             for service, healthy in health.items():
-                status = "✅" if healthy else "❌"
+                status = "[OK]" if healthy else "[FAIL]"
                 print(f"  {status} {service}: {'Healthy' if healthy else 'Unhealthy'}")
             
             return health
         except Exception as e:
-            print(f"❌ Health check failed: {e}")
+            print(f"[ERROR] Health check failed: {e}")
             return {}
-    
+
     def view_logs(self, service: Optional[str] = None, follow: bool = False) -> None:
         """View logs from testing services."""
         cmd = ["docker-compose", "-f", str(self.compose_file), "logs"]
@@ -158,11 +203,11 @@ class TestingInfrastructureManager:
         try:
             subprocess.run(cmd, cwd=self.base_path)
         except KeyboardInterrupt:
-            print("\n📄 Log viewing stopped")
-    
+            print("\n[LOG] Log viewing stopped")
+
     def get_status(self) -> Dict[str, str]:
         """Get status of all containers."""
-        print("📊 Getting container status...")
+        print("[STATUS] Getting container status...")
         
         try:
             result = subprocess.run(
@@ -173,81 +218,92 @@ class TestingInfrastructureManager:
             )
             
             if result.returncode == 0:
-                containers = json.loads(result.stdout) if result.stdout.strip() else []
-                status = {}
+                # docker-compose ps --format json returns one JSON object per line, not an array
+                containers = []
+                if result.stdout.strip():
+                    for line in result.stdout.strip().split('\n'):
+                        line = line.strip()
+                        if line and not line.startswith('time='):  # Skip warning lines
+                            try:
+                                container = json.loads(line)
+                                containers.append(container)
+                            except json.JSONDecodeError:
+                                # Skip malformed lines
+                                continue
                 
+                status = {}
                 for container in containers:
                     name = container.get("Service", "unknown")
                     state = container.get("State", "unknown")
                     status[name] = state
                     
                     # Print status
-                    status_icon = "🟢" if state == "running" else "🔴" if state == "exited" else "🟡"
+                    status_icon = "[RUN]" if state == "running" else "[EXIT]" if state == "exited" else "[WAIT]"
                     print(f"  {status_icon} {name}: {state}")
                 
                 return status
             else:
-                print(f"❌ Status check failed: {result.stderr}")
+                print(f"[ERROR] Status check failed: {result.stderr}")
                 return {}
         except Exception as e:
-            print(f"❌ Status error: {e}")
+            print(f"[ERROR] Status error: {e}")
             return {}
     
     def run_test_suite(self) -> bool:
         """Run comprehensive test suite against containerized services."""
-        print("🧪 Running test suite...")
+        print("[TEST] Running test suite...")
         
         # Check if services are running
         health = self.check_health()
         if not all(health.values()):
-            print("❌ Not all services are healthy. Cannot run tests.")
+            print("[ERROR] Not all services are healthy. Cannot run tests.")
             return False
         
         # Run security analysis test
-        print("  🔒 Testing security analysis...")
+        print("  [SECURITY] Testing security analysis...")
         try:
             result = self.client.run_security_analysis("test_model", 1, ["bandit", "safety"])
             if result.status.value == "completed":
-                print("    ✅ Security analysis test passed")
+                print("    [SUCCESS] Security analysis test passed")
             else:
-                print(f"    ❌ Security analysis test failed: {result.status}")
+                print(f"    [ERROR] Security analysis test failed: {result.status}")
                 return False
         except Exception as e:
-            print(f"    ❌ Security analysis test error: {e}")
+            print(f"    [ERROR] Security analysis test error: {e}")
             return False
         
         # Run performance test
-        print("  ⚡ Testing performance analysis...")
+        print("  [PERFORMANCE] Testing performance analysis...")
         try:
             result = self.client.run_performance_test("test_model", 1, "http://localhost:3000", 5)
             if result.status.value == "completed":
-                print("    ✅ Performance test passed")
+                print("    [SUCCESS] Performance test passed")
             else:
-                print(f"    ❌ Performance test failed: {result.status}")
+                print(f"    [ERROR] Performance test failed: {result.status}")
                 return False
         except Exception as e:
-            print(f"    ❌ Performance test error: {e}")
+            print(f"    [ERROR] Performance test error: {e}")
             return False
         
         # Run ZAP scan test
-        print("  🛡️  Testing ZAP scan...")
+        print("  [ZAP] Testing ZAP scan...")
         try:
             result = self.client.run_zap_scan("test_model", 1, "http://localhost:3000", "spider")
             if result.status.value == "completed":
-                print("    ✅ ZAP scan test passed")
+                print("    [SUCCESS] ZAP scan test passed")
             else:
-                print(f"    ❌ ZAP scan test failed: {result.status}")
+                print(f"    [ERROR] ZAP scan test failed: {result.status}")
                 return False
         except Exception as e:
-            print(f"    ❌ ZAP scan test error: {e}")
+            print(f"    [ERROR] ZAP scan test error: {e}")
             return False
         
-        print("✅ All tests passed!")
+        print("[SUCCESS] All tests passed!")
         return True
     
     def clean_up(self, volumes: bool = False) -> bool:
         """Clean up containers and optionally volumes."""
-        print("🧹 Cleaning up testing infrastructure...")
+        print("[CLEANUP] Cleaning up testing infrastructure...")
         
         cmd = ["docker-compose", "-f", str(self.compose_file), "down"]
         if volumes:
@@ -256,22 +312,22 @@ class TestingInfrastructureManager:
         try:
             result = subprocess.run(cmd, cwd=self.base_path, capture_output=True, text=True)
             if result.returncode == 0:
-                print("✅ Cleanup completed successfully")
+                print("[SUCCESS] Cleanup completed successfully")
                 
                 if volumes:
-                    print("🗑️  Volumes removed")
+                    print("[CLEANUP] Volumes removed")
                 
                 return True
             else:
-                print(f"❌ Cleanup failed: {result.stderr}")
+                print(f"[ERROR] Cleanup failed: {result.stderr}")
                 return False
         except Exception as e:
-            print(f"❌ Cleanup error: {e}")
+            print(f"[ERROR] Cleanup error: {e}")
             return False
     
     def update_containers(self) -> bool:
         """Update all containers to latest versions."""
-        print("📦 Updating containers...")
+        print("[UPDATE] Updating containers...")
         
         # Pull latest images
         try:
@@ -283,10 +339,10 @@ class TestingInfrastructureManager:
             )
             
             if result.returncode != 0:
-                print(f"❌ Pull failed: {result.stderr}")
+                print(f"[ERROR] Pull failed: {result.stderr}")
                 return False
         except Exception as e:
-            print(f"❌ Pull error: {e}")
+            print(f"[ERROR] Pull error: {e}")
             return False
         
         # Rebuild and restart
@@ -296,7 +352,7 @@ class TestingInfrastructureManager:
         if not self.restart_services():
             return False
         
-        print("✅ Containers updated successfully")
+        print("[SUCCESS] Containers updated successfully")
         return True
 
 
@@ -379,16 +435,16 @@ def main():
         elif args.command == "update":
             success = manager.update_containers()
         else:
-            print(f"❌ Unknown command: {args.command}")
+            print(f"[ERROR] Unknown command: {args.command}")
             success = False
         
         sys.exit(0 if success else 1)
         
     except KeyboardInterrupt:
-        print("\n⏹️  Operation cancelled by user")
+        print("\n[CANCEL] Operation cancelled by user")
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"[ERROR] Unexpected error: {e}")
         sys.exit(1)
 
 

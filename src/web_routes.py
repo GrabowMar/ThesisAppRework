@@ -4098,30 +4098,42 @@ def testing_api_tools():
 def testing_api_models():
     """Get available models for testing."""
     try:
-        from core_services import AppDataProvider
-        app_data_provider = AppDataProvider()
-        
-        # Get all available models
+        # Try to get models from the model service
         models_data = []
+        
         try:
-            # Try to get models from the app data provider
-            all_models = app_data_provider.get_all_models()
+            from core_services import get_model_service
+            model_service = get_model_service()
             
-            for model_info in all_models:
-                model_data = {
-                    'id': model_info.get('canonical_slug', model_info.get('slug', 'unknown')),
-                    'slug': model_info.get('canonical_slug', model_info.get('slug', 'unknown')),
-                    'name': model_info.get('model_name', model_info.get('name', 'Unknown')),
-                    'display_name': model_info.get('model_name', model_info.get('name', 'Unknown')),
-                    'provider': model_info.get('provider', 'Unknown'),
-                    'status': 'ready',  # Assume ready for now
-                    'apps_count': model_info.get('total_apps', 20)  # Default to 20 apps
-                }
-                models_data.append(model_data)
+            if model_service and hasattr(model_service, 'get_all_models'):
+                all_models = model_service.get_all_models()
+                
+                for model in all_models:
+                    # Handle both AIModel objects and dict objects
+                    if hasattr(model, '__dict__'):
+                        model_id = getattr(model, 'model_name', getattr(model, 'name', 'unknown'))
+                        provider = getattr(model, 'provider', 'Unknown')
+                    else:
+                        model_id = model.get('model_name', model.get('name', 'unknown'))
+                        provider = model.get('provider', 'Unknown')
+                    
+                    model_data = {
+                        'id': model_id,
+                        'slug': model_id,
+                        'name': model_id,
+                        'display_name': model_id,
+                        'provider': provider,
+                        'status': 'ready',
+                        'apps_count': 30  # Default for testing
+                    }
+                    models_data.append(model_data)
+            
+            if not models_data:
+                raise Exception("No models from service")
                 
         except Exception as e:
-            logger.warning(f"Could not get models from app data provider: {e}")
-            # Fallback: try to get from ModelCapability table
+            logger.warning(f"Could not get models from model service: {e}")
+            # Fallback: try to get from ModelCapability table directly
             try:
                 from models import ModelCapability
                 models = ModelCapability.query.all()
@@ -4235,11 +4247,19 @@ def testing_api_infrastructure_management(action):
                 'output': result.stdout
             })
         else:
-            return jsonify({
-                'success': False, 
-                'error': f'Failed to {action} infrastructure',
-                'output': result.stderr
-            }), 500
+            # Check if it's a partial failure (some services still work)
+            if "Most services are healthy" in result.stdout:
+                return jsonify({
+                    'success': True, 
+                    'message': f'Infrastructure {action}ed with warnings (some services unhealthy)',
+                    'output': result.stdout
+                })
+            else:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Failed to {action} infrastructure',
+                    'output': result.stderr
+                }), 500
             
     except subprocess.TimeoutExpired:
         return jsonify({'success': False, 'error': 'Operation timed out'}), 408
@@ -5388,6 +5408,37 @@ def api_simple_dashboard_models():
     except Exception as e:
         logger.error(f"Simple API dashboard models error: {e}")
         return ResponseHandler.error_response(str(e))
+
+
+@simple_api_bp.route("/models")
+def api_simple_models():
+    """Get models for testing interface - simple format."""
+    try:
+        from models import ModelCapability
+        models = ModelCapability.query.all()
+        models_data = []
+        
+        for model in models:
+            model_data = {
+                'id': model.canonical_slug,
+                'slug': model.canonical_slug,
+                'name': model.model_name,
+                'display_name': model.model_name,
+                'provider': model.provider or 'Unknown',
+                'status': 'ready',
+                'apps_count': 30  # Default for testing
+            }
+            models_data.append(model_data)
+        
+        return jsonify({
+            'success': True,
+            'data': models_data,
+            'total_count': len(models_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting simple models: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ===========================

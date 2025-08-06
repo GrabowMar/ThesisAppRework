@@ -635,10 +635,13 @@ class UnifiedSecurityTestingPlatform {
         });
 
         // Form validation and submission
-        document.getElementById('securityTestForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.submitSecurityTestForm();
-        });
+        const securityForm = document.getElementById('securityTestForm');
+        if (securityForm) {
+            securityForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.submitSecurityTestForm();
+            });
+        }
 
         // Tool selection handling
         document.querySelectorAll('input[name="tools"]').forEach(checkbox => {
@@ -648,6 +651,8 @@ class UnifiedSecurityTestingPlatform {
 
     async loadInitialData() {
         try {
+            console.log('Loading initial data...');
+            
             // Load available models
             await this.loadAvailableModels();
             
@@ -657,6 +662,7 @@ class UnifiedSecurityTestingPlatform {
             // Load infrastructure status
             await this.updateInfrastructureStatus();
             
+            console.log('Initial data loaded successfully');
         } catch (error) {
             console.error('Error loading initial data:', error);
             this.showToast('Error loading initial data', 'error');
@@ -687,22 +693,36 @@ class UnifiedSecurityTestingPlatform {
             const response = await fetch('/testing/api/infrastructure-status');
             const data = await response.json();
             
-            this.containerStatuses = data.services || {};
+            if (data.success && data.data && data.data.services) {
+                this.containerStatuses = data.data.services;
+            } else {
+                this.containerStatuses = {};
+            }
             this.updateContainerBadges();
             
         } catch (error) {
             console.error('Error updating container statuses:', error);
+            this.containerStatuses = {};
+            this.updateContainerBadges();
         }
     }
 
     updateContainerBadges() {
-        const services = ['security-scanner', 'performance-tester', 'zap-scanner', 'api-gateway'];
+        const services = ['security_scanner', 'performance_tester', 'zap_scanner', 'api_gateway'];
+        const serviceMap = {
+            'security_scanner': 'security-scanner',
+            'performance_tester': 'performance-tester', 
+            'zap_scanner': 'zap-scanner',
+            'api_gateway': 'api-gateway'
+        };
         
         services.forEach(service => {
-            const element = document.getElementById(`${service}-status`);
+            const elementId = serviceMap[service] + '-status';
+            const element = document.getElementById(elementId);
             if (element) {
                 const statusText = element.querySelector('.status-text');
-                const isHealthy = this.containerStatuses[service] === true;
+                const serviceStatus = this.containerStatuses[service];
+                const isHealthy = serviceStatus && serviceStatus.status === 'healthy';
                 
                 statusText.textContent = isHealthy ? 'Running' : 'Stopped';
                 element.className = `badge ${isHealthy ? 'bg-success' : 'bg-danger'}`;
@@ -712,31 +732,45 @@ class UnifiedSecurityTestingPlatform {
 
     async loadAvailableModels() {
         try {
+            console.log('Loading available models...');
             const response = await fetch('/api/models');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             const data = await response.json();
             
             if (data.success) {
                 this.models = data.data || [];
+                console.log(`Loaded ${this.models.length} models`);
                 this.populateModelsList();
+            } else {
+                throw new Error(data.error || 'Failed to load models');
             }
         } catch (error) {
             console.error('Error loading models:', error);
+            this.models = [];
+            this.populateModelsList();
+            this.showToast('Failed to load models', 'error');
         }
     }
 
     populateModelsList() {
         const modelsList = document.getElementById('models-list');
         if (!modelsList || this.models.length === 0) {
-            modelsList.innerHTML = '<div class="text-muted">No models available</div>';
+            if (modelsList) {
+                modelsList.innerHTML = '<div class="text-muted">No models available</div>';
+            }
             return;
         }
 
         const modelsHtml = this.models.map(model => `
             <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="selected_models" value="${model.slug}" id="model-${model.slug}">
-                <label class="form-check-label" for="model-${model.slug}">
-                    <strong>${model.name}</strong>
-                    <small class="text-muted d-block">${model.description || ''}</small>
+                <input class="form-check-input" type="checkbox" name="selected_models" value="${model.slug || model.id}" id="model-${model.slug || model.id}">
+                <label class="form-check-label" for="model-${model.slug || model.id}">
+                    <strong>${model.name || model.display_name}</strong>
+                    <small class="text-muted d-block">${model.provider || ''}</small>
                 </label>
             </div>
         `).join('');
@@ -767,12 +801,18 @@ class UnifiedSecurityTestingPlatform {
             const response = await fetch('/testing/api/infrastructure-status');
             const data = await response.json();
             
-            if (data.success) {
-                this.containerStatuses = data.services;
+            if (data.success && data.data && data.data.services) {
+                this.containerStatuses = data.data.services;
+                this.updateContainerBadges();
+            } else {
+                console.warn('Infrastructure status response missing expected data structure');
+                this.containerStatuses = {};
                 this.updateContainerBadges();
             }
         } catch (error) {
             console.error('Error updating infrastructure status:', error);
+            this.containerStatuses = {};
+            this.updateContainerBadges();
         }
     }
 
@@ -810,32 +850,42 @@ class UnifiedSecurityTestingPlatform {
     }
 
     validateForm() {
-        const testType = document.querySelector('select[name="test_type"]').value;
-        const submitBtn = document.querySelector('#securityTestForm button[type="submit"]');
-        
-        let isValid = true;
-        
-        if (!testType) {
-            isValid = false;
-        }
-        
-        // Type-specific validation
-        if (testType === 'security_analysis') {
-            const selectedTools = document.querySelectorAll('input[name="tools"]:checked');
-            if (selectedTools.length === 0) {
+        try {
+            const testTypeElement = document.querySelector('select[name="test_type"]');
+            const submitBtn = document.querySelector('#securityTestForm button[type="submit"]');
+            
+            if (!testTypeElement || !submitBtn) {
+                return false;
+            }
+            
+            const testType = testTypeElement.value;
+            let isValid = true;
+            
+            if (!testType) {
                 isValid = false;
             }
-        }
-        
-        if (testType === 'zap_scan') {
-            const targetUrl = document.querySelector('input[name="target_url"]').value;
-            if (!targetUrl) {
-                isValid = false;
+            
+            // Type-specific validation
+            if (testType === 'security_analysis') {
+                const selectedTools = document.querySelectorAll('input[name="tools"]:checked');
+                if (selectedTools.length === 0) {
+                    isValid = false;
+                }
             }
+            
+            if (testType === 'zap_scan') {
+                const targetUrlElement = document.querySelector('input[name="target_url"]');
+                if (!targetUrlElement || !targetUrlElement.value) {
+                    isValid = false;
+                }
+            }
+            
+            submitBtn.disabled = !isValid;
+            return isValid;
+        } catch (error) {
+            console.error('Error validating form:', error);
+            return false;
         }
-        
-        submitBtn.disabled = !isValid;
-        return isValid;
     }
 
     async submitSecurityTestForm() {
@@ -925,6 +975,10 @@ class UnifiedSecurityTestingPlatform {
                 }
             });
             
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             const result = await response.json();
             
             if (result.success) {
@@ -932,14 +986,14 @@ class UnifiedSecurityTestingPlatform {
                 // Update status after a delay
                 setTimeout(() => {
                     this.updateInfrastructureStatus();
-                }, 3000);
+                }, 2000);
             } else {
-                this.showToast(result.message || `Failed to ${action} infrastructure`, 'error');
+                this.showToast(result.error || `Failed to ${action} infrastructure`, 'error');
             }
             
         } catch (error) {
             console.error(`Error ${action}ing infrastructure:`, error);
-            this.showToast(`Error ${action}ing infrastructure`, 'error');
+            this.showToast(`Error ${action}ing infrastructure: ${error.message}`, 'error');
         }
     }
 
@@ -1047,19 +1101,39 @@ class UnifiedSecurityTestingPlatform {
     }
 
     showToast(message, type = 'info') {
-        const toast = document.getElementById('liveToast');
-        const toastBody = toast.querySelector('.toast-body');
-        const toastHeader = toast.querySelector('.toast-header');
-        
-        // Set message
-        toastBody.textContent = message;
-        
-        // Set color based on type
-        toast.className = `toast bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} text-white`;
-        
-        // Show toast
-        const bsToast = new bootstrap.Toast(toast);
-        bsToast.show();
+        try {
+            const toast = document.getElementById('liveToast');
+            if (!toast) {
+                console.warn('Toast element not found');
+                return;
+            }
+            
+            const toastBody = toast.querySelector('.toast-body');
+            const toastHeader = toast.querySelector('.toast-header');
+            
+            if (!toastBody) {
+                console.warn('Toast body element not found');
+                return;
+            }
+            
+            // Set message
+            toastBody.textContent = message;
+            
+            // Set color based on type
+            toast.className = `toast bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} text-white`;
+            
+            // Show toast
+            if (typeof bootstrap !== 'undefined') {
+                const bsToast = new bootstrap.Toast(toast);
+                bsToast.show();
+            } else {
+                // Fallback for when Bootstrap is not available
+                console.log(`Toast: [${type.toUpperCase()}] ${message}`);
+            }
+        } catch (error) {
+            console.error('Error showing toast:', error);
+            console.log(`Toast: [${type.toUpperCase()}] ${message}`);
+        }
     }
 }
 

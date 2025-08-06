@@ -122,7 +122,15 @@ class LocalTestingAPIClient:
     def health_check(self) -> Dict[str, bool]:
         """Check health of all testing services."""
         health_status = {}
-        for test_type in TestType:
+        # Only check implemented services
+        implemented_services = [
+            TestType.SECURITY_BACKEND,
+            TestType.SECURITY_FRONTEND, 
+            TestType.SECURITY_ZAP,
+            TestType.PERFORMANCE
+        ]
+        
+        for test_type in implemented_services:
             try:
                 import requests
                 endpoint = self.get_health_endpoint(test_type)
