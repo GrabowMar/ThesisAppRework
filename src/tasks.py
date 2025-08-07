@@ -16,7 +16,7 @@ from flask import Flask
 try:
     from .celery_config import *
     from .models import (
-        SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis,
+        SecurityAnalysis, PerformanceTest, OpenRouterAnalysis,
         BatchJob, BatchTask, GeneratedApplication, db
     )
     from .constants import AnalysisStatus, TaskStatus, JobStatus
@@ -26,7 +26,7 @@ try:
 except ImportError:
     from celery_config import *
     from models import (
-        SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis,
+        SecurityAnalysis, PerformanceTest, OpenRouterAnalysis,
         BatchJob, BatchTask, GeneratedApplication, db
     )
     from constants import AnalysisStatus, TaskStatus, JobStatus

@@ -31,7 +31,7 @@ try:
         ModelCapability, GeneratedApplication, PortConfiguration,
         SecurityAnalysis, JobStatus
     )
-    from constants import AnalysisStatus, TaskStatus, SeverityLevel
+    from constants import AnalysisStatus, TaskStatus
     from core_services import get_container_names
     # Updated imports to use unified CLI analyzer
     from unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
@@ -43,7 +43,7 @@ except ImportError as e:
             ModelCapability, GeneratedApplication, PortConfiguration,
             SecurityAnalysis, JobStatus
         )
-        from .constants import AnalysisStatus, TaskStatus, SeverityLevel
+        from .constants import AnalysisStatus, TaskStatus
         from .core_services import get_container_names
         from .unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
     except ImportError:
