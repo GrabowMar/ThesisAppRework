@@ -10,33 +10,33 @@ import os
 from kombu import Queue
 
 # Redis configuration
-BROKER_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Task configuration
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TIMEZONE = 'UTC'
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = "UTC"
 CELERY_ENABLE_UTC = True
 
 # Task routing
 CELERY_ROUTES = {
-    'src.tasks.run_security_analysis_task': {'queue': 'security_analysis'},
-    'src.tasks.run_performance_test_task': {'queue': 'performance_testing'},
-    'src.tasks.run_zap_scan_task': {'queue': 'zap_scanning'},
-    'src.tasks.run_openrouter_analysis_task': {'queue': 'ai_analysis'},
-    'src.tasks.run_batch_analysis_task': {'queue': 'batch_processing'},
+    "src.tasks.run_security_analysis_task": {"queue": "security_analysis"},
+    "src.tasks.run_performance_test_task": {"queue": "performance_testing"},
+    "src.tasks.run_zap_scan_task": {"queue": "zap_scanning"},
+    "src.tasks.run_openrouter_analysis_task": {"queue": "ai_analysis"},
+    "src.tasks.run_batch_analysis_task": {"queue": "batch_processing"},
 }
 
 # Queue configuration
 CELERY_QUEUES = (
-    Queue('security_analysis', routing_key='security_analysis'),
-    Queue('performance_testing', routing_key='performance_testing'),
-    Queue('zap_scanning', routing_key='zap_scanning'),
-    Queue('ai_analysis', routing_key='ai_analysis'),
-    Queue('batch_processing', routing_key='batch_processing'),
-    Queue('celery', routing_key='celery'),  # Default queue
+    Queue("security_analysis", routing_key="security_analysis"),
+    Queue("performance_testing", routing_key="performance_testing"),
+    Queue("zap_scanning", routing_key="zap_scanning"),
+    Queue("ai_analysis", routing_key="ai_analysis"),
+    Queue("batch_processing", routing_key="batch_processing"),
+    Queue("celery", routing_key="celery"),  # Default queue
 )
 
 # Worker configuration
@@ -73,12 +73,12 @@ CELERY_WORKER_LOG_COLOR = False
 
 # Beat schedule for periodic tasks (if needed)
 CELERYBEAT_SCHEDULE = {
-    'cleanup-expired-results': {
-        'task': 'src.tasks.cleanup_expired_results',
-        'schedule': 3600.0,  # Run every hour
+    "cleanup-expired-results": {
+        "task": "src.tasks.cleanup_expired_results",
+        "schedule": 3600.0,  # Run every hour
     },
-    'health-check-containers': {
-        'task': 'src.tasks.health_check_containers',
-        'schedule': 300.0,  # Run every 5 minutes
+    "health-check-containers": {
+        "task": "src.tasks.health_check_containers",
+        "schedule": 300.0,  # Run every 5 minutes
     },
 }
