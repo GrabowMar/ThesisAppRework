@@ -159,7 +159,113 @@
                          hx-get="/testing/api/service-status"
                          hx-trigger="load, every 30s"
                          hx-swap="innerHTML">
-                        {% include "partials/testing/service_status.html" %}
+                        <!-- Service Status Panel for Test Dashboard -->
+                        <div class="row mb-4">
+                            {% if infrastructure_health %}
+                                {% for service_name, service_data in infrastructure_health.services.items() %}
+                                <div class="col-md-6 col-lg-3 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-body text-center">
+                                            <div class="service-status mb-2">
+                                                <span class="status-indicator 
+                                                    {% if service_data.status == 'healthy' %}status-healthy
+                                                    {% elif service_data.status == 'degraded' %}status-degraded
+                                                    {% elif service_data.status == 'unhealthy' %}status-unhealthy
+                                                    {% else %}status-unknown{% endif %}"></span>
+                                                <span class="fw-bold">{{ service_name.replace('_', ' ').title() }}</span>
+                                            </div>
+                                            <p class="small mb-1 text-muted">
+                                                Status: 
+                                                <span class="
+                                                    {% if service_data.status == 'healthy' %}text-success
+                                                    {% elif service_data.status == 'degraded' %}text-warning
+                                                    {% elif service_data.status == 'unhealthy' %}text-danger
+                                                    {% else %}text-secondary{% endif %}">
+                                                    {{ service_data.status|title }}
+                                                </span>
+                                            </p>
+                                            {% if service_data.get('port') %}
+                                            <p class="small mb-1 text-muted">Port: {{ service_data.port }}</p>
+                                            {% endif %}
+                                            {% if service_data.get('uptime') %}
+                                            <p class="small mb-1 text-muted">Uptime: {{ service_data.uptime }}</p>
+                                            {% endif %}
+                                            {% if service_data.get('cpu_usage') %}
+                                            <p class="small mb-1 text-muted">CPU: {{ service_data.cpu_usage }}%</p>
+                                            {% endif %}
+                                            {% if service_data.get('memory_usage') %}
+                                            <p class="small mb-0 text-muted">Memory: {{ service_data.memory_usage }}MB</p>
+                                            {% endif %}
+                                        </div>
+                                        <div class="card-footer">
+                                            <div class="btn-group w-100" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                        hx-post="/testing/api/service/{{ service_name }}/restart"
+                                                        hx-target="#service-status-{{ service_name }}"
+                                                        title="Restart Service">
+                                                    <i class="fas fa-redo-alt"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-info" 
+                                                        onclick="showServiceLogs('{{ service_name }}')"
+                                                        title="View Logs">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                                        hx-get="/testing/api/service/{{ service_name }}/stats"
+                                                        hx-target="#service-stats-{{ service_name }}"
+                                                        title="View Stats">
+                                                    <i class="fas fa-chart-line"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="col-12">
+                                    <div class="alert alert-warning" role="alert">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        Unable to retrieve infrastructure health status. Services may be unavailable.
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Overall Health Indicator -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h6 class="mb-1">Infrastructure Health</h6>
+                                                <p class="mb-0 text-muted">Overall system status</p>
+                                            </div>
+                                            <div class="text-end">
+                                                {% set health_score = infrastructure_health.overall_health if infrastructure_health else 0 %}
+                                                <div class="d-flex align-items-center">
+                                                    <div class="me-2">
+                                                        <div class="progress" style="width: 100px; height: 8px;">
+                                                            <div class="progress-bar 
+                                                                {% if health_score >= 80 %}bg-success
+                                                                {% elif health_score >= 60 %}bg-warning
+                                                                {% else %}bg-danger{% endif %}" 
+                                                                style="width: {{ health_score }}%"></div>
+                                                        </div>
+                                                    </div>
+                                                    <span class="fw-bold 
+                                                        {% if health_score >= 80 %}text-success
+                                                        {% elif health_score >= 60 %}text-warning
+                                                        {% else %}text-danger{% endif %}">
+                                                        {{ health_score }}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -211,7 +317,76 @@
                          hx-get="/testing/api/active-tests"
                          hx-trigger="load, every 5s"
                          hx-swap="innerHTML">
-                        {% include "partials/testing/active_tests.html" %}
+                        {% if active_tests %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Test ID</th>
+                                        <th>Application</th>
+                                        <th>Type</th>
+                                        <th>Progress</th>
+                                        <th>Duration</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for test in active_tests %}
+                                    <tr>
+                                        <td>
+                                            <code>#{{ test.id }}</code>
+                                        </td>
+                                        <td>
+                                            <div>
+                                                <strong>{{ test.model_slug }}</strong><br>
+                                                <small class="text-muted">App {{ test.app_number }}</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{{ test.type_color }}">
+                                                {{ test.test_type|title }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                     role="progressbar" 
+                                                     style="width: {{ test.progress }}%"
+                                                     aria-valuenow="{{ test.progress }}"
+                                                     aria-valuemin="0" 
+                                                     aria-valuemax="100">
+                                                    {{ test.progress }}%
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <small>{{ test.duration }}</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary"
+                                                        onclick="showTestDetails('{{ test.id }}')"
+                                                        title="View Details">
+                                                    <i class="fas fa-info-circle"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger"
+                                                        onclick="cancelTest('{{ test.id }}')"
+                                                        title="Cancel Test">
+                                                    <i class="fas fa-stop"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-info-circle fs-1 mb-3"></i>
+                            <p>No active tests running</p>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -266,7 +441,134 @@
                          hx-get="/testing/api/test-history"
                          hx-trigger="load"
                          hx-swap="innerHTML">
-                        {% include "partials/testing/test_history.html" %}
+                        {% if tests %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>
+                                            <input type="checkbox" class="form-check-input" onclick="toggleAllTests(this)">
+                                        </th>
+                                        <th>Test ID</th>
+                                        <th>Application</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Started</th>
+                                        <th>Duration</th>
+                                        <th>Results</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for test in tests %}
+                                    <tr>
+                                        <td>
+                                            <input type="checkbox" class="form-check-input" name="selected_tests" value="{{ test.id }}">
+                                        </td>
+                                        <td><code>#{{ test.id }}</code></td>
+                                        <td>
+                                            <div>
+                                                <strong>{{ test.model_slug }}</strong><br>
+                                                <small class="text-muted">App {{ test.app_number }}</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{{ test.type_color }}">
+                                                {{ test.test_type|title }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if test.status == 'completed' %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check-circle me-1"></i>Completed
+                                                </span>
+                                            {% elif test.status == 'failed' %}
+                                                <span class="badge bg-danger">
+                                                    <i class="fas fa-times-circle me-1"></i>Failed
+                                                </span>
+                                            {% elif test.status == 'running' %}
+                                                <span class="badge bg-info">
+                                                    <i class="fas fa-spinner fa-spin me-1"></i>Running
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-clock me-1"></i>{{ test.status|title }}
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small>{{ test.started_at.strftime('%Y-%m-%d %H:%M') if test.started_at else 'N/A' }}</small>
+                                        </td>
+                                        <td>
+                                            <small>{{ test.duration or '-' }}</small>
+                                        </td>
+                                        <td>
+                                            {% if test.status == 'completed' %}
+                                                {% if test.test_type == 'security' %}
+                                                    <span class="text-danger">
+                                                        <i class="fas fa-bug"></i> {{ test.vulnerabilities_count }} issues
+                                                    </span>
+                                                {% elif test.test_type == 'performance' %}
+                                                    <span class="text-info">
+                                                        <i class="fas fa-tachometer-alt"></i> {{ test.avg_response_time }}ms
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('testing.test_results_page', test_id=test.id) }}" 
+                                                   class="btn btn-outline-primary" title="View Report">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </a>
+                                                {% if test.status == 'completed' or test.status == 'failed' %}
+                                                <button class="btn btn-outline-success"
+                                                        onclick="restartTest('{{ test.id }}')"
+                                                        title="Rerun Test">
+                                                    <i class="fas fa-redo"></i>
+                                                </button>
+                                                {% endif %}
+                                                <button class="btn btn-outline-danger"
+                                                        onclick="deleteTest('{{ test.id }}')"
+                                                        title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Batch Actions -->
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="selectAllTests()">Select All</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllTests()">Deselect All</button>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary" onclick="batchExportTests()">
+                                    <i class="fas fa-download me-1"></i>Export Selected
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="batchDeleteTests()">
+                                    <i class="fas fa-trash me-1"></i>Delete Selected
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-history fs-1 mb-3"></i>
+                            <p>No test history available</p>
+                            <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Create Your First Test
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -294,7 +596,56 @@
                 </div>
             </div>
         </div>
+    <!-- Service Logs Modal -->
+    <div class="modal fade" id="serviceLogsModal" tabindex="-1" aria-labelledby="serviceLogsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="serviceLogsModalLabel">Service Logs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="service-logs-content">
+                        <!-- Logs content will be loaded here -->
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="refreshLogs()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <!-- Test Details Modal -->
+    <div class="modal fade" id="testDetailsModal" tabindex="-1" aria-labelledby="testDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="testDetailsModalLabel">Test Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="test-details-content">
+                        <!-- Test details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Container for HTMX -->
+    <div id="modal-container"></div>
 </div>
 {% endblock %}
 
@@ -348,6 +699,24 @@ function deleteTest(testId) {
             swap: 'innerHTML'
         });
     }
+}
+
+function showTestDetails(testId) {
+    htmx.ajax('GET', `/testing/api/job/${testId}/details`, {
+        target: '#modal-container',
+        swap: 'innerHTML'
+    });
+    
+    // Show modal if it exists
+    const modal = document.getElementById('testDetailsModal');
+    if (modal) {
+        new bootstrap.Modal(modal).show();
+    }
+}
+
+function toggleAllTests(checkbox) {
+    const testCheckboxes = document.querySelectorAll('input[name="selected_tests"]');
+    testCheckboxes.forEach(cb => cb.checked = checkbox.checked);
 }
 
 // Auto-refresh functionality

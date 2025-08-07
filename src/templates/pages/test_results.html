@@ -209,7 +209,120 @@
                     <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Test Summary</h5>
                 </div>
                 <div class="card-body">
-                    {% include "partials/testing/results/result_summary.html" %}
+                    <!-- Test Results Summary -->
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <div class="metric-value text-primary">{{ test_data.results.get('total_issues', 0) }}</div>
+                                    <div class="metric-label">Total Issues</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <div class="metric-value text-danger">{{ test_data.results.get('critical_issues', 0) }}</div>
+                                    <div class="metric-label">Critical</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <div class="metric-value text-warning">{{ test_data.results.get('high_issues', 0) }}</div>
+                                    <div class="metric-label">High Priority</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <div class="metric-value text-info">{{ test_data.results.get('medium_issues', 0) }}</div>
+                                    <div class="metric-label">Medium Priority</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Test Execution Details -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Test Information</h6>
+                                </div>
+                                <div class="card-body">
+                                    <dl class="row mb-0">
+                                        <dt class="col-sm-4">Test ID:</dt>
+                                        <dd class="col-sm-8"><code>#{{ test_data.id }}</code></dd>
+                                        
+                                        <dt class="col-sm-4">Model:</dt>
+                                        <dd class="col-sm-8">{{ test_data.model_slug }}</dd>
+                                        
+                                        <dt class="col-sm-4">Application:</dt>
+                                        <dd class="col-sm-8">App {{ test_data.app_number }}</dd>
+                                        
+                                        <dt class="col-sm-4">Tools Used:</dt>
+                                        <dd class="col-sm-8">
+                                            {% for tool in test_data.tools_used %}
+                                                <span class="badge bg-secondary me-1">{{ tool }}</span>
+                                            {% endfor %}
+                                        </dd>
+                                        
+                                        <dt class="col-sm-4">Duration:</dt>
+                                        <dd class="col-sm-8">{{ test_data.duration or 'N/A' }}</dd>
+                                    </dl>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Issue Distribution</h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if test_data.results.get('total_issues', 0) > 0 %}
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="text-danger">Critical</span>
+                                            <span class="text-danger">{{ test_data.results.get('critical_issues', 0) }}</span>
+                                        </div>
+                                        <div class="progress mb-2" style="height: 8px;">
+                                            <div class="progress-bar bg-danger" style="width: {{ (test_data.results.get('critical_issues', 0) / test_data.results.get('total_issues', 1) * 100)|round(1) }}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="text-warning">High</span>
+                                            <span class="text-warning">{{ test_data.results.get('high_issues', 0) }}</span>
+                                        </div>
+                                        <div class="progress mb-2" style="height: 8px;">
+                                            <div class="progress-bar bg-warning" style="width: {{ (test_data.results.get('high_issues', 0) / test_data.results.get('total_issues', 1) * 100)|round(1) }}%"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="text-info">Medium</span>
+                                            <span class="text-info">{{ test_data.results.get('medium_issues', 0) }}</span>
+                                        </div>
+                                        <div class="progress mb-2" style="height: 8px;">
+                                            <div class="progress-bar bg-info" style="width: {{ (test_data.results.get('medium_issues', 0) / test_data.results.get('total_issues', 1) * 100)|round(1) }}%"></div>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <div class="text-center py-3 text-muted">
+                                        <i class="fas fa-check-circle fs-2 text-success"></i>
+                                        <p class="mb-0 mt-2">No issues found!</p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -266,31 +379,274 @@
                     <div class="tab-content" id="resultTabContent">
                         {% if test_data.results.get('bandit_results') %}
                         <div class="tab-pane fade show active" id="bandit-results" role="tabpanel">
-                            {% include "partials/testing/results/bandit_results.html" %}
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <h6><i class="fab fa-python me-2"></i>Bandit Security Analysis</h6>
+                                    <p class="text-muted">Python security linter results</p>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" onclick="filterResults('bandit', 'severity', 'all')">All</button>
+                                        <button class="btn btn-outline-danger" onclick="filterResults('bandit', 'severity', 'high')">High</button>
+                                        <button class="btn btn-outline-warning" onclick="filterResults('bandit', 'severity', 'medium')">Medium</button>
+                                        <button class="btn btn-outline-info" onclick="filterResults('bandit', 'severity', 'low')">Low</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {% if test_data.results.bandit_results.get('issues') %}
+                                {% for issue in test_data.results.bandit_results.issues %}
+                                <div class="vulnerability-card severity-{{ issue.severity|lower }} result-item" data-severity="{{ issue.severity|lower }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-2">
+                                                <span class="badge bg-{{ 'danger' if issue.severity == 'HIGH' else 'warning' if issue.severity == 'MEDIUM' else 'info' }} me-2">
+                                                    {{ issue.severity }}
+                                                </span>
+                                                {{ issue.test_name }}
+                                            </h6>
+                                            <p class="mb-2">{{ issue.issue_text }}</p>
+                                            
+                                            {% if issue.filename %}
+                                            <div class="code-block">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-file-code me-1"></i>
+                                                    {{ issue.filename }}{% if issue.line_number %}:{{ issue.line_number }}{% endif %}
+                                                </small>
+                                                {% if issue.code %}
+                                                <pre class="mt-2 mb-0"><code>{{ issue.code }}</code></pre>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+                                            
+                                            {% if issue.more_info %}
+                                            <div class="mt-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    <a href="{{ issue.more_info }}" target="_blank">More information</a>
+                                                </small>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge bg-secondary">{{ issue.confidence }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                            <div class="text-center py-4 text-muted">
+                                <i class="fas fa-check-circle fs-1 text-success mb-3"></i>
+                                <p>No security issues found by Bandit!</p>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                         
                         {% if test_data.results.get('safety_results') %}
                         <div class="tab-pane fade" id="safety-results" role="tabpanel">
-                            {% include "partials/testing/results/safety_results.html" %}
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-shield-alt me-2"></i>Safety Dependency Analysis</h6>
+                                    <p class="text-muted">Known vulnerability scan results</p>
+                                </div>
+                            </div>
+                            
+                            {% if test_data.results.safety_results.get('vulnerabilities') %}
+                                {% for vuln in test_data.results.safety_results.vulnerabilities %}
+                                <div class="vulnerability-card severity-{{ vuln.severity|default('medium')|lower }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-2">
+                                                <span class="badge bg-danger me-2">CVE</span>
+                                                {{ vuln.package_name }} {{ vuln.vulnerable_spec }}
+                                            </h6>
+                                            <p class="mb-2">{{ vuln.advisory }}</p>
+                                            
+                                            {% if vuln.cve %}
+                                            <div class="mb-2">
+                                                <span class="badge bg-dark me-2">{{ vuln.cve }}</span>
+                                                {% if vuln.id %}
+                                                <span class="badge bg-secondary">{{ vuln.id }}</span>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+                                            
+                                            {% if vuln.more_info_url %}
+                                            <div class="mt-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-external-link-alt me-1"></i>
+                                                    <a href="{{ vuln.more_info_url }}" target="_blank">More information</a>
+                                                </small>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                            <div class="text-center py-4 text-muted">
+                                <i class="fas fa-check-circle fs-1 text-success mb-3"></i>
+                                <p>No known vulnerabilities found in dependencies!</p>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                         
                         {% if test_data.results.get('zap_results') %}
                         <div class="tab-pane fade" id="zap-results" role="tabpanel">
-                            {% include "partials/testing/results/zap_results.html" %}
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-globe me-2"></i>OWASP ZAP Security Scan</h6>
+                                    <p class="text-muted">Web application security scan results</p>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" onclick="filterResults('zap', 'risk', 'all')">All</button>
+                                        <button class="btn btn-outline-danger" onclick="filterResults('zap', 'risk', 'high')">High</button>
+                                        <button class="btn btn-outline-warning" onclick="filterResults('zap', 'risk', 'medium')">Medium</button>
+                                        <button class="btn btn-outline-success" onclick="filterResults('zap', 'risk', 'low')">Low</button>
+                                        <button class="btn btn-outline-info" onclick="filterResults('zap', 'risk', 'info')">Info</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {% if test_data.results.zap_results.get('alerts') %}
+                                {% for alert in test_data.results.zap_results.alerts %}
+                                <div class="vulnerability-card risk-{{ alert.risk|lower }} result-item" data-risk="{{ alert.risk|lower }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-2">
+                                                <span class="badge bg-{{ 'danger' if alert.risk == 'High' else 'warning' if alert.risk == 'Medium' else 'success' if alert.risk == 'Low' else 'info' }} me-2">
+                                                    {{ alert.risk }}
+                                                </span>
+                                                {{ alert.name }}
+                                            </h6>
+                                            <p class="mb-2">{{ alert.description }}</p>
+                                            
+                                            {% if alert.instances %}
+                                            <div class="accordion mb-3">
+                                                <div class="accordion-item">
+                                                    <h2 class="accordion-header">
+                                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#instances-{{ loop.index }}">
+                                                            <i class="fas fa-list me-2"></i>{{ alert.instances|length }} Instance(s)
+                                                        </button>
+                                                    </h2>
+                                                    <div id="instances-{{ loop.index }}" class="accordion-collapse collapse">
+                                                        <div class="accordion-body">
+                                                            {% for instance in alert.instances %}
+                                                            <div class="mb-3 p-3 bg-light rounded">
+                                                                <strong>URL:</strong> <code>{{ instance.uri }}</code><br>
+                                                                {% if instance.method %}
+                                                                <strong>Method:</strong> <span class="badge bg-primary">{{ instance.method }}</span><br>
+                                                                {% endif %}
+                                                                {% if instance.evidence %}
+                                                                <strong>Evidence:</strong>
+                                                                <div class="evidence mt-2">{{ instance.evidence }}</div>
+                                                                {% endif %}
+                                                            </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                            
+                                            {% if alert.solution %}
+                                            <div class="alert alert-light">
+                                                <strong><i class="fas fa-lightbulb me-2"></i>Solution:</strong>
+                                                {{ alert.solution }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge bg-secondary">{{ alert.confidence }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                            <div class="text-center py-4 text-muted">
+                                <i class="fas fa-check-circle fs-1 text-success mb-3"></i>
+                                <p>No security vulnerabilities found by ZAP!</p>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                         
                         {% if test_data.results.get('performance_results') %}
                         <div class="tab-pane fade" id="performance-results" role="tabpanel">
-                            {% include "partials/testing/results/performance_results.html" %}
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-tachometer-alt me-2"></i>Performance Test Results</h6>
+                                    <p class="text-muted">Load testing and performance metrics</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Performance Metrics -->
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="metric-card">
+                                        <div class="metric-value">{{ test_data.results.performance_results.get('avg_response_time', 'N/A') }}</div>
+                                        <div class="metric-label">Avg Response Time (ms)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card">
+                                        <div class="metric-value">{{ test_data.results.performance_results.get('requests_per_second', 'N/A') }}</div>
+                                        <div class="metric-label">Requests/sec</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card">
+                                        <div class="metric-value">{{ test_data.results.performance_results.get('total_requests', 'N/A') }}</div>
+                                        <div class="metric-label">Total Requests</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card">
+                                        <div class="metric-value">{{ test_data.results.performance_results.get('error_rate', 'N/A') }}%</div>
+                                        <div class="metric-label">Error Rate</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Performance Charts -->
+                            {% if test_data.results.performance_results.get('response_times') %}
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Response Time Over Time</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="responseTimeChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if test_data.results.performance_results.get('endpoints') %}
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Endpoint Performance</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="endpointChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                         
                         {% if test_data.results.get('ai_results') %}
                         <div class="tab-pane fade" id="ai-results" role="tabpanel">
-                            {% include "partials/testing/results/ai_results.html" %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                AI analysis results would be displayed here.
+                                <pre>{{ test_data.results.ai_results | tojson(indent=2) }}</pre>
+                            </div>
                         </div>
                         {% endif %}
                     </div>
@@ -307,7 +663,45 @@
                     <h5 class="mb-0"><i class="fas fa-balance-scale me-2"></i>Compare Results</h5>
                 </div>
                 <div class="card-body">
-                    {% include "partials/testing/results/comparison_view.html" %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-balance-scale me-2"></i>Compare with Previous Tests</h6>
+                            <p class="text-muted">Select a previous test to compare results and see improvements or regressions.</p>
+                            
+                            <div class="mb-3">
+                                <label for="comparison-test" class="form-label">Select Test to Compare</label>
+                                <select class="form-select" id="comparison-test">
+                                    <option value="">Choose a test...</option>
+                                    <!-- This would be populated with previous tests -->
+                                    <option value="test-123">Test #123 - GPT-4 - 2024-08-01</option>
+                                    <option value="test-122">Test #122 - Claude-3 - 2024-07-30</option>
+                                    <option value="test-121">Test #121 - GPT-4 - 2024-07-28</option>
+                                </select>
+                            </div>
+                            
+                            <button class="btn btn-primary" onclick="performComparison()">
+                                <i class="fas fa-chart-line me-2"></i>Generate Comparison
+                            </button>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-chart-bar me-2"></i>Trend Analysis</h6>
+                            <p class="text-muted">View performance and security trends over time for this model.</p>
+                            
+                            <div class="mb-3">
+                                <label for="trend-period" class="form-label">Time Period</label>
+                                <select class="form-select" id="trend-period">
+                                    <option value="7d">Last 7 days</option>
+                                    <option value="30d" selected>Last 30 days</option>
+                                    <option value="90d">Last 90 days</option>
+                                </select>
+                            </div>
+                            
+                            <button class="btn btn-info" onclick="showTrendAnalysis('all')">
+                                <i class="fas fa-analytics me-2"></i>View Trends
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -483,9 +877,21 @@ function compareWithTest(testId) {
     window.open(`/testing/api/results/compare?test1={{ test_data.id }}&test2=${testId}`, '_blank');
 }
 
+function performComparison() {
+    const selectedTest = document.getElementById('comparison-test').value;
+    if (!selectedTest) {
+        alert('Please select a test to compare with.');
+        return;
+    }
+    
+    compareWithTest(selectedTest);
+}
+
 // Historical trend analysis
 function showTrendAnalysis(tool) {
-    htmx.ajax('GET', `/testing/api/results/{{ test_data.id }}/trends?tool=${tool}`, {
+    const period = document.getElementById('trend-period').value;
+    
+    htmx.ajax('GET', `/testing/api/results/{{ test_data.id }}/trends?tool=${tool}&period=${period}`, {
         target: '#trend-analysis-content',
         swap: 'innerHTML'
     });

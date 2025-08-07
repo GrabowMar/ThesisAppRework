@@ -2,8 +2,16 @@
 Flask Application Factory
 ========================
 
-Main application entry point that uses the new HTMX-based routes.
-Integrates with database models and configuration from JSON files.
+Main application entry point with consolidated HTMX-based template system.
+Integrates with database models and provides unified testing interface.
+
+Version 3.0.0 - Consolidated Templates:
+- Removed partial template system for better maintainability
+- All template functionality consolidated into three main files:
+  * test_creation.html - Complete test creation workflow
+  * test_dashboard.html - Full dashboard with service status and history  
+  * test_results.html - Comprehensive results display
+- Enhanced error handling with inline HTMX responses
 """
 
 import os
@@ -31,14 +39,12 @@ try:
     from .models import ModelCapability, PortConfiguration, GeneratedApplication
     from .core_services import AppConfig
     from .service_manager import ServiceManager
-    from .constants import AppDefaults, Paths
 except ImportError:
     # Fall back to absolute imports (when run as script)
     from extensions import init_extensions, db
     from models import ModelCapability, PortConfiguration, GeneratedApplication
     from core_services import AppConfig
     from service_manager import ServiceManager
-    from constants import AppDefaults, Paths
 
 class Config:
     """Application configuration."""
@@ -542,7 +548,10 @@ def ensure_database_populated(app: Flask) -> None:
 
 
 def create_minimal_routes(app: Flask) -> None:
-    """Create minimal fallback routes when blueprints fail to load."""
+    """
+    Create minimal fallback routes when blueprints fail to load.
+    Uses consolidated template system (no partials).
+    """
     @app.route('/')
     def index():
         return render_template('pages/error.html',
@@ -601,6 +610,30 @@ def register_template_globals(app: Flask) -> None:
     def utcnow() -> datetime:
         """Get current UTC datetime for templates."""
         return datetime.now(timezone.utc)
+    
+    @app.template_global()
+    def get_service_status(service_name: str = None) -> Dict[str, Any]:
+        """Get service status for templates."""
+        try:
+            service_manager = app.config.get('service_manager')
+            if service_manager:
+                if service_name:
+                    return service_manager.get_service_status(service_name)
+                else:
+                    return service_manager.get_all_service_status()
+            return {'status': 'unknown', 'message': 'Service manager not available'}
+        except Exception:
+            return {'status': 'error', 'message': 'Unable to get service status'}
+    
+    @app.template_global()
+    def format_duration(seconds: float) -> str:
+        """Format duration in seconds to human readable format."""
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        elif seconds < 3600:
+            return f"{seconds/60:.1f}m"
+        else:
+            return f"{seconds/3600:.1f}h"
 
 
 def register_error_handlers(app: Flask) -> None:
@@ -610,11 +643,14 @@ def register_error_handlers(app: Flask) -> None:
     def not_found(error: Any) -> Tuple[str, int]:
         from flask import request
         if request.headers.get('HX-Request'):
-            try:
-                return render_template('partials/error_message.html', 
-                                     error="Page not found"), 404
-            except Exception:
-                return '<div class="alert error">Page not found</div>', 404
+            # Return inline HTMX-compatible error HTML
+            return '''
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Page not found</strong><br>
+                    The requested resource could not be found.
+                </div>
+            ''', 404
         try:
             return render_template('pages/error.html', 
                                  error="The requested page could not be found.",
@@ -627,11 +663,14 @@ def register_error_handlers(app: Flask) -> None:
         from flask import request
         app.logger.error(f"Internal server error: {error}")
         if request.headers.get('HX-Request'):
-            try:
-                return render_template('partials/error_message.html', 
-                                     error="Internal server error"), 500
-            except Exception:
-                return '<div class="alert error">Internal server error</div>', 500
+            # Return inline HTMX-compatible error HTML
+            return '''
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Internal server error</strong><br>
+                    An unexpected error occurred. Please try again later.
+                </div>
+            ''', 500
         try:
             return render_template('pages/error.html', 
                                  error="An internal server error occurred.",
@@ -696,8 +735,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
                 app.logger.info("Services already initialized, skipping...")
                 return app
             
-            # Create service manager  
-            service_manager = ServiceManager(app)
+            # Create service manager and store in app config  
+            app.config['service_manager'] = ServiceManager(app)
             
             # Unified CLI analyzer provides batch operations and testing infrastructure
             app.logger.info("Unified CLI analyzer services available")
@@ -738,8 +777,9 @@ def create_app(config_name: Optional[str] = None) -> Flask:
         """Inject common variables into all templates."""
         return {
             'app_name': 'Thesis Research App',
-            'app_version': '2.0.0-htmx',
-            'htmx_enabled': True
+            'app_version': '3.0.0-consolidated',  # Updated version to reflect consolidated templates
+            'htmx_enabled': True,
+            'templates_consolidated': True  # Flag indicating partials have been consolidated
         }
     
     # Register error handlers
@@ -752,8 +792,9 @@ def create_app(config_name: Optional[str] = None) -> Flask:
         return jsonify({
             'status': 'healthy',
             'service': 'thesis-research-app',
-            'version': '2.0.0-htmx',
+            'version': '3.0.0-consolidated',  # Updated to match consolidated version
             'database': 'connected' if db else 'disconnected',
+            'template_system': 'consolidated',  # Indicate consolidated template system
             'services': {
                 'unified_cli_analyzer': True,  # Always available via unified CLI analyzer
                 'docker_manager': app.config.get('docker_manager') is not None,
@@ -761,7 +802,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             }
         })
     
-    app.logger.info("Flask application created successfully with HTMX routes")
+    app.logger.info("Flask application created successfully with consolidated HTMX template system")
     return app
 
 

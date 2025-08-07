@@ -987,27 +987,7 @@ def test_results(test_id):
         logger.error(f"Error loading test results for {test_id}: {e}")
         return ResponseHandler.error_response("Error loading test results", 500)
 
-@testing_bp.route("/api/tool-config/<tool_name>")
-def get_tool_configuration(tool_name):
-    """Get tool-specific configuration panel via HTMX."""
-    try:
-        tool_configs = {
-            'bandit': 'partials/testing/tool_config_bandit.html',
-            'safety': 'partials/testing/tool_config_safety.html',
-            'zap': 'partials/testing/tool_config_zap.html',
-            'performance': 'partials/testing/tool_config_performance.html',
-            'ai': 'partials/testing/tool_config_ai.html'
-        }
-        
-        template = tool_configs.get(tool_name)
-        if not template:
-            return ResponseHandler.error_response("Tool configuration not found", 404)
-        
-        return ResponseHandler.render_response(template)
-        
-    except Exception as e:
-        logger.error(f"Error loading tool configuration for {tool_name}: {e}")
-        return ResponseHandler.error_response("Error loading tool configuration", 500)
+# Tool configuration endpoint removed - unused template files were deleted
 
 @testing_bp.route("/api/validate-config", methods=["POST"])
 def validate_configuration():
@@ -6456,11 +6436,62 @@ def api_active_tests():
                 'created_at': test.created_at
             })
         
-        return render_template('partials/testing/active_tests.html', active_tests=tests_data)
+        # Return HTML structure that matches the active tests section in test_dashboard.html
+        if not tests_data:
+            return '''
+            <div class="text-center py-4">
+                <p class="text-muted mb-0">No active tests</p>
+                <small class="text-muted">Create a new test to get started</small>
+            </div>
+            '''
+        
+        html_rows = []
+        for test in tests_data:
+            html_rows.append(f'''
+            <tr>
+                <td>
+                    <span class="badge bg-{test['type_color']}">{test['test_type']}</span>
+                </td>
+                <td>
+                    <strong>{test['model_slug']}</strong>
+                    <br>
+                    <small class="text-muted">App {test['app_number']}</small>
+                </td>
+                <td>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {test['progress']}%" 
+                             aria-valuenow="{test['progress']}" 
+                             aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <small class="text-muted">{test['progress']}%</small>
+                </td>
+                <td>
+                    <span class="badge bg-{'success' if test['status'] == 'completed' else 'warning' if test['status'] == 'running' else 'secondary'}">{test['status']}</span>
+                </td>
+                <td>
+                    <small class="text-muted">{test['created_at'].strftime('%H:%M:%S') if hasattr(test['created_at'], 'strftime') else str(test['created_at'])}</small>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewTest('{test['id']}')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            </tr>
+            ''')
+        
+        return ''.join(html_rows)
         
     except Exception as e:
         logger.error(f"Error getting active tests: {e}")
-        return render_template('partials/error_message.html', error=f"Failed to load active tests: {str(e)}")
+        return f'''
+        <tr>
+            <td colspan="6" class="text-center text-danger py-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Failed to load active tests: {str(e)}
+            </td>
+        </tr>
+        '''
 
 
 @testing_bp.route("/api/test-history")
@@ -6493,11 +6524,56 @@ def api_test_history():
                 'type_color': 'primary' if test.get_primary_job_type() == 'security' else 'info'
             })
         
-        return render_template('partials/testing/test_history.html', tests=tests_data)
+        # Return HTML structure that matches the test history section in test_dashboard.html
+        if not tests_data:
+            return '''
+            <div class="text-center py-4">
+                <p class="text-muted mb-0">No test history</p>
+                <small class="text-muted">Run tests to see history here</small>
+            </div>
+            '''
+        
+        html_rows = []
+        for test in tests_data:
+            html_rows.append(f'''
+            <tr>
+                <td>
+                    <span class="badge bg-{test['type_color']}">{test['test_type']}</span>
+                </td>
+                <td>
+                    <strong>{test['model_slug']}</strong>
+                    <br>
+                    <small class="text-muted">App {test['app_number']}</small>
+                </td>
+                <td>
+                    <span class="badge bg-{'success' if test['status'] == 'completed' else 'danger' if test['status'] == 'failed' else 'secondary'}">{test['status']}</span>
+                </td>
+                <td>
+                    <small class="text-muted">{test['started_at'].strftime('%H:%M:%S') if hasattr(test['started_at'], 'strftime') else str(test['started_at'])}</small>
+                </td>
+                <td>
+                    <small class="text-muted">{test['duration'] if test['duration'] else 'N/A'}</small>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewTest('{test['id']}')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            </tr>
+            ''')
+        
+        return ''.join(html_rows)
         
     except Exception as e:
         logger.error(f"Error getting test history: {e}")
-        return render_template('partials/error_message.html', error=f"Failed to load test history: {str(e)}")
+        return f'''
+        <tr>
+            <td colspan="6" class="text-center text-danger py-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Failed to load test history: {str(e)}
+            </td>
+        </tr>
+        '''
 
 
 @testing_bp.route("/api/service-status")
@@ -6506,7 +6582,12 @@ def api_service_status():
     try:
         docker_manager = ServiceLocator.get_docker_manager()
         if not docker_manager:
-            return render_template('partials/error_message.html', error="Docker manager not available")
+            return '''
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Docker manager not available
+            </div>
+            '''
         
         # Check containerized services
         services = []
@@ -6555,11 +6636,40 @@ def api_service_status():
                     'port': None
                 })
         
-        return render_template('partials/testing/infrastructure_status.html', services=services)
+        # Return HTML structure that matches the service status section in test_dashboard.html
+        if not services:
+            return '''
+            <div class="text-center py-4">
+                <p class="text-muted mb-0">No services found</p>
+                <small class="text-muted">Services will appear here when running</small>
+            </div>
+            '''
+        
+        html_cards = []
+        for service in services:
+            status_color = 'success' if service['status'] == 'running' else 'danger' if service['status'] == 'error' else 'warning'
+            html_cards.append(f'''
+            <div class="col-md-4 mb-3">
+                <div class="card border-{status_color}">
+                    <div class="card-body">
+                        <h6 class="card-title">{service['name']}</h6>
+                        <span class="badge bg-{status_color}">{service['status']}</span>
+                        {f'<small class="text-muted d-block mt-1">Port: {service["port"]}</small>' if service['port'] else ''}
+                    </div>
+                </div>
+            </div>
+            ''')
+        
+        return ''.join(html_cards)
         
     except Exception as e:
         logger.error(f"Error getting service status: {e}")
-        return render_template('partials/error_message.html', error=f"Failed to load service status: {str(e)}")
+        return f'''
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Failed to load service status: {str(e)}
+        </div>
+        '''
 
 
 @testing_bp.route("/api/export-results")
