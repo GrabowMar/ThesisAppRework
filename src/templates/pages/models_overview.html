@@ -1,186 +1,186 @@
 {% extends "base.html" %}
 
-{% block title %}AI Models Overview - Research Platform{% endblock %}
+{% block title %}Models Overview - Research Platform{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Page Header -->
     <div class="page-header">
         <div>
-            <h1 class="page-title">
-                <i class="fas fa-robot text-primary mr-2"></i>
-                AI Models Overview
-            </h1>
-            <p class="page-subtitle">
-                Comprehensive analysis of {{ summary_stats.total_models or 0 }} AI models across {{ summary_stats.total_providers or 0 }} providers
-            </p>
-        </div>
-        
-        <div class="d-flex gap-2">
-            <div class="text-muted small">
-                <i class="fas fa-info-circle mr-1"></i>
-                Research Platform - View comprehensive model analysis data
-            </div>
+            <h1 class="page-title">AI Models Overview</h1>
+            <p class="page-subtitle">Manage and analyze AI model applications</p>
         </div>
     </div>
 
-    <!-- Research Overview Card -->
+    <!-- Filters -->
     <div class="card mb-4">
-        <div class="card-header">
-            <h6 class="card-title">
-                <i class="fas fa-info-circle mr-2"></i>
-                Research Project Overview
-            </h6>
-        </div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-6">
-                    <div class="info-item">
-                        <strong>Project Scope:</strong> 
-                        Large-scale AI model analysis comparing code generation capabilities
-                    </div>
-                    <div class="info-item">
-                        <strong>Total Applications:</strong> 
-                        {{ summary_stats.total_apps or 0 }} generated applications
-                    </div>
-                    <div class="info-item">
-                        <strong>Analysis Types:</strong> 
-                        Security, Performance, and Code Quality assessments
-                    </div>
-                    <div class="info-item">
-                        <strong>Methodology:</strong> 
-                        Each model generates 30 different application types for comparative analysis
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="info-item">
-                        <strong>Data Collection:</strong> 
-                        Automated security scanning and performance profiling
-                    </div>
-                    <div class="info-item">
-                        <strong>Technologies:</strong> 
-                        Docker containerization, HTMX interfaces, Flask backend
-                    </div>
-                    <div class="info-item">
-                        <strong>Research Goal:</strong> 
-                        Understand AI model strengths and weaknesses in code generation
-                    </div>
-                    <div class="info-item">
-                        <strong>Current Status:</strong> 
-                        <span class="badge badge-success">Data Collection Phase</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Statistics Grid -->
-    <div class="stats-grid">
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-robot"></i>
-            </div>
-            <div class="stats-card-value">{{ summary_stats.total_models or 0 }}</div>
-            <div class="stats-card-label">AI Models</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-building"></i>
-            </div>
-            <div class="stats-card-value">{{ summary_stats.total_providers or 0 }}</div>
-            <div class="stats-card-label">Providers</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-mobile-alt"></i>
-            </div>
-            <div class="stats-card-value">{{ summary_stats.total_apps or 0 }}</div>
-            <div class="stats-card-label">Applications</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-rocket"></i>
-            </div>
-            <div class="stats-card-value">{{ summary_stats.total_running or 0 }}</div>
-            <div class="stats-card-label">Running</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-eye"></i>
-            </div>
-            <div class="stats-card-value">{{ summary_stats.vision_models or 0 }}</div>
-            <div class="stats-card-label">Vision Capable</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-bolt"></i>
-            </div>
-            <div class="stats-card-value">{{ summary_stats.fast_models or 0 }}</div>
-            <div class="stats-card-label">High Speed</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-brain"></i>
-            </div>
-            <div class="stats-card-value">{{ summary_stats.large_context or 0 }}</div>
-            <div class="stats-card-label">Large Context</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-shield-alt"></i>
-            </div>
-            <div class="stats-card-value">{{ summary_stats.analyses_completed or 0 }}</div>
-            <div class="stats-card-label">Analyses Done</div>
-        </div>
-    </div>
-
-    <!-- Search and Filter -->
-    <div class="card mb-4">
-        <div class="card-body p-3">
-            <div class="row align-items-center">
                 <div class="col-md-4">
-                    <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" class="form-control form-control-sm" 
-                               id="models-search" placeholder="Search models...">
-                    </div>
+                    <input type="text" id="models-search" class="form-control" placeholder="Search models...">
                 </div>
-                <div class="col-md-2">
-                    <select class="form-control form-control-sm" id="provider-filter">
+                <div class="col-md-3">
+                    <select id="provider-filter" class="form-select">
                         <option value="">All Providers</option>
                         <option value="openai">OpenAI</option>
                         <option value="anthropic">Anthropic</option>
                         <option value="google">Google</option>
-                        <option value="meta">Meta</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <select class="form-control form-control-sm" id="capability-filter">
+                <div class="col-md-3">
+                    <select id="capability-filter" class="form-select">
                         <option value="">All Capabilities</option>
-                        <option value="vision">Vision</option>
-                        <option value="function_calling">Function Calling</option>
-                        <option value="json_mode">JSON Mode</option>
+                        <option value="text">Text</option>
+                        <option value="code">Code</option>
+                        <option value="multimodal">Multimodal</option>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <select class="form-control form-control-sm" id="sort-by">
-                        <option value="name">Sort by Name</option>
-                        <option value="provider">Sort by Provider</option>
-                        <option value="context_length">Sort by Context</option>
-                        <option value="max_output">Sort by Output</option>
+                    <select id="sort-by" class="form-select">
+                        <option value="name">Name</option>
+                        <option value="provider">Provider</option>
+                        <option value="apps">Apps Count</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm btn-block"
-                            onclick="clearModelFilters()">
-                        Clear Filters
+            </div>
+        </div>
+    </div>
+
+    <!-- Models Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>Provider</th>
+                            <th>Apps</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="models-table-body">
+                        <!-- Models loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class ModelsOverview {
+    constructor() {
+        this.filters = {
+            search: '',
+            provider: '',
+            capability: '',
+            sortBy: 'name'
+        };
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupKeyboardShortcuts();
+        this.loadSavedFilters();
+    }
+
+    setupEventListeners() {
+        document.getElementById('models-search')?.addEventListener('input', () => this.applyFilters());
+        document.getElementById('provider-filter')?.addEventListener('change', () => this.applyFilters());
+        document.getElementById('capability-filter')?.addEventListener('change', () => this.applyFilters());
+        document.getElementById('sort-by')?.addEventListener('change', () => this.applyFilters());
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('models-search')?.focus();
+            }
+        });
+    }
+
+    loadSavedFilters() {
+        const saved = localStorage.getItem('modelsOverviewFilters');
+        if (saved) {
+            this.filters = { ...this.filters, ...JSON.parse(saved) };
+            this.restoreFilters();
+            this.applyFilters();
+        }
+    }
+
+    restoreFilters() {
+        if (this.filters.search) document.getElementById('models-search').value = this.filters.search;
+        if (this.filters.provider) document.getElementById('provider-filter').value = this.filters.provider;
+        if (this.filters.capability) document.getElementById('capability-filter').value = this.filters.capability;
+        if (this.filters.sortBy) document.getElementById('sort-by').value = this.filters.sortBy;
+    }
+
+    applyFilters() {
+        this.filters = {
+            search: document.getElementById('models-search')?.value || '',
+            provider: document.getElementById('provider-filter')?.value || '',
+            capability: document.getElementById('capability-filter')?.value || '',
+            sortBy: document.getElementById('sort-by')?.value || 'name'
+        };
+
+        // Save filters
+        localStorage.setItem('modelsOverviewFilters', JSON.stringify(this.filters));
+
+        // Apply filters to table
+        this.filterTable();
+    }
+
+    filterTable() {
+        const rows = document.querySelectorAll('.model-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const modelName = row.querySelector('td:first-child')?.textContent.toLowerCase() || '';
+            const provider = row.dataset.provider || '';
+            const capability = row.dataset.capability || '';
+            
+            let visible = true;
+            
+            if (this.filters.search && !modelName.includes(this.filters.search.toLowerCase())) {
+                visible = false;
+            }
+            
+            if (this.filters.provider && provider !== this.filters.provider) {
+                visible = false;
+            }
+            
+            if (this.filters.capability && capability !== this.filters.capability) {
+                visible = false;
+            }
+            
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+        
+        // Update count display
+        this.updateCount(visibleCount);
+    }
+    
+    updateCount(count) {
+        const countElement = document.getElementById('models-count');
+        if (countElement) {
+            countElement.textContent = `${count} model(s) found`;
+        }
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    new ModelsOverview();
+});
+</script>
+{% endblock %}
                     </button>
                 </div>
             </div>
@@ -379,7 +379,7 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
 // Models Overview JavaScript
 class ModelsOverview {

@@ -1,182 +1,182 @@
 {% extends "base.html" %}
 
-{% block title %}Test Results: {{ test_data.name }} - Testing Platform{% endblock %}
-
-{% block extra_css %}
-<style>
-/* Tool-specific result styling */
-.severity-critical { 
-    border-left: 4px solid #dc3545; 
-    background-color: #f8d7da; 
-    margin-bottom: 10px;
-    padding: 10px;
-    border-radius: 0 5px 5px 0;
-}
-
-.severity-high { 
-    border-left: 4px solid #fd7e14; 
-    background-color: #ffeaa7; 
-    margin-bottom: 10px;
-    padding: 10px;
-    border-radius: 0 5px 5px 0;
-}
-
-.severity-medium { 
-    border-left: 4px solid #ffc107; 
-    background-color: #fff3cd; 
-    margin-bottom: 10px;
-    padding: 10px;
-    border-radius: 0 5px 5px 0;
-}
-
-.severity-low { 
-    border-left: 4px solid #28a745; 
-    background-color: #d4edda; 
-    margin-bottom: 10px;
-    padding: 10px;
-    border-radius: 0 5px 5px 0;
-}
-
-/* ZAP risk styling */
-.risk-high { border: 2px solid #dc3545; background-color: #f8d7da; }
-.risk-medium { border: 2px solid #ffc107; background-color: #fff3cd; }
-.risk-low { border: 2px solid #28a745; background-color: #d4edda; }
-.risk-info { border: 2px solid #17a2b8; background-color: #d1ecf1; }
-
-/* Performance metrics */
-.metric-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 10px;
-    padding: 20px;
-    color: white;
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-.metric-value {
-    font-size: 2rem;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.metric-label {
-    font-size: 0.9rem;
-    opacity: 0.9;
-}
-
-/* Code highlighting */
-.code-block {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 15px;
-    margin: 10px 0;
-    font-family: 'Courier New', monospace;
-}
-
-.code-block pre {
-    margin: 0;
-    background: transparent;
-    border: none;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-.code-line-number {
-    color: #6c757d;
-    margin-right: 10px;
-    user-select: none;
-}
-
-/* Vulnerability cards */
-.vulnerability-card {
-    border-radius: 8px;
-    margin-bottom: 20px;
-    padding: 15px;
-}
-
-.vulnerability-card .card-header {
-    border-radius: 8px 8px 0 0;
-    padding: 15px;
-}
-
-/* Evidence highlighting */
-.evidence {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
-    padding: 10px;
-    margin-top: 10px;
-    font-family: monospace;
-    font-size: 0.9rem;
-}
-
-/* Performance charts */
-.chart-container {
-    position: relative;
-    height: 400px;
-    margin: 20px 0;
-}
-
-/* Result tabs */
-.nav-tabs .nav-link {
-    border-radius: 10px 10px 0 0;
-    border: none;
-    background: #f8f9fa;
-    color: #6c757d;
-    margin-right: 5px;
-}
-
-.nav-tabs .nav-link.active {
-    background: #0d6efd;
-    color: white;
-}
-
-/* Export buttons */
-.export-options {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-/* Filter controls */
-.filter-controls {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-}
-
-/* Status indicators */
-.status-success { color: #28a745; }
-.status-failed { color: #dc3545; }
-.status-running { color: #17a2b8; }
-.status-pending { color: #6c757d; }
-</style>
-{% endblock %}
+{% block title %}Test Results #{{ test_data.id }} - Research Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h2 mb-1">
-                        <i class="fas fa-chart-line text-primary me-2"></i>
-                        Test Results: {{ test_data.name }}
-                    </h1>
-                    <p class="text-muted mb-0">
-                        <span class="badge bg-{{ 'success' if test_data.status == 'completed' else 'primary' if test_data.status == 'running' else 'danger' if test_data.status == 'failed' else 'secondary' }}">
-                            {{ test_data.status|title }}
-                        </span>
-                        • Started: {{ test_data.created_at.strftime('%Y-%m-%d %H:%M') if test_data.created_at else 'Unknown' }}
-                        {% if test_data.completed_at %}
-                        • Completed: {{ test_data.completed_at.strftime('%Y-%m-%d %H:%M') }}
-                        {% endif %}
-                    </p>
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Test Results #{{ test_data.id }}</h1>
+            <p class="page-subtitle">
+                {{ test_data.model_slug }} • App {{ test_data.app_number }}
+                <span class="badge badge-{{ 'success' if test_data.status == 'completed' else 'danger' if test_data.status == 'failed' else 'warning' }}">
+                    {{ test_data.status|title }}
+                </span>
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+            <a href="/testing/api/results/{{ test_data.id }}/export?format=json" class="btn btn-primary">
+                <i class="fas fa-download"></i> Export
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-grid">
+        <div class="stats-card">
+            <div class="stats-card-value">{{ test_data.results.get('total_issues', 0) }}</div>
+            <div class="stats-card-label">Total Issues</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-value text-danger">{{ test_data.results.get('critical_issues', 0) }}</div>
+            <div class="stats-card-label">Critical</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-value text-warning">{{ test_data.results.get('high_issues', 0) }}</div>
+            <div class="stats-card-label">High</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-value text-info">{{ test_data.results.get('medium_issues', 0) }}</div>
+            <div class="stats-card-label">Medium</div>
+        </div>
+    </div>
+
+    <!-- Results Content -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title">Detailed Results</h5>
+        </div>
+        <div class="card-body">
+            <!-- Tool Results -->
+            {% if test_data.results.get('bandit_results') %}
+            <div class="mb-4">
+                <h6 class="text-uppercase text-muted mb-3">Bandit Security Analysis</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Severity</th>
+                                <th>Issue</th>
+                                <th>File</th>
+                                <th>Line</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for issue in test_data.results.bandit_results.get('issues', []) %}
+                            <tr>
+                                <td>
+                                    <span class="badge badge-{{ 'danger' if issue.severity == 'HIGH' else 'warning' if issue.severity == 'MEDIUM' else 'info' }}">
+                                        {{ issue.severity }}
+                                    </span>
+                                </td>
+                                <td>{{ issue.test_name }}</td>
+                                <td><code>{{ issue.filename|default('-') }}</code></td>
+                                <td>{{ issue.line_number|default('-') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-                <div class="d-flex gap-2">
+            </div>
+            {% endif %}
+
+            {% if test_data.results.get('safety_results') %}
+            <div class="mb-4">
+                <h6 class="text-uppercase text-muted mb-3">Safety Dependency Scan</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Package</th>
+                                <th>Vulnerability</th>
+                                <th>CVE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for vuln in test_data.results.safety_results.get('vulnerabilities', []) %}
+                            <tr>
+                                <td><code>{{ vuln.package_name }}</code></td>
+                                <td>{{ vuln.advisory }}</td>
+                                <td>
+                                    {% if vuln.cve %}
+                                    <span class="badge badge-danger">{{ vuln.cve }}</span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if test_data.results.get('performance_results') %}
+            <div class="mb-4">
+                <h6 class="text-uppercase text-muted mb-3">Performance Metrics</h6>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <div class="text-2xl font-bold">{{ test_data.results.performance_results.get('avg_response_time', 'N/A') }}ms</div>
+                                <div class="text-sm text-muted">Avg Response</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <div class="text-2xl font-bold">{{ test_data.results.performance_results.get('requests_per_second', 'N/A') }}</div>
+                                <div class="text-sm text-muted">Req/sec</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <div class="text-2xl font-bold">{{ test_data.results.performance_results.get('error_rate', 'N/A') }}%</div>
+                                <div class="text-sm text-muted">Error Rate</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <div class="text-2xl font-bold">{{ test_data.results.performance_results.get('total_requests', 'N/A') }}</div>
+                                <div class="text-sm text-muted">Total Requests</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Raw Results (Debug) -->
+            {% if not test_data.results %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No results available yet.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh if test is still running
+{% if test_data.status == 'running' %}
+setTimeout(function() {
+    window.location.reload();
+}, 5000);
+{% endif %}
+</script>
+{% endblock %}
                     <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
                     </a>

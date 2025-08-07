@@ -56,41 +56,31 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Enhanced error handling
     document.body.addEventListener('htmx:responseError', function(evt) {
+        console.error('HTMX request failed:', evt.detail);
+        
         const target = evt.detail.target;
-        const xhr = evt.detail.xhr;
-        const status = xhr ? xhr.status : 0;
-        const response = xhr ? xhr.responseText : '';
-        
-        let errorMessage = getErrorMessage(status);
-        let errorHtml = createErrorHtml(errorMessage, status, target);
-        
-        // Try to parse error response
-        try {
-            if (response) {
-                const errorData = JSON.parse(response);
-                if (errorData.error) {
-                    errorMessage = errorData.error;
-                }
-                if (errorData.retry_after) {
-                    errorHtml = createRetryableErrorHtml(errorMessage, errorData.retry_after, target);
-                }
-            }
-        } catch (e) {
-            // Use default error message if JSON parsing fails
-        }
-        
         if (target) {
-            target.innerHTML = errorHtml;
+            target.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    Request failed. Please try again.
+                </div>
+            `;
         }
-        hideLoading(evt.detail.elt);
+    });
+    
+    document.body.addEventListener('htmx:sendError', function(evt) {
+        console.error('HTMX send error:', evt.detail);
         
-        // Log error details safely
-        console.error('HTMX request failed:', {
-            status: status,
-            error: errorMessage,
-            target: target ? target.id || target.tagName : 'unknown',
-            url: evt.detail.requestConfig ? evt.detail.requestConfig.url : 'unknown'
-        });
+        const target = evt.detail.target;
+        if (target) {
+            target.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-wifi"></i> 
+                    Connection error. Please check your network.
+                </div>
+            `;
+        }
     });
     
     // Timeout handling
@@ -255,3 +245,28 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('HTMX error handling initialized');
 });
+
+// Global error handler
+window.addEventListener('error', function(e) {
+    console.error('Global error:', e.error);
+});
+
+// Form validation helper
+function validateForm(formId) {
+    const form = document.getElementById(formId);
+    if (!form) return true;
+    
+    const inputs = form.querySelectorAll('[required]');
+    let valid = true;
+    
+    inputs.forEach(input => {
+        if (!input.value.trim()) {
+            input.classList.add('is-invalid');
+            valid = false;
+        } else {
+            input.classList.remove('is-invalid');
+        }
+    });
+    
+    return valid;
+}

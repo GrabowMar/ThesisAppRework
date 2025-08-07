@@ -1,234 +1,61 @@
 {% extends "base.html" %}
 
-{% block title %}{{ app_info.app_type|title }} App - {{ model|replace('_', ' ')|title }}{% endblock %}
+{% block title %}App {{ app_num }} - {{ model }} - Research Platform{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Page Header -->
     <div class="page-header">
         <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb bg-transparent p-0 mb-2">
-                    <li class="breadcrumb-item">
-                        <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
-                    </li>
-                    <li class="breadcrumb-item">
-                        <a href="{{ url_for('main.models_overview') }}">Models</a>
-                    </li>
-                    <li class="breadcrumb-item active">
-                        {{ model|replace('_', ' ')|title }}
-                    </li>
-                </ol>
-            </nav>
-            <h1 class="page-title">
-                <i class="fas fa-mobile-alt text-primary mr-2"></i>
-                {{ app_info.app_type|title }} Application
-            </h1>
-            <p class="page-subtitle">
-                {{ model|replace('_', ' ')|title }} • Application {{ app_num }}
-            </p>
+            <h1 class="page-title">Application {{ app_num }}</h1>
+            <p class="page-subtitle">{{ model }} • {{ provider|title }}</p>
         </div>
-        
-        <div class="d-flex gap-2 align-items-center">
-            <div class="status-indicator status-{{ container_status or 'unknown' }}">
-                <span class="status-dot"></span>
-                {{ container_status|title if container_status else 'Unknown' }}
-            </div>
-            <button type="button" class="btn btn-primary btn-sm" 
-                    hx-get="/api/app/{{ model }}/{{ app_num }}/refresh"
-                    hx-target="#app-content"
-                    hx-indicator="#loading-overlay">
-                <i class="fas fa-sync-alt mr-1"></i>
-                Refresh
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" hx-post="/api/app/{{ model }}/{{ app_num }}/start">
+                <i class="fas fa-play"></i> Start
+            </button>
+            <button class="btn btn-danger" hx-post="/api/app/{{ model }}/{{ app_num }}/stop">
+                <i class="fas fa-stop"></i> Stop
             </button>
         </div>
     </div>
 
-    <!-- Quick Actions Bar -->
-    <div class="card mb-4">
-        <div class="card-body p-3">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-success btn-sm"
-                                onclick="startContainer('{{ model }}', '{{ app_num }}', this)"
-                                {% if container_status == 'running' %}disabled{% endif %}>
-                            <i class="fas fa-play mr-1"></i>Start
-                        </button>
-                        <button type="button" class="btn btn-warning btn-sm"
-                                onclick="stopContainer('{{ model }}', '{{ app_num }}', this)"
-                                {% if container_status != 'running' %}disabled{% endif %}>
-                            <i class="fas fa-stop mr-1"></i>Stop
-                        </button>
-                        <button type="button" class="btn btn-info btn-sm"
-                                onclick="restartContainer('{{ model }}', '{{ app_num }}', this)">
-                            <i class="fas fa-redo mr-1"></i>Restart
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-sm"
-                                onclick="showContainerLogs('{{ model }}', '{{ app_num }}')">
-                            <i class="fas fa-terminal mr-1"></i>Logs
-                        </button>
-                    </div>
-                </div>
-                <div class="col-md-4 text-md-right">
-                    <div class="dashboard-inline-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">Port</span>
-                            <span class="stat-value">{{ port_info.frontend or 'N/A' }}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Type</span>
-                            <span class="stat-value">{{ app_info.app_type|title }}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#overview">Overview</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#containers">Containers</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#files">Files</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#analysis">Analysis</a>
+        </li>
+    </ul>
 
-    <!-- Main Content Tabs -->
     <div class="card">
-        <div class="card-header border-bottom-0">
-            <ul class="nav nav-tabs card-header-tabs" id="appTabs" role="tablist">
-                <li class="nav-item">
-                    <a class="nav-link active" id="overview-tab" data-toggle="tab" href="#overview" role="tab">
-                        <i class="fas fa-info-circle mr-2"></i>Overview
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" id="containers-tab" data-toggle="tab" href="#containers" role="tab">
-                        <i class="fas fa-cube mr-2"></i>Containers
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" id="analysis-tab" data-toggle="tab" href="#analysis" role="tab">
-                        <i class="fas fa-shield-alt mr-2"></i>Security
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" id="performance-tab" data-toggle="tab" href="#performance" role="tab">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Performance
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" id="files-tab" data-toggle="tab" href="#files" role="tab">
-                        <i class="fas fa-folder mr-2"></i>Files
-                    </a>
-                </li>
-            </ul>
-        </div>
-        
         <div class="card-body">
             <div class="tab-content" id="appTabsContent">
                 <!-- Overview Tab -->
                 <div class="tab-pane fade show active" id="overview" role="tabpanel">
-                    <div class="row">
-                        <!-- App Information -->
-                        <div class="col-lg-6">
-                            <div class="card h-100">
-                                <div class="card-header">
-                                    <h6 class="card-title">
-                                        <i class="fas fa-info mr-2"></i>Application Details
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="info-item">
-                                        <strong>Type:</strong> {{ app_info.app_type|title }}
-                                    </div>
-                                    <div class="info-item">
-                                        <strong>Model:</strong> {{ model|replace('_', ' ')|title }}
-                                    </div>
-                                    <div class="info-item">
-                                        <strong>App Number:</strong> {{ app_num }}
-                                    </div>
-                                    <div class="info-item">
-                                        <strong>Status:</strong> 
-                                        <span class="badge badge-{{ 'success' if container_status == 'running' else 'secondary' }}">
-                                            {{ container_status|title if container_status else 'Unknown' }}
-                                        </span>
-                                    </div>
-                                    <div class="info-item">
-                                        <strong>Created:</strong> {{ app_info.created_date or 'Unknown' }}
-                                    </div>
-                                    <div class="info-item">
-                                        <strong>Last Modified:</strong> {{ app_info.last_modified or 'Unknown' }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Health Status -->
-                        <div class="col-lg-6">
-                            <div class="card h-100">
-                                <div class="card-header">
-                                    <h6 class="card-title">
-                                        <i class="fas fa-heartbeat mr-2"></i>Health Status
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="health-indicator health-{{ 'healthy' if container_status == 'running' else 'error' }}">
-                                        <i class="fas fa-circle mr-2"></i>
-                                        Container Health: {{ 'Healthy' if container_status == 'running' else 'Unhealthy' }}
-                                    </div>
-                                    
-                                    <div class="mt-3">
-                                        <h6>Port Configuration</h6>
-                                        <div class="row">
-                                            <div class="col-6">
-                                                <div class="text-center p-2 bg-light rounded">
-                                                    <div class="font-weight-bold">Frontend</div>
-                                                    <div class="text-primary">{{ port_info.frontend or 'N/A' }}</div>
-                                                </div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="text-center p-2 bg-light rounded">
-                                                    <div class="font-weight-bold">Backend</div>
-                                                    <div class="text-primary">{{ port_info.backend or 'N/A' }}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Statistics Cards -->
                     <div class="row mt-4">
-                        <div class="col-md-4">
-                            <div class="card border-left-primary">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between">
-                                        <div>
-                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                                Security Issues
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                                {{ security_stats.total_issues or 0 }}
-                                            </div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-shield-alt fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
                         <div class="col-md-4">
                             <div class="card border-left-success">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between">
                                         <div>
                                             <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                                Performance Score
+                                                Status
                                             </div>
                                             <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                                {{ performance_stats.score or 'N/A' }}
+                                                {{ app_status|default('Unknown') }}
                                             </div>
                                         </div>
                                         <div class="col-auto">
-                                            <i class="fas fa-tachometer-alt fa-2x text-gray-300"></i>
+                                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
                                         </div>
                                     </div>
                                 </div>
@@ -254,6 +81,26 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card border-left-info">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                Containers
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ container_count|default(0) }}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-docker fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -265,43 +112,196 @@
                          hx-swap="innerHTML">
                         <div class="text-center py-4">
                             <div class="spinner mb-3"></div>
-                            <p class="text-muted">Loading container information...</p>
+                            <p>Loading container information...</p>
                         </div>
                     </div>
                 </div>
-
-                <!-- Analysis Tab -->
-                <div class="tab-pane fade" id="analysis" role="tabpanel">
-                    <div id="analysis-details"
-                         hx-get="/api/app/{{ model }}/{{ app_num }}/analysis"
-                         hx-trigger="load, analysisRefresh from:body"
-                         hx-swap="innerHTML">
-                        <div class="text-center py-4">
-                            <div class="spinner mb-3"></div>
-                            <p class="text-muted">Loading security analysis...</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Performance Tab -->
-                <div class="tab-pane fade" id="performance" role="tabpanel">
-                    <div id="performance-details"
-                         hx-get="/api/app/{{ model }}/{{ app_num }}/performance"
-                         hx-trigger="load, performanceRefresh from:body"
-                         hx-swap="innerHTML">
-                        <div class="text-center py-4">
-                            <div class="spinner mb-3"></div>
-                            <p class="text-muted">Loading performance metrics...</p>
-                        </div>
-                    </div>
-                </div>
-
+                
                 <!-- Files Tab -->
                 <div class="tab-pane fade" id="files" role="tabpanel">
-                    <div id="files-details"
+                    <div id="files-content"
                          hx-get="/api/app/{{ model }}/{{ app_num }}/files"
-                         hx-trigger="load, filesRefresh from:body"
+                         hx-trigger="load"
                          hx-swap="innerHTML">
+                        <div class="text-center py-4">
+                            <div class="spinner mb-3"></div>
+                            <p>Loading file structure...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Analysis Tab -->
+                <div class="tab-pane fade" id="analysis" role="tabpanel">
+                    <div id="analysis-content"
+                         hx-get="/api/app/{{ model }}/{{ app_num }}/analysis"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-4">
+                            <div class="spinner mb-3"></div>
+                            <p>Loading analysis results...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// App Overview JavaScript
+class AppOverview {
+    constructor() {
+        this.modelSlug = '{{ model }}';
+        this.appNum = '{{ app_num }}';
+        this.autoRefreshInterval = null;
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+        this.setupKeyboardShortcuts();
+    }
+
+    setupEventListeners() {
+        // Tab switching events
+        document.addEventListener('shown.bs.tab', (e) => {
+            const tabId = e.target.getAttribute('href');
+            if (tabId === '#containers') {
+                htmx.trigger('#container-details', 'containerRefresh');
+            } else if (tabId === '#analysis') {
+                htmx.trigger('#analysis-content', 'analysisRefresh');
+            } else if (tabId === '#files') {
+                htmx.trigger('#files-content', 'filesRefresh');
+            }
+        });
+
+        // Container action events
+        document.addEventListener('htmx:afterRequest', (e) => {
+            if (e.detail.successful && e.detail.xhr.responseURL.includes('/api/containers/')) {
+                this.refreshContainerStatus();
+            }
+        });
+    }
+
+    setupAutoRefresh() {
+        // Auto-refresh container status every 15 seconds
+        this.autoRefreshInterval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                this.refreshContainerStatus();
+            }
+        }, 15000);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                this.refreshApp();
+            }
+            if (e.ctrlKey && e.key === 'l') {
+                e.preventDefault();
+                this.showContainerLogs();
+            }
+        });
+    }
+
+    refreshApp() {
+        htmx.trigger('#app-content', 'refresh');
+        this.showToast('Application refreshed', 'success');
+    }
+
+    refreshContainerStatus() {
+        htmx.ajax('GET', `/api/app/${this.modelSlug}/${this.appNum}/status`, {
+            target: '.status-indicator',
+            swap: 'outerHTML'
+        });
+    }
+
+    showContainerLogs() {
+        htmx.ajax('GET', `/api/containers/${encodeURIComponent(this.modelSlug)}/${this.appNum}/logs`, {
+            target: '#container-logs-content'
+        });
+        $('#containerLogsModal').modal('show');
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+}
+
+// Global container control functions
+window.startContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('start', modelSlug, appNum, button);
+};
+
+window.stopContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('stop', modelSlug, appNum, button);
+};
+
+window.restartContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('restart', modelSlug, appNum, button);
+};
+
+window.showContainerLogs = function(modelSlug, appNum) {
+    appOverview.showContainerLogs();
+};
+
+function handleContainerAction(action, modelSlug, appNum, button) {
+    const originalText = button.innerHTML;
+    button.innerHTML = `<div class="spinner"></div> ${action}ing...`;
+    button.disabled = true;
+
+    htmx.ajax('POST', `/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
+        swap: 'none'
+    }).then(() => {
+        appOverview.showToast(`Container ${action} successful`, 'success');
+        appOverview.refreshContainerStatus();
+        
+        // Re-enable appropriate buttons after action
+        setTimeout(() => {
+            const buttons = document.querySelectorAll('.btn[onclick*="Container"]');
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                // Reset button text based on action
+                if (btn.innerHTML.includes('Start')) {
+                    btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start';
+                } else if (btn.innerHTML.includes('Stop')) {
+                    btn.innerHTML = '<i class="fas fa-stop mr-1"></i>Stop';
+                } else if (btn.innerHTML.includes('Restart')) {
+                    btn.innerHTML = '<i class="fas fa-redo mr-1"></i>Restart';
+                }
+            });
+        }, 1000);
+    }).catch(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+        appOverview.showToast(`Container ${action} failed`, 'danger');
+    });
+}
+
+// Initialize app overview
+let appOverview;
+document.addEventListener('DOMContentLoaded', function() {
+    appOverview = new AppOverview();
+});
+</script>
+{% endblock %}
                         <div class="text-center py-4">
                             <div class="spinner mb-3"></div>
                             <p class="text-muted">Loading file structure...</p>
@@ -336,7 +336,7 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
 // App Overview JavaScript
 class AppOverview {

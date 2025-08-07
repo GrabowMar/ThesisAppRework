@@ -1,84 +1,84 @@
 {% extends "base.html" %}
 
-{% block title %}Security Testing Platform{% endblock %}
+{% block title %}Unified Security Testing - Research Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-12">
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Unified Security Testing</h1>
+            <p class="page-subtitle">Comprehensive security analysis across all models</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newTestModal">
+                <i class="fas fa-plus"></i> New Test
+            </button>
+            <button class="btn btn-secondary" onclick="refreshTests()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Active Tests -->
+    <div class="card">
+        <div class="card-header">
             <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h2 mb-1">
-                        <i class="fas fa-shield-alt text-primary me-2"></i>
-                        Security Testing Platform
-                    </h1>
-                    <p class="text-muted mb-0">Comprehensive security analysis for AI-generated applications</p>
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-primary" 
-                            hx-get="/testing/api/new-test-form"
-                            hx-target="#modal-container"
-                            hx-swap="innerHTML">
-                        <i class="fas fa-plus me-2"></i>New Test
-                    </button>
-                    <button class="btn btn-outline-secondary"
-                            hx-get="/testing/api/infrastructure-status"
-                            hx-target="#infrastructure-status"
-                            hx-swap="innerHTML">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
+                <h5 class="card-title">Active Tests</h5>
+                <span class="badge badge-primary" id="active-test-count">0</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="active-tests" 
+                 hx-get="/testing/api/active-tests"
+                 hx-trigger="load, every 5s">
+                <div class="text-center p-4">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-2">Loading tests...</p>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Infrastructure Status -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-light">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-server me-2"></i>Testing Infrastructure
-                        </h5>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-success" 
-                                    hx-post="/testing/api/infrastructure/start"
-                                    hx-target="#infrastructure-status"
-                                    hx-swap="innerHTML">
-                                <i class="fas fa-play me-1"></i>Start All
-                            </button>
-                            <button class="btn btn-sm btn-danger" 
-                                    hx-post="/testing/api/infrastructure/stop"
-                                    hx-target="#infrastructure-status"
-                                    hx-swap="innerHTML">
-                                <i class="fas fa-stop me-1"></i>Stop All
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="infrastructure-status"
-                         hx-get="/testing/api/infrastructure-status"
-                         hx-trigger="load, every 30s"
-                         hx-swap="innerHTML">
-                        <div class="text-center py-3">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading infrastructure status...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- Test Modal -->
+<div id="modal-container"></div>
 
-    <!-- Test Statistics -->
-    <div class="row mb-4">
-        <div id="test-statistics"
-             hx-get="/testing/api/stats"
-             hx-trigger="load, every 15s"
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Modal handling for HTMX
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'modal-container') {
+        const modal = evt.detail.target.querySelector('.modal');
+        if (modal) {
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            
+            modal.addEventListener('hidden.bs.modal', function() {
+                evt.detail.target.innerHTML = '';
+            });
+        }
+    }
+});
+
+// Update active test count
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'active-tests') {
+        const activeTestRows = evt.detail.target.querySelectorAll('.test-row');
+        const countBadge = document.getElementById('active-test-count');
+        if (countBadge) {
+            countBadge.textContent = activeTestRows.length;
+        }
+    }
+});
+
+function refreshTests() {
+    htmx.trigger(document.getElementById('active-tests'), 'load');
+}
+</script>
+{% endblock %}
              hx-swap="innerHTML">
             <div class="col-12">
                 <div class="d-flex justify-content-center py-3">
@@ -241,7 +241,7 @@
 <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
 // Handle HTMX events for notifications
 document.body.addEventListener('htmx:afterRequest', function(evt) {

@@ -5,161 +5,161 @@
 {% block content %}
 <div class="container-fluid">
     <!-- Page Header -->
-    <div class="page-header">
+    <div class="page-header mb-4">
         <div>
-            <h1 class="page-title">
-                <i class="fas fa-chart-line text-primary mr-2"></i>
-                Research Dashboard
-            </h1>
-            <p class="page-subtitle">
-                AI model analysis and container management platform
-            </p>
+            <h1 class="page-title">Research Dashboard</h1>
+            <p class="page-subtitle">AI Model Testing & Analysis Platform</p>
         </div>
-        
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary btn-sm" 
-                    onclick="dashboard.refreshDashboard()">
-                <i class="fas fa-sync-alt mr-1"></i>
-                Refresh
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" 
-                    onclick="toggleAdvancedFilters()">
-                <i class="fas fa-filter mr-1"></i>
-                Filters
+            <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Test
+            </a>
+            <button class="btn btn-secondary" onclick="AppManager.refreshData()">
+                <i class="fas fa-sync-alt"></i> Refresh
             </button>
         </div>
     </div>
 
-    <!-- Quick Stats -->
-    <div class="stats-grid">
+    <!-- Summary Statistics -->
+    {% if summary_stats %}
+    <div class="stats-grid mb-4">
         <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-robot"></i>
-            </div>
-            <div class="stats-card-value" id="total-models">
-                {{ summary_stats.total_models or 0 }}
-            </div>
-            <div class="stats-card-label">AI Models</div>
+            <div class="stats-card-icon"><i class="fas fa-robot"></i></div>
+            <div class="stats-card-value">{{ summary_stats.total_models|default(0) }}</div>
+            <div class="stats-card-label">Total Models</div>
         </div>
-        
         <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-cube"></i>
-            </div>
-            <div class="stats-card-value" id="running-containers">
-                {{ summary_stats.running_containers or 0 }}
-            </div>
-            <div class="stats-card-label">Running</div>
-        </div>
-        
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-mobile-alt"></i>
-            </div>
-            <div class="stats-card-value" id="total-apps">
-                {{ summary_stats.total_apps or 0 }}
-            </div>
+            <div class="stats-card-icon"><i class="fas fa-cube"></i></div>
+            <div class="stats-card-value">{{ summary_stats.total_apps|default(0) }}</div>
             <div class="stats-card-label">Applications</div>
         </div>
-        
         <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-shield-alt"></i>
+            <div class="stats-card-icon"><i class="fas fa-play-circle"></i></div>
+            <div class="stats-card-value text-success">{{ summary_stats.running_containers|default(0) }}</div>
+            <div class="stats-card-label">Running</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stats-card-value text-danger">{{ summary_stats.error_containers|default(0) }}</div>
+            <div class="stats-card-label">Errors</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Model Overview -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Model Overview</h5>
+                <div class="d-flex gap-2">
+                    <input type="search" class="form-control form-control-sm" 
+                           placeholder="Search models..." 
+                           id="model-search"
+                           style="width: 200px;">
+                    <select class="form-select form-select-sm" id="provider-filter" style="width: auto;">
+                        <option value="">All Providers</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="google">Google</option>
+                    </select>
+                </div>
             </div>
-            <div class="stats-card-value" id="active-analyses">
-                {{ summary_stats.analyzed_apps or 0 }}
+        </div>
+        <div class="card-body">
+            <div id="models-grid" 
+                 hx-get="/api/models"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="text-center p-4">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-2">Loading models...</p>
+                </div>
             </div>
-            <div class="stats-card-label">Analyses</div>
         </div>
     </div>
 
-    <!-- Advanced Filters (Initially Hidden) -->
-    <div id="advanced-filters" class="card d-none">
-        <div class="card-header">
-            <h6 class="card-title">
-                <i class="fas fa-filter mr-2"></i>
-                Advanced Filters
-            </h6>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <select class="form-control form-control-sm" id="status-filter">
-                            <option value="">All Statuses</option>
-                            <option value="running">Running</option>
-                            <option value="stopped">Stopped</option>
-                            <option value="error">Error</option>
-                        </select>
-                    </div>
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Recent Tests</h5>
                 </div>
-                <div class="col-md-3">
-                    <div class="form-group">
-                        <label class="form-label">Provider</label>
-                        <select class="form-control form-control-sm" id="provider-filter">
-                            <option value="">All Providers</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="anthropic">Anthropic</option>
-                            <option value="google">Google</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-group">
-                        <label class="form-label">Search</label>
-                        <div class="search-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" class="form-control form-control-sm" 
-                                   id="search-input" placeholder="Search models...">
+                <div class="card-body">
+                    <div id="recent-tests"
+                         hx-get="/testing/api/recent-tests?limit=5"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        <div class="text-center p-3">
+                            <div class="loading-spinner"></div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-2">
-                    <div class="form-group">
-                        <label class="form-label">&nbsp;</label>
-                        <button type="button" class="btn btn-outline-secondary btn-sm btn-block"
-                                onclick="clearFilters()">
-                            Clear
-                        </button>
-                    </div>
-                </div>
             </div>
         </div>
-    </div>
-
-    <!-- Dashboard Content -->
-    <div id="dashboard-content">
-        <!-- Models Grid -->
-        <div id="models-grid">
-            <!-- Loading state -->
-            <div id="models-loading" class="text-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="sr-only">Loading models...</span>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">System Health</h5>
                 </div>
-                <p class="mt-3 text-muted">Loading AI models...</p>
-            </div>
-            
-            <!-- Models will be loaded here via JavaScript -->
-            <div id="models-content" style="display: none;"></div>
-            
-            <!-- Empty state -->
-            <div id="models-empty" class="empty-state" style="display: none;">
-                <div class="empty-state-icon">
-                    <i class="fas fa-robot"></i>
+                <div class="card-body">
+                    <div id="system-health"
+                         hx-get="/api/system-health"
+                         hx-trigger="load, every 30s"
+                         hx-swap="innerHTML">
+                        <div class="text-center p-3">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </div>
                 </div>
-                <h5>No Models Found</h5>
-                <p class="text-muted">No AI models are currently configured in the system.</p>
-                <button class="btn btn-outline-primary" onclick="dashboard.loadModels()">
-                    <i class="fas fa-sync-alt mr-1"></i> Refresh
-                </button>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
 
-<!-- Model Details Modal removed - use Models Overview page for detailed model information -->
+{% block extra_js %}
+<script>
+// Dashboard-specific functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Model search
+    const searchInput = document.getElementById('model-search');
+    const providerFilter = document.getElementById('provider-filter');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', filterModels);
+    }
+    
+    if (providerFilter) {
+        providerFilter.addEventListener('change', filterModels);
+    }
+    
+    function filterModels() {
+        const searchTerm = searchInput?.value.toLowerCase() || '';
+        const provider = providerFilter?.value || '';
+        
+        const modelCards = document.querySelectorAll('.model-card');
+        modelCards.forEach(card => {
+            const modelName = card.dataset.modelName?.toLowerCase() || '';
+            const modelProvider = card.dataset.provider || '';
+            
+            const matchesSearch = !searchTerm || modelName.includes(searchTerm);
+            const matchesProvider = !provider || modelProvider === provider;
+            
+            card.style.display = matchesSearch && matchesProvider ? '' : 'none';
+        });
+    }
+    
+    // Auto-refresh dashboard stats
+    setInterval(() => {
+        AppManager.loadStats();
+    }, 60000); // Every minute
+});
+</script>
+{% endblock %}
 
+{% block scripts %}
 <!-- Container Logs Modal -->
 <div class="modal fade" id="containerLogsModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
@@ -181,9 +181,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
 // Dashboard JavaScript
 class Dashboard {

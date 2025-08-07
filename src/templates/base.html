@@ -3,605 +3,284 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Thesis Research App{% endblock %}</title>
+    <title>{% block title %}AI Research Platform{% endblock %}</title>
     
-    <!-- Bootstrap 5.3.7 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" 
-          rel="stylesheet" 
-          integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" 
-          crossorigin="anonymous">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
-          crossorigin="anonymous" referrerpolicy="no-referrer">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal-enhancements.css') }}">
     
-    <!-- HTMX for dynamic interactions -->
-    <script src="https://unpkg.com/htmx.org@1.9.12" 
-            integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" 
-            crossorigin="anonymous"></script>
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/json-enc.js"></script>
     
-    <!-- HTMX configuration -->
-    <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","requestTimeout":30000,"historyCacheSize":5}'>
-    
-    {% block head %}{% endblock %}
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Clean Modern Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top">
-        <div class="container-fluid">
-            <!-- Sidebar Toggle (Mobile) -->
-            <button class="sidebar-toggle" onclick="toggleSidebar()">
-                <i class="fas fa-bars"></i>
-            </button>
-
-            <!-- Brand -->
-            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('main.dashboard') }}">
-                <div class="brand-icon">
-                    <i class="fas fa-atom"></i>
-                </div>
-                <span class="brand-text ms-2">TRA</span>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a href="{{ url_for('main.dashboard') }}" class="navbar-brand">
+            <div class="brand-icon">AI</div>
+            <span>Research Platform</span>
+        </a>
+        
+        <div class="navbar-nav">
+            <a href="{{ url_for('main.dashboard') }}" class="nav-link" data-page="dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
             </a>
-
-            <!-- Mobile toggle -->
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <!-- Navbar content -->
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <!-- Navigation links -->
-                <ul class="navbar-nav ms-auto">
-                    <!-- Main navigation -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.dashboard') }}">
-                            <i class="fas fa-home me-2"></i>
-                            <span class="nav-text">Dashboard</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.models_overview') }}">
-                            <i class="fas fa-robot me-2"></i>
-                            <span class="nav-text">AI Models</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}">
-                            <i class="fas fa-chart-bar me-2"></i>
-                            <span class="nav-text">Statistics</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('testing.testing_dashboard') }}">
-                            <i class="fas fa-shield-alt me-2"></i>
-                            <span class="nav-text">Security Testing</span>
-                        </a>
-                    </li>
-
-                    <!-- Divider -->
-                    <li class="nav-item">
-                        <div class="nav-divider"></div>
-                    </li>
-
-                    <!-- System status -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="tooltip" title="System Status">
-                            <span class="status-dot status-success"></span>
-                        </a>
-                    </li>
-
-                    <!-- User dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                            <div class="user-avatar">
-                                <i class="fas fa-user"></i>
-                            </div>
-                            <span class="ms-2 d-none d-lg-inline">Research</span>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-end">
-                            <div class="dropdown-header">
-                                <div class="d-flex align-items-center">
-                                    <div class="user-avatar-large me-2">
-                                        <i class="fas fa-user"></i>
-                                    </div>
-                                    <div>
-                                        <h6 class="mb-0">Research User</h6>
-                                        <small class="text-muted">Thesis Research Platform</small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#" onclick="showSettingsModal()">
-                                <i class="fas fa-cog me-2"></i>Settings
-                            </a>
-                            <a class="dropdown-item" href="#" hx-post="/api/cache/clear" hx-target="#flash-messages">
-                                <i class="fas fa-trash me-2"></i>Clear Cache
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#" onclick="showHelpModal()">
-                                <i class="fas fa-question-circle me-2"></i>Help
-                            </a>
-                        </div>
-                    </li>
-                </ul>
-            </div>
+            <a href="{{ url_for('main.models_overview') }}" class="nav-link" data-page="models">
+                <i class="fas fa-robot"></i>
+                <span>Models</span>
+            </a>
+            <a href="{{ url_for('testing.test_dashboard') }}" class="nav-link" data-page="testing">
+                <i class="fas fa-flask"></i>
+                <span>Testing</span>
+            </a>
+            <a href="{{ url_for('statistics.statistics_overview') }}" class="nav-link" data-page="statistics">
+                <i class="fas fa-chart-bar"></i>
+                <span>Analytics</span>
+            </a>
         </div>
     </nav>
 
-    <!-- Main Layout with Sidebar -->
-    <div class="main-layout">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-content">
-                <!-- Quick Stats -->
-                <div class="sidebar-section">
-                    <h6 class="sidebar-title">Quick Stats</h6>
-                    <div class="quick-stats" id="sidebar-stats">
-                        <div class="stat-item">
-                            <span class="stat-value">{{ get_model_count() or 0 }}</span>
-                            <span class="stat-label">Models</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-value">{{ get_app_count() or 0 }}</span>
-                            <span class="stat-label">Apps</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-value" id="running-count">0</span>
-                            <span class="stat-label">Running</span>
-                        </div>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <!-- Quick Stats Section -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Quick Stats</div>
+                <div class="quick-stats" id="quick-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Models</span>
+                        <span class="stat-value" id="stat-models">-</span>
                     </div>
-                </div>
-
-                <!-- Recent Activity -->
-                <div class="sidebar-section">
-                    <h6 class="sidebar-title">Recent Activity</h6>
-                    <div class="activity-feed" id="recent-activity">
-                        <div class="activity-item">
-                            <div class="activity-icon">
-                                <i class="fas fa-info text-muted"></i>
-                            </div>
-                            <div class="activity-content">
-                                <small class="text-muted">No recent activity</small>
-                            </div>
-                        </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Apps</span>
+                        <span class="stat-value" id="stat-apps">-</span>
                     </div>
-                </div>
-
-                <!-- Quick Actions -->
-                <div class="sidebar-section">
-                    <h6 class="sidebar-title">Quick Actions</h6>
-                    <div class="quick-actions">
-                        <button class="btn btn-sm btn-outline-primary btn-block"
-                                onclick="startAllContainers()">
-                            <i class="fas fa-play me-1"></i>Start All
-                        </button>
-                        <button class="btn btn-sm btn-outline-warning btn-block"
-                                onclick="stopAllContainers()">
-                            <i class="fas fa-stop me-1"></i>Stop All
-                        </button>
-                        <button class="btn btn-sm btn-outline-info btn-block"
-                                onclick="window.location.href='/statistics'">
-                            <i class="fas fa-chart-bar me-1"></i>View Statistics
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary btn-block"
-                                onclick="window.location.href='/testing'">
-                            <i class="fas fa-shield-alt me-1"></i>Security Testing
-                        </button>
-                    </div>
-                </div>
-
-                <!-- System Status -->
-                <div class="sidebar-section">
-                    <h6 class="sidebar-title">System Status</h6>
-                    <div class="system-status">
-                        <div class="status-item">
-                            <span class="status-dot status-success"></span>
-                            <span class="status-label">Database</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-dot status-success"></span>
-                            <span class="status-label">Docker</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-dot status-warning"></span>
-                            <span class="status-label">Analysis Queue</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-dot status-success"></span>
-                            <span class="status-label">Memory Usage</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-dot status-info"></span>
-                            <span class="status-label">Disk Space</span>
-                        </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Active</span>
+                        <span class="stat-value" id="stat-active">-</span>
                     </div>
                 </div>
             </div>
-        </aside>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Flash Messages -->
-            <div id="flash-messages" class="container-fluid">
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} alert-dismissible fade show mb-3" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
-            </div>
-
-            <!-- Page Content -->
-            {% block content %}{% endblock %}
-        </main>
-    </div>
-
-    <!-- Modals Container -->
-    <div id="modal-container"></div>
-
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" class="position-fixed w-100 h-100 d-none" 
-         class="modal-overlay">
-        <div class="d-flex justify-content-center align-items-center h-100">
-            <div class="text-center text-white">
-                <div class="spinner-border mb-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <h5>Processing...</h5>
-            </div>
-        </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div class="modal fade" id="settingsModal" tabindex="-1" role="dialog" aria-labelledby="settingsModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="settingsModalLabel">
-                        <i class="fas fa-cog me-2"></i>Application Settings
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body"
-                     hx-get="/api/settings"
-                     hx-trigger="load"
-                     hx-swap="innerHTML">
-                    <div class="text-center">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Loading...</span>
+            <!-- Activity Feed Section -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Recent Activity</div>
+                <div class="activity-feed" id="activity-feed">
+                    <div class="activity-item">
+                        <div class="activity-icon">
+                            <i class="fas fa-info"></i>
                         </div>
+                        <div>Loading activities...</div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions Section -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Quick Actions</div>
+                <div class="quick-actions">
+                    <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> New Test
+                    </a>
+                    <button class="btn btn-secondary btn-sm" onclick="AppManager.refreshData()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
                 </div>
             </div>
         </div>
-    </div>
+    </aside>
 
-    <!-- Help Modal -->
-    <div class="modal fade" id="helpModal" tabindex="-1" role="dialog" aria-labelledby="helpModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="helpModalLabel">
-                        <i class="fas fa-question-circle me-2"></i>Help & Documentation
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-keyboard me-2"></i>Keyboard Shortcuts</h6>
-                            <ul class="list-unstyled">
-                                <li><kbd>Ctrl + R</kbd> - Refresh current view</li>
-                                <li><kbd>Ctrl + K</kbd> - Focus search</li>
-                                <li><kbd>Esc</kbd> - Close modals</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-info-circle me-2"></i>About</h6>
-                            <p class="small text-muted">
-                                Thesis Research App for analyzing AI-generated applications
-                                across multiple models and frameworks.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content">
+        {% block content %}{% endblock %}
+    </main>
 
-    <!-- Bootstrap 5.3.7 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" 
-            integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
-            crossorigin="anonymous"></script>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
 
-    <!-- Custom JavaScript -->
-    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dynamic-styles.js') }}"></script>
-    
+    <!-- Core Scripts -->
     <script>
-        // Global application functions
-        function showSettingsModal() {
-            const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
-            modal.show();
-        }
-        
-        function showHelpModal() {
-            const modal = new bootstrap.Modal(document.getElementById('helpModal'));
-            modal.show();
-        }
-        
-        // Sidebar toggle function
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.querySelector('.main-content');
-            
-            if (sidebar && mainContent) {
-                sidebar.classList.toggle('show');
+        // Application namespace
+        const AppManager = {
+            // Initialize the application
+            init() {
+                this.setupNavigation();
+                this.loadStats();
+                this.loadActivityFeed();
+                this.setupHTMXHandlers();
+                this.setupKeyboardShortcuts();
+            },
+
+            // Setup navigation active states
+            setupNavigation() {
+                const currentPath = window.location.pathname;
+                const navLinks = document.querySelectorAll('.nav-link');
                 
-                // Toggle full width on desktop
-                if (window.innerWidth > 768) {
-                    mainContent.classList.toggle('full-width');
-                }
-            }
-        }
-        
-        // Global loading overlay functions
-        window.showLoadingOverlay = function() {
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay) overlay.classList.remove('d-none');
-        };
-        
-        window.hideLoadingOverlay = function() {
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay) overlay.classList.add('d-none');
-        };
-        
-        // Safe element selector helpers
-        function safeQuerySelector(selector) {
-            try {
-                return document.querySelector(selector);
-            } catch (e) {
-                console.warn('Invalid selector:', selector);
-                return null;
-            }
-        }
-        
-        function safeQuerySelectorAll(selector) {
-            try {
-                return document.querySelectorAll(selector);
-            } catch (e) {
-                console.warn('Invalid selector:', selector);
-                return [];
-            }
-        }
-        
-        // Set active navigation link
-        function setActiveNavLink() {
-            const currentPath = window.location.pathname;
-            const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
-            
-            navLinks.forEach(link => {
-                link.classList.remove('active');
-                const href = link.getAttribute('href');
-                
-                if (href && (href === currentPath || 
-                    (currentPath === '/' && href.includes('dashboard')) ||
-                    (currentPath.includes(href) && href !== '/'))) {
-                    link.classList.add('active');
-                }
-            });
-        }
-        
-        // Update notification count
-        function updateNotificationCount() {
-            const badge = document.getElementById('notification-count');
-            if (badge && typeof htmx !== 'undefined') {
-                htmx.ajax('GET', '/api/notifications/count', {
-                    target: '#notification-count',
-                    swap: 'innerHTML'
-                }).catch(() => {
-                    // Silently handle notification count errors
-                });
-            }
-        }
-        
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize tooltips
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-            
-            // Auto-close mobile menu on nav item click
-            document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
-                link.addEventListener('click', function() {
-                    const navbarCollapse = document.querySelector('.navbar-collapse');
-                    if (navbarCollapse.classList.contains('show')) {
-                        const bsCollapse = new bootstrap.Collapse(navbarCollapse);
-                        bsCollapse.hide();
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    const href = link.getAttribute('href');
+                    
+                    if (href === currentPath || 
+                        (currentPath === '/' && link.dataset.page === 'dashboard') ||
+                        (currentPath.includes('/testing') && link.dataset.page === 'testing') ||
+                        (currentPath.includes('/models') && link.dataset.page === 'models')) {
+                        link.classList.add('active');
                     }
                 });
-            });
-            
-            // Set active navigation link
-            setActiveNavLink();
-            
-            // Update notification count
-            updateNotificationCount();
-            
-            // Periodic notification update (every 5 minutes)
-            setInterval(updateNotificationCount, 300000);
-        });
-        
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(e) {
-            const sidebar = document.getElementById('sidebar');
-            const toggleBtn = document.querySelector('.sidebar-toggle');
-            
-            if (sidebar && toggleBtn && window.innerWidth <= 768) {
-                if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
-                    sidebar.classList.remove('show');
+            },
+
+            // Load sidebar statistics
+            async loadStats() {
+                try {
+                    const response = await fetch('/api/quick-stats');
+                    if (response.ok) {
+                        const data = await response.json();
+                        document.getElementById('stat-models').textContent = data.models || '0';
+                        document.getElementById('stat-apps').textContent = data.apps || '0';
+                        document.getElementById('stat-active').textContent = data.active || '0';
+                    }
+                } catch (error) {
+                    console.error('Failed to load stats:', error);
                 }
-            }
-        });
-        
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            // Ctrl+R - Refresh current view
-            if (e.ctrlKey && e.key === 'r') {
-                e.preventDefault();
-                window.location.reload();
-            }
-            
-            // Ctrl+K - Focus search
-            if (e.ctrlKey && e.key === 'k') {
-                e.preventDefault();
-                const searchInput = safeQuerySelector('#search-input, .search-input, [name="search"]');
-                if (searchInput) searchInput.focus();
-            }
-            
-            // Escape - Close modals and dropdowns
-            if (e.key === 'Escape') {
-                // Close all modals
+            },
+
+            // Load activity feed
+            async loadActivityFeed() {
+                try {
+                    const response = await fetch('/api/activity-feed');
+                    if (response.ok) {
+                        const html = await response.text();
+                        document.getElementById('activity-feed').innerHTML = html;
+                    }
+                } catch (error) {
+                    console.error('Failed to load activity feed:', error);
+                }
+            },
+
+            // Setup HTMX event handlers
+            setupHTMXHandlers() {
+                document.body.addEventListener('htmx:afterRequest', (event) => {
+                    if (event.detail.successful) {
+                        this.showToast('Operation completed successfully', 'success');
+                    }
+                });
+
+                document.body.addEventListener('htmx:responseError', (event) => {
+                    this.showToast('An error occurred. Please try again.', 'error');
+                    console.error('HTMX Error:', event.detail);
+                });
+            },
+
+            // Setup keyboard shortcuts
+            setupKeyboardShortcuts() {
+                document.addEventListener('keydown', (e) => {
+                    // Ctrl+K - Focus search
+                    if (e.ctrlKey && e.key === 'k') {
+                        e.preventDefault();
+                        const search = document.querySelector('input[type="search"], input[name="search"]');
+                        if (search) search.focus();
+                    }
+
+                    // Ctrl+R - Refresh data
+                    if (e.ctrlKey && e.key === 'r') {
+                        e.preventDefault();
+                        this.refreshData();
+                    }
+
+                    // Escape - Close modals
+                    if (e.key === 'Escape') {
+                        this.closeAllModals();
+                    }
+
+                    // Enter - Go to dashboard
+                    if (e.key === 'Enter') {
+                        window.location.href = '{{ url_for("main.dashboard") }}';
+                    }
+                });
+            },
+
+            // Show toast notification
+            showToast(message, type = 'info') {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                
+                const icon = {
+                    success: 'check-circle',
+                    error: 'exclamation-circle',
+                    warning: 'exclamation-triangle',
+                    info: 'info-circle'
+                }[type];
+                
+                toast.innerHTML = `
+                    <i class="fas fa-${icon}"></i>
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.remove()" style="margin-left: auto; background: none; border: none; cursor: pointer;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                
+                container.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.style.animation = 'slideIn 0.3s ease reverse';
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
+            },
+
+            // Refresh all data
+            refreshData() {
+                this.loadStats();
+                this.loadActivityFeed();
+                
+                // Trigger HTMX refresh for any auto-updating elements
+                document.querySelectorAll('[hx-trigger*="load"]').forEach(el => {
+                    htmx.trigger(el, 'load');
+                });
+                
+                this.showToast('Data refreshed', 'success');
+            },
+
+            // Close all modals
+            closeAllModals() {
                 document.querySelectorAll('.modal.show').forEach(modal => {
-                    const bsModal = bootstrap.Modal.getInstance(modal);
-                    if (bsModal) bsModal.hide();
+                    modal.classList.remove('show');
+                    modal.style.display = 'none';
                 });
-                
-                // Close all dropdowns
-                document.querySelectorAll('.dropdown-menu.show').forEach(dropdown => {
-                    dropdown.classList.remove('show');
-                });
+            },
+
+            // Toggle sidebar (mobile)
+            toggleSidebar() {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.toggle('show');
             }
-        });
-        
-        // Handle HTMX errors globally
-        document.body.addEventListener('htmx:responseError', function(evt) {
-            console.error('HTMX request failed:', {
-                error: evt.detail.error || evt.detail.xhr?.statusText || 'Unknown error',
-                status: evt.detail.xhr?.status,
-                target: evt.detail.target?.id || evt.detail.target?.tagName,
-                url: evt.detail.requestConfig?.url || 'unknown'
-            });
-        });
-        
-        // Handle HTMX timeout errors
-        document.body.addEventListener('htmx:timeout', function(evt) {
-            console.warn('HTMX request timed out:', evt.detail);
-        });
-        
-        // Initialize tooltips after HTMX content loads
-        document.body.addEventListener('htmx:afterSwap', function() {
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-        });
-        
-        // Auto-refresh when page becomes visible
-        document.addEventListener('visibilitychange', function() {
-            if (!document.hidden && typeof htmx !== 'undefined') {
-                // Refresh dynamic content when page becomes visible
-                const autoRefreshElements = document.querySelectorAll('[hx-trigger*="every"]');
-                autoRefreshElements.forEach(el => {
-                    try {
-                        htmx.trigger(el, 'load');
-                    } catch (e) {
-                        console.warn('Could not trigger refresh:', e);
-                    }
-                });
-            }
-        });
-        // Bulk container operations
-        function startAllContainers() {
-            if (confirm("Start all stopped containers?")) {
-                fetch('/api/bulk/start-all', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification('Bulk start operation initiated', 'success');
-                        // Refresh page after short delay
-                        setTimeout(() => window.location.reload(), 2000);
-                    } else {
-                        showNotification('Failed to start containers: ' + (data.error || 'Unknown error'), 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error starting containers:', error);
-                    showNotification('Error starting containers', 'error');
-                });
-            }
-        }
+        };
 
-        function stopAllContainers() {
-            if (confirm("Stop all running containers?")) {
-                fetch('/api/bulk/stop-all', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification('Bulk stop operation initiated', 'success');
-                        // Refresh page after short delay
-                        setTimeout(() => window.location.reload(), 2000);
-                    } else {
-                        showNotification('Failed to stop containers: ' + (data.error || 'Unknown error'), 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error stopping containers:', error);
-                    showNotification('Error stopping containers', 'error');
-                });
-            }
-        }
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            AppManager.init();
+        });
 
-        function showNotification(message, type = 'info') {
-            // Create notification element
-            const notification = document.createElement('div');
-            notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
-            notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-            notification.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            `;
-
-            // Add to page
-            document.body.appendChild(notification);
-
-            // Auto-dismiss after 5 seconds
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
-            }, 5000);
-
-            // Handle manual close
-            notification.querySelector('.btn-close').addEventListener('click', () => {
-                notification.remove();
-            });
-        }
+        // Auto-refresh stats every 30 seconds
+        setInterval(() => {
+            AppManager.loadStats();
+        }, 30000);
     </script>
 
-    <!-- Modal Enhancement Scripts -->
-    <script src="{{ url_for('static', filename='js/modal-enhancements.js') }}"></script>
-
+    <!-- Load additional scripts -->
+    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dynamic-styles.js') }}"></script>    
+    {% block extra_js %}{% endblock %}
     {% block scripts %}{% endblock %}
 </body>
 </html>

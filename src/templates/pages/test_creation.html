@@ -1,965 +1,182 @@
 {% extends "base.html" %}
 
-{% block title %}Create Security Test - Testing Platform{% endblock %}
-
-{% block extra_css %}
-<style>
-/* Tool-specific styling */
-.severity-critical { border-left: 4px solid #dc3545; background-color: #f8d7da; }
-.severity-high { border-left: 4px solid #fd7e14; background-color: #ffeaa7; }
-.severity-medium { border-left: 4px solid #ffc107; background-color: #fff3cd; }
-.severity-low { border-left: 4px solid #28a745; background-color: #d4edda; }
-
-/* ZAP risk styling */
-.risk-high { border: 2px solid #dc3545; }
-.risk-medium { border: 2px solid #ffc107; }
-.risk-low { border: 2px solid #28a745; }
-.risk-info { border: 2px solid #17a2b8; }
-
-/* Configuration panels */
-.tool-config-panel {
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    background: #f8f9fa;
-}
-
-.tool-config-panel.active {
-    border-color: #0d6efd;
-    background: #e7f3ff;
-}
-
-.step-indicator {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 30px;
-}
-
-.step {
-    flex: 1;
-    text-align: center;
-    position: relative;
-}
-
-.step.active .step-number {
-    background: #0d6efd;
-    color: white;
-}
-
-.step.completed .step-number {
-    background: #198754;
-    color: white;
-}
-
-.step-number {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #6c757d;
-    color: white;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 10px;
-}
-
-.tool-selector {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
-}
-
-.tool-card {
-    border: 2px solid #dee2e6;
-    border-radius: 8px;
-    padding: 20px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.tool-card:hover {
-    border-color: #0d6efd;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.tool-card.selected {
-    border-color: #0d6efd;
-    background: #e7f3ff;
-}
-
-.tool-card h5 {
-    color: #0d6efd;
-    margin-bottom: 10px;
-}
-
-.validation-feedback {
-    display: none;
-    color: #dc3545;
-    font-size: 0.875rem;
-    margin-top: 5px;
-}
-
-.validation-feedback.show {
-    display: block;
-}
-
-.validation-success {
-    color: #198754;
-}
-</style>
-{% endblock %}
+{% block title %}Create Test - Research Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h2 mb-1">
-                        <i class="fas fa-plus-circle text-primary me-2"></i>
-                        Create Security Test
-                    </h1>
-                    <p class="text-muted mb-0">Configure and launch comprehensive security testing</p>
-                </div>
-                <div class="d-flex gap-2">
-                    <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
-                    </a>
-                </div>
-            </div>
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Create Security Test</h1>
+            <p class="page-subtitle">Configure comprehensive security testing</p>
+        </div>
+        <div>
+            <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
         </div>
     </div>
 
-    <!-- Step Indicator -->
-    <div class="step-indicator">
-        <div class="step active" id="step-1">
-            <div class="step-number">1</div>
-            <div class="step-title">Tool Selection</div>
-        </div>
-        <div class="step" id="step-2">
-            <div class="step-number">2</div>
-            <div class="step-title">Configuration</div>
-        </div>
-        <div class="step" id="step-3">
-            <div class="step-number">3</div>
-            <div class="step-title">Target Selection</div>
-        </div>
-        <div class="step" id="step-4">
-            <div class="step-number">4</div>
-            <div class="step-title">Review & Submit</div>
-        </div>
-    </div>
-
-    <!-- Main Form -->
-    <form id="test-creation-form" hx-post="/testing/api/create-test" hx-target="#submission-result">
-        <!-- Step 1: Tool Selection -->
-        <div class="step-content" id="step-1-content">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Select Testing Tools</h5>
-                </div>
-                <div class="card-body">
-                    <div class="tool-selector">
-                        <!-- Bandit Tool -->
-                        <div class="tool-card" data-tool="bandit">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_tools" value="bandit" id="tool-bandit">
-                                <label class="form-check-label" for="tool-bandit">
-                                    <h5><i class="fab fa-python me-2"></i>Bandit</h5>
-                                </label>
-                            </div>
-                            <p class="text-muted mb-2">Python security linter for common security issues</p>
-                            <div class="small text-info">
-                                <i class="fas fa-check me-1"></i>SQL injection detection<br>
-                                <i class="fas fa-check me-1"></i>Hardcoded credentials<br>
-                                <i class="fas fa-check me-1"></i>Shell injection
-                            </div>
+    <!-- Test Creation Form -->
+    <form id="test-form" hx-post="/testing/api/create-test" hx-target="#result-message">
+        <div class="row">
+            <!-- Tool Selection -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Testing Tools</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="tools" value="bandit" id="tool-bandit" checked>
+                            <label class="form-check-label" for="tool-bandit">
+                                <strong>Bandit</strong> - Python security linter
+                            </label>
                         </div>
-
-                        <!-- Safety Tool -->
-                        <div class="tool-card" data-tool="safety">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_tools" value="safety" id="tool-safety">
-                                <label class="form-check-label" for="tool-safety">
-                                    <h5><i class="fas fa-shield-alt me-2"></i>Safety</h5>
-                                </label>
-                            </div>
-                            <p class="text-muted mb-2">Python dependency vulnerability scanner</p>
-                            <div class="small text-info">
-                                <i class="fas fa-check me-1"></i>Known vulnerabilities<br>
-                                <i class="fas fa-check me-1"></i>Package security<br>
-                                <i class="fas fa-check me-1"></i>CVE database
-                            </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="tools" value="safety" id="tool-safety" checked>
+                            <label class="form-check-label" for="tool-safety">
+                                <strong>Safety</strong> - Dependency scanner
+                            </label>
                         </div>
-
-                        <!-- ZAP Tool -->
-                        <div class="tool-card" data-tool="zap">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_tools" value="zap" id="tool-zap">
-                                <label class="form-check-label" for="tool-zap">
-                                    <h5><i class="fas fa-globe me-2"></i>OWASP ZAP</h5>
-                                </label>
-                            </div>
-                            <p class="text-muted mb-2">Web application security scanner</p>
-                            <div class="small text-info">
-                                <i class="fas fa-check me-1"></i>OWASP Top 10<br>
-                                <i class="fas fa-check me-1"></i>API security<br>
-                                <i class="fas fa-check me-1"></i>Active scanning
-                            </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="tools" value="zap" id="tool-zap">
+                            <label class="form-check-label" for="tool-zap">
+                                <strong>OWASP ZAP</strong> - Web scanner
+                            </label>
                         </div>
-
-                        <!-- Performance Tool -->
-                        <div class="tool-card" data-tool="performance">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_tools" value="performance" id="tool-performance">
-                                <label class="form-check-label" for="tool-performance">
-                                    <h5><i class="fas fa-tachometer-alt me-2"></i>Performance Testing</h5>
-                                </label>
-                            </div>
-                            <p class="text-muted mb-2">Locust-based load testing</p>
-                            <div class="small text-info">
-                                <i class="fas fa-check me-1"></i>Load testing<br>
-                                <i class="fas fa-check me-1"></i>Stress testing<br>
-                                <i class="fas fa-check me-1"></i>Performance metrics
-                            </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="tools" value="performance" id="tool-performance">
+                            <label class="form-check-label" for="tool-performance">
+                                <strong>Locust</strong> - Performance testing
+                            </label>
                         </div>
                     </div>
-                    
-                    <div class="d-flex justify-content-end">
-                        <button type="button" class="btn btn-primary" onclick="nextStep(2)" id="step-1-next">
-                            Next: Configuration <i class="fas fa-arrow-right ms-2"></i>
-                        </button>
+                </div>
+            </div>
+
+            <!-- Target Selection -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Target Selection</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Model</label>
+                            <select name="model_slug" class="form-select" required>
+                                <option value="">Select model...</option>
+                                {% if models_data %}
+                                    {% for model in models_data %}
+                                    <option value="{{ model.slug }}">{{ model.name }}</option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Application Range</label>
+                            <div class="row">
+                                <div class="col-6">
+                                    <input type="number" name="app_start" class="form-control" 
+                                           min="1" max="30" value="1" placeholder="Start">
+                                </div>
+                                <div class="col-6">
+                                    <input type="number" name="app_end" class="form-control" 
+                                           min="1" max="30" value="5" placeholder="End">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Step 2: Tool Configuration -->
-        <div class="step-content d-none" id="step-2-content">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Configure Selected Tools</h5>
-                </div>
-                <div class="card-body">
-                    <div id="tool-configurations">
-                        <!-- Tool configuration panels will be loaded here via HTMX -->
-                        <!-- Default tool configurations that get populated when tools are selected -->
-                        <div class="tool-config-section d-none" data-tool-config="bandit">
-                            <div class="tool-config-panel">
-                                <h6><i class="fab fa-python me-2"></i>Bandit Configuration</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="bandit_severity" class="form-label">Minimum Severity</label>
-                                            <select name="bandit_severity" id="bandit_severity" class="form-select">
-                                                <option value="low">Low</option>
-                                                <option value="medium" selected>Medium</option>
-                                                <option value="high">High</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="bandit_confidence" class="form-label">Minimum Confidence</label>
-                                            <select name="bandit_confidence" id="bandit_confidence" class="form-select">
-                                                <option value="low">Low</option>
-                                                <option value="medium" selected>Medium</option>
-                                                <option value="high">High</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="bandit_exclude" class="form-label">Exclude Paths</label>
-                                    <textarea name="bandit_exclude" id="bandit_exclude" class="form-control" rows="2" 
-                                              placeholder="tests/*,docs/*"></textarea>
-                                    <div class="form-text">Comma-separated paths to exclude from scanning</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tool-config-section d-none" data-tool-config="safety">
-                            <div class="tool-config-panel">
-                                <h6><i class="fas fa-shield-alt me-2"></i>Safety Configuration</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="safety_full_report" id="safety_full_report" checked>
-                                                <label class="form-check-label" for="safety_full_report">
-                                                    Generate full report
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="safety_json_output" id="safety_json_output" checked>
-                                                <label class="form-check-label" for="safety_json_output">
-                                                    JSON output format
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tool-config-section d-none" data-tool-config="zap">
-                            <div class="tool-config-panel">
-                                <h6><i class="fas fa-globe me-2"></i>OWASP ZAP Configuration</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="zap_scan_type" class="form-label">Scan Type</label>
-                                            <select name="zap_scan_type" id="zap_scan_type" class="form-select">
-                                                <option value="passive">Passive Scan</option>
-                                                <option value="active" selected>Active Scan</option>
-                                                <option value="full">Full Scan</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="zap_timeout" class="form-label">Scan Timeout (minutes)</label>
-                                            <input type="number" name="zap_timeout" id="zap_timeout" class="form-control" 
-                                                   min="5" max="60" value="15">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tool-config-section d-none" data-tool-config="performance">
-                            <div class="tool-config-panel">
-                                <h6><i class="fas fa-tachometer-alt me-2"></i>Performance Testing Configuration</h6>
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <div class="mb-3">
-                                            <label for="perf_users" class="form-label">Concurrent Users</label>
-                                            <input type="number" name="perf_users" id="perf_users" class="form-control" 
-                                                   min="1" max="100" value="10">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="mb-3">
-                                            <label for="perf_spawn_rate" class="form-label">Spawn Rate</label>
-                                            <input type="number" name="perf_spawn_rate" id="perf_spawn_rate" class="form-control" 
-                                                   min="1" max="10" value="2">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="mb-3">
-                                            <label for="perf_duration" class="form-label">Duration (minutes)</label>
-                                            <input type="number" name="perf_duration" id="perf_duration" class="form-control" 
-                                                   min="1" max="30" value="5">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+        <!-- Configuration -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title">Test Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Batch Size</label>
+                            <input type="number" name="batch_size" class="form-control" 
+                                   min="1" max="10" value="3">
                         </div>
                     </div>
-                    
-                    <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-outline-secondary" onclick="previousStep(1)">
-                            <i class="fas fa-arrow-left me-2"></i>Previous
-                        </button>
-                        <button type="button" class="btn btn-primary" onclick="nextStep(3)" id="step-2-next">
-                            Next: Target Selection <i class="fas fa-arrow-right ms-2"></i>
-                        </button>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Timeout (min)</label>
+                            <input type="number" name="timeout" class="form-control" 
+                                   min="5" max="120" value="30">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Priority</label>
+                            <select name="priority" class="form-select">
+                                <option value="normal">Normal</option>
+                                <option value="high">High</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Step 3: Model & Application Selection -->
-        <div class="step-content d-none" id="step-3-content">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-bullseye me-2"></i>Select Targets</h5>
-                </div>
-                <div class="card-body">
-                    <!-- Model & Application Selection Component -->
-                    <div class="model-selector">
-                        <div class="row">
-                            <!-- Model Selection -->
-                            <div class="col-md-6">
-                                <div class="card h-100">
-                                    <div class="card-header bg-primary text-white">
-                                        <h6 class="mb-0"><i class="fas fa-robot me-2"></i>Select Models</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="mb-3">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" id="select_all_models">
-                                                <label class="form-check-label" for="select_all_models">
-                                                    <strong>Select All Models</strong>
-                                                </label>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="model-list" style="max-height: 300px; overflow-y: auto;">
-                                            {% for model in models_data %}
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input" type="checkbox" name="selected_models" 
-                                                       value="{{ model.slug }}" id="model_{{ loop.index }}">
-                                                <label class="form-check-label" for="model_{{ loop.index }}">
-                                                    <div class="d-flex justify-content-between align-items-center">
-                                                        <div>
-                                                            <strong>{{ model.name }}</strong>
-                                                            <small class="text-muted d-block">{{ model.slug }}</small>
-                                                        </div>
-                                                        <span class="badge bg-secondary">30 apps</span>
-                                                    </div>
-                                                </label>
-                                            </div>
-                                            {% endfor %}
-                                        </div>
-                                        
-                                        <div class="mt-3">
-                                            <small class="text-muted">
-                                                <i class="fas fa-info-circle me-1"></i>
-                                                Selected models will be tested with the chosen tools
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Application Selection -->
-                            <div class="col-md-6">
-                                <div class="card h-100">
-                                    <div class="card-header bg-success text-white">
-                                        <h6 class="mb-0"><i class="fas fa-layer-group me-2"></i>Select Applications</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="mb-3">
-                                            <label class="form-label">Application Range</label>
-                                            <div class="row">
-                                                <div class="col-6">
-                                                    <input type="number" name="app_start" id="app_start" class="form-control" 
-                                                           min="1" max="30" value="1" placeholder="Start">
-                                                </div>
-                                                <div class="col-6">
-                                                    <input type="number" name="app_end" id="app_end" class="form-control" 
-                                                           min="1" max="30" value="30" placeholder="End">
-                                                </div>
-                                            </div>
-                                            <div class="form-text">Test applications from number X to Y</div>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label class="form-label">Or select specific applications:</label>
-                                            <textarea name="specific_apps" id="specific_apps" class="form-control" rows="3" 
-                                                      placeholder="1,3,5,7-10,15,20-25"></textarea>
-                                            <div class="form-text">Comma-separated list or ranges (e.g., 1,3,5-10)</div>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="include_all_apps" id="include_all_apps">
-                                                <label class="form-check-label" for="include_all_apps">
-                                                    Test All Available Applications
-                                                </label>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Application Health Status -->
-                                        <div class="mb-3">
-                                            <label class="form-label">Filter by Health Status</label>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="health_status" value="healthy" id="health_healthy" checked>
-                                                <label class="form-check-label" for="health_healthy">
-                                                    <i class="fas fa-check-circle text-success me-1"></i>Healthy
-                                                </label>
-                                            </div>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="health_status" value="degraded" id="health_degraded">
-                                                <label class="form-check-label" for="health_degraded">
-                                                    <i class="fas fa-exclamation-triangle text-warning me-1"></i>Degraded
-                                                </label>
-                                            </div>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="health_status" value="unhealthy" id="health_unhealthy">
-                                                <label class="form-check-label" for="health_unhealthy">
-                                                    <i class="fas fa-times-circle text-danger me-1"></i>Unhealthy
-                                                </label>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="alert alert-info">
-                                            <small>
-                                                <i class="fas fa-lightbulb me-1"></i>
-                                                <strong>Tip:</strong> Start with a small range for initial testing
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Batch Configuration Options -->
-                        <div class="row mt-4">
-                            <div class="col-12">
-                                <div class="card">
-                                    <div class="card-header bg-secondary text-white">
-                                        <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Batch Configuration</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <!-- Batch Configuration Options -->
-                                        <div class="batch-options">
-                                            <div class="row">
-                                                <!-- Execution Settings -->
-                                                <div class="col-md-6">
-                                                    <div class="card mb-3">
-                                                        <div class="card-header">
-                                                            <h6 class="mb-0"><i class="fas fa-play me-2"></i>Execution Settings</h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div class="mb-3">
-                                                                <label for="batch_size" class="form-label">Batch Size</label>
-                                                                <input type="number" name="batch_size" id="batch_size" class="form-control" 
-                                                                       min="1" max="10" value="3">
-                                                                <div class="form-text">Number of parallel executions</div>
-                                                            </div>
-                                                            
-                                                            <div class="mb-3">
-                                                                <label for="execution_mode" class="form-label">Execution Mode</label>
-                                                                <select name="execution_mode" id="execution_mode" class="form-select">
-                                                                    <option value="parallel">Parallel</option>
-                                                                    <option value="sequential">Sequential</option>
-                                                                    <option value="adaptive">Adaptive (Based on Load)</option>
-                                                                </select>
-                                                            </div>
-                                                            
-                                                            <div class="mb-3">
-                                                                <label for="priority" class="form-label">Priority</label>
-                                                                <select name="priority" id="priority" class="form-select">
-                                                                    <option value="normal">Normal</option>
-                                                                    <option value="high">High</option>
-                                                                    <option value="low">Low</option>
-                                                                </select>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                
-                                                <!-- Timeout & Resource Settings -->
-                                                <div class="col-md-6">
-                                                    <div class="card mb-3">
-                                                        <div class="card-header">
-                                                            <h6 class="mb-0"><i class="fas fa-clock me-2"></i>Timeout & Resources</h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div class="mb-3">
-                                                                <label for="timeout" class="form-label">Timeout (minutes)</label>
-                                                                <input type="number" name="timeout" id="timeout" class="form-control" 
-                                                                       min="1" max="120" value="30">
-                                                                <div class="form-text">Maximum execution time per test</div>
-                                                            </div>
-                                                            
-                                                            <div class="mb-3">
-                                                                <label for="max_memory" class="form-label">Memory Limit (MB)</label>
-                                                                <input type="number" name="max_memory" id="max_memory" class="form-control" 
-                                                                       min="512" max="8192" value="2048">
-                                                                <div class="form-text">Maximum memory usage per test</div>
-                                                            </div>
-                                                            
-                                                            <div class="mb-3">
-                                                                <div class="form-check">
-                                                                    <input class="form-check-input" type="checkbox" name="auto_cleanup" id="auto_cleanup" checked>
-                                                                    <label class="form-check-label" for="auto_cleanup">
-                                                                        Auto-cleanup on completion
-                                                                    </label>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between mt-4">
-                        <button type="button" class="btn btn-outline-secondary" onclick="previousStep(2)">
-                            <i class="fas fa-arrow-left me-2"></i>Previous
-                        </button>
-                        <button type="button" class="btn btn-primary" onclick="nextStep(4)" id="step-3-next">
-                            Next: Review <i class="fas fa-arrow-right ms-2"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Step 4: Review & Submit -->
-        <div class="step-content d-none" id="step-4-content">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Review & Submit</h5>
-                </div>
-                <div class="card-body">
-                    <div id="test-summary">
-                        <!-- Test summary will be generated here -->
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header bg-primary text-white">
-                                        <h6 class="mb-0"><i class="fas fa-tools me-2"></i>Selected Tools</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <ul class="list-group list-group-flush" id="summary-tools">
-                                            <!-- Tools will be populated by JavaScript -->
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header bg-success text-white">
-                                        <h6 class="mb-0"><i class="fas fa-robot me-2"></i>Selected Models</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <ul class="list-group list-group-flush" id="summary-models">
-                                            <!-- Models will be populated by JavaScript -->
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row mt-4">
-                            <div class="col-md-4">
-                                <div class="card">
-                                    <div class="card-body text-center">
-                                        <h5 class="card-title text-primary" id="summary-tool-count">0</h5>
-                                        <p class="card-text">Testing Tools</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card">
-                                    <div class="card-body text-center">
-                                        <h5 class="card-title text-success" id="summary-model-count">0</h5>
-                                        <p class="card-text">AI Models</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card">
-                                    <div class="card-body text-center">
-                                        <h5 class="card-title text-info" id="summary-estimated-time">0</h5>
-                                        <p class="card-text">Est. Duration (min)</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="alert alert-info mt-4">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-info-circle me-3 fs-4"></i>
-                                <div>
-                                    <h6 class="alert-heading mb-1">Ready to Launch Test</h6>
-                                    <p class="mb-0">Review your configuration above and click "Launch Test" to begin comprehensive security testing.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between mt-4">
-                        <button type="button" class="btn btn-outline-secondary" onclick="previousStep(3)">
-                            <i class="fas fa-arrow-left me-2"></i>Previous
-                        </button>
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <i class="fas fa-rocket me-2"></i>Launch Test
-                        </button>
-                    </div>
+        <!-- Submit -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <div id="result-message"></div>
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                        <i class="fas fa-redo"></i> Reset
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-rocket"></i> Launch Test
+                    </button>
                 </div>
             </div>
         </div>
     </form>
-
-    <!-- Submission Result -->
-    <div id="submission-result" class="mt-4"></div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-let currentStep = 1;
-const totalSteps = 4;
-
-// Step navigation
-function nextStep(step) {
-    if (validateCurrentStep()) {
-        hideStep(currentStep);
-        showStep(step);
-        updateStepIndicator(step);
-        currentStep = step;
-        
-        // Load tool configurations if moving to step 2
-        if (step === 2) {
-            loadToolConfigurations();
-        }
-        
-        // Generate summary if moving to step 4
-        if (step === 4) {
-            generateTestSummary();
-        }
-    }
-}
-
-function previousStep(step) {
-    hideStep(currentStep);
-    showStep(step);
-    updateStepIndicator(step);
-    currentStep = step;
-}
-
-function showStep(step) {
-    document.getElementById(`step-${step}-content`).classList.remove('d-none');
-}
-
-function hideStep(step) {
-    document.getElementById(`step-${step}-content`).classList.add('d-none');
-}
-
-function updateStepIndicator(activeStep) {
-    for (let i = 1; i <= totalSteps; i++) {
-        const stepElement = document.getElementById(`step-${i}`);
-        stepElement.classList.remove('active', 'completed');
-        
-        if (i === activeStep) {
-            stepElement.classList.add('active');
-        } else if (i < activeStep) {
-            stepElement.classList.add('completed');
-        }
-    }
-}
-
-function validateCurrentStep() {
-    switch (currentStep) {
-        case 1:
-            const selectedTools = document.querySelectorAll('input[name="selected_tools"]:checked');
-            if (selectedTools.length === 0) {
-                alert('Please select at least one testing tool.');
-                return false;
-            }
-            return true;
-        case 2:
-            return validateToolConfigurations();
-        case 3:
-            return validateTargetSelection();
-        default:
-            return true;
-    }
-}
-
-function validateToolConfigurations() {
-    // Real-time validation via HTMX
-    const configData = new FormData(document.getElementById('test-creation-form'));
-    const selectedTools = Array.from(document.querySelectorAll('input[name="selected_tools"]:checked'))
-                              .map(input => input.value);
-    
-    // Basic validation for required fields
-    let isValid = true;
-    selectedTools.forEach(tool => {
-        const panel = document.querySelector(`[data-tool-config="${tool}"]`);
-        if (panel) {
-            const requiredFields = panel.querySelectorAll('input[required], select[required]');
-            requiredFields.forEach(field => {
-                if (!field.value) {
-                    showValidationError(field, 'This field is required');
-                    isValid = false;
-                } else {
-                    hideValidationError(field);
-                }
-            });
-        }
-    });
-    
-    return isValid;
-}
-
-function validateTargetSelection() {
-    const selectedModels = document.querySelectorAll('input[name="selected_models"]:checked');
-    if (selectedModels.length === 0) {
-        alert('Please select at least one model to test.');
+// Form validation
+document.getElementById('test-form').addEventListener('submit', function(e) {
+    const tools = document.querySelectorAll('input[name="tools"]:checked');
+    if (tools.length === 0) {
+        e.preventDefault();
+        showToast('Please select at least one testing tool', 'warning');
         return false;
     }
-    return true;
+    
+    const model = document.querySelector('select[name="model_slug"]').value;
+    if (!model) {
+        e.preventDefault();
+        showToast('Please select a model', 'warning');
+        return false;
+    }
+});
+
+function resetForm() {
+    document.getElementById('test-form').reset();
+    document.getElementById('result-message').innerHTML = '';
 }
 
-function loadToolConfigurations() {
-    const selectedTools = Array.from(document.querySelectorAll('input[name="selected_tools"]:checked'))
-                              .map(input => input.value);
+// App range validation
+document.querySelector('input[name="app_end"]').addEventListener('change', function() {
+    const start = parseInt(document.querySelector('input[name="app_start"]').value);
+    const end = parseInt(this.value);
     
-    const configContainer = document.getElementById('tool-configurations');
-    
-    // Hide all configuration sections first
-    const allConfigs = configContainer.querySelectorAll('.tool-config-section');
-    allConfigs.forEach(config => config.classList.add('d-none'));
-    
-    // Show configurations for selected tools
-    selectedTools.forEach(tool => {
-        const configSection = configContainer.querySelector(`[data-tool-config="${tool}"]`);
-        if (configSection) {
-            configSection.classList.remove('d-none');
-        }
-    });
-}
-
-function generateTestSummary() {
-    const selectedTools = Array.from(document.querySelectorAll('input[name="selected_tools"]:checked'));
-    const selectedModels = Array.from(document.querySelectorAll('input[name="selected_models"]:checked'));
-    
-    // Update tool list
-    const toolsList = document.getElementById('summary-tools');
-    toolsList.innerHTML = '';
-    selectedTools.forEach(tool => {
-        const toolName = tool.nextElementSibling.querySelector('h5').textContent.trim();
-        const listItem = document.createElement('li');
-        listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
-        listItem.innerHTML = `
-            ${toolName}
-            <span class="badge bg-primary rounded-pill">${tool.value}</span>
-        `;
-        toolsList.appendChild(listItem);
-    });
-    
-    // Update model list
-    const modelsList = document.getElementById('summary-models');
-    modelsList.innerHTML = '';
-    selectedModels.forEach(model => {
-        const modelLabel = model.nextElementSibling.querySelector('strong').textContent.trim();
-        const listItem = document.createElement('li');
-        listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
-        listItem.innerHTML = `
-            ${modelLabel}
-            <span class="badge bg-success rounded-pill">30 apps</span>
-        `;
-        modelsList.appendChild(listItem);
-    });
-    
-    // Update counts and estimates
-    document.getElementById('summary-tool-count').textContent = selectedTools.length;
-    document.getElementById('summary-model-count').textContent = selectedModels.length;
-    
-    // Calculate estimated duration (tools * models * 5 minutes base + 2 minutes per configuration)
-    const baseTime = selectedTools.length * selectedModels.length * 5;
-    const configTime = selectedTools.length * 2; // Extra time for configurations
-    const estimatedTime = baseTime + configTime;
-    document.getElementById('summary-estimated-time').textContent = estimatedTime;
-}
-
-function showValidationError(field, message) {
-    let feedback = field.parentNode.querySelector('.validation-feedback');
-    if (!feedback) {
-        feedback = document.createElement('div');
-        feedback.className = 'validation-feedback';
-        field.parentNode.appendChild(feedback);
-    }
-    feedback.textContent = message;
-    feedback.classList.add('show');
-    field.classList.add('is-invalid');
-}
-
-function hideValidationError(field) {
-    const feedback = field.parentNode.querySelector('.validation-feedback');
-    if (feedback) {
-        feedback.classList.remove('show');
-    }
-    field.classList.remove('is-invalid');
-}
-
-// Tool card selection
-document.addEventListener('DOMContentLoaded', function() {
-    const toolCards = document.querySelectorAll('.tool-card');
-    toolCards.forEach(card => {
-        card.addEventListener('click', function() {
-            const checkbox = this.querySelector('input[type="checkbox"]');
-            checkbox.checked = !checkbox.checked;
-            this.classList.toggle('selected', checkbox.checked);
-        });
-    });
-    
-    // Prevent checkbox clicks from bubbling
-    const checkboxes = document.querySelectorAll('.tool-card input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('click', function(e) {
-            e.stopPropagation();
-            this.closest('.tool-card').classList.toggle('selected', this.checked);
-        });
-    });
-
-    // Model selection functionality
-    const selectAllModels = document.getElementById('select_all_models');
-    if (selectAllModels) {
-        selectAllModels.addEventListener('change', function() {
-            const modelCheckboxes = document.querySelectorAll('input[name="selected_models"]');
-            modelCheckboxes.forEach(checkbox => {
-                checkbox.checked = this.checked;
-            });
-        });
-    }
-
-    // Application range management
-    const specificApps = document.getElementById('specific_apps');
-    const appStart = document.getElementById('app_start');
-    const appEnd = document.getElementById('app_end');
-    const includeAllApps = document.getElementById('include_all_apps');
-
-    if (specificApps) {
-        specificApps.addEventListener('input', function() {
-            if (this.value.trim()) {
-                appStart.disabled = true;
-                appEnd.disabled = true;
-                includeAllApps.disabled = true;
-            } else {
-                appStart.disabled = false;
-                appEnd.disabled = false;
-                includeAllApps.disabled = false;
-            }
-        });
-    }
-
-    if (includeAllApps) {
-        includeAllApps.addEventListener('change', function() {
-            if (this.checked) {
-                appStart.disabled = true;
-                appEnd.disabled = true;
-                specificApps.disabled = true;
-            } else {
-                appStart.disabled = false;
-                appEnd.disabled = false;
-                specificApps.disabled = false;
-            }
-        });
-    }
-
-    // Validate app range
-    if (appStart && appEnd) {
-        appStart.addEventListener('change', validateAppRange);
-        appEnd.addEventListener('change', validateAppRange);
-    }
-
-    function validateAppRange() {
-        const start = parseInt(appStart.value);
-        const end = parseInt(appEnd.value);
-        
-        if (start && end && start > end) {
-            appEnd.setCustomValidity('End must be greater than or equal to start');
-        } else {
-            appEnd.setCustomValidity('');
-        }
+    if (end < start) {
+        this.setCustomValidity('End must be >= start');
+    } else {
+        this.setCustomValidity('');
     }
 });
 </script>
