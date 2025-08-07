@@ -1,0 +1,277 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Test Results - Research Platform{% endblock %}
+
+{% block page_title %}Test Results{% endblock %}
+{% block page_subtitle %}Security and Performance Analysis Results{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-secondary">
+    <i class="fas fa-arrow-left"></i> Back
+</a>
+<button class="btn btn-primary" onclick="exportResults()">
+    <i class="fas fa-download"></i> Export
+</button>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Test Information -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Test Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Test ID:</strong> {{ test_id }}</p>
+                        <p><strong>Model:</strong> {{ model_name }}</p>
+                        <p><strong>Applications:</strong> {{ app_range }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Started:</strong> {{ start_time }}</p>
+                        <p><strong>Duration:</strong> {{ duration }}</p>
+                        <p><strong>Status:</strong> <span class="badge badge-{{ status_class }}">{{ status }}</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center">
+                    <div class="mb-2">
+                        <span class="badge badge-danger fs-6">{{ high_issues|default(0) }}</span>
+                        <small class="text-muted d-block">High Issues</small>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge badge-warning fs-6">{{ medium_issues|default(0) }}</span>
+                        <small class="text-muted d-block">Medium Issues</small>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge badge-info fs-6">{{ low_issues|default(0) }}</span>
+                        <small class="text-muted d-block">Low Issues</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Tabs -->
+<div class="card">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="results-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" 
+                        data-bs-target="#overview" type="button" role="tab">
+                    <i class="fas fa-chart-bar"></i> Overview
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="security-tab" data-bs-toggle="tab" 
+                        data-bs-target="#security" type="button" role="tab">
+                    <i class="fas fa-shield-alt"></i> Security
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="performance-tab" data-bs-toggle="tab" 
+                        data-bs-target="#performance" type="button" role="tab">
+                    <i class="fas fa-tachometer-alt"></i> Performance
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="detailed-tab" data-bs-toggle="tab" 
+                        data-bs-target="#detailed" type="button" role="tab">
+                    <i class="fas fa-list"></i> Detailed
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content" id="results-tab-content">
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <div id="overview-content" 
+                     hx-get="/testing/api/results/{{ test_id }}/overview"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <div class="text-center p-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading overview...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Tab -->
+            <div class="tab-pane fade" id="security" role="tabpanel">
+                <div id="security-content" 
+                     hx-get="/testing/api/results/{{ test_id }}/security"
+                     hx-trigger="revealed"
+                     hx-swap="innerHTML">
+                    <div class="text-center p-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading security results...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Tab -->
+            <div class="tab-pane fade" id="performance" role="tabpanel">
+                <div id="performance-content" 
+                     hx-get="/testing/api/results/{{ test_id }}/performance"
+                     hx-trigger="revealed"
+                     hx-swap="innerHTML">
+                    <div class="text-center p-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading performance results...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Tab -->
+            <div class="tab-pane fade" id="detailed" role="tabpanel">
+                <div id="detailed-content" 
+                     hx-get="/testing/api/results/{{ test_id }}/detailed"
+                     hx-trigger="revealed"
+                     hx-swap="innerHTML">
+                    <div class="text-center p-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading detailed results...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class TestResults {
+    constructor(testId) {
+        this.testId = testId;
+        this.init();
+    }
+
+    init() {
+        this.setupTabNavigation();
+        this.setupKeyboardShortcuts();
+    }
+
+    setupTabNavigation() {
+        // Bootstrap tab navigation setup
+        const tabTriggerList = [].slice.call(document.querySelectorAll('#results-tabs button[data-bs-toggle="tab"]'));
+        tabTriggerList.map(function (tabTriggerEl) {
+            return new bootstrap.Tab(tabTriggerEl);
+        });
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey) {
+                switch (e.key) {
+                    case '1':
+                        e.preventDefault();
+                        this.switchToTab('overview');
+                        break;
+                    case '2':
+                        e.preventDefault();
+                        this.switchToTab('security');
+                        break;
+                    case '3':
+                        e.preventDefault();
+                        this.switchToTab('performance');
+                        break;
+                    case '4':
+                        e.preventDefault();
+                        this.switchToTab('detailed');
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        this.exportResults();
+                        break;
+                }
+            }
+        });
+    }
+
+    switchToTab(tabId) {
+        const tabButton = document.getElementById(`${tabId}-tab`);
+        if (tabButton) {
+            new bootstrap.Tab(tabButton).show();
+        }
+    }
+
+    async exportResults() {
+        try {
+            const response = await fetch(`/testing/api/results/${this.testId}/export`);
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `test-results-${this.testId}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                AppManager.showToast('Results exported successfully', 'success');
+            } else {
+                throw new Error('Export failed');
+            }
+        } catch (error) {
+            console.error('Error exporting results:', error);
+            AppManager.showToast('Export failed. Please try again.', 'error');
+        }
+    }
+}
+
+// Global functions
+window.exportResults = function() {
+    testResults.exportResults();
+};
+
+window.viewIssueDetails = function(issueId) {
+    // Open issue details modal or navigate to issue page
+    fetch(`/testing/api/issues/${issueId}`)
+        .then(response => response.text())
+        .then(html => {
+            // Show in modal or new page
+            showIssueModal(html);
+        })
+        .catch(error => {
+            console.error('Error loading issue details:', error);
+            AppManager.showToast('Failed to load issue details', 'error');
+        });
+};
+
+function showIssueModal(html) {
+    // Create and show modal with issue details
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    modal.addEventListener('hidden.bs.modal', () => {
+        document.body.removeChild(modal);
+    });
+}
+
+// Initialize
+let testResults;
+document.addEventListener('DOMContentLoaded', () => {
+    testResults = new TestResults('{{ test_id }}');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,539 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}{{ app_name }} - {{ model_name }} - Research Platform{% endblock %}
+
+{% block page_title %}{{ app_name or 'App ' + app_number|string }}{% endblock %}
+{% block page_subtitle %}{{ model_name }} - Application {{ app_number }} Details{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('main.model_details', model_slug=model_slug) }}" class="btn btn-secondary">
+    <i class="fas fa-arrow-left"></i> Back to Model
+</a>
+{% if app_status == 'running' and frontend_port %}
+    <a href="http://localhost:{{ frontend_port }}" target="_blank" class="btn btn-success">
+        <i class="fas fa-external-link-alt"></i> Open App
+    </a>
+{% endif %}
+<button class="btn btn-primary" onclick="toggleAppContainer()">
+    <i class="fas fa-{{ 'stop' if app_status == 'running' else 'play' }}"></i> 
+    {{ 'Stop' if app_status == 'running' else 'Start' }}
+</button>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- App Status Overview -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Container Status</h5>
+            </div>
+            <div class="card-body">
+                {% include 'partials/container_status.html' %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">App Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-6">App Number:</dt>
+                    <dd class="col-sm-6">{{ app_number }}</dd>
+                    
+                    <dt class="col-sm-6">Model:</dt>
+                    <dd class="col-sm-6">{{ model_name }}</dd>
+                    
+                    <dt class="col-sm-6">Provider:</dt>
+                    <dd class="col-sm-6">{{ provider }}</dd>
+                    
+                    <dt class="col-sm-6">Status:</dt>
+                    <dd class="col-sm-6">
+                        <span class="badge badge-{{ 'success' if app_status == 'running' else 'warning' if app_status == 'stopped' else 'danger' }}">
+                            {{ app_status|title }}
+                        </span>
+                    </dd>
+                    
+                    {% if frontend_port %}
+                    <dt class="col-sm-6">Frontend Port:</dt>
+                    <dd class="col-sm-6">{{ frontend_port }}</dd>
+                    {% endif %}
+                    
+                    {% if backend_port %}
+                    <dt class="col-sm-6">Backend Port:</dt>
+                    <dd class="col-sm-6">{{ backend_port }}</dd>
+                    {% endif %}
+                    
+                    {% if created_date %}
+                    <dt class="col-sm-6">Created:</dt>
+                    <dd class="col-sm-6">{{ created_date.strftime('%Y-%m-%d') if created_date else 'N/A' }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- App Details Tabs -->
+<div class="card">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="app-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="files-tab" data-bs-toggle="tab" 
+                        data-bs-target="#files" type="button" role="tab">
+                    <i class="fas fa-folder"></i> Files
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="logs-tab" data-bs-toggle="tab" 
+                        data-bs-target="#logs" type="button" role="tab">
+                    <i class="fas fa-file-alt"></i> Logs
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" 
+                        data-bs-target="#analysis" type="button" role="tab">
+                    <i class="fas fa-shield-alt"></i> Analysis
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="performance-tab" data-bs-toggle="tab" 
+                        data-bs-target="#performance" type="button" role="tab">
+                    <i class="fas fa-tachometer-alt"></i> Performance
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content" id="app-tabs-content">
+            <!-- Files Tab -->
+            <div class="tab-pane fade show active" id="files" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title">
+                                    <i class="fas fa-folder-tree me-2"></i>File Structure
+                                </h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="file-tree" class="file-tree" 
+                                     hx-get="/api/app/{{ model_slug }}/{{ app_number }}/files"
+                                     hx-trigger="load"
+                                     hx-swap="innerHTML">
+                                    <div class="text-center p-3">
+                                        <div class="loading-spinner"></div>
+                                        <p class="text-muted mt-2">Loading files...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title">
+                                    <i class="fas fa-code me-2"></i>File Content
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="file-content-viewer">
+                                    <div class="text-center text-muted p-4">
+                                        <i class="fas fa-file-code fa-3x mb-3"></i>
+                                        <h5>Select a file to view</h5>
+                                        <p>Choose a file from the tree on the left to view its content</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Tab -->
+            <div class="tab-pane fade" id="logs" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="list-group" id="log-sources">
+                            <button type="button" class="list-group-item list-group-item-action active" 
+                                    onclick="loadLogs('frontend')">
+                                <i class="fas fa-globe-americas me-2"></i>Frontend Logs
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action" 
+                                    onclick="loadLogs('backend')">
+                                <i class="fas fa-cogs me-2"></i>Backend Logs
+                            </button>
+                            {% if has_database %}
+                            <button type="button" class="list-group-item list-group-item-action" 
+                                    onclick="loadLogs('database')">
+                                <i class="fas fa-database me-2"></i>Database Logs
+                            </button>
+                            {% endif %}
+                            <button type="button" class="list-group-item list-group-item-action" 
+                                    onclick="loadLogs('docker')">
+                                <i class="fab fa-docker me-2"></i>Docker Logs
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-9">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="card-title mb-0" id="log-title">Frontend Logs</h6>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" onclick="refreshLogs()">
+                                        <i class="fas fa-sync-alt"></i> Refresh
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="downloadLogs()">
+                                        <i class="fas fa-download"></i> Download
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="toggleAutoRefresh()">
+                                        <i class="fas fa-play" id="auto-refresh-icon"></i> Auto-refresh
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="log-content" 
+                                     hx-get="/api/app/{{ model_slug }}/{{ app_number }}/logs/frontend"
+                                     hx-trigger="revealed"
+                                     hx-swap="innerHTML"
+                                     class="log-viewer">
+                                    <div class="text-center p-4">
+                                        <div class="loading-spinner"></div>
+                                        <p class="text-muted mt-2">Loading logs...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Tab -->
+            <div class="tab-pane fade" id="analysis" role="tabpanel">
+                <div id="analysis-content" 
+                     hx-get="/api/app/{{ model_slug }}/{{ app_number }}/analysis"
+                     hx-trigger="revealed"
+                     hx-swap="innerHTML">
+                    <div class="text-center p-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading analysis...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Tab -->
+            <div class="tab-pane fade" id="performance" role="tabpanel">
+                <div id="performance-content" 
+                     hx-get="/api/app/{{ model_slug }}/{{ app_number }}/performance"
+                     hx-trigger="revealed"
+                     hx-swap="innerHTML">
+                    <div class="text-center p-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading performance data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class AppDetails {
+    constructor(modelSlug, appNumber) {
+        this.modelSlug = modelSlug;
+        this.appNumber = appNumber;
+        this.currentLogSource = 'frontend';
+        this.autoRefreshLogs = false;
+        this.autoRefreshInterval = null;
+        this.init();
+    }
+
+    init() {
+        this.setupTabNavigation();
+        this.setupKeyboardShortcuts();
+    }
+
+    setupTabNavigation() {
+        // Bootstrap tab navigation
+        const tabTriggerList = [].slice.call(document.querySelectorAll('#app-tabs button[data-bs-toggle="tab"]'));
+        tabTriggerList.map(function (tabTriggerEl) {
+            return new bootstrap.Tab(tabTriggerEl);
+        });
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey) {
+                switch (e.key) {
+                    case '1':
+                        e.preventDefault();
+                        this.switchToTab('files');
+                        break;
+                    case '2':
+                        e.preventDefault();
+                        this.switchToTab('logs');
+                        break;
+                    case '3':
+                        e.preventDefault();
+                        this.switchToTab('analysis');
+                        break;
+                    case '4':
+                        e.preventDefault();
+                        this.switchToTab('performance');
+                        break;
+                    case 'r':
+                        e.preventDefault();
+                        this.refreshCurrentTab();
+                        break;
+                }
+            }
+        });
+    }
+
+    switchToTab(tabId) {
+        const tabButton = document.getElementById(`${tabId}-tab`);
+        if (tabButton) {
+            new bootstrap.Tab(tabButton).show();
+        }
+    }
+
+    refreshCurrentTab() {
+        const activeTab = document.querySelector('#app-tabs .nav-link.active');
+        if (activeTab) {
+            const tabId = activeTab.id.replace('-tab', '');
+            switch (tabId) {
+                case 'files':
+                    htmx.trigger('#file-tree', 'htmx:trigger');
+                    break;
+                case 'logs':
+                    this.refreshLogs();
+                    break;
+                case 'analysis':
+                    htmx.trigger('#analysis-content', 'htmx:trigger');
+                    break;
+                case 'performance':
+                    htmx.trigger('#performance-content', 'htmx:trigger');
+                    break;
+            }
+        }
+    }
+
+    loadLogs(source) {
+        this.currentLogSource = source;
+        
+        // Update active state
+        document.querySelectorAll('#log-sources .list-group-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        event.target.classList.add('active');
+        
+        // Update title
+        const titles = {
+            frontend: 'Frontend Logs',
+            backend: 'Backend Logs',
+            database: 'Database Logs',
+            docker: 'Docker Logs'
+        };
+        document.getElementById('log-title').textContent = titles[source] || 'Logs';
+        
+        // Load logs
+        htmx.ajax('GET', `/api/app/${encodeURIComponent(this.modelSlug)}/${this.appNumber}/logs/${source}`, {
+            target: '#log-content',
+            swap: 'innerHTML'
+        });
+    }
+
+    refreshLogs() {
+        this.loadLogs(this.currentLogSource);
+    }
+
+    downloadLogs() {
+        const url = `/api/app/${encodeURIComponent(this.modelSlug)}/${this.appNumber}/logs/${this.currentLogSource}/download`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${this.modelSlug}-app${this.appNumber}-${this.currentLogSource}-logs.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    toggleAutoRefresh() {
+        this.autoRefreshLogs = !this.autoRefreshLogs;
+        const icon = document.getElementById('auto-refresh-icon');
+        
+        if (this.autoRefreshLogs) {
+            icon.classList.remove('fa-play');
+            icon.classList.add('fa-pause');
+            this.autoRefreshInterval = setInterval(() => {
+                this.refreshLogs();
+            }, 5000); // Refresh every 5 seconds
+            AppManager.showToast('Auto-refresh enabled', 'info');
+        } else {
+            icon.classList.remove('fa-pause');
+            icon.classList.add('fa-play');
+            if (this.autoRefreshInterval) {
+                clearInterval(this.autoRefreshInterval);
+                this.autoRefreshInterval = null;
+            }
+            AppManager.showToast('Auto-refresh disabled', 'info');
+        }
+    }
+
+    loadFileContent(filePath) {
+        htmx.ajax('GET', `/api/app/${encodeURIComponent(this.modelSlug)}/${this.appNumber}/file?path=${encodeURIComponent(filePath)}`, {
+            target: '#file-content-viewer',
+            swap: 'innerHTML'
+        });
+    }
+}
+
+// File tree functions
+function toggleFileNode(element) {
+    const children = element.nextElementSibling;
+    if (children && children.classList.contains('tree-children')) {
+        children.style.display = children.style.display === 'none' ? 'block' : 'none';
+        const icon = element.querySelector('i');
+        if (icon.classList.contains('fa-folder')) {
+            icon.classList.toggle('fa-folder');
+            icon.classList.toggle('fa-folder-open');
+        }
+    }
+}
+
+// Global functions
+window.loadLogs = function(source) {
+    appDetails.loadLogs(source);
+};
+
+window.refreshLogs = function() {
+    appDetails.refreshLogs();
+};
+
+window.downloadLogs = function() {
+    appDetails.downloadLogs();
+};
+
+window.toggleAutoRefresh = function() {
+    appDetails.toggleAutoRefresh();
+};
+
+window.loadFileContent = function(filePath) {
+    appDetails.loadFileContent(filePath);
+};
+
+window.toggleAppContainer = function() {
+    const isRunning = '{{ app_status }}' === 'running';
+    const action = isRunning ? 'stop' : 'start';
+    
+    fetch(`/api/app/${encodeURIComponent('{{ model_slug }}')}/${{{ app_number }}}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            AppManager.showToast(`App ${action} successful`, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            throw new Error(data.error || 'Operation failed');
+        }
+    })
+    .catch(error => {
+        console.error(`Error ${action}ing app:`, error);
+        AppManager.showToast(`App ${action} failed: ${error.message}`, 'error');
+    });
+};
+
+// Initialize
+let appDetails;
+document.addEventListener('DOMContentLoaded', () => {
+    appDetails = new AppDetails('{{ model_slug }}', {{ app_number }});
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (appDetails.autoRefreshInterval) {
+        clearInterval(appDetails.autoRefreshInterval);
+    }
+});
+</script>
+
+<style>
+.file-tree {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.tree-view {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.tree-item {
+    padding: 0.25rem 0;
+}
+
+.tree-node,
+.tree-file {
+    display: block;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.tree-node:hover,
+.tree-file:hover {
+    background-color: var(--hover-bg);
+}
+
+.tree-file:hover {
+    background-color: var(--primary-50);
+    color: var(--primary-700);
+}
+
+.tree-children {
+    list-style: none;
+    padding-left: 1rem;
+    margin: 0;
+}
+
+.log-viewer {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    max-height: 600px;
+    overflow: auto;
+    padding: 1rem;
+}
+
+.log-viewer pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.list-group-item {
+    border: none;
+    border-radius: 0;
+}
+
+.list-group-item.active {
+    background-color: var(--primary-600);
+    border-color: var(--primary-600);
+}
+
+.list-group-item:not(.active):hover {
+    background-color: var(--primary-50);
+}
+</style>
+{% endblock %}

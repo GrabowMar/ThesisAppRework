@@ -1,0 +1,132 @@
+<!-- Test Row Component -->
+<tr class="test-row" 
+    data-test-id="{{ test.id }}" 
+    data-test-type="{{ test.type }}" 
+    data-status="{{ test.status }}">
+    <td>
+        <span class="font-monospace text-muted">#{{ test.id }}</span>
+    </td>
+    <td>
+        <div>
+            <strong>{{ test.name or 'Unnamed Test' }}</strong>
+            <br>
+            <small class="text-muted">{{ test.model_name }}</small>
+        </div>
+    </td>
+    <td>
+        <div class="d-flex flex-wrap gap-1">
+            {% for tool in test.tools %}
+                <span class="badge badge-outline-secondary">{{ tool }}</span>
+            {% endfor %}
+        </div>
+    </td>
+    <td>
+        <span class="badge status-badge badge-{{ 'success' if test.status == 'completed' else 'warning' if test.status == 'running' else 'danger' if test.status == 'failed' else 'secondary' }}">
+            {% if test.status == 'running' %}
+                <i class="fas fa-spinner fa-spin"></i>
+            {% elif test.status == 'completed' %}
+                <i class="fas fa-check"></i>
+            {% elif test.status == 'failed' %}
+                <i class="fas fa-times"></i>
+            {% else %}
+                <i class="fas fa-clock"></i>
+            {% endif %}
+            {{ test.status|title }}
+        </span>
+        
+        {% if test.status == 'running' and test.progress is defined %}
+        <div class="progress mt-1" style="height: 4px;">
+            <div class="progress-bar" role="progressbar" 
+                 style="width: {{ test.progress }}%" 
+                 aria-valuenow="{{ test.progress }}" 
+                 aria-valuemin="0" 
+                 aria-valuemax="100"></div>
+        </div>
+        {% endif %}
+    </td>
+    <td>
+        <small class="text-muted">
+            <div>Started: {{ test.start_time.strftime('%Y-%m-%d %H:%M') if test.start_time else 'N/A' }}</div>
+            {% if test.end_time %}
+                <div>Completed: {{ test.end_time.strftime('%Y-%m-%d %H:%M') }}</div>
+            {% endif %}
+            {% if test.duration %}
+                <div>Duration: {{ test.duration }}</div>
+            {% endif %}
+        </small>
+    </td>
+    <td>
+        {% if test.status == 'completed' %}
+            <div class="d-flex gap-1">
+                <span class="badge badge-danger" title="High severity issues">
+                    <i class="fas fa-exclamation-triangle"></i> {{ test.high_issues|default(0) }}
+                </span>
+                <span class="badge badge-warning" title="Medium severity issues">
+                    <i class="fas fa-exclamation-circle"></i> {{ test.medium_issues|default(0) }}
+                </span>
+                <span class="badge badge-info" title="Low severity issues">
+                    <i class="fas fa-info-circle"></i> {{ test.low_issues|default(0) }}
+                </span>
+            </div>
+        {% elif test.status == 'failed' %}
+            <span class="text-danger">
+                <i class="fas fa-times-circle"></i> Failed
+            </span>
+        {% else %}
+            <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+    <td>
+        <div class="btn-group btn-group-sm" role="group">
+            {% if test.status == 'completed' %}
+                <button class="btn btn-outline-primary btn-sm" 
+                        onclick="viewTestResults('{{ test.id }}')"
+                        title="View results">
+                    <i class="fas fa-eye"></i>
+                </button>
+            {% endif %}
+            
+            {% if test.status == 'running' %}
+                <button class="btn btn-outline-danger btn-sm" 
+                        onclick="cancelTest('{{ test.id }}')"
+                        title="Cancel test">
+                    <i class="fas fa-stop"></i>
+                </button>
+            {% endif %}
+            
+            {% if test.status in ['failed', 'completed'] %}
+                <button class="btn btn-outline-secondary btn-sm" 
+                        onclick="retryTest('{{ test.id }}')"
+                        title="Retry test">
+                    <i class="fas fa-redo"></i>
+                </button>
+            {% endif %}
+            
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split" 
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="visually-hidden">Toggle Dropdown</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    {% if test.status == 'completed' %}
+                        <li><a class="dropdown-item" href="#" onclick="exportTestResults('{{ test.id }}')">
+                            <i class="fas fa-download me-2"></i>Export Results
+                        </a></li>
+                    {% endif %}
+                    <li><a class="dropdown-item" href="#" onclick="viewTestDetails('{{ test.id }}')">
+                        <i class="fas fa-info-circle me-2"></i>View Details
+                    </a></li>
+                    {% if test.logs_available %}
+                        <li><a class="dropdown-item" href="#" onclick="viewTestLogs('{{ test.id }}')">
+                            <i class="fas fa-file-alt me-2"></i>View Logs
+                        </a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="#" onclick="deleteTest('{{ test.id }}')">
+                        <i class="fas fa-trash me-2"></i>Delete Test
+                    </a></li>
+                </ul>
+            </div>
+        </div>
+    </td>
+</tr>

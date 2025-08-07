@@ -1,0 +1,346 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}{{ model_name }} Details - Research Platform{% endblock %}
+
+{% block page_title %}{{ model_name }}{% endblock %}
+{% block page_subtitle %}{{ provider }} - Model Applications and Analysis{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('main.models_overview') }}" class="btn btn-secondary">
+    <i class="fas fa-arrow-left"></i> Back to Models
+</a>
+<button class="btn btn-primary" onclick="startAllApps()">
+    <i class="fas fa-play"></i> Start All Apps
+</button>
+<button class="btn btn-secondary" onclick="AppManager.refreshData()">
+    <i class="fas fa-sync-alt"></i> Refresh
+</button>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Model Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-card-icon"><i class="fas fa-cube"></i></div>
+            <div class="stats-card-value">{{ total_apps|default(30) }}</div>
+            <div class="stats-card-label">Total Apps</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-card-icon text-success"><i class="fas fa-play-circle"></i></div>
+            <div class="stats-card-value text-success">{{ running_apps|default(0) }}</div>
+            <div class="stats-card-label">Running</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-card-icon text-warning"><i class="fas fa-pause-circle"></i></div>
+            <div class="stats-card-value text-warning">{{ stopped_apps|default(30) }}</div>
+            <div class="stats-card-label">Stopped</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-card-icon text-danger"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stats-card-value text-danger">{{ error_apps|default(0) }}</div>
+            <div class="stats-card-label">Errors</div>
+        </div>
+    </div>
+</div>
+
+<!-- Applications Grid -->
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Applications</h5>
+            <div class="d-flex gap-2">
+                <input type="search" class="form-control form-control-sm" 
+                       placeholder="Search apps..." 
+                       id="apps-search"
+                       style="width: 200px;">
+                <select class="form-select form-select-sm" id="status-filter" style="width: auto;">
+                    <option value="">All Status</option>
+                    <option value="running">Running</option>
+                    <option value="stopped">Stopped</option>
+                    <option value="error">Error</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="apps-grid" 
+             hx-get="/api/models/{{ model_slug }}/apps"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="text-center p-4">
+                <div class="loading-spinner"></div>
+                <p class="text-muted mt-2">Loading applications...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class ModelDetails {
+    constructor(modelSlug) {
+        this.modelSlug = modelSlug;
+        this.apps = [];
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupKeyboardShortcuts();
+        this.loadApps();
+    }
+
+    setupEventListeners() {
+        document.getElementById('apps-search')?.addEventListener('input', () => this.filterApps());
+        document.getElementById('status-filter')?.addEventListener('change', () => this.filterApps());
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('apps-search')?.focus();
+            }
+        });
+    }
+
+    async loadApps() {
+        try {
+            const response = await fetch(`/api/models/${encodeURIComponent(this.modelSlug)}/apps`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.apps = data.apps;
+                this.renderApps();
+            } else {
+                this.showError('Failed to load applications');
+            }
+        } catch (error) {
+            console.error('Error loading apps:', error);
+            this.showError('Error loading applications');
+        }
+    }
+
+    renderApps() {
+        const container = document.getElementById('apps-grid');
+        
+        if (this.apps.length === 0) {
+            container.innerHTML = `
+                <div class="text-center p-4">
+                    <i class="fas fa-cube fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Applications Found</h5>
+                    <p class="text-muted">This model doesn't have any applications yet.</p>
+                </div>
+            `;
+            return;
+        }
+
+        const appsHtml = this.apps.map(app => this.createAppCard(app)).join('');
+        container.innerHTML = `<div class="row">${appsHtml}</div>`;
+    }
+
+    createAppCard(app) {
+        const statusClass = app.status === 'running' ? 'success' : 
+                           app.status === 'stopped' ? 'warning' : 'danger';
+        
+        return `
+            <div class="col-md-6 col-lg-4 mb-4 app-card" 
+                 data-status="${app.status}" 
+                 data-app-number="${app.app_number}">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">App ${app.app_number}</h6>
+                        <span class="badge badge-${statusClass}">${app.status}</span>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="card-title">${app.name || 'Unnamed App'}</h6>
+                        <p class="card-text text-muted small">
+                            ${app.description ? app.description.substring(0, 100) + '...' : 'No description available'}
+                        </p>
+                        
+                        <!-- Container Status -->
+                        <div class="container-status mb-3">
+                            <div class="d-flex justify-content-between text-small">
+                                <span class="d-flex align-items-center">
+                                    <i class="fas fa-globe-americas ${app.frontend_status === 'running' ? 'text-success' : 'text-muted'} mr-1"></i>
+                                    Frontend
+                                </span>
+                                <span class="d-flex align-items-center">
+                                    <i class="fas fa-cogs ${app.backend_status === 'running' ? 'text-success' : 'text-muted'} mr-1"></i>
+                                    Backend
+                                </span>
+                                <span class="d-flex align-items-center">
+                                    <i class="fas fa-database ${app.database_status === 'running' ? 'text-success' : 'text-muted'} mr-1"></i>
+                                    Database
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Ports -->
+                        <div class="ports-info mb-3">
+                            <small class="text-muted">
+                                <i class="fas fa-desktop mr-1"></i> Frontend: ${app.frontend_port || 'N/A'}
+                                <br>
+                                <i class="fas fa-server mr-1"></i> Backend: ${app.backend_port || 'N/A'}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            ${this.createAppActions(app)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    createAppActions(app) {
+        let actions = '';
+        
+        if (app.status === 'stopped') {
+            actions += `
+                <button class="btn btn-success btn-sm" onclick="startApp(${app.app_number})">
+                    <i class="fas fa-play"></i> Start
+                </button>
+            `;
+        } else if (app.status === 'running') {
+            actions += `
+                <button class="btn btn-warning btn-sm" onclick="restartApp(${app.app_number})">
+                    <i class="fas fa-redo"></i> Restart
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="stopApp(${app.app_number})">
+                    <i class="fas fa-stop"></i> Stop
+                </button>
+            `;
+        }
+        
+        if (app.status === 'running' && app.frontend_port) {
+            actions += `
+                <button class="btn btn-info btn-sm" onclick="openApp(${app.frontend_port})">
+                    <i class="fas fa-external-link-alt"></i> Open
+                </button>
+            `;
+        }
+        
+        actions += `
+            <button class="btn btn-secondary btn-sm" onclick="viewAppDetails(${app.app_number})">
+                <i class="fas fa-info"></i> Details
+            </button>
+        `;
+        
+        return actions;
+    }
+
+    filterApps() {
+        const search = document.getElementById('apps-search')?.value.toLowerCase() || '';
+        const status = document.getElementById('status-filter')?.value || '';
+        
+        const cards = document.querySelectorAll('.app-card');
+        cards.forEach(card => {
+            const appNumber = card.dataset.appNumber;
+            const appStatus = card.dataset.status;
+            const cardText = card.textContent.toLowerCase();
+            
+            const matchesSearch = !search || cardText.includes(search);
+            const matchesStatus = !status || appStatus === status;
+            
+            card.style.display = matchesSearch && matchesStatus ? '' : 'none';
+        });
+    }
+
+    showError(message) {
+        const container = document.getElementById('apps-grid');
+        container.innerHTML = `
+            <div class="text-center p-4">
+                <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                <h5 class="text-danger">Error</h5>
+                <p class="text-muted">${message}</p>
+                <button class="btn btn-primary" onclick="modelDetails.loadApps()">
+                    <i class="fas fa-retry"></i> Retry
+                </button>
+            </div>
+        `;
+    }
+}
+
+// App action functions
+window.startApp = function(appNumber) {
+    appAction('start', appNumber);
+};
+
+window.stopApp = function(appNumber) {
+    appAction('stop', appNumber);
+};
+
+window.restartApp = function(appNumber) {
+    appAction('restart', appNumber);
+};
+
+window.openApp = function(port) {
+    window.open(`http://localhost:${port}`, '_blank');
+};
+
+window.viewAppDetails = function(appNumber) {
+    window.location.href = `/app/${encodeURIComponent('{{ model_slug }}')}/${appNumber}`;
+};
+
+window.startAllApps = function() {
+    if (confirm('Start all applications for this model?')) {
+        bulkAppAction('start-all');
+    }
+};
+
+function appAction(action, appNumber) {
+    fetch(`/api/models/{{ model_slug }}/apps/${appNumber}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            AppManager.showToast(`App ${action} successful`, 'success');
+            modelDetails.loadApps();
+        } else {
+            throw new Error(data.error || 'Operation failed');
+        }
+    })
+    .catch(error => {
+        console.error(`Error ${action}ing app:`, error);
+        AppManager.showToast(`App ${action} failed: ${error.message}`, 'error');
+    });
+}
+
+function bulkAppAction(action) {
+    fetch(`/api/models/{{ model_slug }}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            AppManager.showToast('Bulk operation initiated', 'success');
+            setTimeout(() => modelDetails.loadApps(), 2000);
+        } else {
+            throw new Error(data.error || 'Operation failed');
+        }
+    })
+    .catch(error => {
+        console.error('Error with bulk action:', error);
+        AppManager.showToast(`Bulk operation failed: ${error.message}`, 'error');
+    });
+}
+
+// Initialize
+let modelDetails;
+document.addEventListener('DOMContentLoaded', () => {
+    modelDetails = new ModelDetails('{{ model_slug }}');
+});
+</script>
+{% endblock %}
