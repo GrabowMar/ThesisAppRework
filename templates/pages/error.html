@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Error - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <div class="error-icon mb-4">
+                        <i class="fas fa-exclamation-triangle fa-4x text-danger"></i>
+                    </div>
+                    
+                    <h1 class="error-title text-danger">Oops! Something went wrong</h1>
+                    
+                    {% if error_code %}
+                    <h2 class="error-code text-muted">Error {{ error_code }}</h2>
+                    {% endif %}
+                    
+                    <div class="error-message mt-4 mb-4">
+                        {% if error %}
+                        <div class="alert alert-danger">
+                            <strong>Error details:</strong> {{ error }}
+                        </div>
+                        {% else %}
+                        <p class="text-muted">An unexpected error occurred while processing your request.</p>
+                        {% endif %}
+                    </div>
+                    
+                    {% if timestamp %}
+                    <p class="text-muted small">Error occurred at: {{ timestamp }}</p>
+                    {% endif %}
+                    
+                    <div class="error-actions mt-4">
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+                            <i class="fas fa-home mr-2"></i>Go to Dashboard
+                        </a>
+                        <button class="btn btn-secondary ml-2" onclick="window.history.back()">
+                            <i class="fas fa-arrow-left mr-2"></i>Go Back
+                        </button>
+                        <button class="btn btn-outline-secondary ml-2" onclick="window.location.reload()">
+                            <i class="fas fa-redo mr-2"></i>Retry
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional Help -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-question-circle mr-2"></i>Need Help?
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="help-item">
+                                <i class="fas fa-home fa-2x text-primary mb-2"></i>
+                                <h6>Dashboard</h6>
+                                <p class="text-muted small">Return to the main dashboard to continue working.</p>
+                                <a href="{{ url_for('main.dashboard') }}" class="btn btn-sm btn-outline-primary">Go to Dashboard</a>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="help-item">
+                                <i class="fas fa-robot fa-2x text-success mb-2"></i>
+                                <h6>Models</h6>
+                                <p class="text-muted small">Browse and manage AI models and their applications.</p>
+                                <a href="{{ url_for('main.models_overview') }}" class="btn btn-sm btn-outline-success">View Models</a>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="help-item">
+                                <i class="fas fa-flask fa-2x text-warning mb-2"></i>
+                                <h6>Testing</h6>
+                                <p class="text-muted small">Access security and performance testing tools.</p>
+                                <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-sm btn-outline-warning">Testing Dashboard</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-redirect after 30 seconds if no user interaction
+let redirectTimer = setTimeout(() => {
+    window.location.href = '{{ url_for("main.dashboard") }}';
+}, 30000);
+
+// Cancel auto-redirect if user interacts with the page
+document.addEventListener('click', () => {
+    clearTimeout(redirectTimer);
+});
+
+document.addEventListener('keydown', () => {
+    clearTimeout(redirectTimer);
+});
+</script>
+{% endblock %}

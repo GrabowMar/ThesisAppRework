@@ -200,6 +200,73 @@ class ResponseHandler:
             
         return response, code
 
+# ===========================
+# HELPER FUNCTIONS
+# ===========================
+
+def get_app_basic_info(model: str, app_num: int):
+    """Get basic app information for display."""
+    try:
+        # Get basic app info from database
+        app = GeneratedApplication.query.filter_by(
+            model_slug=model,
+            app_number=app_num
+        ).first()
+        
+        if app:
+            return {
+                'app_name': app.app_name,
+                'app_number': app_num,
+                'description': app.description,
+                'status': 'unknown',  # Will be updated by container status
+                'frontend_port': app.frontend_port,
+                'backend_port': app.backend_port,
+                'created_at': app.created_at,
+                'updated_at': app.updated_at,
+                'frontend_tech': 'React',  # Default assumption
+                'backend_tech': 'Flask',   # Default assumption
+                'security_score': None,
+                'performance_score': None,
+                'security_analysis': None,
+                'performance_data': None
+            }
+        else:
+            # Create basic app data if not in database
+            return {
+                'app_name': f'Application {app_num}',
+                'app_number': app_num,
+                'description': f'Generated application {app_num} for model {model}',
+                'status': 'unknown',
+                'frontend_port': None,
+                'backend_port': None,
+                'created_at': None,
+                'updated_at': None,
+                'frontend_tech': 'React',
+                'backend_tech': 'Flask',
+                'security_score': None,
+                'performance_score': None,
+                'security_analysis': None,
+                'performance_data': None
+            }
+    except Exception as e:
+        logger.error(f"Error getting app basic info: {e}")
+        return {
+            'app_name': f'Application {app_num}',
+            'app_number': app_num,
+            'description': 'Error loading application data',
+            'status': 'error',
+            'frontend_port': None,
+            'backend_port': None,
+            'created_at': None,
+            'updated_at': None,
+            'frontend_tech': 'Unknown',
+            'backend_tech': 'Unknown',
+            'security_score': None,
+            'performance_score': None,
+            'security_analysis': None,
+            'performance_data': None
+        }
+
 
 class ServiceLocator:
     """Centralized service access."""
@@ -849,7 +916,7 @@ def test_creation_page():
             }
         }
         
-        return ResponseHandler.render_response("pages/test_creation.html", 
+        return ResponseHandler.render_response("pages/testing/create.html", 
                                              models_data=models_data,
                                              tools_config=tools_config)
         
@@ -931,7 +998,7 @@ def test_dashboard():
                 'overall_health': 0
             }
         
-        return ResponseHandler.render_response("pages/test_dashboard.html", 
+        return ResponseHandler.render_response("pages/testing/dashboard.html", 
                                              stats=stats, 
                                              active_tests=active_tests,
                                              recent_tests=recent_tests,
@@ -980,7 +1047,7 @@ def test_results(test_id):
                 'completed_at': containerized_test.completed_at
             }
         
-        return ResponseHandler.render_response("pages/test_results.html", 
+        return ResponseHandler.render_response("pages/testing/results.html", 
                                              test_data=test_data)
         
     except Exception as e:
@@ -1927,14 +1994,27 @@ def docker_redirect():
 
 @main_bp.route("/app/<model>/<int:app_num>")
 def app_details(model: str, app_num: int):
-    """Application details page - redirects to overview sub-page."""
+    """Application details page with tabbed interface."""
     try:
         # Decode URL-encoded model name
         import urllib.parse
         decoded_model = urllib.parse.unquote(model)
         
-        # Redirect to overview sub-page by default
-        return redirect(url_for("main.app_overview", model=decoded_model, app_num=app_num))
+        # Get app data
+        app_data = get_app_basic_info(decoded_model, app_num)
+        
+        context = {
+            'model': decoded_model,
+            'app_num': app_num,
+            'app_data': app_data,
+            'active_page': 'apps'
+        }
+        
+        return render_template("pages/apps/details.html", **context)
+        
+    except Exception as e:
+        logger.error(f"Error loading app details: {e}")
+        return ResponseHandler.error_response(f"Failed to load app details: {str(e)}")
         
     except Exception as e:
         logger.error(f"Error redirecting to app overview: {e}")
@@ -2010,7 +2090,7 @@ def app_overview(model: str, app_num: int):
                 'last_modified': generated_app.updated_at.strftime('%Y-%m-%d') if generated_app.updated_at else None
             })
         
-        return render_template("pages/app_overview.html", **context)
+        return render_template("pages/apps/overview.html", **context)
         
     except Exception as e:
         logger.error(f"Error loading app overview: {e}")
@@ -2263,7 +2343,7 @@ def models_overview():
             'sort_by': sort_by
         }
         
-        return ResponseHandler.render_response("models_overview.html", **context)
+        return ResponseHandler.render_response("pages/models/overview.html", **context)
         
     except Exception as e:
         logger.error(f"Error loading models: {e}", exc_info=True)
