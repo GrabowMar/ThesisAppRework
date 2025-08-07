@@ -14,7 +14,7 @@ from celery import Celery, current_task
 
 try:
     from .app import create_app
-    from .celery_config import *
+    from .celery_config import *  # noqa: F403
     from .constants import AnalysisStatus, JobStatus, TaskStatus
     from .extensions import get_session
     from .models import (
@@ -24,13 +24,11 @@ try:
         OpenRouterAnalysis,
         PerformanceTest,
         SecurityAnalysis,
-        ZAPAnalysis,
-        db,
     )
     from .service_manager import ServiceLocator
 except ImportError:
     from app import create_app
-    from celery_config import *
+    from celery_config import *  # noqa: F403
     from constants import AnalysisStatus, JobStatus, TaskStatus
     from extensions import get_session
     from models import (

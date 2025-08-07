@@ -133,7 +133,7 @@ class DatabasePopulator:
         # Check different nested structures
         if isinstance(models_data, dict):
             # Direct model_id keys
-            for key, value in models_data.items():
+            for _key, value in models_data.items():
                 if isinstance(value, dict) and value.get('model_id'):
                     return models_data
 
@@ -141,7 +141,7 @@ class DatabasePopulator:
             for nested_key in ['models', 'data']:
                 nested = models_data.get(nested_key, {})
                 if isinstance(nested, dict):
-                    for key, value in nested.items():
+                    for _key, value in nested.items():
                         if isinstance(value, dict) and value.get('model_id'):
                             return nested
 

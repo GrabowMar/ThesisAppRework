@@ -1674,7 +1674,7 @@ Examples:
             else:
                 app_numbers.append(int(part))
 
-        return sorted(list(set(app_numbers)))  # Remove duplicates and sort
+        return sorted(set(app_numbers))  # Remove duplicates and sort
 
     def _parse_models_arg(self, models_arg: str | None) -> str | list[str]:
         """Parse models argument."""
@@ -1976,7 +1976,7 @@ Examples:
                 if len(models) > 0:
                     print("[*] Usage Examples:")
                     example_models = models[:3]  # Show first 3 models
-                    for provider, model_name, canonical_slug in example_models:
+                    for _provider, _model_name, canonical_slug in example_models:
                         print(f"   python src/unified_cli_analyzer.py security backend --model {canonical_slug} --app 1")
                     print()
 

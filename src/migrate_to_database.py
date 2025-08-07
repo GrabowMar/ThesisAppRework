@@ -198,7 +198,7 @@ def verify_migration(app):
         model_count = ModelCapability.query.count()
         port_count = PortConfiguration.query.count()
 
-        print(f"📊 Database contains:")
+        print("📊 Database contains:")
         print(f"   • {model_count} model capabilities")
         print(f"   • {port_count} port configurations")
 

@@ -10,6 +10,7 @@ Provides security analysis, performance testing, ZAP scanning, batch processing,
 # IMPORTS
 # ===========================
 
+import contextlib
 import json
 import logging
 import logging.handlers
@@ -967,10 +968,8 @@ class DockerManager(BaseService):
     def cleanup(self):
         """Cleanup resources."""
         if self.client:
-            try:
+            with contextlib.suppress(Exception):
                 self.client.close()
-            except Exception:
-                pass
 
 
 # ===========================
@@ -1970,7 +1969,7 @@ class ModelIntegrationService(CacheableService):
                 port_configs_by_model.setdefault(model_name, []).append(config)
 
         # Build integrated model data
-        for model_name, port_configs in port_configs_by_model.items():
+        for model_name, _port_configs in port_configs_by_model.items():
             model = AIModel(name=model_name)
 
             # Add summary data
