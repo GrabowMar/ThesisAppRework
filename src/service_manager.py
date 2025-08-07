@@ -200,12 +200,134 @@ class ServiceManager:
                     return None
             return BatchAnalysisService()
         
+        def performance_service_factory():
+            try:
+                from .unified_cli_analyzer import UnifiedCLIAnalyzer
+            except (ImportError, ValueError):
+                try:
+                    from unified_cli_analyzer import UnifiedCLIAnalyzer
+                except ImportError:
+                    self.logger.warning("Could not import UnifiedCLIAnalyzer for performance service")
+                    return None
+            return UnifiedCLIAnalyzer()
+        
+        def zap_service_factory():
+            try:
+                from .unified_cli_analyzer import UnifiedCLIAnalyzer
+            except (ImportError, ValueError):
+                try:
+                    from unified_cli_analyzer import UnifiedCLIAnalyzer
+                except ImportError:
+                    self.logger.warning("Could not import UnifiedCLIAnalyzer for ZAP service")
+                    return None
+            return UnifiedCLIAnalyzer()
+        
+        def security_service_factory():
+            try:
+                from .unified_cli_analyzer import UnifiedCLIAnalyzer
+            except (ImportError, ValueError):
+                try:
+                    from unified_cli_analyzer import UnifiedCLIAnalyzer
+                except ImportError:
+                    self.logger.warning("Could not import UnifiedCLIAnalyzer for security service")
+                    return None
+            return UnifiedCLIAnalyzer()
+        
+        def model_validation_service_factory():
+            """Factory for model validation service."""
+            try:
+                import sqlite3
+                from pathlib import Path
+                
+                class ModelValidationService:
+                    """Service to validate and retrieve real models."""
+                    
+                    def __init__(self):
+                        self.db_path = Path("src/data/thesis_app.db")
+                        self.logger = logging.getLogger(__name__)
+                    
+                    def get_real_models(self):
+                        """Get all real models from database."""
+                        try:
+                            if not self.db_path.exists():
+                                self.logger.warning("Database not found")
+                                return []
+                            
+                            conn = sqlite3.connect(str(self.db_path))
+                            cursor = conn.cursor()
+                            
+                            cursor.execute(
+                                "SELECT provider, model_name, canonical_slug FROM model_capabilities "
+                                "ORDER BY provider, model_name;"
+                            )
+                            models = cursor.fetchall()
+                            conn.close()
+                            
+                            return [
+                                {
+                                    'provider': provider,
+                                    'model_name': model_name,
+                                    'canonical_slug': canonical_slug,
+                                    'display_name': f"{provider}/{model_name}"
+                                }
+                                for provider, model_name, canonical_slug in models
+                            ]
+                        except Exception as e:
+                            self.logger.error(f"Failed to get models: {e}")
+                            return []
+                    
+                    def validate_model(self, model_slug):
+                        """Validate if a model exists in the database."""
+                        try:
+                            if not self.db_path.exists():
+                                return False
+                            
+                            conn = sqlite3.connect(str(self.db_path))
+                            cursor = conn.cursor()
+                            
+                            cursor.execute(
+                                "SELECT COUNT(*) FROM model_capabilities WHERE canonical_slug = ?",
+                                (model_slug,)
+                            )
+                            count = cursor.fetchone()[0]
+                            conn.close()
+                            
+                            return count > 0
+                        except Exception as e:
+                            self.logger.error(f"Failed to validate model {model_slug}: {e}")
+                            return False
+                    
+                    def get_popular_models(self):
+                        """Get a subset of popular/recommended models."""
+                        all_models = self.get_real_models()
+                        
+                        # Priority order for popular models
+                        popular_providers = ['anthropic', 'openai', 'google', 'deepseek', 'mistralai']
+                        popular_models = []
+                        
+                        for provider in popular_providers:
+                            provider_models = [m for m in all_models if m['provider'] == provider]
+                            if provider_models:
+                                # Add the first model from each popular provider
+                                popular_models.append(provider_models[0])
+                        
+                        return popular_models[:10]  # Return top 10
+                
+                return ModelValidationService()
+            except Exception as e:
+                self.logger.warning(f"Could not create ModelValidationService: {e}")
+                return None
+        
         # Register factories
         self.registry.register_factory(ServiceNames.DOCKER_MANAGER, docker_manager_factory)
         self.registry.register_factory(ServiceNames.SCAN_MANAGER, scan_manager_factory)
         self.registry.register_factory(ServiceNames.MODEL_SERVICE, model_service_factory)
         self.registry.register_factory(ServiceNames.PORT_MANAGER, port_manager_factory)
         self.registry.register_factory(ServiceNames.BATCH_SERVICE, batch_service_factory)
+        self.registry.register_factory(ServiceNames.PERFORMANCE_SERVICE, performance_service_factory)
+        self.registry.register_factory(ServiceNames.ZAP_SERVICE, zap_service_factory)
+        self.registry.register_factory(ServiceNames.SECURITY_SERVICE, security_service_factory)
+        self.registry.register_factory("MODEL_VALIDATION_SERVICE", model_validation_service_factory)
     
     def _initialize_services_async(self) -> None:
         """Initialize services asynchronously to prevent blocking startup."""
@@ -300,6 +422,11 @@ class ServiceLocator:
     def get_security_service():
         """Get security analysis service."""
         return ServiceLocator.get_service(ServiceNames.SECURITY_SERVICE)
+    
+    @staticmethod
+    def get_model_validation_service():
+        """Get model validation service."""
+        return ServiceLocator.get_service("MODEL_VALIDATION_SERVICE")
 
 
 def get_service(name: str, service_type: Type[T] = None) -> Optional[T]:
