@@ -18,18 +18,21 @@ migrate = Migrate()
 requests_session = requests.Session()
 # Note: timeout should be set per request, not on session
 
+
 def init_extensions(app):
     """Initialize Flask extensions with the app instance."""
     db.init_app(app)
     migrate.init_app(app, db)
-    
+
     # Configure logging for containerized services communication
-    logging.getLogger('requests').setLevel(logging.WARNING)
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
-    
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
     # Set up testing services configuration
-    app.config.setdefault('TESTING_SERVICES_BASE_URL', 'http://localhost:8000')
-    app.config.setdefault('TESTING_SERVICES_TIMEOUT', 300)
-    app.config.setdefault('TESTING_SERVICES_ENABLED', True)
-    
-    app.logger.info("Extensions initialized with containerized testing services support")
+    app.config.setdefault("TESTING_SERVICES_BASE_URL", "http://localhost:8000")
+    app.config.setdefault("TESTING_SERVICES_TIMEOUT", 300)
+    app.config.setdefault("TESTING_SERVICES_ENABLED", True)
+
+    app.logger.info(
+        "Extensions initialized with containerized testing services support"
+    )
