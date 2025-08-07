@@ -6,9 +6,22 @@ Form definitions for user authentication and profile management.
 """
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, BooleanField, SelectField, TextAreaField
+from wtforms import (
+    BooleanField,
+    PasswordField,
+    SelectField,
+    StringField,
+    SubmitField,
+    TextAreaField,
+)
 from wtforms.validators import (
-    DataRequired, Email, Length, EqualTo, ValidationError, Optional, Regexp
+    DataRequired,
+    Email,
+    EqualTo,
+    Length,
+    Optional,
+    Regexp,
+    ValidationError,
 )
 
 try:
@@ -81,14 +94,14 @@ class RegistrationForm(FlaskForm):
         render_kw={'placeholder': 'Confirm your password', 'autocomplete': 'new-password'}
     )
     submit = SubmitField('Create Account')
-    
+
     def validate_username(self, username):
         """Validate username uniqueness."""
         with get_session() as session:
             user = session.query(User).filter_by(username=username.data).first()
             if user:
                 raise ValidationError('Username already taken. Please choose a different one.')
-    
+
     def validate_email(self, email):
         """Validate email uniqueness."""
         with get_session() as session:
@@ -227,14 +240,14 @@ class CreateUserForm(FlaskForm):
     )
     send_welcome_email = BooleanField('Send Welcome Email', default=True)
     submit = SubmitField('Create User')
-    
+
     def validate_username(self, username):
         """Validate username uniqueness."""
         with get_session() as session:
             user = session.query(User).filter_by(username=username.data).first()
             if user:
                 raise ValidationError('Username already taken.')
-    
+
     def validate_email(self, email):
         """Validate email uniqueness."""
         with get_session() as session:
@@ -275,7 +288,7 @@ class PreferencesForm(FlaskForm):
     job_completion_notifications = BooleanField('Job Completion Notifications', default=True)
     security_alerts = BooleanField('Security Alerts', default=True)
     weekly_summaries = BooleanField('Weekly Summary Reports', default=False)
-    
+
     default_analysis_types = SelectField(
         'Default Analysis Types',
         choices=[
@@ -285,7 +298,7 @@ class PreferencesForm(FlaskForm):
         ],
         default='security'
     )
-    
+
     results_per_page = SelectField(
         'Results Per Page',
         choices=[
@@ -297,7 +310,7 @@ class PreferencesForm(FlaskForm):
         default='25',
         coerce=int
     )
-    
+
     timezone = SelectField(
         'Timezone',
         choices=[
@@ -313,13 +326,13 @@ class PreferencesForm(FlaskForm):
         ],
         default='UTC'
     )
-    
+
     notes = TextAreaField(
         'Notes',
         validators=[Optional(), Length(max=500)],
         render_kw={'rows': 3, 'placeholder': 'Personal notes or preferences...'}
     )
-    
+
     submit = SubmitField('Save Preferences')
 
 

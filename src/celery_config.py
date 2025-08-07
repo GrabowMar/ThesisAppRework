@@ -7,6 +7,7 @@ Handles long-running analysis tasks asynchronously.
 """
 
 import os
+
 from kombu import Queue
 
 # Redis configuration
