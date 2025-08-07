@@ -1,0 +1,208 @@
+<!-- File Viewer Component -->
+<div class="file-viewer" data-file-path="{{ file.path }}">
+    <div class="file-viewer-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="file-info">
+                <h6 class="file-name">
+                    <i class="fas fa-{{ file.icon or 'file' }} text-primary mr-2"></i>
+                    {{ file.name }}
+                </h6>
+                <small class="text-muted">{{ file.path }}</small>
+            </div>
+            <div class="file-actions">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" 
+                            onclick="downloadFile('{{ file.path }}')">
+                        <i class="fas fa-download mr-1"></i>
+                        Download
+                    </button>
+                    {% if file.editable %}
+                    <button type="button" class="btn btn-outline-primary btn-sm" 
+                            onclick="editFile('{{ file.path }}')">
+                        <i class="fas fa-edit mr-1"></i>
+                        Edit
+                    </button>
+                    {% endif %}
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item" href="#" onclick="copyPath('{{ file.path }}')">
+                                <i class="fas fa-copy mr-2"></i>
+                                Copy Path
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="showFileInfo('{{ file.path }}')">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                File Info
+                            </a>
+                            {% if file.type == 'text' %}
+                            <a class="dropdown-item" href="#" onclick="formatCode('{{ file.path }}')">
+                                <i class="fas fa-magic mr-2"></i>
+                                Format Code
+                            </a>
+                            {% endif %}
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item text-danger" href="#" onclick="deleteFile('{{ file.path }}')">
+                                <i class="fas fa-trash mr-2"></i>
+                                Delete
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- File Metadata -->
+        <div class="file-metadata mt-2">
+            <div class="row">
+                <div class="col-3">
+                    <small class="text-muted">Size</small>
+                    <div class="font-weight-medium">{{ file.size or 'Unknown' }}</div>
+                </div>
+                <div class="col-3">
+                    <small class="text-muted">Type</small>
+                    <div class="font-weight-medium">{{ file.type|title or 'Unknown' }}</div>
+                </div>
+                <div class="col-3">
+                    <small class="text-muted">Modified</small>
+                    <div class="font-weight-medium">{{ file.modified or 'Unknown' }}</div>
+                </div>
+                <div class="col-3">
+                    <small class="text-muted">Encoding</small>
+                    <div class="font-weight-medium">{{ file.encoding or 'UTF-8' }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="file-viewer-body">
+        {% if file.type == 'image' %}
+        <!-- Image Preview -->
+        <div class="image-preview text-center">
+            <img src="{{ file.url }}" alt="{{ file.name }}" class="img-fluid" style="max-height: 400px;">
+        </div>
+        
+        {% elif file.type == 'text' or file.type == 'code' %}
+        <!-- Code/Text Content -->
+        <div class="code-viewer">
+            <div class="code-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">
+                        {{ file.lines_count or 0 }} lines
+                        {% if file.language %}
+                        • {{ file.language|title }}
+                        {% endif %}
+                    </span>
+                    <div class="code-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                onclick="copyContent('{{ file.path }}')">
+                            <i class="fas fa-copy mr-1"></i>
+                            Copy
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" 
+                                onclick="toggleWrap('{{ file.path }}')">
+                            <i class="fas fa-text-width mr-1"></i>
+                            Wrap
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <pre class="code-content"><code class="language-{{ file.language or 'text' }}">{{ file.content|escape }}</code></pre>
+        </div>
+        
+        {% elif file.type == 'json' %}
+        <!-- JSON Viewer -->
+        <div class="json-viewer">
+            <div class="json-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">JSON Data</span>
+                    <div class="json-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                onclick="copyJson('{{ file.path }}')">
+                            <i class="fas fa-copy mr-1"></i>
+                            Copy
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" 
+                                onclick="formatJson('{{ file.path }}')">
+                            <i class="fas fa-magic mr-1"></i>
+                            Format
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm" 
+                                onclick="validateJson('{{ file.path }}')">
+                            <i class="fas fa-check mr-1"></i>
+                            Validate
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="json-content" id="json-{{ file.path|replace('/', '-')|replace('.', '-') }}">
+                <!-- JSON content will be rendered here -->
+            </div>
+        </div>
+        
+        {% elif file.type == 'pdf' %}
+        <!-- PDF Viewer -->
+        <div class="pdf-viewer">
+            <embed src="{{ file.url }}" type="application/pdf" width="100%" height="600px">
+        </div>
+        
+        {% elif file.type == 'video' %}
+        <!-- Video Player -->
+        <div class="video-viewer text-center">
+            <video controls style="max-width: 100%; max-height: 400px;">
+                <source src="{{ file.url }}" type="{{ file.mime_type }}">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        
+        {% elif file.type == 'audio' %}
+        <!-- Audio Player -->
+        <div class="audio-viewer text-center">
+            <audio controls style="width: 100%;">
+                <source src="{{ file.url }}" type="{{ file.mime_type }}">
+                Your browser does not support the audio tag.
+            </audio>
+        </div>
+        
+        {% else %}
+        <!-- Generic File Preview -->
+        <div class="generic-file-preview text-center py-5">
+            <i class="fas fa-file fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">{{ file.name }}</h5>
+            <p class="text-muted">This file type cannot be previewed directly.</p>
+            <button type="button" class="btn btn-primary" onclick="downloadFile('{{ file.path }}')">
+                <i class="fas fa-download mr-2"></i>
+                Download File
+            </button>
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if file.type == 'text' or file.type == 'code' %}
+    <!-- File Statistics -->
+    <div class="file-viewer-footer">
+        <div class="file-stats">
+            <div class="row">
+                <div class="col-3">
+                    <small class="text-muted">Lines</small>
+                    <div class="font-weight-medium">{{ file.lines_count or 0 }}</div>
+                </div>
+                <div class="col-3">
+                    <small class="text-muted">Characters</small>
+                    <div class="font-weight-medium">{{ file.chars_count or 0 }}</div>
+                </div>
+                <div class="col-3">
+                    <small class="text-muted">Words</small>
+                    <div class="font-weight-medium">{{ file.words_count or 0 }}</div>
+                </div>
+                <div class="col-3">
+                    <small class="text-muted">Blank Lines</small>
+                    <div class="font-weight-medium">{{ file.blank_lines or 0 }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>

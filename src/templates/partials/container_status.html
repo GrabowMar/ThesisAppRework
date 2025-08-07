@@ -1,0 +1,177 @@
+<!-- Container Status Component -->
+<div class="container-status-card" data-container-id="{{ container.id }}">
+    <div class="container-status-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h6 class="container-name">
+                    <i class="fas fa-{{ container.icon or 'cube' }} text-primary mr-2"></i>
+                    {{ container.name }}
+                </h6>
+                <small class="text-muted">{{ container.type|title }} Container</small>
+            </div>
+            <div class="container-status-badge">
+                <span class="badge badge-{{ 'success' if container.status == 'running' else 'danger' if container.status == 'stopped' else 'warning' if container.status == 'starting' else 'secondary' }} badge-pill">
+                    <i class="fas fa-{{ 'play' if container.status == 'running' else 'stop' if container.status == 'stopped' else 'spinner fa-spin' if container.status == 'starting' else 'pause' }} mr-1"></i>
+                    {{ container.status|title }}
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container-status-body">
+        <!-- Container Metrics -->
+        <div class="container-metrics">
+            <div class="row">
+                <div class="col-4">
+                    <div class="metric-item">
+                        <div class="metric-value {{ 'text-danger' if container.cpu_usage > 80 else 'text-warning' if container.cpu_usage > 60 else 'text-success' }}">
+                            {{ container.cpu_usage or 0 }}%
+                        </div>
+                        <div class="metric-label">CPU</div>
+                        <div class="metric-bar">
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar bg-{{ 'danger' if container.cpu_usage > 80 else 'warning' if container.cpu_usage > 60 else 'success' }}" 
+                                     style="width: {{ container.cpu_usage or 0 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-4">
+                    <div class="metric-item">
+                        <div class="metric-value {{ 'text-danger' if container.memory_usage > 80 else 'text-warning' if container.memory_usage > 60 else 'text-success' }}">
+                            {{ container.memory_usage or 0 }}%
+                        </div>
+                        <div class="metric-label">Memory</div>
+                        <div class="metric-bar">
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar bg-{{ 'danger' if container.memory_usage > 80 else 'warning' if container.memory_usage > 60 else 'success' }}" 
+                                     style="width: {{ container.memory_usage or 0 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-4">
+                    <div class="metric-item">
+                        <div class="metric-value text-info">
+                            {{ container.network_io or '0 KB/s' }}
+                        </div>
+                        <div class="metric-label">Network</div>
+                        <div class="metric-bar">
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar bg-info" style="width: {{ container.network_usage or 0 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Container Information -->
+        <div class="container-info mt-3">
+            <div class="row">
+                <div class="col-6">
+                    <small class="text-muted">Image</small>
+                    <div class="font-weight-medium">{{ container.image|truncate(25) }}</div>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted">Port</small>
+                    <div class="font-weight-medium">
+                        {% if container.ports %}
+                        {{ container.ports[0] }}
+                        {% if container.ports|length > 1 %}
+                        <span class="text-muted">+{{ container.ports|length - 1 }}</span>
+                        {% endif %}
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-2">
+                <div class="col-6">
+                    <small class="text-muted">Uptime</small>
+                    <div class="font-weight-medium">{{ container.uptime or '0m' }}</div>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted">Restarts</small>
+                    <div class="font-weight-medium">{{ container.restart_count or 0 }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Health Check -->
+        {% if container.health_status %}
+        <div class="container-health mt-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Health Status</span>
+                <span class="badge badge-{{ 'success' if container.health_status == 'healthy' else 'danger' if container.health_status == 'unhealthy' else 'warning' }}">
+                    <i class="fas fa-{{ 'heartbeat' if container.health_status == 'healthy' else 'exclamation-triangle' if container.health_status == 'unhealthy' else 'clock' }} mr-1"></i>
+                    {{ container.health_status|title }}
+                </span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Container Actions -->
+    <div class="container-status-footer">
+        <div class="btn-group w-100">
+            {% if container.status == 'running' %}
+            <button type="button" class="btn btn-outline-warning btn-sm" 
+                    onclick="stopContainer('{{ container.id }}')">
+                <i class="fas fa-stop mr-1"></i>
+                Stop
+            </button>
+            <button type="button" class="btn btn-outline-info btn-sm" 
+                    onclick="restartContainer('{{ container.id }}')">
+                <i class="fas fa-redo mr-1"></i>
+                Restart
+            </button>
+            {% elif container.status == 'stopped' %}
+            <button type="button" class="btn btn-outline-success btn-sm" 
+                    onclick="startContainer('{{ container.id }}')">
+                <i class="fas fa-play mr-1"></i>
+                Start
+            </button>
+            {% endif %}
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" onclick="viewLogs('{{ container.id }}')">
+                        <i class="fas fa-file-alt mr-2"></i>
+                        View Logs
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="inspectContainer('{{ container.id }}')">
+                        <i class="fas fa-search mr-2"></i>
+                        Inspect
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="execIntoContainer('{{ container.id }}')">
+                        <i class="fas fa-terminal mr-2"></i>
+                        Execute Shell
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="copyContainer('{{ container.id }}')">
+                        <i class="fas fa-copy mr-2"></i>
+                        Duplicate
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="exportContainer('{{ container.id }}')">
+                        <i class="fas fa-download mr-2"></i>
+                        Export
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item text-danger" href="#" onclick="removeContainer('{{ container.id }}')">
+                        <i class="fas fa-trash mr-2"></i>
+                        Remove
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

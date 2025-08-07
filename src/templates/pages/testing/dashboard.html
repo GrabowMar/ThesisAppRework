@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Security Testing Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-shield-alt text-primary mr-2"></i>
+                Security Testing Dashboard
+            </h1>
+            <p class="page-subtitle">
+                Comprehensive security analysis and vulnerability testing
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-success btn-sm" 
+                    onclick="openTestCreationModal()">
+                <i class="fas fa-plus mr-1"></i>
+                New Test
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" 
+                    onclick="refreshTestDashboard()">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Test Statistics -->
+    <div class="stats-grid">
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-flask"></i>
+            </div>
+            <div class="stats-card-value">{{ test_stats.total_tests or 0 }}</div>
+            <div class="stats-card-label">Total Tests</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-play"></i>
+            </div>
+            <div class="stats-card-value">{{ test_stats.running_tests or 0 }}</div>
+            <div class="stats-card-label">Running</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stats-card-value">{{ test_stats.completed_tests or 0 }}</div>
+            <div class="stats-card-label">Completed</div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="stats-card-value">{{ test_stats.issues_found or 0 }}</div>
+            <div class="stats-card-label">Issues Found</div>
+        </div>
+    </div>
+
+    <!-- Test Controls -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="card-title">
+                <i class="fas fa-cogs mr-2"></i>
+                Test Controls
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">Test Type</label>
+                        <select class="form-control" id="test-type-filter">
+                            <option value="">All Test Types</option>
+                            <option value="security">Security Tests</option>
+                            <option value="performance">Performance Tests</option>
+                            <option value="functionality">Functionality Tests</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" id="status-filter">
+                            <option value="">All Statuses</option>
+                            <option value="running">Running</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                            <option value="queued">Queued</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">Actions</label>
+                        <div class="btn-group w-100" role="group">
+                            <button type="button" class="btn btn-outline-success"
+                                    onclick="runAllTests()">
+                                <i class="fas fa-play mr-1"></i>Run All
+                            </button>
+                            <button type="button" class="btn btn-outline-danger"
+                                    onclick="stopAllTests()">
+                                <i class="fas fa-stop mr-1"></i>Stop All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Results Table -->
+    <div class="card">
+        <div class="card-header">
+            <h6 class="card-title">
+                <i class="fas fa-list mr-2"></i>
+                Test Results
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="tests-table">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Test Name</th>
+                            <th>Type</th>
+                            <th>Target</th>
+                            <th>Status</th>
+                            <th>Started</th>
+                            <th>Duration</th>
+                            <th>Issues</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tests-table-body">
+                        {% for test in recent_tests %}
+                        {% include 'partials/test_row.html' %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty State -->
+            {% if not recent_tests %}
+            <div class="text-center py-5">
+                <i class="fas fa-flask fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No Tests Found</h4>
+                <p class="text-muted">Start by creating your first security test.</p>
+                <button type="button" class="btn btn-primary" onclick="openTestCreationModal()">
+                    <i class="fas fa-plus mr-1"></i>Create Test
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/testing-dashboard.js') }}"></script>
+{% endblock %}

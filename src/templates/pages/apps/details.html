@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app.name }} - App Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent p-0">
+            <li class="breadcrumb-item">
+                <a href="/dashboard">Dashboard</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="/apps">Apps</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {{ app.name }}
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-{{ app.icon or 'cube' }} text-primary mr-2"></i>
+                {{ app.name }}
+            </h1>
+            <p class="page-subtitle">
+                {{ app.description or 'Application details and management' }}
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <span class="badge badge-{{ 'success' if app.status == 'active' else 'warning' if app.status == 'testing' else 'secondary' }} badge-lg">
+                <i class="fas fa-{{ 'check' if app.status == 'active' else 'flask' if app.status == 'testing' else 'pause' }} mr-1"></i>
+                {{ app.status|title }}
+            </span>
+            {% if app.status == 'active' %}
+            <a href="{{ app.url }}" target="_blank" class="btn btn-success">
+                <i class="fas fa-external-link-alt mr-2"></i>
+                Launch App
+            </a>
+            {% endif %}
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-cog mr-2"></i>
+                    Actions
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" onclick="editApp()">
+                        <i class="fas fa-edit mr-2"></i>
+                        Edit Configuration
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="duplicateApp()">
+                        <i class="fas fa-copy mr-2"></i>
+                        Duplicate App
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="exportApp()">
+                        <i class="fas fa-download mr-2"></i>
+                        Export Code
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="deployApp()">
+                        <i class="fas fa-rocket mr-2"></i>
+                        Deploy
+                    </a>
+                    <a class="dropdown-item text-warning" href="#" onclick="restartApp()">
+                        <i class="fas fa-redo mr-2"></i>
+                        Restart
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item text-danger" href="#" onclick="deleteApp()">
+                        <i class="fas fa-trash mr-2"></i>
+                        Delete App
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- App Overview -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Application Overview
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Framework:</strong></td>
+                                    <td>{{ app.framework|title }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Type:</strong></td>
+                                    <td>{{ app.type|title }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Template:</strong></td>
+                                    <td>{{ app.template|title or 'Custom' }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Version:</strong></td>
+                                    <td>{{ app.version or '1.0.0' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Created:</strong></td>
+                                    <td>{{ app.created_date }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Last Updated:</strong></td>
+                                    <td>{{ app.updated_date }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Port:</strong></td>
+                                    <td>{{ app.port or '3000' }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Memory Usage:</strong></td>
+                                    <td>{{ app.memory_usage or '128MB' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features and Components -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-puzzle-piece mr-2"></i>
+                        Features & Components
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for feature in app.features %}
+                        <div class="col-md-6 mb-3">
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle text-success mr-2"></i>
+                                <span class="font-weight-medium">{{ feature.name }}</span>
+                                {% if feature.description %}
+                                <div class="text-muted small mt-1">{{ feature.description }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Structure -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title">
+                        <i class="fas fa-folder mr-2"></i>
+                        File Structure
+                    </h6>
+                    <button type="button" class="btn btn-outline-primary btn-sm" 
+                            onclick="toggleFileStructure()">
+                        <i class="fas fa-expand-alt mr-1"></i>
+                        Expand All
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="file-tree" id="file-structure">
+                        <!-- File structure loaded dynamically -->
+                        <div class="file-tree-loading text-center py-3">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            Loading file structure...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Log -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-history mr-2"></i>
+                        Activity Log
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="activity-timeline">
+                        {% for activity in app.activity_log %}
+                        <div class="activity-timeline-item">
+                            <div class="activity-timeline-icon bg-{{ activity.type_color or 'primary' }}">
+                                <i class="fas fa-{{ activity.icon or 'info' }}"></i>
+                            </div>
+                            <div class="activity-timeline-content">
+                                <div class="activity-timeline-header">
+                                    <span class="font-weight-medium">{{ activity.action }}</span>
+                                    <span class="text-muted small">{{ activity.timestamp }}</span>
+                                </div>
+                                {% if activity.details %}
+                                <div class="text-muted small">{{ activity.details }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- App Statistics -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-chart-bar mr-2"></i>
+                        Statistics
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="stats-grid">
+                        <div class="sidebar-stat">
+                            <div class="sidebar-stat-value">{{ app.stats.views or '1,234' }}</div>
+                            <div class="sidebar-stat-label">Views</div>
+                        </div>
+                        <div class="sidebar-stat">
+                            <div class="sidebar-stat-value text-success">{{ app.stats.uptime or '99.8%' }}</div>
+                            <div class="sidebar-stat-label">Uptime</div>
+                        </div>
+                        <div class="sidebar-stat">
+                            <div class="sidebar-stat-value text-info">{{ app.stats.requests or '5,678' }}</div>
+                            <div class="sidebar-stat-label">Requests</div>
+                        </div>
+                        <div class="sidebar-stat">
+                            <div class="sidebar-stat-value text-warning">{{ app.stats.errors or '12' }}</div>
+                            <div class="sidebar-stat-label">Errors</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dependencies -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-cubes mr-2"></i>
+                        Dependencies
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="dependencies-list">
+                        {% for dependency in app.dependencies %}
+                        <div class="dependency-item mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="font-weight-medium">{{ dependency.name }}</span>
+                                <span class="badge badge-light">{{ dependency.version }}</span>
+                            </div>
+                            {% if dependency.description %}
+                            <div class="text-muted small">{{ dependency.description }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Environment Variables -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-cog mr-2"></i>
+                        Environment
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="environment-variables">
+                        {% for env_var in app.env_variables %}
+                        <div class="env-var-item mb-2">
+                            <code class="env-var-key">{{ env_var.key }}</code>
+                            <span class="text-muted">=</span>
+                            <code class="env-var-value">{{ env_var.value|truncate(20) }}</code>
+                            {% if env_var.is_secret %}
+                            <i class="fas fa-lock text-warning ml-1" title="Secret"></i>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2"
+                            onclick="editEnvironment()">
+                        <i class="fas fa-edit mr-1"></i>
+                        Edit Environment
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-bolt mr-2"></i>
+                        Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="btn-group-vertical w-100">
+                        <button type="button" class="btn btn-outline-primary btn-sm mb-2"
+                                onclick="viewLogs()">
+                            <i class="fas fa-file-alt mr-1"></i>
+                            View Logs
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm mb-2"
+                                onclick="runTests()">
+                            <i class="fas fa-vial mr-1"></i>
+                            Run Tests
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm mb-2"
+                                onclick="createBackup()">
+                            <i class="fas fa-download mr-1"></i>
+                            Create Backup
+                        </button>
+                        <button type="button" class="btn btn-outline-warning btn-sm"
+                                onclick="performanceTuning()">
+                            <i class="fas fa-tachometer-alt mr-1"></i>
+                            Performance Tuning
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/app-details.js') }}"></script>
+{% endblock %}

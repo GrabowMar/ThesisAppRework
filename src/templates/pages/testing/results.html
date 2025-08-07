@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Test Results - {{ test_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent p-0">
+            <li class="breadcrumb-item">
+                <a href="/dashboard">Dashboard</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="/testing">Testing</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {{ test_name }}
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-chart-bar text-primary mr-2"></i>
+                Test Results
+            </h1>
+            <p class="page-subtitle">
+                {{ test_name }} • {{ test_type|title }} • {{ test_date }}
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <span class="badge badge-{{ 'success' if test_status == 'completed' else 'warning' if test_status == 'running' else 'danger' }} badge-lg">
+                <i class="fas fa-{{ 'check' if test_status == 'completed' else 'spinner fa-spin' if test_status == 'running' else 'times' }} mr-1"></i>
+                {{ test_status|title }}
+            </span>
+            {% if test_status == 'completed' %}
+            <button type="button" class="btn btn-primary btn-sm" 
+                    onclick="downloadReport()">
+                <i class="fas fa-download mr-1"></i>
+                Download Report
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Test Summary -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="stats-grid">
+                <div class="stats-card">
+                    <div class="stats-card-icon">
+                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                    </div>
+                    <div class="stats-card-value text-danger">{{ results.high_issues or 0 }}</div>
+                    <div class="stats-card-label">High Risk</div>
+                </div>
+                
+                <div class="stats-card">
+                    <div class="stats-card-icon">
+                        <i class="fas fa-exclamation-circle text-warning"></i>
+                    </div>
+                    <div class="stats-card-value text-warning">{{ results.medium_issues or 0 }}</div>
+                    <div class="stats-card-label">Medium Risk</div>
+                </div>
+                
+                <div class="stats-card">
+                    <div class="stats-card-icon">
+                        <i class="fas fa-info-circle text-info"></i>
+                    </div>
+                    <div class="stats-card-value text-info">{{ results.low_issues or 0 }}</div>
+                    <div class="stats-card-label">Low Risk</div>
+                </div>
+                
+                <div class="stats-card">
+                    <div class="stats-card-icon">
+                        <i class="fas fa-shield-alt text-success"></i>
+                    </div>
+                    <div class="stats-card-value text-success">{{ results.passed_tests or 0 }}</div>
+                    <div class="stats-card-label">Passed</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Test Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Target:</strong></div>
+                        <div class="col-7">{{ test_target }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Duration:</strong></div>
+                        <div class="col-7">{{ test_duration }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Intensity:</strong></div>
+                        <div class="col-7">{{ test_intensity|title }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-5"><strong>Score:</strong></div>
+                        <div class="col-7">
+                            <span class="badge badge-{{ 'danger' if security_score < 50 else 'warning' if security_score < 80 else 'success' }}">
+                                {{ security_score }}/100
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Results Details -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-list mr-2"></i>
+                        Security Issues
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Severity</th>
+                                    <th>Issue Type</th>
+                                    <th>Description</th>
+                                    <th>Location</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for issue in security_issues %}
+                                <tr>
+                                    <td>
+                                        <span class="badge badge-{{ 'danger' if issue.severity == 'high' else 'warning' if issue.severity == 'medium' else 'info' }}">
+                                            {{ issue.severity|title }}
+                                        </span>
+                                    </td>
+                                    <td>{{ issue.type }}</td>
+                                    <td>{{ issue.description }}</td>
+                                    <td><code>{{ issue.location }}</code></td>
+                                    <td>
+                                        <button type="button" class="btn btn-outline-info btn-sm"
+                                                onclick="viewIssueDetails('{{ issue.id }}')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if not security_issues %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-shield-alt fa-3x text-success mb-3"></i>
+                        <h4 class="text-success">No Security Issues Found</h4>
+                        <p class="text-muted">The security scan completed successfully with no vulnerabilities detected.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Test Categories -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-tasks mr-2"></i>
+                        Test Categories
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% for category in test_categories %}
+                    <div class="test-category-item mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="font-weight-medium">{{ category.name }}</span>
+                            <span class="badge badge-{{ 'success' if category.passed else 'danger' }}">
+                                {{ 'PASS' if category.passed else 'FAIL' }}
+                            </span>
+                        </div>
+                        <div class="progress mt-1" style="height: 4px;">
+                            <div class="progress-bar bg-{{ 'success' if category.passed else 'danger' }}" 
+                                 style="width: {{ category.completion_percentage }}%"></div>
+                        </div>
+                        <small class="text-muted">{{ category.tests_run }} tests run</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Recommendations -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb mr-2"></i>
+                        Recommendations
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        {% for recommendation in recommendations %}
+                        <li class="mb-2">
+                            <i class="fas fa-arrow-right text-primary mr-2"></i>
+                            {{ recommendation }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Issue Details Modal -->
+<div class="modal fade" id="issueDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Security Issue Details
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="issue-details-content">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/test-results.js') }}"></script>
+{% endblock %}

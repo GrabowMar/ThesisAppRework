@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block sidebar %}
+<div class="sidebar-section">
+    <h6 class="sidebar-title">Quick Stats</h6>
+    <div class="quick-stats" id="sidebar-stats">
+        <div class="stat-item">
+            <div class="stat-label">Models</div>
+            <div class="stat-value" id="total-models">{{ summary_stats.total_models or 0 }}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Running</div>
+            <div class="stat-value" id="running-containers">{{ summary_stats.running_containers or 0 }}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Apps</div>
+            <div class="stat-value" id="total-apps">{{ summary_stats.total_apps or 0 }}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Analyses</div>
+            <div class="stat-value" id="active-analyses">{{ summary_stats.analyzed_apps or 0 }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="sidebar-section">
+    <h6 class="sidebar-title">Recent Activity</h6>
+    <div class="activity-feed" id="recent-activity">
+        <div class="activity-item">
+            <div class="activity-icon">
+                <i class="fas fa-play"></i>
+            </div>
+            <div class="activity-content">
+                <div>Container started</div>
+                <div class="activity-time">2 minutes ago</div>
+            </div>
+        </div>
+        <div class="activity-item">
+            <div class="activity-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="activity-content">
+                <div>Security scan completed</div>
+                <div class="activity-time">5 minutes ago</div>
+            </div>
+        </div>
+        <div class="activity-item">
+            <div class="activity-icon">
+                <i class="fas fa-sync-alt"></i>
+            </div>
+            <div class="activity-content">
+                <div>Models refreshed</div>
+                <div class="activity-time">10 minutes ago</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="sidebar-section">
+    <h6 class="sidebar-title">Quick Actions</h6>
+    <div class="quick-actions">
+        <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2"
+                onclick="startAllContainers()">
+            <i class="fas fa-play mr-1"></i>Start All
+        </button>
+        <button type="button" class="btn btn-outline-warning btn-sm w-100 mb-2"
+                onclick="stopAllContainers()">
+            <i class="fas fa-stop mr-1"></i>Stop All
+        </button>
+        <button type="button" class="btn btn-outline-info btn-sm w-100"
+                onclick="location.href='/testing'">
+            <i class="fas fa-flask mr-1"></i>Run Tests
+        </button>
+    </div>
+</div>
+
+<div class="sidebar-section">
+    <h6 class="sidebar-title">System Status</h6>
+    <div class="system-status">
+        <div class="health-indicator health-healthy">
+            <i class="fas fa-check-circle"></i>
+            <span>System Healthy</span>
+        </div>
+        <div class="text-sm text-muted mt-1">
+            All services operational
+        </div>
+    </div>
+</div>
+{% endblock %}

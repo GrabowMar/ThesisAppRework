@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}{{ model_name }} Details - Model Analysis{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent p-0">
+            <li class="breadcrumb-item">
+                <a href="/dashboard">Dashboard</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="/models">Models</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {{ model_name }}
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-robot text-primary mr-2"></i>
+                {{ model_name }}
+            </h1>
+            <p class="page-subtitle">
+                {{ model.provider|title }} • {{ model_slug }}
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary btn-sm" 
+                    onclick="refreshModelData()">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Model Information Cards -->
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Core Specifications -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-microchip mr-2"></i>Core Specifications
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>Provider:</strong></div>
+                                <div class="col-7">
+                                    <span class="badge badge-primary">{{ model.provider|title }}</span>
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>Model ID:</strong></div>
+                                <div class="col-7"><code>{{ model_slug }}</code></div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>Context Window:</strong></div>
+                                <div class="col-7">
+                                    <span class="font-weight-bold text-info">{{ "{:,}".format(model.context_length) if model.context_length else 'N/A' }}</span>
+                                    {% if model.context_length %}<small class="text-muted"> tokens</small>{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>Max Output:</strong></div>
+                                <div class="col-7">
+                                    <span class="font-weight-bold text-success">{{ "{:,}".format(model.max_output) if model.max_output else 'N/A' }}</span>
+                                    {% if model.max_output %}<small class="text-muted"> tokens</small>{% endif %}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>Applications:</strong></div>
+                                <div class="col-7">
+                                    <span class="badge badge-info">{{ model.app_count or 30 }} apps generated</span>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-5"><strong>Status:</strong></div>
+                                <div class="col-7">
+                                    <div class="status-indicator status-{{ model.status or 'ready' }}">
+                                        <span class="status-dot"></span>
+                                        {{ model.status|title if model.status else 'Ready' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Applications Grid -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-mobile-alt mr-2"></i>
+                        Generated Applications
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="apps-grid" class="row">
+                        {% for app in applications %}
+                        {% include 'partials/model_app_card.html' %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Capabilities -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-cogs mr-2"></i>Capabilities & Features
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_function_calling else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Function Calling
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_vision else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Vision Support
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_json_mode else 'times-circle text-muted' }}"></i>
+                                </span>
+                                JSON Mode
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_streaming else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Streaming
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                </span>
+                                Research Ready
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                </span>
+                                Code Generation
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Research Metrics -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-flask mr-2"></i>Research Metrics
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="research-metric mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Applications Generated:</span>
+                            <strong>{{ model.app_count or 30 }}</strong>
+                        </div>
+                        <div class="progress mt-1">
+                            <div class="progress-bar bg-success" style="width: 100%"></div>
+                        </div>
+                    </div>
+                    <div class="research-metric mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Security Analyses:</span>
+                            <strong>{{ model.security_analyses or 'Available' }}</strong>
+                        </div>
+                        <div class="progress mt-1">
+                            <div class="progress-bar bg-info" style="width: 85%"></div>
+                        </div>
+                    </div>
+                    <div class="research-metric mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Performance Tests:</span>
+                            <strong>{{ model.performance_tests or 'Available' }}</strong>
+                        </div>
+                        <div class="progress mt-1">
+                            <div class="progress-bar bg-warning" style="width: 75%"></div>
+                        </div>
+                    </div>
+                    <div class="research-metric">
+                        <div class="d-flex justify-content-between">
+                            <span>Code Quality:</span>
+                            <strong>{{ model.code_quality or 'Analyzed' }}</strong>
+                        </div>
+                        <div class="progress mt-1">
+                            <div class="progress-bar bg-primary" style="width: 90%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-bolt mr-2"></i>
+                        Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success btn-sm"
+                                onclick="startAllContainers('{{ model_slug }}')">
+                            <i class="fas fa-play mr-1"></i>Start All Containers
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm"
+                                onclick="restartAllContainers('{{ model_slug }}')">
+                            <i class="fas fa-redo mr-1"></i>Restart All
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm"
+                                onclick="stopAllContainers('{{ model_slug }}')">
+                            <i class="fas fa-stop mr-1"></i>Stop All
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        <a href="/apps?model={{ model_slug }}" class="btn btn-info btn-sm">
+                            <i class="fas fa-list mr-1"></i>View All Apps
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/model-details.js') }}"></script>
+{% endblock %}

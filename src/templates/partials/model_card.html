@@ -1,0 +1,155 @@
+<!-- Model Card Component -->
+<div class="card model-card" data-model-id="{{ model.id }}" data-provider="{{ model.provider }}">
+    <div class="card-header d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="card-title">
+                <i class="fas fa-brain text-primary mr-2"></i>
+                {{ model.name }}
+            </h6>
+            <small class="text-muted">{{ model.provider|title }}</small>
+        </div>
+        <div class="d-flex gap-1">
+            <span class="badge badge-{{ 'success' if model.status == 'available' else 'warning' if model.status == 'limited' else 'danger' }}">
+                {{ model.status|title }}
+            </span>
+            {% if model.is_featured %}
+            <span class="badge badge-primary">
+                <i class="fas fa-star"></i>
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card-body">
+        <!-- Model Description -->
+        <p class="card-text text-muted small mb-3">
+            {{ model.description|truncate(120) }}
+        </p>
+        
+        <!-- Model Specifications -->
+        <div class="row mb-3">
+            <div class="col-6">
+                <small class="text-muted">Type</small>
+                <div class="font-weight-medium">{{ model.type|title }}</div>
+            </div>
+            <div class="col-6">
+                <small class="text-muted">Parameters</small>
+                <div class="font-weight-medium">{{ model.parameters or 'N/A' }}</div>
+            </div>
+        </div>
+        
+        <div class="row mb-3">
+            <div class="col-6">
+                <small class="text-muted">Context Length</small>
+                <div class="font-weight-medium">{{ model.context_length or 'N/A' }}</div>
+            </div>
+            <div class="col-6">
+                <small class="text-muted">Cost</small>
+                <div class="font-weight-medium">{{ model.cost_per_token or 'N/A' }}</div>
+            </div>
+        </div>
+
+        <!-- Capabilities -->
+        {% if model.capabilities %}
+        <div class="mb-3">
+            <small class="text-muted">Capabilities</small>
+            <div class="mt-1">
+                {% for capability in model.capabilities[:3] %}
+                <span class="badge badge-light mr-1">{{ capability }}</span>
+                {% endfor %}
+                {% if model.capabilities|length > 3 %}
+                <span class="badge badge-secondary">+{{ model.capabilities|length - 3 }}</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Performance Metrics -->
+        {% if model.metrics %}
+        <div class="model-metrics mb-3">
+            <div class="row">
+                {% if model.metrics.speed %}
+                <div class="col-4 text-center">
+                    <div class="metric-value text-{{ 'success' if model.metrics.speed > 80 else 'warning' if model.metrics.speed > 60 else 'danger' }}">
+                        {{ model.metrics.speed }}%
+                    </div>
+                    <div class="metric-label">Speed</div>
+                </div>
+                {% endif %}
+                {% if model.metrics.accuracy %}
+                <div class="col-4 text-center">
+                    <div class="metric-value text-{{ 'success' if model.metrics.accuracy > 90 else 'warning' if model.metrics.accuracy > 75 else 'danger' }}">
+                        {{ model.metrics.accuracy }}%
+                    </div>
+                    <div class="metric-label">Accuracy</div>
+                </div>
+                {% endif %}
+                {% if model.metrics.reliability %}
+                <div class="col-4 text-center">
+                    <div class="metric-value text-{{ 'success' if model.metrics.reliability > 95 else 'warning' if model.metrics.reliability > 85 else 'danger' }}">
+                        {{ model.metrics.reliability }}%
+                    </div>
+                    <div class="metric-label">Reliability</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div class="btn-group w-100">
+            <a href="/models/{{ model.id }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-eye mr-1"></i>
+                View Details
+            </a>
+            {% if model.status == 'available' %}
+            <button type="button" class="btn btn-outline-success btn-sm" 
+                    onclick="testModel('{{ model.id }}')">
+                <i class="fas fa-play mr-1"></i>
+                Test
+            </button>
+            {% endif %}
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" onclick="compareModel('{{ model.id }}')">
+                        <i class="fas fa-balance-scale mr-2"></i>
+                        Compare
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="bookmarkModel('{{ model.id }}')">
+                        <i class="fas fa-bookmark mr-2"></i>
+                        Bookmark
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="shareModel('{{ model.id }}')">
+                        <i class="fas fa-share mr-2"></i>
+                        Share
+                    </a>
+                    {% if model.has_api %}
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="getApiKey('{{ model.id }}')">
+                        <i class="fas fa-key mr-2"></i>
+                        API Access
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Model Footer -->
+    <div class="card-footer d-flex justify-content-between align-items-center">
+        <small class="text-muted">
+            <i class="fas fa-clock mr-1"></i>
+            Updated {{ model.last_updated or '2 days ago' }}
+        </small>
+        <div class="model-rating">
+            {% for i in range(5) %}
+            <i class="fas fa-star {{ 'text-warning' if i < (model.rating or 4) else 'text-muted' }}"></i>
+            {% endfor %}
+            <small class="text-muted ml-1">({{ model.reviews_count or 42 }})</small>
+        </div>
+    </div>
+</div>

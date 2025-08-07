@@ -1,0 +1,371 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Apps Overview{% endblock %}
+
+{% block sidebar_content %}
+<!-- Apps Stats -->
+<div class="sidebar-section">
+    <h6 class="sidebar-section-title">
+        <i class="fas fa-cube mr-2"></i>
+        App Statistics
+    </h6>
+    <div class="stats-grid">
+        <div class="sidebar-stat">
+            <div class="sidebar-stat-value">{{ total_apps or 42 }}</div>
+            <div class="sidebar-stat-label">Total Apps</div>
+        </div>
+        <div class="sidebar-stat">
+            <div class="sidebar-stat-value text-success">{{ active_apps or 38 }}</div>
+            <div class="sidebar-stat-label">Active</div>
+        </div>
+        <div class="sidebar-stat">
+            <div class="sidebar-stat-value text-warning">{{ templates_available or 16 }}</div>
+            <div class="sidebar-stat-label">Templates</div>
+        </div>
+        <div class="sidebar-stat">
+            <div class="sidebar-stat-value text-info">{{ frameworks_used or 8 }}</div>
+            <div class="sidebar-stat-label">Frameworks</div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="sidebar-section">
+    <h6 class="sidebar-section-title">
+        <i class="fas fa-bolt mr-2"></i>
+        Quick Actions
+    </h6>
+    <div class="btn-group-vertical w-100">
+        <button type="button" class="btn btn-primary btn-sm mb-2"
+                data-toggle="modal" data-target="#generateAppModal">
+            <i class="fas fa-plus mr-1"></i>
+            Generate New App
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm mb-2"
+                onclick="refreshApps()">
+            <i class="fas fa-sync mr-1"></i>
+            Refresh Apps
+        </button>
+        <button type="button" class="btn btn-outline-info btn-sm"
+                onclick="exportAppsList()">
+            <i class="fas fa-download mr-1"></i>
+            Export List
+        </button>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="sidebar-section">
+    <h6 class="sidebar-section-title">
+        <i class="fas fa-history mr-2"></i>
+        Recent Activity
+    </h6>
+    <div class="activity-feed">
+        <div class="activity-item">
+            <div class="activity-time">2 min ago</div>
+            <div class="activity-text">
+                <strong>Chat App</strong> generated successfully
+            </div>
+        </div>
+        <div class="activity-item">
+            <div class="activity-time">15 min ago</div>
+            <div class="activity-text">
+                <strong>E-commerce API</strong> deployment started
+            </div>
+        </div>
+        <div class="activity-item">
+            <div class="activity-time">1 hour ago</div>
+            <div class="activity-text">
+                <strong>Blog Platform</strong> testing completed
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-cube text-primary mr-2"></i>
+                Apps Overview
+            </h1>
+            <p class="page-subtitle">
+                Manage and monitor your generated applications
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary"
+                    data-toggle="modal" data-target="#generateAppModal">
+                <i class="fas fa-plus mr-2"></i>
+                Generate App
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-filter mr-2"></i>
+                    Filter
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" onclick="filterApps('all')">All Apps</a>
+                    <a class="dropdown-item" href="#" onclick="filterApps('active')">Active Only</a>
+                    <a class="dropdown-item" href="#" onclick="filterApps('inactive')">Inactive Only</a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="filterApps('frontend')">Frontend</a>
+                    <a class="dropdown-item" href="#" onclick="filterApps('backend')">Backend</a>
+                    <a class="dropdown-item" href="#" onclick="filterApps('fullstack')">Full Stack</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                </div>
+                <input type="text" class="form-control" placeholder="Search apps..." 
+                       id="app-search" onkeyup="searchApps()">
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="row">
+                <div class="col-4">
+                    <select class="form-control" id="framework-filter" onchange="filterByFramework()">
+                        <option value="">All Frameworks</option>
+                        <option value="react">React</option>
+                        <option value="vue">Vue.js</option>
+                        <option value="angular">Angular</option>
+                        <option value="flask">Flask</option>
+                        <option value="django">Django</option>
+                        <option value="fastapi">FastAPI</option>
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="form-control" id="status-filter" onchange="filterByStatus()">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="testing">Testing</option>
+                        <option value="deployed">Deployed</option>
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="form-control" id="sort-by" onchange="sortApps()">
+                        <option value="name">Sort by Name</option>
+                        <option value="created">Sort by Created</option>
+                        <option value="updated">Sort by Updated</option>
+                        <option value="status">Sort by Status</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Apps Grid -->
+    <div class="row" id="apps-container">
+        {% for app in apps %}
+        <div class="col-xl-4 col-lg-6 col-md-6 mb-4 app-card" 
+             data-app-type="{{ app.type }}" data-framework="{{ app.framework }}" data-status="{{ app.status }}">
+            <div class="card app-item">
+                <div class="card-header d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="card-title">
+                            <i class="fas fa-{{ app.icon or 'cube' }} text-primary mr-2"></i>
+                            {{ app.name }}
+                        </h6>
+                        <small class="text-muted">{{ app.description or 'No description available' }}</small>
+                    </div>
+                    <span class="badge badge-{{ 'success' if app.status == 'active' else 'warning' if app.status == 'testing' else 'secondary' }}">
+                        {{ app.status|title }}
+                    </span>
+                </div>
+                
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <small class="text-muted">Framework</small>
+                            <div class="font-weight-medium">{{ app.framework or 'Unknown' }}</div>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Type</small>
+                            <div class="font-weight-medium">{{ app.type|title or 'Web App' }}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <small class="text-muted">Created</small>
+                            <div class="font-weight-medium">{{ app.created_date or '2024-01-15' }}</div>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Last Updated</small>
+                            <div class="font-weight-medium">{{ app.updated_date or '2024-01-20' }}</div>
+                        </div>
+                    </div>
+
+                    <!-- App Features -->
+                    <div class="mb-3">
+                        <small class="text-muted">Features</small>
+                        <div class="mt-1">
+                            {% for feature in app.features[:3] %}
+                            <span class="badge badge-light mr-1">{{ feature }}</span>
+                            {% endfor %}
+                            {% if app.features|length > 3 %}
+                            <span class="badge badge-secondary">+{{ app.features|length - 3 }} more</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="btn-group w-100">
+                        <a href="/apps/{{ app.id }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-eye mr-1"></i>
+                            View Details
+                        </a>
+                        {% if app.status == 'active' %}
+                        <a href="{{ app.url }}" target="_blank" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-external-link-alt mr-1"></i>
+                            Launch
+                        </a>
+                        {% endif %}
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                                    data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" href="#" onclick="editApp('{{ app.id }}')">
+                                    <i class="fas fa-edit mr-2"></i>
+                                    Edit
+                                </a>
+                                <a class="dropdown-item" href="#" onclick="duplicateApp('{{ app.id }}')">
+                                    <i class="fas fa-copy mr-2"></i>
+                                    Duplicate
+                                </a>
+                                <a class="dropdown-item" href="#" onclick="exportApp('{{ app.id }}')">
+                                    <i class="fas fa-download mr-2"></i>
+                                    Export
+                                </a>
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item text-danger" href="#" onclick="deleteApp('{{ app.id }}')">
+                                    <i class="fas fa-trash mr-2"></i>
+                                    Delete
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Empty State -->
+    <div class="text-center py-5" id="empty-state" style="display: none;">
+        <i class="fas fa-cube fa-3x text-muted mb-3"></i>
+        <h4 class="text-muted">No Apps Found</h4>
+        <p class="text-muted">Try adjusting your search criteria or generate a new app.</p>
+        <button type="button" class="btn btn-primary"
+                data-toggle="modal" data-target="#generateAppModal">
+            <i class="fas fa-plus mr-2"></i>
+            Generate Your First App
+        </button>
+    </div>
+</div>
+
+<!-- Generate App Modal -->
+<div class="modal fade" id="generateAppModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus mr-2"></i>
+                    Generate New App
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="generate-app-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="app-name">App Name</label>
+                                <input type="text" class="form-control" id="app-name" 
+                                       placeholder="My Awesome App" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="app-type">App Type</label>
+                                <select class="form-control" id="app-type" required>
+                                    <option value="">Select Type</option>
+                                    <option value="frontend">Frontend Only</option>
+                                    <option value="backend">Backend Only</option>
+                                    <option value="fullstack">Full Stack</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="app-description">Description</label>
+                        <textarea class="form-control" id="app-description" rows="3" 
+                                  placeholder="Describe your application..."></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="framework">Framework</label>
+                                <select class="form-control" id="framework" required>
+                                    <option value="">Select Framework</option>
+                                    <option value="react">React</option>
+                                    <option value="vue">Vue.js</option>
+                                    <option value="angular">Angular</option>
+                                    <option value="flask">Flask</option>
+                                    <option value="django">Django</option>
+                                    <option value="fastapi">FastAPI</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="template">Template</label>
+                                <select class="form-control" id="template">
+                                    <option value="">Choose Template (Optional)</option>
+                                    <option value="crud">CRUD Application</option>
+                                    <option value="auth">Authentication System</option>
+                                    <option value="blog">Blog Platform</option>
+                                    <option value="ecommerce">E-commerce</option>
+                                    <option value="chat">Chat Application</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="generateApp()">
+                    <i class="fas fa-magic mr-2"></i>
+                    Generate App
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/apps-overview.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,272 @@
+{% extends "layouts/modal_layout.html" %}
+
+{% block title %}Create Security Test{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-plus text-primary mr-2"></i>
+                Create Security Test
+            </h1>
+            <p class="page-subtitle">
+                Configure and launch a comprehensive security analysis
+            </p>
+        </div>
+    </div>
+
+    <!-- Test Creation Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-cog mr-2"></i>
+                        Test Configuration
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form id="test-creation-form">
+                        <!-- Test Basic Info -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label">Test Name</label>
+                                    <input type="text" class="form-control" id="test-name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label">Test Type</label>
+                                    <select class="form-control" id="test-type" required>
+                                        <option value="">Select Test Type</option>
+                                        <option value="security">Security Analysis</option>
+                                        <option value="performance">Performance Test</option>
+                                        <option value="functionality">Functionality Test</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Target Selection -->
+                        <div class="form-group mb-4">
+                            <label class="form-label">Target Selection</label>
+                            <div class="target-selection">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="target-type" id="target-model" value="model">
+                                    <label class="form-check-label" for="target-model">
+                                        Test Entire Model (All Applications)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="target-type" id="target-app" value="app">
+                                    <label class="form-check-label" for="target-app">
+                                        Test Specific Application
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="target-type" id="target-custom" value="custom">
+                                    <label class="form-check-label" for="target-custom">
+                                        Custom URL/Endpoint
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Target Configuration -->
+                        <div id="target-config-model" class="target-config d-none">
+                            <div class="form-group">
+                                <label class="form-label">Select Model</label>
+                                <select class="form-control" id="model-select">
+                                    <option value="">Choose a model...</option>
+                                    {% for model in available_models %}
+                                    <option value="{{ model.slug }}">{{ model.name }} ({{ model.provider }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="target-config-app" class="target-config d-none">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Model</label>
+                                        <select class="form-control" id="app-model-select">
+                                            <option value="">Choose a model...</option>
+                                            {% for model in available_models %}
+                                            <option value="{{ model.slug }}">{{ model.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Application</label>
+                                        <select class="form-control" id="app-select">
+                                            <option value="">First select a model...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="target-config-custom" class="target-config d-none">
+                            <div class="form-group">
+                                <label class="form-label">Target URL</label>
+                                <input type="url" class="form-control" id="custom-url" placeholder="https://example.com">
+                            </div>
+                        </div>
+
+                        <!-- Test Options -->
+                        <div class="form-group mb-4">
+                            <label class="form-label">Security Test Types</label>
+                            <div class="test-types-grid">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="test-sql-injection" value="sql_injection">
+                                    <label class="form-check-label" for="test-sql-injection">
+                                        SQL Injection
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="test-xss" value="xss">
+                                    <label class="form-check-label" for="test-xss">
+                                        Cross-Site Scripting (XSS)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="test-csrf" value="csrf">
+                                    <label class="form-check-label" for="test-csrf">
+                                        CSRF Protection
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="test-auth" value="authentication">
+                                    <label class="form-check-label" for="test-auth">
+                                        Authentication Bypass
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="test-directory" value="directory_traversal">
+                                    <label class="form-check-label" for="test-directory">
+                                        Directory Traversal
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="test-cors" value="cors">
+                                    <label class="form-check-label" for="test-cors">
+                                        CORS Configuration
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Options -->
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-sliders-h mr-2"></i>
+                                    Advanced Options
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="form-label">Scan Intensity</label>
+                                            <select class="form-control" id="scan-intensity">
+                                                <option value="low">Low (Quick scan)</option>
+                                                <option value="medium" selected>Medium (Balanced)</option>
+                                                <option value="high">High (Comprehensive)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="form-label">Concurrent Scans</label>
+                                            <input type="number" class="form-control" id="concurrent-scans" min="1" max="10" value="3">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="generate-report">
+                                        <label class="form-check-label" for="generate-report">
+                                            Generate detailed report after completion
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary" onclick="cancelTestCreation()">
+                            <i class="fas fa-times mr-1"></i>Cancel
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="startSecurityTest()">
+                            <i class="fas fa-play mr-1"></i>Start Test
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Test Preview -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-eye mr-2"></i>
+                        Test Preview
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="test-preview">
+                        <div class="text-muted text-center py-4">
+                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                            <p>Configure your test to see a preview</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Help & Guidelines -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title">
+                        <i class="fas fa-question-circle mr-2"></i>
+                        Testing Guidelines
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success mr-2"></i>
+                            Ensure target applications are running
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success mr-2"></i>
+                            Use medium intensity for balanced results
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success mr-2"></i>
+                            Enable report generation for documentation
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                            High intensity scans may take longer
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/test-creation.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block layout %}
+<!-- Modal Only Layout - No sidebar -->
+<div class="modal-layout">
+    <!-- Page Content in Modal Style -->
+    <main class="modal-content-area">
+        <!-- Flash Messages -->
+        <div id="flash-messages" class="container-fluid">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- Page Content -->
+        {% block content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}
