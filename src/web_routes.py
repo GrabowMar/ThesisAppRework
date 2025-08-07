@@ -860,42 +860,66 @@ def testing_dashboard():
 def get_infrastructure_status():
     """Get infrastructure status for HTMX updates."""
     try:
-        # Simple health check without creating new services
-        services = {}
-        # Only check services that should be running (exclude ai-analyzer for now)
+        import requests
+        
+        # Core services that should always be checked
         service_ports = {
             'api_gateway': 8000,
             'security_scanner': 8001,
             'performance_tester': 8002,
             'zap_scanner': 8003,
+            'ai_analyzer': 8004,  # Always include ai-analyzer as it's part of containerized infrastructure
             'test_coordinator': 8005
         }
         
+        services = {}
         overall_health = 0
+        
         for service_name, port in service_ports.items():
             try:
-                # Quick health check with short timeout
-                import requests
-                response = requests.get(f"http://localhost:{port}/health", timeout=0.5)
+                response = requests.get(f"http://localhost:{port}/health", timeout=2.0)
                 if response.status_code == 200:
+                    # Try to parse as JSON, fallback to plain text
+                    try:
+                        response_data = response.json()
+                        status = response_data.get('status', 'healthy')
+                        uptime = response_data.get('uptime', '0s')
+                        openrouter_enabled = response_data.get('openrouter_enabled', None)
+                    except (ValueError, TypeError):
+                        # Plain text response, assume healthy
+                        status = 'healthy'
+                        uptime = '0s'
+                        openrouter_enabled = None
+                    
                     services[service_name] = {
-                        'status': 'healthy',
+                        'status': 'healthy' if status in ['healthy', 'degraded'] else status,
                         'port': port,
-                        'uptime': response.json().get('uptime', '0s')
+                        'uptime': uptime,
+                        'openrouter_enabled': openrouter_enabled,
+                        'service_status': status  # Keep original status for display
                     }
                     overall_health += 1
                 else:
                     services[service_name] = {'status': 'unhealthy', 'port': port}
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Service {service_name} on port {port} unreachable: {e}")
                 services[service_name] = {'status': 'down', 'port': port}
         
         overall_health = round((overall_health / len(service_ports)) * 100)
         
-        return render_template("partials/infrastructure_status.html", 
-                             services=services, 
-                             overall_health=overall_health)
+        # Debug: Log what services we collected
+        logger.info(f"Collected services: {list(services.keys())}")
+        
+        # Create data structure that matches template expectations
+        data = {
+            'services': services,
+            'overall_health': overall_health
+        }
+        
+        return render_template("partials/infrastructure_status.html", data=data)
+        
     except Exception as e:
-        logger.error(f"Error getting infrastructure status: {e}")
+        logger.error(f"Exception in infrastructure status: {e}", exc_info=True)
         return render_template("partials/infrastructure_status_error.html", error=str(e))
 
 
@@ -934,37 +958,119 @@ def get_test_stats():
 def get_test_jobs():
     """Get test jobs list for HTMX updates."""
     try:
-        from models import BatchJob, JobStatus
+        from models import BatchJob, JobStatus, ContainerizedTest, AnalysisStatus
         
         # Get filter parameters
         status_filter = request.args.get('status')
         type_filter = request.args.get('type')
         limit = int(request.args.get('limit', 10))
         
-        # Build query
-        query = BatchJob.query
+        # For active tests, check both BatchJob and ContainerizedTest
+        active_tests = []
         
-        if status_filter:
-            if status_filter == 'running':
-                query = query.filter(BatchJob.status == JobStatus.RUNNING)
-            elif status_filter == 'completed':
+        if status_filter == 'running' or not status_filter:
+            # Get running BatchJobs
+            batch_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.RUNNING).all()
+            for job in batch_jobs:
+                active_tests.append({
+                    'id': f"batch_{job.id}",
+                    'test_id': f"batch_{job.id}",
+                    'type': 'batch',
+                    'status': job.status.value,
+                    'created_at': job.created_at,
+                    'job': job
+                })
+            
+            # Get pending/running ContainerizedTests
+            containerized_tests = ContainerizedTest.query.filter(
+                ContainerizedTest.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+            ).order_by(ContainerizedTest.submitted_at.desc()).limit(limit).all()
+            
+            for test in containerized_tests:
+                active_tests.append({
+                    'id': f"container_{test.id}",
+                    'test_id': test.test_id,
+                    'type': test.test_type,
+                    'status': test.status.value,
+                    'created_at': test.submitted_at,
+                    'containerized_test': test
+                })
+        
+        elif status_filter:
+            # Build query for BatchJob
+            query = BatchJob.query
+            
+            if status_filter == 'completed':
                 query = query.filter(BatchJob.status == JobStatus.COMPLETED)
             elif status_filter == 'failed':
                 query = query.filter(BatchJob.status == JobStatus.FAILED)
             elif status_filter == 'pending':
                 query = query.filter(BatchJob.status == JobStatus.PENDING)
+            
+            if type_filter:
+                # Filter by analysis types (stored in JSON field)
+                query = query.filter(BatchJob.analysis_types_json.contains(type_filter))
+            
+            # Get jobs
+            jobs = query.order_by(BatchJob.created_at.desc()).limit(limit).all()
+            
+            for job in jobs:
+                active_tests.append({
+                    'id': f"batch_{job.id}",
+                    'test_id': f"batch_{job.id}",
+                    'type': 'batch',
+                    'status': job.status.value,
+                    'created_at': job.created_at,
+                    'job': job
+                })
         
-        if type_filter:
-            # Filter by analysis types (stored in JSON field)
-            query = query.filter(BatchJob.analysis_types_json.contains(type_filter))
+        # Sort by creation time
+        active_tests.sort(key=lambda x: x['created_at'], reverse=True)
         
-        # Get jobs
-        jobs = query.order_by(BatchJob.created_at.desc()).limit(limit).all()
-        
-        return render_template("partials/test_jobs_list.html", jobs=jobs)
+        return render_template("partials/active_tests_unified.html", active_tests=active_tests)
     except Exception as e:
         logger.error(f"Error getting test jobs: {e}")
         return render_template("partials/test_jobs_error.html", error=str(e))
+
+
+@testing_bp.route("/api/containerized-test/<int:test_id>/status")
+def get_containerized_test_status(test_id):
+    """Get status of a containerized test."""
+    try:
+        from models import ContainerizedTest
+        
+        test = ContainerizedTest.query.get_or_404(test_id)
+        
+        # Try to get updated status from the service
+        # This could be enhanced to actually query the containerized service
+        status_info = {
+            'status': test.status.value,
+            'submitted_at': test.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if test.submitted_at else None,
+            'started_at': test.started_at.strftime('%Y-%m-%d %H:%M:%S') if test.started_at else None,
+            'completed_at': test.completed_at.strftime('%Y-%m-%d %H:%M:%S') if test.completed_at else None,
+            'execution_duration': test.execution_duration
+        }
+        
+        return render_template("partials/test_status_info.html", status=status_info, test=test)
+    except Exception as e:
+        logger.error(f"Error getting containerized test status: {e}")
+        return f"<span class='text-danger'>Error: {e}</span>"
+
+
+@testing_bp.route("/api/containerized-test/<int:test_id>/results")
+def get_containerized_test_results(test_id):
+    """Get results of a containerized test."""
+    try:
+        from models import ContainerizedTest
+        
+        test = ContainerizedTest.query.get_or_404(test_id)
+        
+        results = test.get_result_data()
+        
+        return render_template("partials/containerized_test_results_modal.html", test=test, results=results)
+    except Exception as e:
+        logger.error(f"Error getting containerized test results: {e}")
+        return render_template("partials/error_modal.html", error=str(e))
 
 
 @testing_bp.route("/api/new-test-form")
@@ -984,7 +1090,7 @@ def get_new_test_form():
             {'value': 'ai', 'name': 'AI Analysis', 'description': 'AI-powered code analysis'}
         ]
         
-        return render_template("partials/new_test_modal.html", 
+        return render_template("partials/new_test_modal_fixed.html", 
                              models=models, 
                              test_types=test_types)
     except Exception as e:
@@ -1053,22 +1159,28 @@ def submit_test():
         app_number = int(request.form.get('app_number'))
         use_containerized = request.form.get('use_containerized') == 'on'
         
+        logger.info(f"Test submission: type={test_type}, model={model_slug}, app={app_number}, containerized={use_containerized}")
+        
         if not all([test_type, model_slug, app_number]):
             return render_template("partials/test_submission_error.html", 
                                  error="Missing required fields")
         
-        # Get testing service
-        from service_manager import ServiceLocator
-        analyzer = ServiceLocator.get_service('security_service')
-        
-        if not analyzer:
+        # Get testing service - use UnifiedCLIAnalyzer directly
+        try:
+            from unified_cli_analyzer import UnifiedCLIAnalyzer
+            analyzer = UnifiedCLIAnalyzer()
+        except Exception as e:
+            logger.error(f"Failed to initialize UnifiedCLIAnalyzer: {e}")
             return render_template("partials/test_submission_error.html", 
-                                 error="Testing service not available")
+                                 error=f"Testing service not available: {e}")
         
         # Submit test based on type
         result = None
         if test_type == 'security':
+            logger.info(f"Processing security test, use_containerized={use_containerized}")
+            logger.info(f"Analyzer has containerized_testing_client: {hasattr(analyzer, 'containerized_testing_client')}")
             if use_containerized and hasattr(analyzer, 'containerized_testing_client'):
+                logger.info("Using containerized security testing")
                 # Get enabled tools
                 tools = []
                 if request.form.get('bandit') == 'on':
@@ -1087,11 +1199,85 @@ def submit_test():
                 if not tools:
                     tools = ['bandit', 'safety', 'eslint']  # Default tools
                 
-                result = analyzer.containerized_testing_client.run_security_scan(
-                    model=model_slug,
-                    app_num=app_number,
-                    tools=tools
-                )
+                # Submit test asynchronously instead of waiting for completion
+                try:
+                    # Prepare request payload matching API contract
+                    request_data = {
+                        "model": model_slug,
+                        "app_num": app_number,
+                        "test_type": "security_backend",
+                        "tools": tools,
+                        "scan_depth": "standard",
+                        "include_dependencies": True,
+                        "timeout": 300
+                    }
+                    
+                    import requests
+                    response = requests.post(
+                        "http://localhost:8001/tests",
+                        json=request_data,
+                        timeout=30
+                    )
+                    
+                    if response.status_code == 200:
+                        response_data = response.json()
+                        logger.info(f"Security scanner response: {response_data}")
+                        if response_data.get("success"):
+                            test_id = response_data["data"]["test_id"]
+                            result = {'test_id': test_id, 'status': 'submitted'}
+                            
+                            # Create ContainerizedTest record to track this test
+                            try:
+                                from models import ContainerizedTest, GeneratedApplication, AnalysisStatus
+                                from extensions import db
+                                
+                                # Find or create the application record
+                                app = GeneratedApplication.query.filter_by(
+                                    model_slug=model_slug,
+                                    app_number=app_number
+                                ).first()
+                                
+                                if not app:
+                                    # Create application record if it doesn't exist
+                                    provider = model_slug.split('_')[0] if '_' in model_slug else 'unknown'
+                                    app = GeneratedApplication(
+                                        model_slug=model_slug,
+                                        app_number=app_number,
+                                        app_type='backend',  # Default type
+                                        provider=provider,
+                                        generation_status=AnalysisStatus.PENDING
+                                    )
+                                    db.session.add(app)
+                                    db.session.flush()  # Get the ID
+                                
+                                # Create containerized test record
+                                containerized_test = ContainerizedTest(
+                                    test_id=test_id,
+                                    application_id=app.id,
+                                    test_type=test_type,
+                                    service_endpoint="http://localhost:8001/tests",
+                                    status=AnalysisStatus.PENDING
+                                )
+                                containerized_test.set_tools_used(tools)
+                                
+                                db.session.add(containerized_test)
+                                db.session.commit()
+                                
+                                logger.info(f"Created ContainerizedTest record for test_id: {test_id}")
+                                
+                            except Exception as e:
+                                logger.error(f"Failed to create ContainerizedTest record: {e}")
+                                db.session.rollback()  # Roll back the transaction on error
+                                # Don't fail the test submission over this
+                        else:
+                            logger.error(f"Test submission failed: {response_data.get('error')}")
+                    else:
+                        logger.error(f"Failed to submit test: {response.status_code} - {response.text}")
+                
+                except Exception as e:
+                    logger.error(f"Error submitting security test: {e}")
+                    return render_template("partials/test_submission_error.html", 
+                                         error=f"Failed to submit test: {e}")
             else:
                 return render_template("partials/test_submission_error.html", 
                                      error="Legacy security testing not implemented in UI")
@@ -1131,7 +1317,7 @@ def submit_test():
         # Check result
         if result:
             test_id = result.get('test_id', 'unknown')
-            return render_template("partials/test_submission_success.html", 
+            return render_template("partials/test_submission_success_fixed.html", 
                                  test_id=test_id, 
                                  test_type=test_type,
                                  model_slug=model_slug,
@@ -4785,7 +4971,7 @@ def testing_api_new_test_form():
         
         logger.info(f"Returning {len(applications)} applications and {len(models_data)} models to new test form")
         
-        return render_template('partials/testing/new_test_modal.html', 
+        return render_template('partials/new_test_modal_fixed.html', 
                              applications=applications,
                              models=models_data)
     except Exception as e:
@@ -4884,41 +5070,6 @@ def testing_app_details():
     except Exception as e:
         logger.error(f"Error getting app details: {e}")
         return f'<div class="alert alert-danger">Error loading details: {str(e)}</div>'
-
-@testing_bp.route("/api/infrastructure-status")
-def testing_api_infrastructure_status():
-    """Get detailed infrastructure status."""
-    try:
-        # Use mock infrastructure status for now
-        status = {
-            'overall_status': 'healthy',
-            'services': {
-                'security_scanner': {'status': 'healthy', 'response_time': 150},
-                'performance_tester': {'status': 'healthy', 'response_time': 120},
-                'zap_scanner': {'status': 'healthy', 'response_time': 200},
-                'api_gateway': {'status': 'healthy', 'response_time': 80}
-            },
-            'metrics': {
-                'total_services': 4,
-                'healthy_services': 4,
-                'unhealthy_services': 0
-            },
-            'overall_health': 100,
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        if request.headers.get('HX-Request'):
-            # Debug: log the status to see what's being passed
-            logger.debug(f"Infrastructure status data: {status}")
-            return render_template('partials/infrastructure_status.html', data=status)
-        else:
-            return jsonify({'success': True, 'data': status})
-    except Exception as e:
-        logger.error(f"Infrastructure status error: {e}")
-        if request.headers.get('HX-Request'):
-            return render_template('partials/infrastructure_status.html', data=None, error=str(e))
-        else:
-            return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @testing_bp.route("/api/infrastructure/<action>", methods=["POST"])

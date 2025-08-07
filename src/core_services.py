@@ -1134,6 +1134,459 @@ class TestingServiceClient(BaseService):
 
 
 # ===========================
+# OPENROUTER ANALYSIS SERVICE
+# ===========================
+
+class OpenRouterAnalysisService(BaseService):
+    """Service for AI-based code analysis using OpenRouter API."""
+    
+    def __init__(self):
+        super().__init__('openrouter_service')
+        self.api_key = os.getenv('OPENROUTER_API_KEY')
+        self.base_url = "https://openrouter.ai/api/v1"
+        self.enabled = bool(self.api_key)
+        self.timeout = 120
+        self._session = None
+        
+        if not self.enabled:
+            self.logger.warning("OpenRouter API key not found - service disabled")
+        else:
+            self.logger.info("OpenRouter service initialized")
+    
+    def _get_session(self):
+        """Get or create HTTP session."""
+        if self._session is None:
+            import requests
+            self._session = requests.Session()
+            self._session.headers.update({
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://github.com/your-repo/thesis-app',
+                'X-Title': 'AI Testing Framework'
+            })
+        return self._session
+    
+    async def analyze_code(self, model_slug: str, app_number: int, requirements: str = None) -> Dict[str, Any]:
+        """
+        Analyze AI-generated application code using OpenRouter models.
+        
+        Args:
+            model_slug: Model identifier (e.g., 'anthropic_claude-3-sonnet')
+            app_number: Application number (1-30)
+            requirements: Optional analysis requirements
+            
+        Returns:
+            Analysis results dictionary
+        """
+        if not self.enabled:
+            return {
+                'success': False,
+                'error': 'OpenRouter service not available - API key not configured',
+                'data': {}
+            }
+        
+        try:
+            # Get application source code
+            source_code = self._get_application_source(model_slug, app_number)
+            if not source_code:
+                return {
+                    'success': False,
+                    'error': f'Source code not found for {model_slug} app{app_number}',
+                    'data': {}
+                }
+            
+            # Prepare analysis prompt
+            analysis_prompt = self._build_analysis_prompt(source_code, requirements)
+            
+            # Send to OpenRouter API
+            result = await self._send_to_openrouter(analysis_prompt, model_slug)
+            
+            if result.get('success'):
+                # Parse and structure the response
+                parsed_result = self._parse_analysis_response(result['data'])
+                
+                return {
+                    'success': True,
+                    'data': {
+                        'analysis': parsed_result,
+                        'model_analyzed': model_slug,
+                        'app_number': app_number,
+                        'timestamp': datetime.now().isoformat(),
+                        'analyzer_model': result.get('model_used', 'unknown'),
+                        'token_usage': result.get('usage', {}),
+                        'mode': 'openrouter_api'
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': result.get('error', 'Analysis failed'),
+                    'data': {}
+                }
+                
+        except Exception as e:
+            self.logger.error(f"OpenRouter analysis failed: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'data': {}
+            }
+    
+    def _get_application_source(self, model_slug: str, app_number: int) -> Optional[Dict[str, str]]:
+        """Get source code files for the application."""
+        try:
+            # Get application directory
+            misc_dir = Path(__file__).parent.parent / "misc" / "models"
+            app_dir = misc_dir / model_slug / f"app{app_number}"
+            
+            if not app_dir.exists():
+                self.logger.warning(f"Application directory not found: {app_dir}")
+                return None
+            
+            source_files = {}
+            
+            # Collect source files from backend and frontend
+            for component in ['backend', 'frontend']:
+                component_dir = app_dir / component
+                if component_dir.exists():
+                    source_files[component] = self._collect_source_files(component_dir)
+            
+            # Also collect docker-compose.yml if it exists
+            docker_compose = app_dir / "docker-compose.yml"
+            if docker_compose.exists():
+                source_files['docker_compose'] = docker_compose.read_text(encoding='utf-8')
+            
+            return source_files if source_files else None
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get source code: {e}")
+            return None
+    
+    def _collect_source_files(self, directory: Path) -> Dict[str, str]:
+        """Recursively collect source files from a directory."""
+        source_files = {}
+        
+        # File extensions to include
+        source_extensions = {
+            '.py', '.js', '.jsx', '.ts', '.tsx', '.html', '.css', '.scss',
+            '.json', '.yml', '.yaml', '.md', '.txt', '.env'
+        }
+        
+        try:
+            for file_path in directory.rglob('*'):
+                if file_path.is_file() and file_path.suffix in source_extensions:
+                    try:
+                        relative_path = file_path.relative_to(directory)
+                        content = file_path.read_text(encoding='utf-8', errors='ignore')
+                        source_files[str(relative_path)] = content
+                    except Exception as e:
+                        self.logger.debug(f"Could not read {file_path}: {e}")
+                        continue
+                        
+                # Limit to prevent excessive data
+                if len(source_files) > 50:
+                    self.logger.warning(f"Too many files in {directory}, limiting to 50")
+                    break
+                    
+        except Exception as e:
+            self.logger.error(f"Error collecting files from {directory}: {e}")
+        
+        return source_files
+    
+    def _build_analysis_prompt(self, source_code: Dict[str, Any], requirements: str = None) -> str:
+        """Build the analysis prompt for OpenRouter."""
+        
+        # Count files and estimate tokens
+        total_files = sum(len(files) for files in source_code.values() if isinstance(files, dict))
+        
+        # Build file summary
+        files_summary = []
+        for component, files in source_code.items():
+            if isinstance(files, dict):
+                files_summary.append(f"{component}: {len(files)} files")
+            else:
+                files_summary.append(f"{component}: 1 file")
+        
+        # Create prompt
+        prompt = f"""
+# AI-Generated Web Application Code Analysis
+
+## Analysis Request
+Please analyze this AI-generated web application code for:
+1. **Code Quality**: Structure, readability, maintainability
+2. **Security Issues**: Potential vulnerabilities, unsafe practices
+3. **Best Practices**: Adherence to coding standards and conventions
+4. **Architecture**: Overall design and component organization
+5. **Functionality**: Completeness and correctness of implementation
+
+## Application Overview
+- **Files**: {', '.join(files_summary)}
+- **Total Files**: {total_files}
+
+{f"## Specific Requirements: {requirements}" if requirements else ""}
+
+## Source Code
+
+"""
+        
+        # Add source code with truncation for large files
+        for component, files in source_code.items():
+            prompt += f"\n### {component.upper()}\n"
+            
+            if isinstance(files, dict):
+                for file_path, content in files.items():
+                    # Truncate very large files
+                    if len(content) > 5000:
+                        content = content[:5000] + "\n... [FILE TRUNCATED] ..."
+                    
+                    prompt += f"\n#### {file_path}\n```\n{content}\n```\n"
+            else:
+                # Single file (like docker-compose.yml)
+                content = files
+                if len(content) > 2000:
+                    content = content[:2000] + "\n... [FILE TRUNCATED] ..."
+                prompt += f"```\n{content}\n```\n"
+        
+        prompt += """
+
+## Analysis Format
+Please provide a structured analysis with:
+
+1. **Executive Summary** (2-3 sentences)
+2. **Code Quality Score** (1-10)
+3. **Security Assessment** (list of findings)
+4. **Recommendations** (specific improvements)
+5. **Architecture Review** (strengths and weaknesses)
+
+Focus on actionable insights and specific issues rather than general observations.
+"""
+        
+        return prompt
+    
+    async def _send_to_openrouter(self, prompt: str, model_slug: str) -> Dict[str, Any]:
+        """Send analysis request to OpenRouter API."""
+        try:
+            session = self._get_session()
+            
+            # Choose analysis model based on the model being analyzed
+            analyzer_models = [
+                "anthropic/claude-3.5-sonnet",  # Best for code analysis
+                "openai/gpt-4-turbo",           # Good alternative
+                "anthropic/claude-3-haiku",     # Faster, cheaper option
+            ]
+            
+            # Try each model until one works
+            for analyzer_model in analyzer_models:
+                try:
+                    payload = {
+                        "model": analyzer_model,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        "max_tokens": 4000,
+                        "temperature": 0.1,
+                        "top_p": 0.9,
+                        "stream": False
+                    }
+                    
+                    response = session.post(
+                        f"{self.base_url}/chat/completions",
+                        json=payload,
+                        timeout=self.timeout
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        
+                        if 'choices' in result and result['choices']:
+                            analysis_text = result['choices'][0]['message']['content']
+                            
+                            return {
+                                'success': True,
+                                'data': analysis_text,
+                                'model_used': analyzer_model,
+                                'usage': result.get('usage', {}),
+                                'response_metadata': {
+                                    'finish_reason': result['choices'][0].get('finish_reason'),
+                                    'created': result.get('created'),
+                                    'id': result.get('id')
+                                }
+                            }
+                        else:
+                            continue  # Try next model
+                    
+                    elif response.status_code == 429:
+                        self.logger.warning(f"Rate limited for {analyzer_model}, trying next...")
+                        continue
+                    
+                    else:
+                        self.logger.warning(f"API error {response.status_code} for {analyzer_model}: {response.text}")
+                        continue
+                        
+                except Exception as model_error:
+                    self.logger.warning(f"Failed to use {analyzer_model}: {model_error}")
+                    continue
+            
+            # If we get here, all models failed
+            return {
+                'success': False,
+                'error': 'All OpenRouter models failed or unavailable'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"OpenRouter API request failed: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _parse_analysis_response(self, analysis_text: str) -> Dict[str, Any]:
+        """Parse and structure the analysis response."""
+        try:
+            # Extract sections using simple text parsing
+            sections = {}
+            current_section = None
+            current_content = []
+            
+            lines = analysis_text.split('\n')
+            for line in lines:
+                line = line.strip()
+                
+                # Detect section headers
+                if line.startswith('#') or line.startswith('**') and line.endswith('**'):
+                    # Save previous section
+                    if current_section and current_content:
+                        sections[current_section] = '\n'.join(current_content).strip()
+                    
+                    # Start new section
+                    current_section = line.replace('#', '').replace('**', '').strip().lower()
+                    current_content = []
+                else:
+                    if current_section:
+                        current_content.append(line)
+            
+            # Save last section
+            if current_section and current_content:
+                sections[current_section] = '\n'.join(current_content).strip()
+            
+            # Extract specific metrics
+            analysis_result = {
+                'raw_analysis': analysis_text,
+                'sections': sections,
+                'summary': sections.get('executive summary', ''),
+                'quality_score': self._extract_score(analysis_text),
+                'security_findings': self._extract_security_findings(analysis_text),
+                'recommendations': self._extract_recommendations(analysis_text),
+                'architecture_review': sections.get('architecture review', ''),
+                'extracted_at': datetime.now().isoformat()
+            }
+            
+            return analysis_result
+            
+        except Exception as e:
+            self.logger.error(f"Failed to parse analysis response: {e}")
+            return {
+                'raw_analysis': analysis_text,
+                'error': f'Parsing failed: {e}',
+                'extracted_at': datetime.now().isoformat()
+            }
+    
+    def _extract_score(self, text: str) -> Optional[int]:
+        """Extract quality score from analysis text."""
+        import re
+        
+        # Look for patterns like "Score: 7/10", "Quality: 8", etc.
+        score_patterns = [
+            r'score[:\s]+(\d+)(?:/10)?',
+            r'quality[:\s]+(\d+)(?:/10)?',
+            r'rating[:\s]+(\d+)(?:/10)?',
+            r'(\d+)(?:/10|\s*/\s*10)',
+        ]
+        
+        for pattern in score_patterns:
+            matches = re.findall(pattern, text.lower())
+            if matches:
+                try:
+                    score = int(matches[0])
+                    return min(max(score, 1), 10)  # Clamp to 1-10
+                except ValueError:
+                    continue
+        
+        return None
+    
+    def _extract_security_findings(self, text: str) -> List[str]:
+        """Extract security findings from analysis text."""
+        findings = []
+        
+        # Look for security-related sections
+        security_keywords = ['security', 'vulnerability', 'risk', 'unsafe', 'danger']
+        lines = text.split('\n')
+        
+        in_security_section = False
+        for line in lines:
+            line = line.strip()
+            
+            # Check if we're in a security section
+            if any(keyword in line.lower() for keyword in security_keywords):
+                in_security_section = True
+                continue
+            
+            # If we hit another major section, stop
+            if line.startswith('#') and not any(keyword in line.lower() for keyword in security_keywords):
+                in_security_section = False
+                continue
+            
+            # Extract findings from security section
+            if in_security_section and line:
+                if line.startswith('-') or line.startswith('*') or line.startswith('•'):
+                    findings.append(line.lstrip('-*• '))
+                elif not line.startswith('#'):
+                    findings.append(line)
+        
+        return findings[:10]  # Limit to top 10 findings
+    
+    def _extract_recommendations(self, text: str) -> List[str]:
+        """Extract recommendations from analysis text."""
+        recommendations = []
+        
+        # Look for recommendation sections
+        rec_keywords = ['recommendation', 'improve', 'suggest', 'should', 'could']
+        lines = text.split('\n')
+        
+        in_rec_section = False
+        for line in lines:
+            line = line.strip()
+            
+            # Check if we're in a recommendations section
+            if any(keyword in line.lower() for keyword in rec_keywords):
+                in_rec_section = True
+                continue
+            
+            # If we hit another major section, stop
+            if line.startswith('#') and not any(keyword in line.lower() for keyword in rec_keywords):
+                in_rec_section = False
+                continue
+            
+            # Extract recommendations
+            if in_rec_section and line:
+                if line.startswith('-') or line.startswith('*') or line.startswith('•'):
+                    recommendations.append(line.lstrip('-*• '))
+                elif not line.startswith('#'):
+                    recommendations.append(line)
+        
+        return recommendations[:10]  # Limit to top 10 recommendations
+    
+    def cleanup(self):
+        """Cleanup resources."""
+        if self._session:
+            self._session.close()
+            self._session = None
+
+
+# ===========================
 # SCAN MANAGER
 # ===========================
 

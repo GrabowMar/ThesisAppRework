@@ -6,6 +6,8 @@
         <div class="list-group">
             {% for service_name, service_info in data.services.items() %}
             {% set is_healthy = (service_info.status == 'healthy') %}
+            {% set is_degraded = (service_info.status == 'degraded') %}
+            {% set is_operational = (is_healthy or is_degraded) %}
             <div class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
                     <i class="fas 
@@ -13,6 +15,7 @@
                         {% elif service_name == 'performance-tester' or service_name == 'performance_tester' %}fa-tachometer-alt
                         {% elif service_name == 'zap-scanner' or service_name == 'zap_scanner' %}fa-bug
                         {% elif service_name == 'api-gateway' or service_name == 'api_gateway' %}fa-network-wired
+                        {% elif service_name == 'ai-analyzer' or service_name == 'ai_analyzer' %}fa-brain
                         {% else %}fa-server{% endif %} me-2"></i>
                     <strong>{{ service_name|replace('-', ' ')|replace('_', ' ')|title }}</strong>
                     {% if is_healthy %}
@@ -20,13 +23,23 @@
                         {% if service_info.response_time %}
                             <small class="text-muted d-block">Response time: {{ service_info.response_time }}ms</small>
                         {% endif %}
+                    {% elif is_degraded %}
+                        <small class="text-warning d-block">Service is running with limited functionality</small>
+                        {% if service_name == 'ai_analyzer' and service_info.openrouter_enabled == false %}
+                            <small class="text-muted d-block">OpenRouter API key not configured</small>
+                        {% endif %}
                     {% else %}
                         <small class="text-danger d-block">Service is not responding</small>
                     {% endif %}
                 </div>
-                <span class="badge {% if is_healthy %}bg-success{% else %}bg-danger{% endif %}">
+                <span class="badge 
+                    {% if is_healthy %}bg-success
+                    {% elif is_degraded %}bg-warning
+                    {% else %}bg-danger{% endif %}">
                     {% if is_healthy %}
                         <i class="fas fa-check"></i> Healthy
+                    {% elif is_degraded %}
+                        <i class="fas fa-exclamation-triangle"></i> Degraded
                     {% else %}
                         <i class="fas fa-times"></i> Unhealthy
                     {% endif %}
@@ -43,38 +56,48 @@
                     {% set healthy_count = data.metrics.healthy_services %}
                     {% set total_count = data.metrics.total_services %}
                 {% else %}
-                    {% set healthy_services = [] %}
+                    {% set operational_services = [] %}
+                    {% set fully_healthy_services = [] %}
                     {% for service_name, service_info in data.services.items() %}
+                        {% if service_info.status == 'healthy' or service_info.status == 'degraded' %}
+                            {% set _ = operational_services.append(service_name) %}
+                        {% endif %}
                         {% if service_info.status == 'healthy' %}
-                            {% set _ = healthy_services.append(service_name) %}
+                            {% set _ = fully_healthy_services.append(service_name) %}
                         {% endif %}
                     {% endfor %}
-                    {% set healthy_count = healthy_services|length %}
+                    {% set operational_count = operational_services|length %}
+                    {% set healthy_count = fully_healthy_services|length %}
                     {% set total_count = data.services|length %}
                 {% endif %}
                 
-                {% if healthy_count == total_count %}
+                {% if operational_count == total_count and healthy_count == total_count %}
                     <i class="fas fa-check-circle fa-3x text-success mb-2"></i>
                     <h6 class="text-success">All Systems Operational</h6>
-                    <small class="text-muted">{{ healthy_count }}/{{ total_count }} services healthy</small>
-                {% elif healthy_count > 0 %}
+                    <small class="text-muted">{{ operational_count }}/{{ total_count }} services operational</small>
+                {% elif operational_count == total_count %}
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-2"></i>
+                    <h6 class="text-warning">Systems Operational (Some Degraded)</h6>
+                    <small class="text-muted">{{ operational_count }}/{{ total_count }} services operational</small>
+                {% elif operational_count > 0 %}
                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-2"></i>
                     <h6 class="text-warning">Partial Service Outage</h6>
-                    <small class="text-muted">{{ healthy_count }}/{{ total_count }} services healthy</small>
+                    <small class="text-muted">{{ operational_count }}/{{ total_count }} services operational</small>
                 {% else %}
                     <i class="fas fa-times-circle fa-3x text-danger mb-2"></i>
                     <h6 class="text-danger">System Outage</h6>
-                    <small class="text-muted">{{ healthy_count }}/{{ total_count }} services healthy</small>
+                    <small class="text-muted">{{ operational_count }}/{{ total_count }} services operational</small>
                 {% endif %}
                 
                 <div class="progress mt-2">
                     <div class="progress-bar 
-                        {% if healthy_count == total_count %}bg-success
-                        {% elif healthy_count > 0 %}bg-warning
+                        {% if operational_count == total_count and healthy_count == total_count %}bg-success
+                        {% elif operational_count == total_count %}bg-warning
+                        {% elif operational_count > 0 %}bg-warning
                         {% else %}bg-danger{% endif %}" 
                         role="progressbar" 
-                        style="width: {{ (healthy_count / total_count * 100)|round(1) if total_count > 0 else 0 }}%">
-                        {{ (healthy_count / total_count * 100)|round(1) if total_count > 0 else 0 }}%
+                        style="width: {{ (operational_count / total_count * 100)|round(1) if total_count > 0 else 0 }}%">
+                        {{ (operational_count / total_count * 100)|round(1) if total_count > 0 else 0 }}%
                     </div>
                 </div>
             </div>

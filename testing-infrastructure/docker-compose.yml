@@ -105,26 +105,26 @@ services:
           memory: 1G
           cpus: '0.5'
 
-  # AI-Powered Code Analyzer Container (Future Implementation)
-  # ai-analyzer:
-  #   build: ./containers/ai-analyzer
-  #   ports:
-  #     - "8004:8004"
-  #   volumes:
-  #     - ./shared:/app/shared:ro
-  #     - ../misc/models:/app/sources:ro
-  #     - analysis-results:/app/results
-  #   environment:
-  #     - PYTHONPATH=/app/shared/api-contracts
-  #     - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-  #     - LOG_LEVEL=INFO
-  #   networks:
-  #     - testing-network
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 2G
-  #         cpus: '1.0'
+  # AI-Powered Code Analyzer Container
+  ai-analyzer:
+    build: ./containers/ai-analyzer
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./shared:/app/shared:ro
+      - ../misc/models:/app/sources:ro
+      - analysis-results:/app/results
+    environment:
+      - PYTHONPATH=/app/shared/api-contracts
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LOG_LEVEL=INFO
+    networks:
+      - testing-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
 
   # Redis for task queue
   redis:

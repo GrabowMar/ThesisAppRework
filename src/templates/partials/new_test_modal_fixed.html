@@ -1,0 +1,234 @@
+<!-- New Test Modal - Fixed Version -->
+<div class="modal fade" id="newTestModal" tabindex="-1" aria-labelledby="newTestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newTestModalLabel">
+                    <i class="fas fa-plus-circle me-2"></i>Create New Test
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="newTestForm" 
+                  hx-post="/testing/api/submit-test" 
+                  hx-target="#test-submission-result" 
+                  hx-swap="innerHTML"
+                  hx-indicator="#submit-loading">
+                <div class="modal-body">
+                    <!-- Test Submission Result Container -->
+                    <div id="test-submission-result"></div>
+                    
+                    <div class="row">
+                        <!-- Test Type Selection -->
+                        <div class="col-md-6 mb-3">
+                            <label for="testType" class="form-label">Test Type</label>
+                            <select class="form-select" id="testType" name="test_type" required>
+                                <option value="">Select test type...</option>
+                                {% for test_type in test_types %}
+                                <option value="{{ test_type.value }}">{{ test_type.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Choose the type of analysis to perform</div>
+                        </div>
+                        
+                        <!-- Model Selection -->
+                        <div class="col-md-6 mb-3">
+                            <label for="modelSlug" class="form-label">Model</label>
+                            <select class="form-select" id="modelSlug" name="model_slug" required>
+                                <option value="">Select model...</option>
+                                {% for model in models %}
+                                <option value="{{ model.canonical_slug }}">{{ model.provider }}/{{ model.model_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">AI model that generated the application</div>
+                        </div>
+                    </div>
+                    
+                    <!-- App Number Selection -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="appNumber" class="form-label">Application Number</label>
+                            <select class="form-select" id="appNumber" name="app_number" required>
+                                <option value="">Select app number...</option>
+                                {% for i in range(1, 31) %}
+                                <option value="{{ i }}">App {{ i }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Application instance to test</div>
+                        </div>
+                        
+                        <!-- Use Containerized Services -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Testing Method</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="useContainerized" name="use_containerized" checked>
+                                <label class="form-check-label" for="useContainerized">
+                                    Use Containerized Services
+                                </label>
+                            </div>
+                            <div class="form-text">Use Docker-based testing infrastructure for better isolation</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Test Configuration (shown dynamically based on test type) -->
+                    <div id="testConfig" style="display: none;">
+                        <hr>
+                        <h6>Test Configuration</h6>
+                        
+                        <!-- Security Test Options -->
+                        <div id="securityOptions" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Backend Security Tools</h6>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="bandit" name="bandit" checked>
+                                        <label class="form-check-label" for="bandit">Bandit (Python security)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="safety" name="safety" checked>
+                                        <label class="form-check-label" for="safety">Safety (Dependencies)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="pylint" name="pylint">
+                                        <label class="form-check-label" for="pylint">PyLint (Code quality)</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Frontend Security Tools</h6>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="eslint" name="eslint" checked>
+                                        <label class="form-check-label" for="eslint">ESLint Security</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="retire" name="retire">
+                                        <label class="form-check-label" for="retire">Retire.js</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="npmAudit" name="npm_audit">
+                                        <label class="form-check-label" for="npmAudit">npm audit</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Performance Test Options -->
+                        <div id="performanceOptions" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="concurrentUsers" class="form-label">Concurrent Users</label>
+                                    <input type="number" class="form-control" id="concurrentUsers" name="concurrent_users" value="10" min="1" max="100">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="testDuration" class="form-label">Duration (seconds)</label>
+                                    <input type="number" class="form-control" id="testDuration" name="duration" value="60" min="10" max="600">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="spawnRate" class="form-label">Spawn Rate (users/sec)</label>
+                                    <input type="number" class="form-control" id="spawnRate" name="spawn_rate" value="1" min="1" max="10">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ZAP Test Options -->
+                        <div id="zapOptions" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="scanType" class="form-label">Scan Type</label>
+                                    <select class="form-select" id="scanType" name="scan_type">
+                                        <option value="quick">Quick Scan</option>
+                                        <option value="full">Full Scan</option>
+                                        <option value="baseline">Baseline Scan</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="targetUrl" class="form-label">Target URL</label>
+                                    <input type="url" class="form-control" id="targetUrl" name="target_url" placeholder="http://localhost:3000">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="submitTestBtn">
+                        <span id="submit-loading" class="spinner-border spinner-border-sm d-none me-2"></span>
+                        <i class="fas fa-play me-2"></i>Start Test
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show/hide test configuration options based on test type
+    const testTypeSelect = document.getElementById('testType');
+    if (testTypeSelect) {
+        testTypeSelect.addEventListener('change', function() {
+            const testType = this.value;
+            const testConfig = document.getElementById('testConfig');
+            const securityOptions = document.getElementById('securityOptions');
+            const performanceOptions = document.getElementById('performanceOptions');
+            const zapOptions = document.getElementById('zapOptions');
+            
+            // Hide all options first
+            if (testConfig) testConfig.style.display = 'none';
+            if (securityOptions) securityOptions.style.display = 'none';
+            if (performanceOptions) performanceOptions.style.display = 'none';
+            if (zapOptions) zapOptions.style.display = 'none';
+            
+            // Show relevant options
+            if (testType === 'security' && testConfig && securityOptions) {
+                testConfig.style.display = 'block';
+                securityOptions.style.display = 'block';
+            } else if (testType === 'performance' && testConfig && performanceOptions) {
+                testConfig.style.display = 'block';
+                performanceOptions.style.display = 'block';
+            } else if (testType === 'zap' && testConfig && zapOptions) {
+                testConfig.style.display = 'block';
+                zapOptions.style.display = 'block';
+            } else if (testType === 'ai' && testConfig) {
+                testConfig.style.display = 'block';
+                // AI analysis doesn't need special options yet
+            }
+        });
+    }
+    
+    // Handle form submission
+    const form = document.getElementById('newTestForm');
+    if (form) {
+        form.addEventListener('htmx:beforeRequest', function() {
+            const submitBtn = document.getElementById('submitTestBtn');
+            const loadingSpinner = document.getElementById('submit-loading');
+            
+            if (submitBtn) submitBtn.disabled = true;
+            if (loadingSpinner) loadingSpinner.classList.remove('d-none');
+        });
+        
+        form.addEventListener('htmx:afterRequest', function(event) {
+            const submitBtn = document.getElementById('submitTestBtn');
+            const loadingSpinner = document.getElementById('submit-loading');
+            
+            if (submitBtn) submitBtn.disabled = false;
+            if (loadingSpinner) loadingSpinner.classList.add('d-none');
+            
+            // If successful, show success and auto-close modal after delay
+            if (event.detail.xhr.status === 200) {
+                setTimeout(function() {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('newTestModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    // Clear the modal container after closing
+                    setTimeout(function() {
+                        const container = document.getElementById('modal-container');
+                        if (container) {
+                            container.innerHTML = '';
+                        }
+                    }, 300);
+                }, 3000); // Auto-close after 3 seconds
+            }
+        });
+    }
+});
+</script>

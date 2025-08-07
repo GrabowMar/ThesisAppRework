@@ -1,0 +1,27 @@
+<div class="text-muted small">
+    <strong>Status:</strong> 
+    <span class="badge 
+               {% if status.status == 'running' %}bg-warning text-dark
+               {% elif status.status == 'pending' %}bg-info
+               {% elif status.status == 'completed' %}bg-success
+               {% elif status.status == 'failed' %}bg-danger
+               {% else %}bg-secondary{% endif %}">
+        {{ status.status.title() }}
+    </span>
+    
+    {% if status.submitted_at %}
+        <div><strong>Submitted:</strong> {{ status.submitted_at }}</div>
+    {% endif %}
+    
+    {% if status.started_at %}
+        <div><strong>Started:</strong> {{ status.started_at }}</div>
+    {% endif %}
+    
+    {% if status.completed_at %}
+        <div><strong>Completed:</strong> {{ status.completed_at }}</div>
+    {% endif %}
+    
+    {% if status.execution_duration %}
+        <div><strong>Duration:</strong> {{ "%.2f"|format(status.execution_duration) }}s</div>
+    {% endif %}
+</div>

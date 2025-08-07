@@ -233,6 +233,18 @@ class ServiceManager:
             
             return SecurityServiceStub()
         
+        def openrouter_service_factory():
+            """Factory for OpenRouter analysis service."""
+            try:
+                from .core_services import OpenRouterAnalysisService
+            except (ImportError, ValueError):
+                try:
+                    from core_services import OpenRouterAnalysisService
+                except ImportError:
+                    self.logger.warning("Could not import OpenRouterAnalysisService")
+                    return None
+            return OpenRouterAnalysisService()
+        
         def model_validation_service_factory():
             """Factory for model validation service."""
             try:
@@ -327,6 +339,7 @@ class ServiceManager:
         self.registry.register_factory(ServiceNames.PERFORMANCE_SERVICE, performance_service_factory)
         self.registry.register_factory(ServiceNames.ZAP_SERVICE, zap_service_factory)
         self.registry.register_factory(ServiceNames.SECURITY_SERVICE, security_service_factory)
+        self.registry.register_factory("OPENROUTER_SERVICE", openrouter_service_factory)
         self.registry.register_factory("MODEL_VALIDATION_SERVICE", model_validation_service_factory)
     
     def _initialize_services_async(self) -> None:
@@ -422,6 +435,11 @@ class ServiceLocator:
     def get_security_service():
         """Get security analysis service."""
         return ServiceLocator.get_service(ServiceNames.SECURITY_SERVICE)
+    
+    @staticmethod
+    def get_openrouter_service():
+        """Get OpenRouter analysis service."""
+        return ServiceLocator.get_service("OPENROUTER_SERVICE")
     
     @staticmethod
     def get_model_validation_service():
