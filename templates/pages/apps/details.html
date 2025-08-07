@@ -1,0 +1,474 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}App Details - {{ model }} - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ app_data.app_name or 'Application' }} #{{ app_data.app_number }}</h1>
+            <p class="page-subtitle">
+                {{ model }} • 
+                <span class="badge badge-{{ 'success' if app_data.status == 'running' else 'warning' if app_data.status == 'stopped' else 'danger' }}">
+                    {{ app_data.status|title }}
+                </span>
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('main.app_overview') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+            {% if app_data.status == 'running' and app_data.frontend_port %}
+            <a href="http://localhost:{{ app_data.frontend_port }}" class="btn btn-primary" target="_blank">
+                <i class="fas fa-external-link-alt"></i> Open App
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- App Info Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-card-icon"><i class="fas fa-desktop"></i></div>
+                <div class="stats-card-value">{{ app_data.frontend_port or 'N/A' }}</div>
+                <div class="stats-card-label">Frontend Port</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-card-icon"><i class="fas fa-server"></i></div>
+                <div class="stats-card-value">{{ app_data.backend_port or 'N/A' }}</div>
+                <div class="stats-card-label">Backend Port</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-card-icon"><i class="fas fa-shield-alt"></i></div>
+                <div class="stats-card-value text-{{ 'success' if app_data.security_score and app_data.security_score > 80 else 'warning' if app_data.security_score and app_data.security_score > 60 else 'danger' }}">
+                    {{ app_data.security_score or 'N/A' }}
+                </div>
+                <div class="stats-card-label">Security Score</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-card-icon"><i class="fas fa-tachometer-alt"></i></div>
+                <div class="stats-card-value text-info">{{ app_data.performance_score or 'N/A' }}</div>
+                <div class="stats-card-label">Performance</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="card">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" id="appTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                        <i class="fas fa-info-circle mr-1"></i>Overview
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="containers-tab" data-bs-toggle="tab" data-bs-target="#containers" type="button" role="tab">
+                        <i class="fas fa-cube mr-1"></i>Containers
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files" type="button" role="tab">
+                        <i class="fas fa-folder mr-1"></i>Files
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis" type="button" role="tab">
+                        <i class="fas fa-chart-line mr-1"></i>Analysis
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">
+                        <i class="fas fa-file-alt mr-1"></i>Logs
+                    </button>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="card-body">
+            <div class="tab-content" id="appTabsContent">
+                <!-- Overview Tab -->
+                <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5>Application Information</h5>
+                            <dl class="row">
+                                <dt class="col-sm-3">Name:</dt>
+                                <dd class="col-sm-9">{{ app_data.app_name or 'Unnamed Application' }}</dd>
+                                
+                                <dt class="col-sm-3">Description:</dt>
+                                <dd class="col-sm-9">{{ app_data.description or 'No description available' }}</dd>
+                                
+                                <dt class="col-sm-3">Technology:</dt>
+                                <dd class="col-sm-9">
+                                    <span class="badge badge-primary">{{ app_data.frontend_tech or 'Unknown' }}</span>
+                                    <span class="badge badge-success">{{ app_data.backend_tech or 'Unknown' }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-3">Created:</dt>
+                                <dd class="col-sm-9">{{ app_data.created_at.strftime('%Y-%m-%d %H:%M') if app_data.created_at else 'Unknown' }}</dd>
+                                
+                                <dt class="col-sm-3">Last Updated:</dt>
+                                <dd class="col-sm-9">{{ app_data.updated_at.strftime('%Y-%m-%d %H:%M') if app_data.updated_at else 'Unknown' }}</dd>
+                            </dl>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <h5>Quick Actions</h5>
+                            <div class="d-grid gap-2">
+                                {% if app_data.status == 'stopped' %}
+                                <button class="btn btn-success" onclick="handleAppAction('start')">
+                                    <i class="fas fa-play mr-1"></i> Start Application
+                                </button>
+                                {% elif app_data.status == 'running' %}
+                                <button class="btn btn-warning" onclick="handleAppAction('stop')">
+                                    <i class="fas fa-stop mr-1"></i> Stop Application
+                                </button>
+                                {% endif %}
+                                
+                                <button class="btn btn-outline-secondary" onclick="handleAppAction('restart')">
+                                    <i class="fas fa-redo mr-1"></i> Restart Application
+                                </button>
+                                
+                                <button class="btn btn-outline-info" onclick="runSecurityScan()">
+                                    <i class="fas fa-shield-alt mr-1"></i> Run Security Scan
+                                </button>
+                                
+                                <button class="btn btn-outline-primary" onclick="runPerformanceTest()">
+                                    <i class="fas fa-tachometer-alt mr-1"></i> Performance Test
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Containers Tab -->
+                <div class="tab-pane fade" id="containers" role="tabpanel">
+                    <div id="containers-content"
+                         hx-get="/app/{{ model }}/{{ app_num }}/containers-status"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        <div class="text-center p-4">
+                            <div class="loading-spinner"></div>
+                            <p class="text-muted mt-2">Loading container status...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Files Tab -->
+                <div class="tab-pane fade" id="files" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-folder-tree mr-2"></i>File Structure
+                                    </h6>
+                                </div>
+                                <div class="card-body p-0">
+                                    {% include 'partials/file_viewer.html' %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-code mr-2"></i>File Content
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="file-content-viewer">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-file-code fa-3x mb-2"></i>
+                                            <p>Select a file to view its content</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Tab -->
+                <div class="tab-pane fade" id="analysis" role="tabpanel">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-shield-alt mr-2"></i>Security Analysis
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if app_data.security_analysis %}
+                                    <div class="security-summary">
+                                        <div class="row text-center">
+                                            <div class="col-3">
+                                                <div class="metric">
+                                                    <div class="metric-value text-danger">{{ app_data.security_analysis.critical_issues or 0 }}</div>
+                                                    <div class="metric-label">Critical</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-3">
+                                                <div class="metric">
+                                                    <div class="metric-value text-warning">{{ app_data.security_analysis.high_issues or 0 }}</div>
+                                                    <div class="metric-label">High</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-3">
+                                                <div class="metric">
+                                                    <div class="metric-value text-info">{{ app_data.security_analysis.medium_issues or 0 }}</div>
+                                                    <div class="metric-label">Medium</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-3">
+                                                <div class="metric">
+                                                    <div class="metric-value text-secondary">{{ app_data.security_analysis.low_issues or 0 }}</div>
+                                                    <div class="metric-label">Low</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-shield-alt fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No security analysis available</p>
+                                        <button class="btn btn-primary" onclick="runSecurityScan()">
+                                            Run Security Scan
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-tachometer-alt mr-2"></i>Performance Metrics
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if app_data.performance_data %}
+                                    <div class="performance-summary">
+                                        <div class="metric mb-3">
+                                            <div class="d-flex justify-content-between">
+                                                <span>Response Time:</span>
+                                                <strong>{{ app_data.performance_data.avg_response_time }}ms</strong>
+                                            </div>
+                                        </div>
+                                        <div class="metric mb-3">
+                                            <div class="d-flex justify-content-between">
+                                                <span>Throughput:</span>
+                                                <strong>{{ app_data.performance_data.requests_per_second }} req/s</strong>
+                                            </div>
+                                        </div>
+                                        <div class="metric mb-3">
+                                            <div class="d-flex justify-content-between">
+                                                <span>Error Rate:</span>
+                                                <strong class="text-{{ 'danger' if app_data.performance_data.error_rate > 1 else 'success' }}">
+                                                    {{ app_data.performance_data.error_rate }}%
+                                                </strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-tachometer-alt fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No performance data available</p>
+                                        <button class="btn btn-primary" onclick="runPerformanceTest()">
+                                            Run Performance Test
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logs Tab -->
+                <div class="tab-pane fade" id="logs" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-file-alt mr-2"></i>Application Logs
+                                </h6>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="refreshLogs()">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadLogs()">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="logs-content"
+                                 hx-get="/app/{{ model }}/{{ app_num }}/logs"
+                                 hx-trigger="load"
+                                 hx-swap="innerHTML">
+                                <div class="text-center p-4">
+                                    <div class="loading-spinner"></div>
+                                    <p class="text-muted mt-2">Loading logs...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// App Details JavaScript
+class AppDetails {
+    constructor() {
+        this.modelSlug = '{{ model }}';
+        this.appNumber = {{ app_num }};
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+    }
+
+    setupEventListeners() {
+        // Tab switching
+        document.querySelectorAll('#appTabs button[data-bs-toggle="tab"]').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', (event) => {
+                const target = event.target.getAttribute('data-bs-target');
+                this.handleTabSwitch(target);
+            });
+        });
+    }
+
+    setupAutoRefresh() {
+        // Auto-refresh containers status every 30 seconds
+        setInterval(() => {
+            if (document.getElementById('containers').classList.contains('show')) {
+                htmx.trigger('#containers-content', 'load');
+            }
+        }, 30000);
+    }
+
+    handleTabSwitch(target) {
+        // Handle specific tab loading logic
+        switch (target) {
+            case '#containers':
+                htmx.trigger('#containers-content', 'load');
+                break;
+            case '#logs':
+                htmx.trigger('#logs-content', 'load');
+                break;
+        }
+    }
+}
+
+// Global functions
+window.handleAppAction = function(action) {
+    const modelSlug = '{{ model }}';
+    const appNumber = {{ app_num }};
+    
+    fetch(`/api/v1/containers/${encodeURIComponent(modelSlug)}/${appNumber}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            AppUtils.showToast(`App ${action} successful`, 'success');
+            // Reload the page to show updated status
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error(data.error || 'Operation failed');
+        }
+    })
+    .catch(error => {
+        console.error(`Error ${action}ing app:`, error);
+        AppUtils.showToast(`App ${action} failed: ${error.message}`, 'error');
+    });
+};
+
+window.runSecurityScan = function() {
+    const modelSlug = '{{ model }}';
+    const appNumber = {{ app_num }};
+    
+    fetch(`/analysis/security/${encodeURIComponent(modelSlug)}/${appNumber}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            AppUtils.showToast('Security scan started', 'success');
+            // Switch to analysis tab and refresh
+            document.getElementById('analysis-tab').click();
+        } else {
+            throw new Error(data.error || 'Failed to start security scan');
+        }
+    })
+    .catch(error => {
+        console.error('Error starting security scan:', error);
+        AppUtils.showToast(`Security scan failed: ${error.message}`, 'error');
+    });
+};
+
+window.runPerformanceTest = function() {
+    const modelSlug = '{{ model }}';
+    const appNumber = {{ app_num }};
+    
+    fetch(`/analysis/performance/${encodeURIComponent(modelSlug)}/${appNumber}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            AppUtils.showToast('Performance test started', 'success');
+            // Switch to analysis tab and refresh
+            document.getElementById('analysis-tab').click();
+        } else {
+            throw new Error(data.error || 'Failed to start performance test');
+        }
+    })
+    .catch(error => {
+        console.error('Error starting performance test:', error);
+        AppUtils.showToast(`Performance test failed: ${error.message}`, 'error');
+    });
+};
+
+window.refreshLogs = function() {
+    htmx.trigger('#logs-content', 'load');
+    AppUtils.showToast('Logs refreshed', 'info');
+};
+
+window.downloadLogs = function() {
+    const modelSlug = '{{ model }}';
+    const appNumber = {{ app_num }};
+    window.open(`/app/${modelSlug}/${appNumber}/logs/download`, '_blank');
+};
+
+// Initialize app details
+let appDetails;
+document.addEventListener('DOMContentLoaded', function() {
+    appDetails = new AppDetails();
+});
+</script>
+{% endblock %}

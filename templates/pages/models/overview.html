@@ -1,0 +1,297 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Models Overview - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">AI Models Overview</h1>
+            <p class="page-subtitle">Manage and analyze AI model applications</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <input type="text" id="models-search" class="form-control" placeholder="Search models...">
+                </div>
+                <div class="col-md-3">
+                    <select id="provider-filter" class="form-select">
+                        <option value="">All Providers</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="google">Google</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select id="capability-filter" class="form-select">
+                        <option value="">All Capabilities</option>
+                        <option value="text">Text</option>
+                        <option value="code">Code</option>
+                        <option value="multimodal">Multimodal</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select id="sort-by" class="form-select">
+                        <option value="name">Name</option>
+                        <option value="provider">Provider</option>
+                        <option value="apps">Apps Count</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Models Content -->
+    <div id="models-content">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title">
+                    <i class="fas fa-table mr-2"></i>
+                    AI Models Database
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="models-table">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Model</th>
+                                <th>Provider</th>
+                                <th>Context Length</th>
+                                <th>Max Output</th>
+                                <th>Pricing</th>
+                                <th>Capabilities</th>
+                                <th>Performance</th>
+                                <th>Apps Generated</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for model in models %}
+                            {% include 'partials/model_card.html' %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State -->
+                {% if not models %}
+                <div class="text-center py-5">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Models Found</h4>
+                    <p class="text-muted">No models match your current filter criteria.</p>
+                </div>
+                {% endif %}
+
+                <!-- Table Footer -->
+                {% if models %}
+                <div class="d-flex justify-content-between align-items-center p-3 bg-light border-top">
+                    <div class="text-muted">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Showing {{ models|length }} AI models with {{ (models|length * 30) if models else 0 }} total applications
+                    </div>
+                    <div class="text-muted">
+                        <small>Each model generates 30 different application types for analysis</small>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Models Overview JavaScript
+class ModelsOverview {
+    constructor() {
+        this.filters = {
+            search: '',
+            provider: '',
+            capability: '',
+            sortBy: 'name'
+        };
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupKeyboardShortcuts();
+        this.loadSavedFilters();
+    }
+
+    setupEventListeners() {
+        // Filter events
+        document.getElementById('models-search')?.addEventListener('input', 
+            this.debounce(() => this.applyFilters(), 300));
+        document.getElementById('provider-filter')?.addEventListener('change', () => this.applyFilters());
+        document.getElementById('capability-filter')?.addEventListener('change', () => this.applyFilters());
+        document.getElementById('sort-by')?.addEventListener('change', () => this.applyFilters());
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('models-search')?.focus();
+            }
+        });
+    }
+
+    loadSavedFilters() {
+        const saved = localStorage.getItem('modelsOverviewFilters');
+        if (saved) {
+            this.filters = { ...this.filters, ...JSON.parse(saved) };
+            this.restoreFilters();
+            this.applyFilters();
+        }
+    }
+
+    applyFilters() {
+        this.filters = {
+            search: document.getElementById('models-search')?.value || '',
+            provider: document.getElementById('provider-filter')?.value || '',
+            capability: document.getElementById('capability-filter')?.value || '',
+            sortBy: document.getElementById('sort-by')?.value || 'name'
+        };
+
+        // Save filters
+        localStorage.setItem('modelsOverviewFilters', JSON.stringify(this.filters));
+
+        // Apply filters to table
+        this.filterTable();
+    }
+
+    filterTable() {
+        const rows = document.querySelectorAll('.model-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const modelName = row.querySelector('td:first-child').textContent.toLowerCase();
+            const provider = row.dataset.provider?.toLowerCase() || '';
+            const capabilities = Array.from(row.querySelectorAll('.badge')).map(b => b.textContent.toLowerCase());
+
+            let visible = true;
+
+            // Search filter
+            if (this.filters.search) {
+                const searchTerm = this.filters.search.toLowerCase();
+                visible = visible && modelName.includes(searchTerm);
+            }
+
+            // Provider filter
+            if (this.filters.provider) {
+                visible = visible && provider === this.filters.provider.toLowerCase();
+            }
+
+            // Capability filter
+            if (this.filters.capability) {
+                const capFilter = this.filters.capability.toLowerCase();
+                visible = visible && capabilities.some(cap => cap.includes(capFilter));
+            }
+
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        // Sort visible rows
+        this.sortTable();
+
+        // Update count display
+        this.updateFilterCount(visibleCount);
+    }
+
+    sortTable() {
+        const tbody = document.querySelector('#models-table tbody');
+        const rows = Array.from(tbody.querySelectorAll('.model-row:not([style*="display: none"])'));
+
+        rows.sort((a, b) => {
+            const aValue = this.getSortValue(a, this.filters.sortBy);
+            const bValue = this.getSortValue(b, this.filters.sortBy);
+            
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                return bValue - aValue; // Descending for numbers
+            }
+            return aValue.localeCompare(bValue); // Ascending for strings
+        });
+
+        // Reorder rows
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    getSortValue(row, sortBy) {
+        switch (sortBy) {
+            case 'name':
+                return row.querySelector('td:first-child .font-weight-bold').textContent;
+            case 'provider':
+                return row.dataset.provider || '';
+            case 'context_length':
+                const contextText = row.querySelector('td:nth-child(3) .text-sm').textContent;
+                return parseInt(contextText.replace(/[,\s]/g, '')) || 0;
+            case 'max_output':
+                const outputText = row.querySelector('td:nth-child(4) .text-sm').textContent;
+                return parseInt(outputText.replace(/[,\s]/g, '')) || 0;
+            default:
+                return '';
+        }
+    }
+
+    updateFilterCount(count) {
+        // Update the footer text with filtered count
+        const footer = document.querySelector('.bg-light.border-top .text-muted');
+        if (footer) {
+            const totalModels = document.querySelectorAll('.model-row').length;
+            if (count !== totalModels) {
+                footer.innerHTML = `<i class="fas fa-filter mr-1"></i>Showing ${count} of ${totalModels} models (filtered)`;
+            } else {
+                footer.innerHTML = `<i class="fas fa-info-circle mr-1"></i>Showing ${count} AI models with ${count * 30} total applications`;
+            }
+        }
+    }
+
+    restoreFilters() {
+        document.getElementById('models-search').value = this.filters.search;
+        document.getElementById('provider-filter').value = this.filters.provider;
+        document.getElementById('capability-filter').value = this.filters.capability;
+        document.getElementById('sort-by').value = this.filters.sortBy;
+    }
+
+    clearFilters() {
+        this.filters = { search: '', provider: '', capability: '', sortBy: 'name' };
+        this.restoreFilters();
+        localStorage.removeItem('modelsOverviewFilters');
+        this.filterTable();
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+}
+
+// Initialize models overview
+let modelsOverview;
+document.addEventListener('DOMContentLoaded', function() {
+    modelsOverview = new ModelsOverview();
+});
+
+// Global functions
+window.clearModelFilters = function() {
+    modelsOverview.clearFilters();
+};
+</script>
+{% endblock %}

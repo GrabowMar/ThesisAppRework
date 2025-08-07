@@ -1,0 +1,296 @@
+{% extends "layouts/modal_layout.html" %}
+
+{% block title %}Model Details - {{ model.display_name }} - Research Platform{% endblock %}
+
+{% block modal_title %}
+<i class="fas fa-robot mr-2"></i>
+{{ model.display_name }} - Comprehensive Analysis
+{% endblock %}
+
+{% block modal_size %}xl{% endblock %}
+
+{% block modal_body %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="model-header-card">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="model-icon mr-3">
+                        <i class="fas fa-{{ 'eye' if model.supports_vision else 'cogs' if model.supports_function_calling else 'brain' }} fa-2x text-{{ 'info' if model.supports_vision else 'success' if model.supports_function_calling else 'primary' }}"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-primary mb-1">{{ model.display_name }}</h3>
+                        <p class="text-muted mb-1"><strong>{{ model.provider|title }}</strong> - {{ model.canonical_slug }}</p>
+                        <div class="model-badges">
+                            {% if model.supports_vision %}
+                            <span class="badge badge-info">Vision</span>
+                            {% endif %}
+                            {% if model.supports_function_calling %}
+                            <span class="badge badge-success">Functions</span>
+                            {% endif %}
+                            {% if model.supports_json_mode %}
+                            <span class="badge badge-warning">JSON</span>
+                            {% endif %}
+                            {% if model.supports_streaming %}
+                            <span class="badge badge-primary">Streaming</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Core Model Information -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-microchip mr-2"></i>Core Specifications
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Provider:</strong></div>
+                        <div class="col-7">
+                            <span class="badge badge-primary">{{ model.provider|title }}</span>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Model ID:</strong></div>
+                        <div class="col-7"><code>{{ model.canonical_slug }}</code></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Context Window:</strong></div>
+                        <div class="col-7">
+                            <span class="font-weight-bold text-info">{{ "{:,}".format(model.context_length) if model.context_length else 'N/A' }}</span>
+                            {% if model.context_length %}<small class="text-muted"> tokens</small>{% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5"><strong>Max Output:</strong></div>
+                        <div class="col-7">
+                            <span class="font-weight-bold text-success">{{ "{:,}".format(model.max_output) if model.max_output else 'N/A' }}</span>
+                            {% if model.max_output %}<small class="text-muted"> tokens</small>{% endif %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-5"><strong>Applications:</strong></div>
+                        <div class="col-7">
+                            <span class="badge badge-info">30 apps generated</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Capabilities -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-cogs mr-2"></i>Capabilities & Features
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_function_calling else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Function Calling
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_vision else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Vision Support
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_json_mode else 'times-circle text-muted' }}"></i>
+                                </span>
+                                JSON Mode
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-{{ 'check-circle text-success' if model.supports_streaming else 'times-circle text-muted' }}"></i>
+                                </span>
+                                Streaming
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                </span>
+                                Research Ready
+                            </div>
+                            <div class="capability-item mb-2">
+                                <span class="mr-2">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                </span>
+                                Code Generation
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Research Applications -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-flask mr-2"></i>Research Applications
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="research-metric mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Applications Generated:</span>
+                            <strong>30</strong>
+                        </div>
+                        <div class="progress mt-1">
+                            <div class="progress-bar bg-success" style="width: 100%"></div>
+                        </div>
+                    </div>
+                    <div class="research-metric mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Security Analyses:</span>
+                            <strong>Available</strong>
+                        </div>
+                        <div class="progress mt-1">
+                            <div class="progress-bar bg-info" style="width: 85%"></div>
+                        </div>
+                    </div>
+                    <div class="research-metric mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Performance Tests:</span>
+                            <strong>Available</strong>
+                        </div>
+                        <div class="progress mt-1">
+                            <div class="progress-bar bg-warning" style="width: 75%"></div>
+                        </div>
+                    </div>
+                    <div class="research-metric">
+                        <div class="d-flex justify-content-between">
+                            <span>Code Quality:</span>
+                            <strong>Analyzed</strong>
+                        </div>
+                        <div class="progress mt-1">
+                            <div class="progress-bar bg-primary" style="width: 90%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Application Types -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-code mr-2"></i>Generated Application Types
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="app-types-grid">
+                        <div class="app-type-item">
+                            <i class="fas fa-sign-in-alt text-primary"></i>
+                            <span>Authentication Systems</span>
+                        </div>
+                        <div class="app-type-item">
+                            <i class="fas fa-shopping-cart text-success"></i>
+                            <span>E-commerce Platforms</span>
+                        </div>
+                        <div class="app-type-item">
+                            <i class="fas fa-comments text-info"></i>
+                            <span>Chat Applications</span>
+                        </div>
+                        <div class="app-type-item">
+                            <i class="fas fa-chart-bar text-warning"></i>
+                            <span>Analytics Dashboards</span>
+                        </div>
+                        <div class="app-type-item">
+                            <i class="fas fa-tasks text-secondary"></i>
+                            <span>Task Management</span>
+                        </div>
+                        <div class="app-type-item">
+                            <i class="fas fa-blog text-primary"></i>
+                            <span>Content Management</span>
+                        </div>
+                        <div class="app-type-item">
+                            <i class="fas fa-wifi text-success"></i>
+                            <span>IoT Platforms</span>
+                        </div>
+                        <div class="app-type-item">
+                            <i class="fas fa-gamepad text-info"></i>
+                            <span>Gaming Platforms</span>
+                        </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">And 22 more application types...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Research Data Access -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h6 class="mb-0 font-weight-bold">
+                        <i class="fas fa-database mr-2"></i>Research Data Access
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Available Data Sets:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success mr-2"></i>Generated Source Code (30 applications)</li>
+                                <li><i class="fas fa-check text-success mr-2"></i>Security Analysis Results</li>
+                                <li><i class="fas fa-check text-success mr-2"></i>Performance Benchmarks</li>
+                                <li><i class="fas fa-check text-success mr-2"></i>Code Quality Metrics</li>
+                                <li><i class="fas fa-check text-success mr-2"></i>Deployment Configurations</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Access Methods:</h6>
+                            <div class="btn-group-vertical w-100">
+                                <a href="/models/{{ model.canonical_slug }}/apps" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-list mr-1"></i>Browse Applications
+                                </a>
+                                <a href="/models/{{ model.canonical_slug }}/analysis" class="btn btn-outline-success btn-sm">
+                                    <i class="fas fa-shield-alt mr-1"></i>Security Analysis
+                                </a>
+                                <a href="/models/{{ model.canonical_slug }}/performance" class="btn btn-outline-warning btn-sm">
+                                    <i class="fas fa-tachometer-alt mr-1"></i>Performance Data
+                                </a>
+                                <a href="/models/{{ model.canonical_slug }}/export" class="btn btn-outline-info btn-sm">
+                                    <i class="fas fa-download mr-1"></i>Export Data
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modal_footer %}
+<div class="text-muted small">
+    <i class="fas fa-info-circle mr-1"></i>
+    This data is part of a comprehensive research study analyzing AI model capabilities in application development.
+</div>
+<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+{% endblock %}

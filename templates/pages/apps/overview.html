@@ -1,0 +1,411 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Apps Overview - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Applications Overview</h1>
+            <p class="page-subtitle">Browse and manage generated applications</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <input type="text" id="apps-search" class="form-control" placeholder="Search applications...">
+                </div>
+                <div class="col-md-3">
+                    <select id="model-filter" class="form-select">
+                        <option value="">All Models</option>
+                        {% for model in models %}
+                        <option value="{{ model.canonical_slug }}">{{ model.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select id="status-filter" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="running">Running</option>
+                        <option value="stopped">Stopped</option>
+                        <option value="error">Error</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select id="sort-by" class="form-select">
+                        <option value="app_number">App Number</option>
+                        <option value="model">Model</option>
+                        <option value="status">Status</option>
+                        <option value="last_activity">Last Activity</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Applications Grid -->
+    <div id="apps-content">
+        {% if applications %}
+        <div class="row" id="apps-grid">
+            {% for app in applications %}
+            <div class="col-lg-4 col-md-6 mb-4 app-card" 
+                 data-model="{{ app.model_slug }}" 
+                 data-status="{{ app.status }}"
+                 data-search="{{ app.app_name|lower }}">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="card-title mb-0">
+                                App {{ app.app_number }}
+                            </h6>
+                            <span class="badge badge-{{ 'success' if app.status == 'running' else 'warning' if app.status == 'stopped' else 'danger' }}">
+                                {{ app.status|title }}
+                            </span>
+                        </div>
+                        <small class="text-muted">{{ app.model_slug }}</small>
+                    </div>
+                    
+                    <div class="card-body">
+                        <h6 class="app-name">{{ app.app_name or 'Unnamed Application' }}</h6>
+                        {% if app.description %}
+                        <p class="text-muted small">{{ app.description[:100] }}{{ '...' if app.description|length > 100 else '' }}</p>
+                        {% endif %}
+                        
+                        <!-- Container Status -->
+                        {% include 'partials/container_status.html' %}
+                        
+                        <!-- Port Information -->
+                        <div class="port-info mt-2">
+                            <small class="d-block">
+                                <i class="fas fa-desktop mr-1"></i>Frontend: {{ app.frontend_port or 'N/A' }}
+                            </small>
+                            <small class="d-block">
+                                <i class="fas fa-server mr-1"></i>Backend: {{ app.backend_port or 'N/A' }}
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            {% if app.status == 'running' %}
+                            <a href="http://localhost:{{ app.frontend_port }}" 
+                               class="btn btn-sm btn-primary" target="_blank">
+                                <i class="fas fa-external-link-alt"></i> Open
+                            </a>
+                            {% endif %}
+                            
+                            <a href="/app/{{ app.model_slug }}/{{ app.app_number }}" 
+                               class="btn btn-sm btn-outline-info">
+                                <i class="fas fa-info-circle"></i> Details
+                            </a>
+                            
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                        data-toggle="dropdown">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                <div class="dropdown-menu">
+                                    {% if app.status == 'stopped' %}
+                                    <a class="dropdown-item" href="#" onclick="startApp('{{ app.model_slug }}', {{ app.app_number }})">
+                                        <i class="fas fa-play mr-2"></i>Start
+                                    </a>
+                                    {% elif app.status == 'running' %}
+                                    <a class="dropdown-item" href="#" onclick="stopApp('{{ app.model_slug }}', {{ app.app_number }})">
+                                        <i class="fas fa-stop mr-2"></i>Stop
+                                    </a>
+                                    {% endif %}
+                                    <a class="dropdown-item" href="#" onclick="restartApp('{{ app.model_slug }}', {{ app.app_number }})">
+                                        <i class="fas fa-redo mr-2"></i>Restart
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item" href="#" onclick="showContainerLogs('{{ app.model_slug }}', {{ app.app_number }})">
+                                        <i class="fas fa-file-alt mr-2"></i>View Logs
+                                    </a>
+                                    <a class="dropdown-item" href="#" onclick="analyzeApp('{{ app.model_slug }}', {{ app.app_number }})">
+                                        <i class="fas fa-shield-alt mr-2"></i>Run Analysis
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if pagination %}
+        <nav aria-label="Applications pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('main.app_overview', page=pagination.prev_num) }}">Previous</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                {% if page_num != pagination.page %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('main.app_overview', page=page_num) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item active">
+                    <span class="page-link">{{ page_num }}</span>
+                </li>
+                {% endif %}
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+                {% endif %}
+                {% endfor %}
+                
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('main.app_overview', page=pagination.next_num) }}">Next</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        
+        {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-5">
+            <i class="fas fa-cube fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No Applications Found</h4>
+            <p class="text-muted">No applications match your current filter criteria.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Apps Overview JavaScript
+class AppsOverview {
+    constructor() {
+        this.filters = {
+            search: '',
+            model: '',
+            status: '',
+            sortBy: 'app_number'
+        };
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupKeyboardShortcuts();
+        this.loadSavedFilters();
+    }
+
+    setupEventListeners() {
+        // Filter events
+        document.getElementById('apps-search')?.addEventListener('input', 
+            this.debounce(() => this.applyFilters(), 300));
+        document.getElementById('model-filter')?.addEventListener('change', () => this.applyFilters());
+        document.getElementById('status-filter')?.addEventListener('change', () => this.applyFilters());
+        document.getElementById('sort-by')?.addEventListener('change', () => this.applyFilters());
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('apps-search')?.focus();
+            }
+        });
+    }
+
+    loadSavedFilters() {
+        const saved = localStorage.getItem('appsOverviewFilters');
+        if (saved) {
+            this.filters = { ...this.filters, ...JSON.parse(saved) };
+            this.restoreFilters();
+            this.applyFilters();
+        }
+    }
+
+    applyFilters() {
+        this.filters = {
+            search: document.getElementById('apps-search')?.value || '',
+            model: document.getElementById('model-filter')?.value || '',
+            status: document.getElementById('status-filter')?.value || '',
+            sortBy: document.getElementById('sort-by')?.value || 'app_number'
+        };
+
+        // Save filters
+        localStorage.setItem('appsOverviewFilters', JSON.stringify(this.filters));
+
+        // Apply filters to grid
+        this.filterApps();
+    }
+
+    filterApps() {
+        const apps = document.querySelectorAll('.app-card');
+        let visibleCount = 0;
+
+        apps.forEach(app => {
+            const searchText = app.dataset.search || '';
+            const model = app.dataset.model || '';
+            const status = app.dataset.status || '';
+
+            let visible = true;
+
+            // Search filter
+            if (this.filters.search) {
+                const searchTerm = this.filters.search.toLowerCase();
+                visible = visible && searchText.includes(searchTerm);
+            }
+
+            // Model filter
+            if (this.filters.model) {
+                visible = visible && model === this.filters.model;
+            }
+
+            // Status filter
+            if (this.filters.status) {
+                visible = visible && status === this.filters.status;
+            }
+
+            app.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        // Sort visible apps
+        this.sortApps();
+
+        // Update count display
+        this.updateFilterCount(visibleCount);
+    }
+
+    sortApps() {
+        const grid = document.getElementById('apps-grid');
+        const apps = Array.from(grid.querySelectorAll('.app-card:not([style*="display: none"])'));
+
+        apps.sort((a, b) => {
+            const aValue = this.getSortValue(a, this.filters.sortBy);
+            const bValue = this.getSortValue(b, this.filters.sortBy);
+            
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                return aValue - bValue;
+            }
+            return aValue.localeCompare(bValue);
+        });
+
+        // Reorder apps
+        apps.forEach(app => grid.appendChild(app));
+    }
+
+    getSortValue(app, sortBy) {
+        switch (sortBy) {
+            case 'app_number':
+                const appNum = app.querySelector('.card-title').textContent.match(/\d+/);
+                return appNum ? parseInt(appNum[0]) : 0;
+            case 'model':
+                return app.dataset.model || '';
+            case 'status':
+                return app.dataset.status || '';
+            case 'last_activity':
+                // This would need to be implemented with actual data
+                return Date.now();
+            default:
+                return '';
+        }
+    }
+
+    updateFilterCount(count) {
+        // Update the page subtitle with filtered count
+        const subtitle = document.querySelector('.page-subtitle');
+        const totalApps = document.querySelectorAll('.app-card').length;
+        
+        if (count !== totalApps && count > 0) {
+            subtitle.textContent = `Browse and manage generated applications (${count} of ${totalApps} shown)`;
+        } else if (count === 0) {
+            subtitle.textContent = 'Browse and manage generated applications (no matches)';
+        } else {
+            subtitle.textContent = 'Browse and manage generated applications';
+        }
+    }
+
+    restoreFilters() {
+        document.getElementById('apps-search').value = this.filters.search;
+        document.getElementById('model-filter').value = this.filters.model;
+        document.getElementById('status-filter').value = this.filters.status;
+        document.getElementById('sort-by').value = this.filters.sortBy;
+    }
+
+    clearFilters() {
+        this.filters = { search: '', model: '', status: '', sortBy: 'app_number' };
+        this.restoreFilters();
+        localStorage.removeItem('appsOverviewFilters');
+        this.filterApps();
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+}
+
+// Global functions
+window.startApp = function(modelSlug, appNum) {
+    handleAppAction('start', modelSlug, appNum);
+};
+
+window.stopApp = function(modelSlug, appNum) {
+    handleAppAction('stop', modelSlug, appNum);
+};
+
+window.restartApp = function(modelSlug, appNum) {
+    handleAppAction('restart', modelSlug, appNum);
+};
+
+window.analyzeApp = function(modelSlug, appNum) {
+    // Redirect to analysis page
+    window.location.href = `/app/${modelSlug}/${appNum}/analysis`;
+};
+
+function handleAppAction(action, modelSlug, appNum) {
+    fetch(`/api/v1/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            AppUtils.showToast(`App ${action} successful`, 'success');
+            // Reload the page to show updated status
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error(data.error || 'Operation failed');
+        }
+    })
+    .catch(error => {
+        console.error(`Error ${action}ing app:`, error);
+        AppUtils.showToast(`App ${action} failed: ${error.message}`, 'error');
+    });
+}
+
+// Initialize apps overview
+let appsOverview;
+document.addEventListener('DOMContentLoaded', function() {
+    appsOverview = new AppsOverview();
+});
+</script>
+{% endblock %}

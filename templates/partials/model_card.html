@@ -1,0 +1,101 @@
+<tr class="model-row" data-model="{{ model.slug }}" data-provider="{{ model.provider }}">
+    <td>
+        <div class="d-flex align-items-center">
+            <div class="model-icon mr-2">
+                <i class="fas fa-robot text-primary"></i>
+            </div>
+            <div>
+                <div class="font-weight-bold">{{ model.display_name }}</div>
+                <small class="text-muted">{{ model.slug }}</small>
+            </div>
+        </div>
+    </td>
+    <td>
+        <span class="badge badge-primary">{{ model.provider|title }}</span>
+    </td>
+    <td>
+        <div class="text-sm">
+            {{ "{:,}".format(model.context_length) if model.context_length else 'N/A' }}
+        </div>
+        <small class="text-muted">tokens</small>
+    </td>
+    <td>
+        <div class="text-sm">
+            {{ "{:,}".format(model.max_output) if model.max_output else 'N/A' }}
+        </div>
+        <small class="text-muted">tokens</small>
+    </td>
+    <td>
+        <div class="text-sm">
+            {% if model.input_price_per_token %}
+            <div><strong>In:</strong> ${{ "%.6f"|format(model.input_price_per_token) }}</div>
+            <div><strong>Out:</strong> ${{ "%.6f"|format(model.output_price_per_token) }}</div>
+            {% elif model.is_free %}
+            <span class="badge badge-success">Free</span>
+            {% else %}
+            <span class="text-muted">N/A</span>
+            {% endif %}
+        </div>
+    </td>
+    <td>
+        <div class="d-flex flex-wrap gap-1">
+            {% if model.supports_vision %}
+            <span class="badge badge-info">Vision</span>
+            {% endif %}
+            {% if model.supports_function_calling %}
+            <span class="badge badge-success">Functions</span>
+            {% endif %}
+            {% if model.supports_json_mode %}
+            <span class="badge badge-warning">JSON</span>
+            {% endif %}
+            {% if model.supports_streaming %}
+            <span class="badge badge-primary">Streaming</span>
+            {% endif %}
+        </div>
+    </td>
+    <td>
+        <div class="text-sm">
+            {% if model.cost_efficiency %}
+            <div class="progress mb-1" style="height: 15px;">
+                <div class="progress-bar bg-success" style="width: {{ model.cost_efficiency * 10 }}%">
+                    {{ "%.1f"|format(model.cost_efficiency) }}
+                </div>
+            </div>
+            <small class="text-muted">Cost Efficiency</small>
+            {% endif %}
+            {% if model.safety_score %}
+            <div class="progress" style="height: 15px;">
+                <div class="progress-bar bg-info" style="width: {{ model.safety_score * 10 }}%">
+                    {{ "%.1f"|format(model.safety_score) }}
+                </div>
+            </div>
+            <small class="text-muted">Safety Score</small>
+            {% endif %}
+            {% if not model.cost_efficiency and not model.safety_score %}
+            <span class="text-muted">N/A</span>
+            {% endif %}
+        </div>
+    </td>
+    <td>
+        <div class="text-center">
+            <div class="h6 mb-0">{{ model.app_count or 30 }}</div>
+            <small class="text-muted">applications</small>
+        </div>
+    </td>
+    <td>
+        <div class="status-indicator status-{{ model.status or 'ready' }}">
+            <span class="status-dot"></span>
+            {{ model.status|title if model.status else 'Ready' }}
+        </div>
+    </td>
+    <td>
+        <div class="text-center">
+            <button type="button" class="btn btn-outline-info btn-sm"
+                    onclick="showModelDetails('{{ model.canonical_slug }}')"
+                    data-toggle="tooltip" title="View Comprehensive Model Analysis">
+                <i class="fas fa-info-circle mr-1"></i>
+                Details
+            </button>
+        </div>
+    </td>
+</tr>

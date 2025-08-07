@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block layout %}
+<!-- Navigation -->
+<nav class="navbar">
+    <a href="{{ url_for('main.dashboard') }}" class="navbar-brand">
+        <div class="brand-icon">AI</div>
+        <span>Research Platform</span>
+    </a>
+    
+    <div class="navbar-nav">
+        <a href="{{ url_for('main.dashboard') }}" class="nav-link" data-page="dashboard">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('main.models_overview') }}" class="nav-link" data-page="models">
+            <i class="fas fa-robot"></i>
+            <span>Models</span>
+        </a>
+        <a href="{{ url_for('testing.test_dashboard') }}" class="nav-link" data-page="testing">
+            <i class="fas fa-flask"></i>
+            <span>Testing</span>
+        </a>
+        <a href="{{ url_for('statistics.statistics_overview') }}" class="nav-link" data-page="statistics">
+            <i class="fas fa-chart-bar"></i>
+            <span>Analytics</span>
+        </a>
+    </div>
+</nav>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-content">
+        <!-- Quick Stats Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-title">Quick Stats</div>
+            <div class="quick-stats" id="quick-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Models</span>
+                    <span class="stat-value" id="stat-models">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Apps</span>
+                    <span class="stat-value" id="stat-apps">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Active</span>
+                    <span class="stat-value" id="stat-active">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Feed Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-title">Recent Activity</div>
+            <div class="activity-feed" id="activity-feed">
+                <div class="activity-item">
+                    <div class="activity-icon">
+                        <i class="fas fa-info"></i>
+                    </div>
+                    <div>Loading activities...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-title">Quick Actions</div>
+            <div class="quick-actions">
+                <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> New Test
+                </a>
+                <button class="btn btn-secondary btn-sm" onclick="DashboardManager.refreshData()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<!-- Main Content Area -->
+<main class="main-content" id="main-content">
+    {% block content %}{% endblock %}
+</main>
+
+<script>
+// Dashboard Manager for sidebar functionality
+const DashboardManager = {
+    // Initialize the dashboard
+    init() {
+        this.setupNavigation();
+        this.loadStats();
+        this.loadActivityFeed();
+        this.setupKeyboardShortcuts();
+    },
+
+    // Setup navigation active states
+    setupNavigation() {
+        const currentPath = window.location.pathname;
+        const navLinks = document.querySelectorAll('.nav-link');
+        
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            const href = link.getAttribute('href');
+            
+            if (href === currentPath || 
+                (currentPath === '/' && link.dataset.page === 'dashboard') ||
+                (currentPath.includes('/testing') && link.dataset.page === 'testing') ||
+                (currentPath.includes('/models') && link.dataset.page === 'models')) {
+                link.classList.add('active');
+            }
+        });
+    },
+
+    // Load sidebar statistics
+    async loadStats() {
+        try {
+            const response = await fetch('/api/quick-stats');
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('stat-models').textContent = data.models || '0';
+                document.getElementById('stat-apps').textContent = data.apps || '0';
+                document.getElementById('stat-active').textContent = data.active || '0';
+            }
+        } catch (error) {
+            console.error('Failed to load stats:', error);
+        }
+    },
+
+    // Load activity feed
+    async loadActivityFeed() {
+        try {
+            const response = await fetch('/api/activity-feed');
+            if (response.ok) {
+                const html = await response.text();
+                document.getElementById('activity-feed').innerHTML = html;
+            }
+        } catch (error) {
+            console.error('Failed to load activity feed:', error);
+        }
+    },
+
+    // Setup keyboard shortcuts
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+K - Focus search
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault();
+                const search = document.querySelector('input[type="search"], input[name="search"]');
+                if (search) search.focus();
+            }
+
+            // Ctrl+R - Refresh data
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                this.refreshData();
+            }
+
+            // Home - Go to dashboard
+            if (e.key === 'Home') {
+                window.location.href = '{{ url_for("main.dashboard") }}';
+            }
+        });
+    },
+
+    // Refresh all data
+    refreshData() {
+        this.loadStats();
+        this.loadActivityFeed();
+        
+        // Trigger HTMX refresh for any auto-updating elements
+        document.querySelectorAll('[hx-trigger*="load"]').forEach(el => {
+            htmx.trigger(el, 'load');
+        });
+        
+        AppUtils.showToast('Data refreshed', 'success');
+    },
+
+    // Toggle sidebar (mobile)
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.toggle('show');
+    }
+};
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    DashboardManager.init();
+});
+
+// Auto-refresh stats every 30 seconds
+setInterval(() => {
+    DashboardManager.loadStats();
+}, 30000);
+</script>
+{% endblock %}

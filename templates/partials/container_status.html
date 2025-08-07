@@ -1,0 +1,128 @@
+<div class="container-status">
+    <div class="row text-center">
+        <div class="col-4">
+            <div class="container-item">
+                <i class="fas fa-{{ 'check-circle text-success' if app.containers and app.containers.frontend_status == 'running' else 'times-circle text-muted' }}"></i>
+                <small class="d-block">Frontend</small>
+                {% if app.containers and app.containers.frontend_status %}
+                <span class="badge badge-{{ 'success' if app.containers.frontend_status == 'running' else 'warning' if app.containers.frontend_status == 'stopped' else 'danger' }}">
+                    {{ app.containers.frontend_status|title }}
+                </span>
+                {% else %}
+                <span class="badge badge-secondary">Unknown</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="container-item">
+                <i class="fas fa-{{ 'check-circle text-success' if app.containers and app.containers.backend_status == 'running' else 'times-circle text-muted' }}"></i>
+                <small class="d-block">Backend</small>
+                {% if app.containers and app.containers.backend_status %}
+                <span class="badge badge-{{ 'success' if app.containers.backend_status == 'running' else 'warning' if app.containers.backend_status == 'stopped' else 'danger' }}">
+                    {{ app.containers.backend_status|title }}
+                </span>
+                {% else %}
+                <span class="badge badge-secondary">Unknown</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="container-item">
+                <i class="fas fa-{{ 'check-circle text-success' if app.containers and app.containers.database_status == 'running' else 'times-circle text-muted' }}"></i>
+                <small class="d-block">Database</small>
+                {% if app.containers and app.containers.database_status %}
+                <span class="badge badge-{{ 'success' if app.containers.database_status == 'running' else 'warning' if app.containers.database_status == 'stopped' else 'danger' }}">
+                    {{ app.containers.database_status|title }}
+                </span>
+                {% else %}
+                <span class="badge badge-secondary">Unknown</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    {% if app.containers and (app.containers.frontend_status == 'error' or app.containers.backend_status == 'error' or app.containers.database_status == 'error') %}
+    <div class="container-error mt-2">
+        <div class="alert alert-danger alert-sm">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            One or more containers have errors. Check logs for details.
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Container Health Summary -->
+    {% if app.containers %}
+    <div class="container-health mt-2">
+        {% set running_count = [app.containers.frontend_status, app.containers.backend_status, app.containers.database_status] | select('equalto', 'running') | list | length %}
+        {% set total_count = 3 %}
+        
+        <div class="health-bar">
+            <div class="health-progress" style="width: {{ (running_count / total_count * 100)|round }}%"></div>
+        </div>
+        <small class="text-muted">{{ running_count }}/{{ total_count }} containers running</small>
+    </div>
+    {% endif %}
+    
+    <!-- Quick Actions -->
+    <div class="container-actions mt-2">
+        <div class="btn-group btn-group-sm w-100" role="group">
+            {% if app.status == 'stopped' %}
+            <button class="btn btn-outline-success btn-xs" onclick="startApp('{{ app.model_slug }}', {{ app.app_number }})">
+                <i class="fas fa-play"></i>
+            </button>
+            {% elif app.status == 'running' %}
+            <button class="btn btn-outline-warning btn-xs" onclick="stopApp('{{ app.model_slug }}', {{ app.app_number }})">
+                <i class="fas fa-stop"></i>
+            </button>
+            {% endif %}
+            
+            <button class="btn btn-outline-secondary btn-xs" onclick="restartApp('{{ app.model_slug }}', {{ app.app_number }})">
+                <i class="fas fa-redo"></i>
+            </button>
+            
+            <button class="btn btn-outline-info btn-xs" onclick="showContainerLogs('{{ app.model_slug }}', {{ app.app_number }})">
+                <i class="fas fa-file-alt"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.container-status {
+    font-size: 0.875rem;
+}
+
+.container-item {
+    padding: 0.5rem;
+}
+
+.container-item i {
+    font-size: 1.2rem;
+    margin-bottom: 0.25rem;
+}
+
+.health-bar {
+    width: 100%;
+    height: 4px;
+    background-color: #e9ecef;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 0.25rem;
+}
+
+.health-progress {
+    height: 100%;
+    background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+    transition: width 0.3s ease;
+}
+
+.container-actions .btn {
+    padding: 0.25rem 0.5rem;
+}
+
+.alert-sm {
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+}
+</style>

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block layout %}
+<main class="main-content modal-main">
+    {% block content %}{% endblock %}
+</main>
+
+<!-- Standard Modal Template -->
+<div class="modal fade" id="standardModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog {% block modal_size %}modal-lg{% endblock %}" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="standardModalTitle">
+                    {% block modal_title %}Modal Title{% endblock %}
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="standardModalBody">
+                {% block modal_body %}
+                <!-- Modal content loaded here -->
+                {% endblock %}
+            </div>
+            <div class="modal-footer">
+                {% block modal_footer %}
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                {% endblock %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Container Logs Modal -->
+<div class="modal fade" id="containerLogsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-terminal mr-2"></i>
+                    Container Logs
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="container-logs-content" class="log-viewer">
+                    <!-- Logs loaded via HTMX -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Model Details Modal -->
+<div class="modal fade" id="modelDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-robot mr-2"></i>
+                    Model Details
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="model-details-content">
+                <!-- Content loaded via HTMX -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Modal management utilities
+const ModalManager = {
+    // Show standard modal with content
+    showModal(title, content, size = 'lg') {
+        const modal = document.getElementById('standardModal');
+        const modalDialog = modal.querySelector('.modal-dialog');
+        
+        // Update size
+        modalDialog.className = `modal-dialog modal-${size}`;
+        
+        // Update content
+        document.getElementById('standardModalTitle').innerHTML = title;
+        document.getElementById('standardModalBody').innerHTML = content;
+        
+        // Show modal
+        $('#standardModal').modal('show');
+    },
+
+    // Show container logs
+    showContainerLogs(modelSlug, appNum) {
+        fetch(`/api/v1/containers/${encodeURIComponent(modelSlug)}/${appNum}/logs`)
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('container-logs-content').innerHTML = data;
+                $('#containerLogsModal').modal('show');
+            })
+            .catch(error => {
+                console.error('Error loading logs:', error);
+                AppUtils.showToast('Failed to load container logs', 'error');
+            });
+    },
+
+    // Show model details
+    showModelDetails(modelSlug) {
+        // Load model details content
+        fetch(`/api/models/${encodeURIComponent(modelSlug)}/details`)
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('model-details-content').innerHTML = data;
+                $('#modelDetailsModal').modal('show');
+            })
+            .catch(error => {
+                console.error('Error loading model details:', error);
+                AppUtils.showToast('Failed to load model details', 'error');
+            });
+    },
+
+    // Close all modals
+    closeAll() {
+        $('.modal').modal('hide');
+    }
+};
+
+// Make functions globally available
+window.showContainerLogs = ModalManager.showContainerLogs;
+window.showModelDetails = ModalManager.showModelDetails;
+</script>
+{% endblock %}

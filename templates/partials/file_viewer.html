@@ -1,0 +1,251 @@
+<div id="file-tree" class="file-tree">
+    {% if file_structure %}
+    <ul class="tree-view">
+        {% for item in file_structure %}
+        <li class="tree-item" data-type="{{ item.type }}">
+            {% if item.type == 'directory' %}
+            <span class="tree-node" onclick="toggleFileNode(this)">
+                <i class="fas fa-folder mr-1 tree-icon"></i>
+                <span class="tree-label">{{ item.name }}</span>
+                <i class="fas fa-chevron-right ml-auto tree-toggle"></i>
+            </span>
+            {% if item.children %}
+            <ul class="tree-children" style="display: none;">
+                {% for child in item.children %}
+                <li class="tree-item" data-type="{{ child.type }}">
+                    {% if child.type == 'directory' %}
+                    <span class="tree-node" onclick="toggleFileNode(this)">
+                        <i class="fas fa-folder mr-1 tree-icon"></i>
+                        <span class="tree-label">{{ child.name }}</span>
+                        <i class="fas fa-chevron-right ml-auto tree-toggle"></i>
+                    </span>
+                    {% if child.children %}
+                    <ul class="tree-children" style="display: none;">
+                        {% for subchild in child.children %}
+                        <li class="tree-item" data-type="file">
+                            <span class="tree-file" onclick="loadFileContent('{{ subchild.path }}', '{{ subchild.name }}')">
+                                <i class="fas fa-{{ 'code' if subchild.name.endswith(('.py', '.js', '.html', '.css', '.json', '.yml', '.yaml')) else 'file' }} mr-1 tree-icon"></i>
+                                <span class="tree-label">{{ subchild.name }}</span>
+                            </span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% else %}
+                    <span class="tree-file" onclick="loadFileContent('{{ child.path }}', '{{ child.name }}')">
+                        <i class="fas fa-{{ 'code' if child.name.endswith(('.py', '.js', '.html', '.css', '.json', '.yml', '.yaml')) else 'file' }} mr-1 tree-icon"></i>
+                        <span class="tree-label">{{ child.name }}</span>
+                    </span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% else %}
+            <span class="tree-file" onclick="loadFileContent('{{ item.path }}', '{{ item.name }}')">
+                <i class="fas fa-{{ 'code' if item.name.endswith(('.py', '.js', '.html', '.css', '.json', '.yml', '.yaml')) else 'file' }} mr-1 tree-icon"></i>
+                <span class="tree-label">{{ item.name }}</span>
+            </span>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div class="text-center p-3 text-muted">
+        <i class="fas fa-folder-open fa-3x mb-2"></i>
+        <p>No files found</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.file-tree {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+}
+
+.tree-view {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.tree-item {
+    margin: 0;
+}
+
+.tree-node,
+.tree-file {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    margin: 0.125rem 0;
+    transition: background-color 0.15s ease;
+    user-select: none;
+}
+
+.tree-node:hover,
+.tree-file:hover {
+    background-color: #f8f9fa;
+}
+
+.tree-file:hover {
+    background-color: #e3f2fd;
+}
+
+.tree-file.active {
+    background-color: #2196f3;
+    color: white;
+}
+
+.tree-children {
+    list-style: none;
+    padding-left: 1.5rem;
+    margin: 0;
+}
+
+.tree-children .tree-item {
+    border-left: 2px solid #dee2e6;
+    margin-left: 0.75rem;
+}
+
+.tree-icon {
+    color: #6c757d;
+    width: 1rem;
+    text-align: center;
+}
+
+.tree-label {
+    flex: 1;
+    font-size: 0.875rem;
+}
+
+.tree-toggle {
+    font-size: 0.75rem;
+    color: #6c757d;
+    transition: transform 0.15s ease;
+}
+
+.tree-toggle.rotated {
+    transform: rotate(90deg);
+}
+
+.tree-node[data-expanded="true"] .tree-toggle {
+    transform: rotate(90deg);
+}
+
+/* File type specific icons */
+.tree-icon.fa-code {
+    color: #007bff;
+}
+
+.tree-icon.fa-file {
+    color: #6c757d;
+}
+
+.tree-icon.fa-folder {
+    color: #ffc107;
+}
+
+/* Directory indicators */
+.tree-item[data-type="directory"] > .tree-node .tree-icon {
+    color: #ffc107;
+}
+
+.tree-item[data-type="file"] > .tree-file .tree-icon.fa-code {
+    color: #28a745;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .file-tree {
+        max-height: 300px;
+    }
+    
+    .tree-node,
+    .tree-file {
+        padding: 0.375rem 0.5rem;
+    }
+    
+    .tree-label {
+        font-size: 0.8rem;
+    }
+}
+</style>
+
+<script>
+function toggleFileNode(element) {
+    const children = element.nextElementSibling;
+    const toggleIcon = element.querySelector('.tree-toggle');
+    
+    if (children && children.classList.contains('tree-children')) {
+        const isHidden = children.style.display === 'none';
+        
+        children.style.display = isHidden ? 'block' : 'none';
+        
+        if (toggleIcon) {
+            toggleIcon.classList.toggle('rotated', isHidden);
+        }
+        
+        // Update folder icon
+        const folderIcon = element.querySelector('.fa-folder, .fa-folder-open');
+        if (folderIcon) {
+            if (isHidden) {
+                folderIcon.classList.remove('fa-folder');
+                folderIcon.classList.add('fa-folder-open');
+            } else {
+                folderIcon.classList.remove('fa-folder-open');
+                folderIcon.classList.add('fa-folder');
+            }
+        }
+        
+        element.setAttribute('data-expanded', isHidden.toString());
+    }
+}
+
+function loadFileContent(path, filename) {
+    // Remove active state from all files
+    document.querySelectorAll('.tree-file').forEach(file => {
+        file.classList.remove('active');
+    });
+    
+    // Add active state to clicked file
+    event.target.closest('.tree-file').classList.add('active');
+    
+    // Load file content via HTMX
+    htmx.ajax('GET', `/api/file-content?path=${encodeURIComponent(path)}`, {
+        target: '#file-content-viewer',
+        swap: 'innerHTML'
+    });
+    
+    // Update the file content header if it exists
+    const contentHeader = document.querySelector('#file-content-viewer').previousElementSibling;
+    if (contentHeader && contentHeader.classList.contains('card-header')) {
+        const titleElement = contentHeader.querySelector('.card-title');
+        if (titleElement) {
+            titleElement.innerHTML = `<i class="fas fa-code mr-2"></i>${filename}`;
+        }
+    }
+}
+
+// Auto-expand common directories
+document.addEventListener('DOMContentLoaded', function() {
+    const commonDirs = ['src', 'frontend', 'backend', 'components'];
+    
+    commonDirs.forEach(dirName => {
+        const dirNode = Array.from(document.querySelectorAll('.tree-label'))
+            .find(label => label.textContent.trim() === dirName);
+        
+        if (dirNode) {
+            const treeNode = dirNode.closest('.tree-node');
+            if (treeNode) {
+                toggleFileNode(treeNode);
+            }
+        }
+    });
+});
+</script>

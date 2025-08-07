@@ -1,0 +1,312 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Create Test - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Create Security Test</h1>
+            <p class="page-subtitle">Configure comprehensive security testing</p>
+        </div>
+        <div>
+            <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Test Creation Form -->
+    <form id="test-form" hx-post="/testing/api/create-test" hx-target="#result-message">
+        <div class="row">
+            <!-- Tool Selection -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Testing Tools</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="tools" value="bandit" id="tool-bandit" checked>
+                            <label class="form-check-label" for="tool-bandit">
+                                <strong>Bandit</strong> - Python security linter
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="tools" value="safety" id="tool-safety" checked>
+                            <label class="form-check-label" for="tool-safety">
+                                <strong>Safety</strong> - Dependency scanner
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="tools" value="zap" id="tool-zap">
+                            <label class="form-check-label" for="tool-zap">
+                                <strong>OWASP ZAP</strong> - Web scanner
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="tools" value="performance" id="tool-performance">
+                            <label class="form-check-label" for="tool-performance">
+                                <strong>Performance Test</strong> - Load testing
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Selection -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Target Selection</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="model-select" class="form-label">Model</label>
+                            <select class="form-select" id="model-select" name="model" required>
+                                <option value="">Select a model...</option>
+                                {% if models_data %}
+                                {% for model in models_data %}
+                                <option value="{{ model.canonical_slug }}">
+                                    {{ model.display_name }} ({{ model.provider }})
+                                </option>
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="app-select" class="form-label">Application</label>
+                            <select class="form-select" id="app-select" name="app_number" required disabled>
+                                <option value="">Select a model first...</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="test-name" class="form-label">Test Name</label>
+                            <input type="text" class="form-control" id="test-name" name="test_name" 
+                                   placeholder="Enter test name..." required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Options -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title">Advanced Options</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="timeout" class="form-label">Timeout (minutes)</label>
+                            <input type="number" class="form-control" id="timeout" name="timeout" 
+                                   value="30" min="5" max="120">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="priority" class="form-label">Priority</label>
+                            <select class="form-select" id="priority" name="priority">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" 
+                                      placeholder="Optional test description..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="notify-completion" name="notify_completion">
+                    <label class="form-check-label" for="notify-completion">
+                        Notify when test completes
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="mt-4 d-flex justify-content-end gap-2">
+            <button type="reset" class="btn btn-secondary">Reset</button>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-play mr-1"></i> Start Test
+            </button>
+        </div>
+    </form>
+
+    <!-- Result Message Area -->
+    <div id="result-message" class="mt-4"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Test Creation JavaScript
+class TestCreation {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupFormValidation();
+    }
+
+    setupEventListeners() {
+        // Model selection change
+        document.getElementById('model-select').addEventListener('change', (e) => {
+            this.loadAppsForModel(e.target.value);
+        });
+
+        // Form submission
+        document.getElementById('test-form').addEventListener('htmx:afterRequest', (event) => {
+            if (event.detail.successful) {
+                this.handleTestCreated(event.detail.xhr.response);
+            }
+        });
+
+        // Tool selection validation
+        document.querySelectorAll('input[name="tools"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                this.validateToolSelection();
+            });
+        });
+    }
+
+    setupFormValidation() {
+        const form = document.getElementById('test-form');
+        form.addEventListener('submit', (e) => {
+            if (!this.validateForm()) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+
+    async loadAppsForModel(modelSlug) {
+        const appSelect = document.getElementById('app-select');
+        
+        if (!modelSlug) {
+            appSelect.disabled = true;
+            appSelect.innerHTML = '<option value="">Select a model first...</option>';
+            return;
+        }
+
+        try {
+            appSelect.disabled = true;
+            appSelect.innerHTML = '<option value="">Loading applications...</option>';
+
+            const response = await fetch(`/api/v1/models/${encodeURIComponent(modelSlug)}/apps`);
+            const data = await response.json();
+
+            if (data.success && data.data) {
+                appSelect.innerHTML = '<option value="">Select an application...</option>';
+                
+                data.data.forEach(app => {
+                    const option = document.createElement('option');
+                    option.value = app.app_number;
+                    option.textContent = `App ${app.app_number} - ${app.app_name || 'Unnamed'}`;
+                    appSelect.appendChild(option);
+                });
+                
+                appSelect.disabled = false;
+            } else {
+                appSelect.innerHTML = '<option value="">No applications found</option>';
+            }
+        } catch (error) {
+            console.error('Error loading apps:', error);
+            appSelect.innerHTML = '<option value="">Error loading applications</option>';
+            AppUtils.showToast('Failed to load applications', 'error');
+        }
+    }
+
+    validateToolSelection() {
+        const checkedTools = document.querySelectorAll('input[name="tools"]:checked');
+        const submitButton = document.querySelector('button[type="submit"]');
+        
+        if (checkedTools.length === 0) {
+            submitButton.disabled = true;
+            if (!document.getElementById('tool-warning')) {
+                const warning = document.createElement('div');
+                warning.id = 'tool-warning';
+                warning.className = 'alert alert-warning mt-2';
+                warning.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Please select at least one testing tool.';
+                document.querySelector('.card-body').appendChild(warning);
+            }
+        } else {
+            submitButton.disabled = false;
+            const warning = document.getElementById('tool-warning');
+            if (warning) {
+                warning.remove();
+            }
+        }
+    }
+
+    validateForm() {
+        const model = document.getElementById('model-select').value;
+        const app = document.getElementById('app-select').value;
+        const testName = document.getElementById('test-name').value.trim();
+        const tools = document.querySelectorAll('input[name="tools"]:checked');
+
+        if (!model) {
+            AppUtils.showToast('Please select a model', 'warning');
+            return false;
+        }
+
+        if (!app) {
+            AppUtils.showToast('Please select an application', 'warning');
+            return false;
+        }
+
+        if (!testName) {
+            AppUtils.showToast('Please enter a test name', 'warning');
+            return false;
+        }
+
+        if (tools.length === 0) {
+            AppUtils.showToast('Please select at least one testing tool', 'warning');
+            return false;
+        }
+
+        return true;
+    }
+
+    handleTestCreated(response) {
+        try {
+            const data = JSON.parse(response);
+            if (data.success) {
+                AppUtils.showToast('Test created successfully!', 'success');
+                
+                // Reset form
+                document.getElementById('test-form').reset();
+                document.getElementById('app-select').disabled = true;
+                document.getElementById('app-select').innerHTML = '<option value="">Select a model first...</option>';
+                
+                // Redirect to test dashboard after a short delay
+                setTimeout(() => {
+                    window.location.href = '/testing/dashboard';
+                }, 2000);
+            }
+        } catch (error) {
+            console.error('Error parsing response:', error);
+        }
+    }
+}
+
+// Initialize test creation
+let testCreation;
+document.addEventListener('DOMContentLoaded', function() {
+    testCreation = new TestCreation();
+});
+</script>
+{% endblock %}

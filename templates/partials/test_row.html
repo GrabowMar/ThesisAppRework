@@ -1,0 +1,88 @@
+<tr class="test-row" data-test-id="{{ test.id }}">
+    <td>
+        <span class="font-weight-bold">#{{ test.id }}</span>
+    </td>
+    <td>
+        <div class="model-info">
+            <div class="font-weight-medium">{{ test.model_slug }}</div>
+            <small class="text-muted">{{ test.provider or 'Unknown' }}</small>
+        </div>
+    </td>
+    <td>
+        <span class="badge badge-outline-primary">App {{ test.app_number }}</span>
+    </td>
+    <td>
+        <div class="test-type-badges">
+            {% if test.tools_used %}
+            {% for tool in test.tools_used %}
+            <span class="badge badge-{{ 'success' if tool == 'bandit' else 'info' if tool == 'safety' else 'warning' if tool == 'zap' else 'primary' }}">
+                {{ tool|title }}
+            </span>
+            {% endfor %}
+            {% else %}
+            <span class="text-muted">Unknown</span>
+            {% endif %}
+        </div>
+    </td>
+    <td>
+        <span class="badge badge-{{ 'success' if test.status == 'completed' else 'danger' if test.status == 'failed' else 'warning' if test.status == 'running' else 'secondary' }}">
+            {% if test.status == 'running' %}
+            <i class="fas fa-spinner fa-spin mr-1"></i>
+            {% elif test.status == 'completed' %}
+            <i class="fas fa-check mr-1"></i>
+            {% elif test.status == 'failed' %}
+            <i class="fas fa-times mr-1"></i>
+            {% endif %}
+            {{ test.status|title }}
+        </span>
+    </td>
+    <td>
+        <div class="test-time">
+            <div class="font-weight-medium">{{ test.created_at.strftime('%H:%M') if test.created_at else 'N/A' }}</div>
+            <small class="text-muted">{{ test.created_at.strftime('%Y-%m-%d') if test.created_at else 'Unknown' }}</small>
+        </div>
+    </td>
+    <td>
+        <div class="btn-group btn-group-sm" role="group">
+            {% if test.status == 'completed' %}
+            <a href="/testing/results/{{ test.id }}" class="btn btn-outline-primary btn-xs">
+                <i class="fas fa-eye"></i> View
+            </a>
+            {% endif %}
+            
+            {% if test.status == 'running' %}
+            <button class="btn btn-outline-warning btn-xs" onclick="cancelTest({{ test.id }})">
+                <i class="fas fa-stop"></i> Cancel
+            </button>
+            {% elif test.status in ['completed', 'failed'] %}
+            <button class="btn btn-outline-secondary btn-xs" onclick="retryTest({{ test.id }})">
+                <i class="fas fa-redo"></i> Retry
+            </button>
+            {% endif %}
+            
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary btn-xs dropdown-toggle dropdown-toggle-split" 
+                        data-toggle="dropdown">
+                    <span class="sr-only">Toggle Dropdown</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                    {% if test.status == 'completed' %}
+                    <a class="dropdown-item" href="/testing/api/results/{{ test.id }}/export?format=json">
+                        <i class="fas fa-download mr-2"></i>Export JSON
+                    </a>
+                    <a class="dropdown-item" href="/testing/api/results/{{ test.id }}/export?format=pdf">
+                        <i class="fas fa-file-pdf mr-2"></i>Export PDF
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    {% endif %}
+                    <a class="dropdown-item" href="#" onclick="showTestDetails({{ test.id }})">
+                        <i class="fas fa-info-circle mr-2"></i>Details
+                    </a>
+                    <a class="dropdown-item text-danger" href="#" onclick="deleteTest({{ test.id }})">
+                        <i class="fas fa-trash mr-2"></i>Delete
+                    </a>
+                </div>
+            </div>
+        </div>
+    </td>
+</tr>

@@ -1,0 +1,332 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Test Results #{{ test_data.id }} - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Test Results #{{ test_data.id }}</h1>
+            <p class="page-subtitle">
+                {{ test_data.model_slug }} • App {{ test_data.app_number }}
+                <span class="badge badge-{{ 'success' if test_data.status == 'completed' else 'danger' if test_data.status == 'failed' else 'warning' }}">
+                    {{ test_data.status|title }}
+                </span>
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+            <a href="/testing/api/results/{{ test_data.id }}/export?format=json" class="btn btn-primary">
+                <i class="fas fa-download"></i> Export
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-grid">
+        <div class="stats-card">
+            <div class="stats-card-value">{{ test_data.results.get('total_issues', 0) }}</div>
+            <div class="stats-card-label">Total Issues</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-value text-danger">{{ test_data.results.get('critical_issues', 0) }}</div>
+            <div class="stats-card-label">Critical</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-value text-warning">{{ test_data.results.get('high_issues', 0) }}</div>
+            <div class="stats-card-label">High</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-value text-info">{{ test_data.results.get('medium_issues', 0) }}</div>
+            <div class="stats-card-label">Medium</div>
+        </div>
+    </div>
+
+    <!-- Test Results Content -->
+    <div class="row">
+        <!-- Main Results -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Detailed Results</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-outline-primary active" data-filter="all">
+                                All
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-filter="critical">
+                                Critical
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-warning" data-filter="high">
+                                High
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info" data-filter="medium">
+                                Medium
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if test_data.results and test_data.results.get('issues') %}
+                    <div class="issues-list">
+                        {% for issue in test_data.results.issues %}
+                        <div class="issue-item" data-severity="{{ issue.severity }}">
+                            <div class="issue-header">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="issue-title">{{ issue.title }}</h6>
+                                        <div class="issue-meta">
+                                            <span class="badge badge-{{ 'danger' if issue.severity == 'critical' else 'warning' if issue.severity == 'high' else 'info' if issue.severity == 'medium' else 'secondary' }}">
+                                                {{ issue.severity|title }}
+                                            </span>
+                                            <span class="text-muted">{{ issue.tool }}</span>
+                                            {% if issue.file %}
+                                            <span class="text-muted">• {{ issue.file }}:{{ issue.line_number or 'N/A' }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleIssueDetails(this)">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="issue-description">
+                                <p>{{ issue.description }}</p>
+                            </div>
+                            <div class="issue-details" style="display: none;">
+                                {% if issue.code_snippet %}
+                                <div class="code-snippet">
+                                    <h6>Code Snippet:</h6>
+                                    <pre><code>{{ issue.code_snippet }}</code></pre>
+                                </div>
+                                {% endif %}
+                                {% if issue.recommendation %}
+                                <div class="recommendation">
+                                    <h6>Recommendation:</h6>
+                                    <p>{{ issue.recommendation }}</p>
+                                </div>
+                                {% endif %}
+                                {% if issue.cwe_id %}
+                                <div class="cwe-info">
+                                    <strong>CWE ID:</strong> {{ issue.cwe_id }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h6 class="text-muted">No Issues Found</h6>
+                        <p class="text-muted">This test completed successfully with no security issues detected.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Information -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Test Information</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-5">Test ID:</dt>
+                        <dd class="col-sm-7">{{ test_data.id }}</dd>
+                        
+                        <dt class="col-sm-5">Model:</dt>
+                        <dd class="col-sm-7">{{ test_data.model_slug }}</dd>
+                        
+                        <dt class="col-sm-5">Application:</dt>
+                        <dd class="col-sm-7">App {{ test_data.app_number }}</dd>
+                        
+                        <dt class="col-sm-5">Status:</dt>
+                        <dd class="col-sm-7">
+                            <span class="badge badge-{{ 'success' if test_data.status == 'completed' else 'danger' if test_data.status == 'failed' else 'warning' }}">
+                                {{ test_data.status|title }}
+                            </span>
+                        </dd>
+                        
+                        <dt class="col-sm-5">Started:</dt>
+                        <dd class="col-sm-7">{{ test_data.created_at.strftime('%Y-%m-%d %H:%M') if test_data.created_at else 'N/A' }}</dd>
+                        
+                        <dt class="col-sm-5">Completed:</dt>
+                        <dd class="col-sm-7">{{ test_data.completed_at.strftime('%Y-%m-%d %H:%M') if test_data.completed_at else 'N/A' }}</dd>
+                        
+                        {% if test_data.duration %}
+                        <dt class="col-sm-5">Duration:</dt>
+                        <dd class="col-sm-7">{{ test_data.duration }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Tools Used -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Tools Used</h5>
+                </div>
+                <div class="card-body">
+                    {% if test_data.tools_used %}
+                    <div class="tools-list">
+                        {% for tool in test_data.tools_used %}
+                        <div class="tool-item mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="tool-name">{{ tool.name }}</span>
+                                <span class="badge badge-{{ 'success' if tool.status == 'completed' else 'danger' if tool.status == 'failed' else 'warning' }}">
+                                    {{ tool.status|title }}
+                                </span>
+                            </div>
+                            {% if tool.version %}
+                            <small class="text-muted">Version: {{ tool.version }}</small>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No tool information available</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="retryTest()">
+                            <i class="fas fa-redo mr-1"></i> Retry Test
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="downloadReport()">
+                            <i class="fas fa-file-pdf mr-1"></i> Download PDF
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="shareResults()">
+                            <i class="fas fa-share mr-1"></i> Share Results
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Test Results JavaScript
+class TestResults {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupFiltering();
+    }
+
+    setupEventListeners() {
+        // Filter buttons
+        document.querySelectorAll('[data-filter]').forEach(button => {
+            button.addEventListener('click', (e) => {
+                this.filterIssues(e.target.dataset.filter);
+                
+                // Update active button
+                document.querySelectorAll('[data-filter]').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+            });
+        });
+    }
+
+    setupFiltering() {
+        // Initial filter setup
+        this.filterIssues('all');
+    }
+
+    filterIssues(severity) {
+        const issues = document.querySelectorAll('.issue-item');
+        
+        issues.forEach(issue => {
+            if (severity === 'all' || issue.dataset.severity === severity) {
+                issue.style.display = '';
+            } else {
+                issue.style.display = 'none';
+            }
+        });
+        
+        // Update count
+        const visibleCount = Array.from(issues).filter(issue => issue.style.display !== 'none').length;
+        this.updateFilterCount(severity, visibleCount);
+    }
+
+    updateFilterCount(filter, count) {
+        // Update the header to show filtered count
+        const header = document.querySelector('.card-title');
+        if (filter === 'all') {
+            header.textContent = 'Detailed Results';
+        } else {
+            header.textContent = `Detailed Results (${count} ${filter} issues)`;
+        }
+    }
+}
+
+// Global functions
+window.toggleIssueDetails = function(button) {
+    const issueItem = button.closest('.issue-item');
+    const details = issueItem.querySelector('.issue-details');
+    const icon = button.querySelector('i');
+    
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+    } else {
+        details.style.display = 'none';
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+    }
+};
+
+window.retryTest = function() {
+    if (confirm('Are you sure you want to retry this test?')) {
+        // Implement retry logic
+        AppUtils.showToast('Test retry initiated', 'info');
+    }
+};
+
+window.downloadReport = function() {
+    // Implement PDF download
+    window.open('/testing/api/results/{{ test_data.id }}/export?format=pdf', '_blank');
+};
+
+window.shareResults = function() {
+    // Implement sharing functionality
+    const url = window.location.href;
+    if (navigator.share) {
+        navigator.share({
+            title: 'Test Results #{{ test_data.id }}',
+            text: 'Check out these security test results',
+            url: url
+        });
+    } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(url).then(() => {
+            AppUtils.showToast('Link copied to clipboard', 'success');
+        });
+    }
+};
+
+// Initialize test results
+let testResults;
+document.addEventListener('DOMContentLoaded', function() {
+    testResults = new TestResults();
+});
+</script>
+{% endblock %}

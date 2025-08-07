@@ -1,0 +1,252 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Testing Dashboard - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Testing Dashboard</h1>
+            <p class="page-subtitle">Manage and monitor security and performance tests</p>
+        </div>
+        <div>
+            <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Test
+            </a>
+        </div>
+    </div>
+
+    <!-- Test Statistics -->
+    {% if stats %}
+    <div class="stats-grid mb-4">
+        <div class="stats-card">
+            <div class="stats-card-icon"><i class="fas fa-play-circle"></i></div>
+            <div class="stats-card-value text-info">{{ stats.active_tests|default(0) }}</div>
+            <div class="stats-card-label">Active Tests</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-icon"><i class="fas fa-check-circle"></i></div>
+            <div class="stats-card-value text-success">{{ stats.completed_tests|default(0) }}</div>
+            <div class="stats-card-label">Completed</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stats-card-value text-warning">{{ stats.failed_tests|default(0) }}</div>
+            <div class="stats-card-label">Failed</div>
+        </div>
+        <div class="stats-card">
+            <div class="stats-card-icon"><i class="fas fa-shield-alt"></i></div>
+            <div class="stats-card-value text-danger">{{ stats.security_issues|default(0) }}</div>
+            <div class="stats-card-label">Security Issues</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Active Tests -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Active Tests</h5>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="refreshActiveTests()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="active-tests-container"
+                         hx-get="/testing/api/active-tests"
+                         hx-trigger="load, every 10s"
+                         hx-swap="innerHTML">
+                        <div class="text-center p-3">
+                            <div class="loading-spinner"></div>
+                            <p class="text-muted mt-2">Loading active tests...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Test Results -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Recent Test Results</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_tests %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Test ID</th>
+                                    <th>Model</th>
+                                    <th>App</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Started</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for test in recent_tests %}
+                                {% include 'partials/test_row.html' %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">No recent tests</h6>
+                        <p class="text-muted">Start your first test to see results here.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Infrastructure Status -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Infrastructure Status</h5>
+                </div>
+                <div class="card-body">
+                    <div id="infrastructure-status"
+                         hx-get="/testing/api/infrastructure-status"
+                         hx-trigger="load, every 30s"
+                         hx-swap="innerHTML">
+                        <div class="text-center p-3">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary">
+                            <i class="fas fa-plus mr-1"></i> Create New Test
+                        </a>
+                        <button class="btn btn-outline-secondary" onclick="refreshInfrastructure()">
+                            <i class="fas fa-server mr-1"></i> Check Infrastructure
+                        </button>
+                        <button class="btn btn-outline-info" onclick="showTestHistory()">
+                            <i class="fas fa-history mr-1"></i> View Test History
+                        </button>
+                        <button class="btn btn-outline-warning" onclick="exportTestData()">
+                            <i class="fas fa-download mr-1"></i> Export Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Health -->
+            {% if infrastructure_health %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">System Health</h5>
+                </div>
+                <div class="card-body">
+                    <div class="health-indicators">
+                        <div class="health-item">
+                            <span class="health-label">Docker</span>
+                            <span class="health-status health-{{ infrastructure_health.docker.status }}">
+                                {{ infrastructure_health.docker.status|title }}
+                            </span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Security Scanner</span>
+                            <span class="health-status health-{{ infrastructure_health.security_scanner.status }}">
+                                {{ infrastructure_health.security_scanner.status|title }}
+                            </span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Performance Tester</span>
+                            <span class="health-status health-{{ infrastructure_health.performance_tester.status }}">
+                                {{ infrastructure_health.performance_tester.status|title }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Testing Dashboard JavaScript
+class TestingDashboard {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+    }
+
+    setupEventListeners() {
+        // Add any specific event listeners here
+    }
+
+    setupAutoRefresh() {
+        // Refresh active tests every 30 seconds
+        setInterval(() => {
+            this.refreshActiveTests();
+        }, 30000);
+    }
+
+    refreshActiveTests() {
+        htmx.trigger('#active-tests-container', 'load');
+    }
+
+    refreshInfrastructure() {
+        htmx.trigger('#infrastructure-status', 'load');
+        AppUtils.showToast('Infrastructure status refreshed', 'info');
+    }
+
+    showTestHistory() {
+        // Implement test history modal
+        window.location.href = '/testing/history';
+    }
+
+    exportTestData() {
+        // Implement test data export
+        window.open('/testing/export', '_blank');
+    }
+}
+
+// Global functions
+window.refreshActiveTests = function() {
+    testingDashboard.refreshActiveTests();
+};
+
+window.refreshInfrastructure = function() {
+    testingDashboard.refreshInfrastructure();
+};
+
+window.showTestHistory = function() {
+    testingDashboard.showTestHistory();
+};
+
+window.exportTestData = function() {
+    testingDashboard.exportTestData();
+};
+
+// Initialize testing dashboard
+let testingDashboard;
+document.addEventListener('DOMContentLoaded', function() {
+    testingDashboard = new TestingDashboard();
+});
+</script>
+{% endblock %}
