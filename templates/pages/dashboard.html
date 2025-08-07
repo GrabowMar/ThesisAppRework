@@ -1,0 +1,154 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Dashboard - AI Research Platform{% endblock %}
+
+{% block page_title %}Research Dashboard{% endblock %}
+{% block page_subtitle %}AI Model Testing & Analysis Platform{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary">
+    <i class="fas fa-plus"></i> New Test
+</a>
+<button class="btn btn-secondary" onclick="AppManager.refreshData()">
+    <i class="fas fa-sync-alt"></i> Refresh
+</button>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Summary Statistics -->
+{% if summary_stats %}
+<div class="stats-grid mb-4">
+    <div class="stats-card">
+        <div class="stats-card-icon"><i class="fas fa-robot"></i></div>
+        <div class="stats-card-value">{{ summary_stats.total_models|default(0) }}</div>
+        <div class="stats-card-label">Total Models</div>
+    </div>
+    <div class="stats-card">
+        <div class="stats-card-icon"><i class="fas fa-cube"></i></div>
+        <div class="stats-card-value">{{ summary_stats.total_apps|default(0) }}</div>
+        <div class="stats-card-label">Applications</div>
+    </div>
+    <div class="stats-card">
+        <div class="stats-card-icon"><i class="fas fa-play-circle"></i></div>
+        <div class="stats-card-value text-success">{{ summary_stats.running_containers|default(0) }}</div>
+        <div class="stats-card-label">Running</div>
+    </div>
+    <div class="stats-card">
+        <div class="stats-card-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="stats-card-value text-danger">{{ summary_stats.error_containers|default(0) }}</div>
+        <div class="stats-card-label">Errors</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Model Overview -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Model Overview</h5>
+            <div class="d-flex gap-2">
+                <input type="search" class="form-control form-control-sm" 
+                       placeholder="Search models..." 
+                       id="model-search"
+                       style="width: 200px;">
+                <select class="form-select form-select-sm" id="provider-filter" style="width: auto;">
+                    <option value="">All Providers</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="google">Google</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="models-grid" 
+             hx-get="/api/models"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="text-center p-4">
+                <div class="loading-spinner"></div>
+                <p class="text-muted mt-2">Loading models...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recent Tests</h5>
+            </div>
+            <div class="card-body">
+                <div id="recent-tests"
+                     hx-get="/testing/api/recent-tests?limit=5"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <div class="text-center p-3">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">System Health</h5>
+            </div>
+            <div class="card-body">
+                <div id="system-health"
+                     hx-get="/api/system-health"
+                     hx-trigger="load, every 30s"
+                     hx-swap="innerHTML">
+                    <div class="text-center p-3">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Dashboard-specific functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Model search
+    const searchInput = document.getElementById('model-search');
+    const providerFilter = document.getElementById('provider-filter');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', filterModels);
+    }
+    
+    if (providerFilter) {
+        providerFilter.addEventListener('change', filterModels);
+    }
+    
+    function filterModels() {
+        const searchTerm = searchInput?.value.toLowerCase() || '';
+        const provider = providerFilter?.value || '';
+        
+        const modelCards = document.querySelectorAll('.model-card');
+        modelCards.forEach(card => {
+            const modelName = card.dataset.modelName?.toLowerCase() || '';
+            const modelProvider = card.dataset.provider || '';
+            
+            const matchesSearch = !searchTerm || modelName.includes(searchTerm);
+            const matchesProvider = !provider || modelProvider === provider;
+            
+            card.style.display = matchesSearch && matchesProvider ? '' : 'none';
+        });
+    }
+    
+    // Auto-refresh dashboard stats
+    setInterval(() => {
+        AppManager.loadStats();
+    }, 60000); // Every minute
+});
+</script>
+{% endblock %}

@@ -1,0 +1,311 @@
+<!-- File Viewer Component -->
+<div class="file-viewer">
+    <div class="file-viewer-header">
+        <div class="file-path">
+            <i class="fas fa-file"></i>
+            <span class="path-text">{{ file_path }}</span>
+        </div>
+        <div class="file-actions">
+            <button class="btn btn-sm btn-outline-secondary" 
+                    onclick="downloadFile('{{ file_path }}')"
+                    title="Download file">
+                <i class="fas fa-download"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" 
+                    onclick="copyFileContent()"
+                    title="Copy content">
+                <i class="fas fa-copy"></i>
+            </button>
+            {% if file_extension in ['py', 'js', 'html', 'css', 'json', 'yaml', 'yml'] %}
+                <button class="btn btn-sm btn-outline-secondary" 
+                        onclick="toggleSyntaxHighlight()"
+                        title="Toggle syntax highlighting">
+                    <i class="fas fa-code"></i>
+                </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="file-content-wrapper">
+        {% if file_size > max_display_size %}
+            <div class="file-too-large">
+                <div class="text-center p-4">
+                    <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">File Too Large</h5>
+                    <p class="text-muted">
+                        This file is {{ file_size|filesizeformat }} and too large to display.
+                        <br>
+                        Maximum display size is {{ max_display_size|filesizeformat }}.
+                    </p>
+                    <button class="btn btn-primary" onclick="downloadFile('{{ file_path }}')">
+                        <i class="fas fa-download"></i> Download File
+                    </button>
+                </div>
+            </div>
+        {% elif file_type == 'binary' %}
+            <div class="file-binary">
+                <div class="text-center p-4">
+                    <i class="fas fa-file-code fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Binary File</h5>
+                    <p class="text-muted">
+                        This appears to be a binary file and cannot be displayed as text.
+                    </p>
+                    <button class="btn btn-primary" onclick="downloadFile('{{ file_path }}')">
+                        <i class="fas fa-download"></i> Download File
+                    </button>
+                </div>
+            </div>
+        {% elif file_type == 'image' %}
+            <div class="file-image">
+                <div class="text-center p-4">
+                    <img src="data:{{ mime_type }};base64,{{ file_content_base64 }}" 
+                         class="img-fluid" 
+                         alt="{{ file_name }}"
+                         style="max-height: 500px;">
+                </div>
+            </div>
+        {% else %}
+            <div class="file-content" id="file-content">
+                {% if syntax_highlighting and file_extension in ['py', 'js', 'html', 'css', 'json', 'yaml', 'yml'] %}
+                    <pre><code class="language-{{ file_extension }}" id="code-content">{{ file_content }}</code></pre>
+                {% else %}
+                    <pre class="plain-text" id="plain-content">{{ file_content }}</pre>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+    
+    {% if line_count is defined %}
+    <div class="file-viewer-footer">
+        <div class="file-info">
+            <span class="text-muted">
+                {{ line_count }} lines • {{ file_size|filesizeformat }} • {{ file_type|title }}
+                {% if last_modified %}
+                    • Modified {{ last_modified.strftime('%Y-%m-%d %H:%M:%S') }}
+                {% endif %}
+            </span>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.file-viewer {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-color);
+}
+
+.file-viewer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.file-path {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+.file-path i {
+    color: var(--text-muted);
+}
+
+.file-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.file-content-wrapper {
+    max-height: 600px;
+    overflow: auto;
+}
+
+.file-content {
+    margin: 0;
+}
+
+.file-content pre {
+    margin: 0;
+    padding: 1rem;
+    background: transparent;
+    border: none;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    overflow: auto;
+}
+
+.file-content pre.plain-text {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.file-content code {
+    background: transparent;
+    padding: 0;
+    font-size: inherit;
+}
+
+.file-viewer-footer {
+    padding: 0.5rem 1rem;
+    background: var(--footer-bg);
+    border-top: 1px solid var(--border-color);
+}
+
+.file-info {
+    font-size: 0.8rem;
+}
+
+.file-too-large,
+.file-binary {
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-image {
+    padding: 1rem;
+    text-align: center;
+}
+
+/* Syntax highlighting theme */
+.language-python .token.keyword {
+    color: #007acc;
+}
+
+.language-python .token.string {
+    color: #008000;
+}
+
+.language-python .token.comment {
+    color: #808080;
+    font-style: italic;
+}
+
+.language-javascript .token.keyword {
+    color: #0000ff;
+}
+
+.language-javascript .token.string {
+    color: #a31515;
+}
+
+.language-html .token.tag {
+    color: #800000;
+}
+
+.language-css .token.property {
+    color: #ff0000;
+}
+
+.language-json .token.property {
+    color: #0451a5;
+}
+
+/* Line numbers */
+.file-content.show-line-numbers {
+    counter-reset: line-number;
+}
+
+.file-content.show-line-numbers pre {
+    padding-left: 3rem;
+    position: relative;
+}
+
+.file-content.show-line-numbers pre::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2.5rem;
+    background: var(--line-number-bg);
+    border-right: 1px solid var(--border-color);
+}
+
+.file-content.show-line-numbers pre code {
+    display: block;
+    position: relative;
+}
+
+.file-content.show-line-numbers pre code::before {
+    counter-increment: line-number;
+    content: counter(line-number);
+    position: absolute;
+    left: -2.5rem;
+    width: 2rem;
+    text-align: right;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    padding-right: 0.5rem;
+}
+</style>
+
+<script>
+function downloadFile(filePath) {
+    const link = document.createElement('a');
+    link.href = `/api/files/download?path=${encodeURIComponent(filePath)}`;
+    link.download = filePath.split('/').pop();
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function copyFileContent() {
+    const content = document.getElementById('code-content') || document.getElementById('plain-content');
+    if (content) {
+        navigator.clipboard.writeText(content.textContent).then(() => {
+            AppManager.showToast('File content copied to clipboard', 'success');
+        }).catch(err => {
+            console.error('Failed to copy content:', err);
+            AppManager.showToast('Failed to copy content', 'error');
+        });
+    }
+}
+
+function toggleSyntaxHighlight() {
+    const codeContent = document.getElementById('code-content');
+    const plainContent = document.getElementById('plain-content');
+    const container = document.getElementById('file-content');
+    
+    if (codeContent && codeContent.style.display !== 'none') {
+        // Switch to plain text
+        codeContent.style.display = 'none';
+        if (plainContent) {
+            plainContent.style.display = 'block';
+        } else {
+            const pre = document.createElement('pre');
+            pre.id = 'plain-content';
+            pre.className = 'plain-text';
+            pre.textContent = codeContent.textContent;
+            container.appendChild(pre);
+        }
+    } else {
+        // Switch to syntax highlighting
+        if (plainContent) {
+            plainContent.style.display = 'none';
+        }
+        codeContent.style.display = 'block';
+        
+        // Re-apply syntax highlighting if needed
+        if (typeof Prism !== 'undefined') {
+            Prism.highlightElement(codeContent);
+        }
+    }
+}
+
+function toggleLineNumbers() {
+    const fileContent = document.querySelector('.file-content');
+    fileContent.classList.toggle('show-line-numbers');
+}
+</script>

@@ -1,0 +1,267 @@
+<!-- Container Status Component -->
+<div class="container-status-widget">
+    <div class="container-grid">
+        <!-- Frontend Container -->
+        <div class="container-item {{ 'status-running' if container.frontend_status == 'running' else 'status-stopped' if container.frontend_status == 'stopped' else 'status-error' }}">
+            <div class="container-icon">
+                <i class="fas fa-globe-americas"></i>
+            </div>
+            <div class="container-details">
+                <div class="container-name">Frontend</div>
+                <div class="container-status">{{ container.frontend_status|title|default('Unknown') }}</div>
+                {% if container.frontend_port %}
+                    <div class="container-port">:{{ container.frontend_port }}</div>
+                {% endif %}
+            </div>
+            {% if container.frontend_status == 'running' %}
+                <div class="container-actions">
+                    <button class="btn btn-sm btn-outline-warning" 
+                            onclick="restartContainer('frontend', '{{ container.id }}')"
+                            title="Restart frontend">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" 
+                            onclick="stopContainer('frontend', '{{ container.id }}')"
+                            title="Stop frontend">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                </div>
+            {% elif container.frontend_status == 'stopped' %}
+                <div class="container-actions">
+                    <button class="btn btn-sm btn-outline-success" 
+                            onclick="startContainer('frontend', '{{ container.id }}')"
+                            title="Start frontend">
+                        <i class="fas fa-play"></i>
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Backend Container -->
+        <div class="container-item {{ 'status-running' if container.backend_status == 'running' else 'status-stopped' if container.backend_status == 'stopped' else 'status-error' }}">
+            <div class="container-icon">
+                <i class="fas fa-cogs"></i>
+            </div>
+            <div class="container-details">
+                <div class="container-name">Backend</div>
+                <div class="container-status">{{ container.backend_status|title|default('Unknown') }}</div>
+                {% if container.backend_port %}
+                    <div class="container-port">:{{ container.backend_port }}</div>
+                {% endif %}
+            </div>
+            {% if container.backend_status == 'running' %}
+                <div class="container-actions">
+                    <button class="btn btn-sm btn-outline-warning" 
+                            onclick="restartContainer('backend', '{{ container.id }}')"
+                            title="Restart backend">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" 
+                            onclick="stopContainer('backend', '{{ container.id }}')"
+                            title="Stop backend">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                </div>
+            {% elif container.backend_status == 'stopped' %}
+                <div class="container-actions">
+                    <button class="btn btn-sm btn-outline-success" 
+                            onclick="startContainer('backend', '{{ container.id }}')"
+                            title="Start backend">
+                        <i class="fas fa-play"></i>
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Database Container -->
+        {% if container.database_status %}
+        <div class="container-item {{ 'status-running' if container.database_status == 'running' else 'status-stopped' if container.database_status == 'stopped' else 'status-error' }}">
+            <div class="container-icon">
+                <i class="fas fa-database"></i>
+            </div>
+            <div class="container-details">
+                <div class="container-name">Database</div>
+                <div class="container-status">{{ container.database_status|title|default('Unknown') }}</div>
+                {% if container.database_port %}
+                    <div class="container-port">:{{ container.database_port }}</div>
+                {% endif %}
+            </div>
+            {% if container.database_status == 'running' %}
+                <div class="container-actions">
+                    <button class="btn btn-sm btn-outline-warning" 
+                            onclick="restartContainer('database', '{{ container.id }}')"
+                            title="Restart database">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" 
+                            onclick="stopContainer('database', '{{ container.id }}')"
+                            title="Stop database">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                </div>
+            {% elif container.database_status == 'stopped' %}
+                <div class="container-actions">
+                    <button class="btn btn-sm btn-outline-success" 
+                            onclick="startContainer('database', '{{ container.id }}')"
+                            title="Start database">
+                        <i class="fas fa-play"></i>
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Overall Status and Actions -->
+    <div class="container-summary mt-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="overall-status">
+                {% if container.overall_status == 'running' %}
+                    <span class="badge badge-success">
+                        <i class="fas fa-check-circle"></i> All Running
+                    </span>
+                {% elif container.overall_status == 'partial' %}
+                    <span class="badge badge-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Partially Running
+                    </span>
+                {% elif container.overall_status == 'stopped' %}
+                    <span class="badge badge-secondary">
+                        <i class="fas fa-stop-circle"></i> All Stopped
+                    </span>
+                {% else %}
+                    <span class="badge badge-danger">
+                        <i class="fas fa-times-circle"></i> Error
+                    </span>
+                {% endif %}
+            </div>
+            
+            <div class="bulk-actions">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-success" 
+                            onclick="startAllContainers('{{ container.id }}')"
+                            title="Start all">
+                        <i class="fas fa-play"></i> Start All
+                    </button>
+                    <button class="btn btn-outline-warning" 
+                            onclick="restartAllContainers('{{ container.id }}')"
+                            title="Restart all">
+                        <i class="fas fa-redo"></i> Restart All
+                    </button>
+                    <button class="btn btn-outline-danger" 
+                            onclick="stopAllContainers('{{ container.id }}')"
+                            title="Stop all">
+                        <i class="fas fa-stop"></i> Stop All
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs and Metrics -->
+    {% if container.overall_status == 'running' %}
+    <div class="container-metrics mt-2">
+        <div class="row text-center">
+            <div class="col-4">
+                <small class="text-muted d-block">CPU</small>
+                <span class="text-info">{{ container.cpu_usage|default('N/A') }}</span>
+            </div>
+            <div class="col-4">
+                <small class="text-muted d-block">Memory</small>
+                <span class="text-warning">{{ container.memory_usage|default('N/A') }}</span>
+            </div>
+            <div class="col-4">
+                <small class="text-muted d-block">Uptime</small>
+                <span class="text-success">{{ container.uptime|default('N/A') }}</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.container-status-widget {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    background: var(--bg-color);
+}
+
+.container-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.container-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.container-item.status-running {
+    background-color: var(--success-light);
+    border-color: var(--success);
+}
+
+.container-item.status-stopped {
+    background-color: var(--warning-light);
+    border-color: var(--warning);
+}
+
+.container-item.status-error {
+    background-color: var(--danger-light);
+    border-color: var(--danger);
+}
+
+.container-icon {
+    font-size: 1.5rem;
+    margin-right: 0.75rem;
+    width: 30px;
+    text-align: center;
+}
+
+.status-running .container-icon {
+    color: var(--success);
+}
+
+.status-stopped .container-icon {
+    color: var(--warning);
+}
+
+.status-error .container-icon {
+    color: var(--danger);
+}
+
+.container-details {
+    flex-grow: 1;
+}
+
+.container-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.container-status {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.container-port {
+    font-size: 0.8rem;
+    font-family: monospace;
+    color: var(--text-muted);
+}
+
+.container-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.container-metrics {
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.5rem;
+}
+</style>

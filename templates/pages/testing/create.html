@@ -1,0 +1,330 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Create Test - Research Platform{% endblock %}
+
+{% block page_title %}Create Security Test{% endblock %}
+{% block page_subtitle %}Configure comprehensive security testing{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-secondary">
+    <i class="fas fa-arrow-left"></i> Back
+</a>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Test Creation Form -->
+<form id="test-form" hx-post="/testing/api/create-test" hx-target="#result-message">
+    <div class="row">
+        <!-- Tool Selection -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Testing Tools</h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="tools" value="bandit" id="tool-bandit" checked>
+                        <label class="form-check-label" for="tool-bandit">
+                            <strong>Bandit</strong> - Python security linter
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="tools" value="safety" id="tool-safety" checked>
+                        <label class="form-check-label" for="tool-safety">
+                            <strong>Safety</strong> - Dependency scanner
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="tools" value="zap" id="tool-zap">
+                        <label class="form-check-label" for="tool-zap">
+                            <strong>OWASP ZAP</strong> - Web scanner
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="tools" value="performance" id="tool-performance">
+                        <label class="form-check-label" for="tool-performance">
+                            <strong>Locust</strong> - Performance testing
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Target Selection -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Target Selection</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Model</label>
+                        <select name="model_slug" class="form-select" required>
+                            <option value="">Select model...</option>
+                            {% if models_data %}
+                                {% for model in models_data %}
+                                <option value="{{ model.slug }}">{{ model.name }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Application Range</label>
+                        <div class="row">
+                            <div class="col-6">
+                                <input type="number" name="app_start" class="form-control" 
+                                       min="1" max="30" value="1" placeholder="Start">
+                            </div>
+                            <div class="col-6">
+                                <input type="number" name="app_end" class="form-control" 
+                                       min="1" max="30" value="5" placeholder="End">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration -->
+    <div class="card mt-3">
+        <div class="card-header">
+            <h5 class="card-title">Test Configuration</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Batch Size</label>
+                        <input type="number" name="batch_size" class="form-control" 
+                               min="1" max="10" value="3">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Timeout (min)</label>
+                        <input type="number" name="timeout" class="form-control" 
+                               min="5" max="120" value="30">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Priority</label>
+                        <select name="priority" class="form-select">
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="card mt-3">
+        <div class="card-body">
+            <div id="result-message"></div>
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-rocket"></i> Launch Test
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class TestCreation {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        this.setupFormValidation();
+        this.setupEventListeners();
+        this.loadPrefilledData();
+    }
+
+    setupFormValidation() {
+        const form = document.getElementById('test-form');
+        form.addEventListener('submit', (e) => {
+            if (!this.validateForm()) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+
+    setupEventListeners() {
+        // Tool selection changes
+        document.querySelectorAll('input[name="tools"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                this.updateToolConfiguration();
+            });
+        });
+
+        // Model selection changes
+        const modelSelect = document.querySelector('select[name="model_slug"]');
+        if (modelSelect) {
+            modelSelect.addEventListener('change', () => {
+                this.updateAppRange();
+            });
+        }
+
+        // App range validation
+        const appStart = document.querySelector('input[name="app_start"]');
+        const appEnd = document.querySelector('input[name="app_end"]');
+        
+        if (appStart && appEnd) {
+            appStart.addEventListener('change', () => this.validateAppRange());
+            appEnd.addEventListener('change', () => this.validateAppRange());
+        }
+    }
+
+    loadPrefilledData() {
+        // Check URL parameters for pre-filled data
+        const urlParams = new URLSearchParams(window.location.search);
+        const testType = urlParams.get('type');
+        
+        if (testType) {
+            this.prefillForTestType(testType);
+        }
+    }
+
+    prefillForTestType(type) {
+        // Uncheck all tools first
+        document.querySelectorAll('input[name="tools"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+
+        // Select tools based on test type
+        switch (type) {
+            case 'security':
+                document.getElementById('tool-bandit').checked = true;
+                document.getElementById('tool-safety').checked = true;
+                break;
+            case 'performance':
+                document.getElementById('tool-performance').checked = true;
+                break;
+            case 'vulnerability':
+                document.getElementById('tool-zap').checked = true;
+                break;
+            case 'comprehensive':
+                document.querySelectorAll('input[name="tools"]').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+                break;
+        }
+
+        this.updateToolConfiguration();
+    }
+
+    updateToolConfiguration() {
+        const selectedTools = Array.from(document.querySelectorAll('input[name="tools"]:checked'))
+            .map(checkbox => checkbox.value);
+
+        // Show/hide configuration based on selected tools
+        this.updateZapConfiguration(selectedTools.includes('zap'));
+        this.updatePerformanceConfiguration(selectedTools.includes('performance'));
+    }
+
+    updateZapConfiguration(show) {
+        // Add ZAP-specific configuration if needed
+        // This would be implemented when ZAP configuration options are added
+    }
+
+    updatePerformanceConfiguration(show) {
+        // Add performance-specific configuration if needed
+        // This would be implemented when performance test options are added
+    }
+
+    updateAppRange() {
+        const selectedModel = document.querySelector('select[name="model_slug"]').value;
+        if (selectedModel) {
+            // Could fetch available app count for the model
+            // For now, just validate the current range
+            this.validateAppRange();
+        }
+    }
+
+    validateAppRange() {
+        const appStart = parseInt(document.querySelector('input[name="app_start"]').value);
+        const appEnd = parseInt(document.querySelector('input[name="app_end"]').value);
+
+        if (appStart > appEnd) {
+            document.querySelector('input[name="app_end"]').setCustomValidity('End must be greater than start');
+            return false;
+        } else {
+            document.querySelector('input[name="app_end"]').setCustomValidity('');
+            return true;
+        }
+    }
+
+    validateForm() {
+        const selectedTools = document.querySelectorAll('input[name="tools"]:checked');
+        const selectedModel = document.querySelector('select[name="model_slug"]').value;
+
+        if (selectedTools.length === 0) {
+            AppManager.showToast('Please select at least one testing tool', 'error');
+            return false;
+        }
+
+        if (!selectedModel) {
+            AppManager.showToast('Please select a model', 'error');
+            return false;
+        }
+
+        if (!this.validateAppRange()) {
+            AppManager.showToast('Please check the application range', 'error');
+            return false;
+        }
+
+        return true;
+    }
+
+    resetForm() {
+        document.getElementById('test-form').reset();
+        
+        // Reset to default selections
+        document.getElementById('tool-bandit').checked = true;
+        document.getElementById('tool-safety').checked = true;
+        document.querySelector('input[name="app_start"]').value = 1;
+        document.querySelector('input[name="app_end"]').value = 5;
+        document.querySelector('input[name="batch_size"]').value = 3;
+        document.querySelector('input[name="timeout"]').value = 30;
+        document.querySelector('select[name="priority"]').value = 'normal';
+        
+        this.updateToolConfiguration();
+    }
+}
+
+// Global functions
+window.resetForm = function() {
+    testCreation.resetForm();
+};
+
+// Initialize
+let testCreation;
+document.addEventListener('DOMContentLoaded', () => {
+    testCreation = new TestCreation();
+});
+
+// Form submission handling
+document.body.addEventListener('htmx:afterRequest', function(event) {
+    if (event.detail.elt.id === 'test-form') {
+        if (event.detail.successful) {
+            AppManager.showToast('Test created successfully', 'success');
+            setTimeout(() => {
+                window.location.href = '/testing/dashboard';
+            }, 2000);
+        }
+    }
+});
+</script>
+{% endblock %}

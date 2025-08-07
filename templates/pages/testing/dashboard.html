@@ -1,0 +1,280 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}Testing Dashboard - Research Platform{% endblock %}
+
+{% block page_title %}Testing Dashboard{% endblock %}
+{% block page_subtitle %}Security and Performance Testing Management{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary">
+    <i class="fas fa-plus"></i> New Test
+</a>
+<button class="btn btn-secondary" onclick="AppManager.refreshData()">
+    <i class="fas fa-sync-alt"></i> Refresh
+</button>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Test Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-card-icon"><i class="fas fa-flask"></i></div>
+            <div class="stats-card-value">{{ total_tests|default(0) }}</div>
+            <div class="stats-card-label">Total Tests</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-card-icon text-warning"><i class="fas fa-clock"></i></div>
+            <div class="stats-card-value text-warning">{{ running_tests|default(0) }}</div>
+            <div class="stats-card-label">Running</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-card-icon text-success"><i class="fas fa-check-circle"></i></div>
+            <div class="stats-card-value text-success">{{ completed_tests|default(0) }}</div>
+            <div class="stats-card-label">Completed</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stats-card-icon text-danger"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stats-card-value text-danger">{{ failed_tests|default(0) }}</div>
+            <div class="stats-card-label">Failed</div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Quick Test Actions</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <button class="btn btn-outline-primary" onclick="quickTest('security')">
+                        <i class="fas fa-shield-alt d-block mb-2 fa-2x"></i>
+                        Security Scan
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <button class="btn btn-outline-success" onclick="quickTest('performance')">
+                        <i class="fas fa-tachometer-alt d-block mb-2 fa-2x"></i>
+                        Performance Test
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <button class="btn btn-outline-warning" onclick="quickTest('vulnerability')">
+                        <i class="fas fa-bug d-block mb-2 fa-2x"></i>
+                        Vulnerability Check
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <button class="btn btn-outline-info" onclick="quickTest('comprehensive')">
+                        <i class="fas fa-clipboard-check d-block mb-2 fa-2x"></i>
+                        Full Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Tests -->
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Recent Tests</h5>
+            <div class="d-flex gap-2">
+                <select class="form-select form-select-sm" id="test-filter" style="width: auto;">
+                    <option value="">All Tests</option>
+                    <option value="security">Security</option>
+                    <option value="performance">Performance</option>
+                    <option value="vulnerability">Vulnerability</option>
+                </select>
+                <select class="form-select form-select-sm" id="status-filter" style="width: auto;">
+                    <option value="">All Status</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="tests-table" 
+             hx-get="/testing/api/tests"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="text-center p-4">
+                <div class="loading-spinner"></div>
+                <p class="text-muted mt-2">Loading tests...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class TestingDashboard {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+    }
+
+    setupEventListeners() {
+        document.getElementById('test-filter')?.addEventListener('change', () => this.filterTests());
+        document.getElementById('status-filter')?.addEventListener('change', () => this.filterTests());
+    }
+
+    setupAutoRefresh() {
+        // Refresh running tests every 10 seconds
+        setInterval(() => {
+            this.refreshRunningTests();
+        }, 10000);
+    }
+
+    filterTests() {
+        const testType = document.getElementById('test-filter')?.value || '';
+        const status = document.getElementById('status-filter')?.value || '';
+        
+        const rows = document.querySelectorAll('.test-row');
+        rows.forEach(row => {
+            const rowType = row.dataset.testType;
+            const rowStatus = row.dataset.status;
+            
+            const matchesType = !testType || rowType === testType;
+            const matchesStatus = !status || rowStatus === status;
+            
+            row.style.display = matchesType && matchesStatus ? '' : 'none';
+        });
+    }
+
+    async refreshRunningTests() {
+        try {
+            const response = await fetch('/testing/api/running-tests');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.updateRunningTestsStatus(data.tests);
+            }
+        } catch (error) {
+            console.error('Error refreshing running tests:', error);
+        }
+    }
+
+    updateRunningTestsStatus(runningTests) {
+        runningTests.forEach(test => {
+            const row = document.querySelector(`[data-test-id="${test.id}"]`);
+            if (row) {
+                this.updateTestRow(row, test);
+            }
+        });
+    }
+
+    updateTestRow(row, testData) {
+        const statusBadge = row.querySelector('.status-badge');
+        const progressBar = row.querySelector('.progress-bar');
+        
+        if (statusBadge) {
+            statusBadge.className = `badge status-badge badge-${this.getStatusClass(testData.status)}`;
+            statusBadge.textContent = testData.status;
+        }
+        
+        if (progressBar && testData.progress !== undefined) {
+            progressBar.style.width = `${testData.progress}%`;
+            progressBar.setAttribute('aria-valuenow', testData.progress);
+        }
+        
+        row.dataset.status = testData.status;
+    }
+
+    getStatusClass(status) {
+        const statusClasses = {
+            'running': 'warning',
+            'completed': 'success',
+            'failed': 'danger',
+            'queued': 'secondary'
+        };
+        return statusClasses[status] || 'secondary';
+    }
+}
+
+// Quick test functions
+window.quickTest = function(type) {
+    // Open test creation modal with pre-selected type
+    window.location.href = `/testing/create?type=${type}`;
+};
+
+window.viewTestResults = function(testId) {
+    window.location.href = `/testing/results/${testId}`;
+};
+
+window.retryTest = function(testId) {
+    if (confirm('Retry this test?')) {
+        fetch(`/testing/api/tests/${testId}/retry`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                AppManager.showToast('Test retry initiated', 'success');
+                setTimeout(() => {
+                    htmx.trigger('#tests-table', 'htmx:trigger');
+                }, 1000);
+            } else {
+                throw new Error(data.error || 'Retry failed');
+            }
+        })
+        .catch(error => {
+            console.error('Error retrying test:', error);
+            AppManager.showToast(`Retry failed: ${error.message}`, 'error');
+        });
+    }
+};
+
+window.cancelTest = function(testId) {
+    if (confirm('Cancel this test?')) {
+        fetch(`/testing/api/tests/${testId}/cancel`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                AppManager.showToast('Test cancelled', 'success');
+                setTimeout(() => {
+                    htmx.trigger('#tests-table', 'htmx:trigger');
+                }, 1000);
+            } else {
+                throw new Error(data.error || 'Cancel failed');
+            }
+        })
+        .catch(error => {
+            console.error('Error cancelling test:', error);
+            AppManager.showToast(`Cancel failed: ${error.message}`, 'error');
+        });
+    }
+};
+
+// Initialize
+let testingDashboard;
+document.addEventListener('DOMContentLoaded', () => {
+    testingDashboard = new TestingDashboard();
+});
+</script>
+{% endblock %}

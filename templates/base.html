@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Research Platform{% endblock %}</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/json-enc.js"></script>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a href="{{ url_for('main.dashboard') }}" class="navbar-brand">
+            <div class="brand-icon">AI</div>
+            <span>Research Platform</span>
+        </a>
+        
+        <div class="navbar-nav">
+            <a href="{{ url_for('main.dashboard') }}" class="nav-link" data-page="dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('main.models_overview') }}" class="nav-link" data-page="models">
+                <i class="fas fa-robot"></i>
+                <span>Models</span>
+            </a>
+            <a href="{{ url_for('testing.test_dashboard') }}" class="nav-link" data-page="testing">
+                <i class="fas fa-flask"></i>
+                <span>Testing</span>
+            </a>
+            <a href="{{ url_for('statistics.statistics_overview') }}" class="nav-link" data-page="statistics">
+                <i class="fas fa-chart-bar"></i>
+                <span>Analytics</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <!-- Quick Stats Section -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Quick Stats</div>
+                <div class="quick-stats" id="quick-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Models</span>
+                        <span class="stat-value" id="stat-models">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Apps</span>
+                        <span class="stat-value" id="stat-apps">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Active</span>
+                        <span class="stat-value" id="stat-active">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed Section -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Recent Activity</div>
+                <div class="activity-feed" id="activity-feed">
+                    <div class="activity-item">
+                        <div class="activity-icon">
+                            <i class="fas fa-info"></i>
+                        </div>
+                        <div>Loading activities...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions Section -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Quick Actions</div>
+                <div class="quick-actions">
+                    <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> New Test
+                    </a>
+                    <button class="btn btn-secondary btn-sm" onclick="AppManager.refreshData()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Core Scripts -->
+    <script src="{{ url_for('static', filename='js/app-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dynamic-styles.js') }}"></script>
+    
+    {% block extra_js %}{% endblock %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

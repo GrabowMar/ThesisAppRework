@@ -1,0 +1,82 @@
+<!-- Model Card Component -->
+<div class="card model-card" 
+     data-model-name="{{ model.name|lower }}" 
+     data-provider="{{ model.provider|lower }}"
+     data-apps-count="{{ model.total_apps|default(30) }}">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <h6 class="mb-1 font-weight-bold text-primary">{{ model.name }}</h6>
+            <small class="text-muted">{{ model.provider }}</small>
+        </div>
+        <div class="d-flex gap-1">
+            {% if model.status == 'active' %}
+                <span class="badge badge-success">Active</span>
+            {% elif model.status == 'inactive' %}
+                <span class="badge badge-secondary">Inactive</span>
+            {% else %}
+                <span class="badge badge-warning">Unknown</span>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card-body">
+        <!-- Model Statistics -->
+        <div class="row mb-3">
+            <div class="col-3">
+                <div class="stat-item text-center">
+                    <div class="stat-value text-info">{{ model.total_apps|default(30) }}</div>
+                    <div class="stat-label">Apps</div>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="stat-item text-center">
+                    <div class="stat-value text-success">{{ model.running_containers|default(0) }}</div>
+                    <div class="stat-label">Running</div>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="stat-item text-center">
+                    <div class="stat-value text-secondary">{{ model.stopped_containers|default(30) }}</div>
+                    <div class="stat-label">Stopped</div>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="stat-item text-center">
+                    <div class="stat-value text-danger">{{ model.error_containers|default(0) }}</div>
+                    <div class="stat-label">Errors</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="btn-group w-100" role="group">
+                    <button type="button" class="btn btn-success btn-sm"
+                            onclick="startAllContainers('{{ model.slug }}')"
+                            title="Start all containers">
+                        <i class="fas fa-play"></i> Start All
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm"
+                            onclick="stopAllContainers('{{ model.slug }}')"
+                            title="Stop all containers">
+                        <i class="fas fa-stop"></i> Stop All
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <a href="{{ url_for('main.model_details', model_slug=model.slug) }}" 
+                   class="btn btn-info btn-sm w-100"
+                   title="View model details">
+                    <i class="fas fa-info-circle"></i> Details
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if model.description %}
+    <div class="card-footer">
+        <small class="text-muted">{{ model.description[:100] }}{% if model.description|length > 100 %}...{% endif %}</small>
+    </div>
+    {% endif %}
+</div>
