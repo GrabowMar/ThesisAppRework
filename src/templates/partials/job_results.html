@@ -1,0 +1,70 @@
+<!-- Job Results Template -->
+<div class="card">
+    <div class="card-header">
+        <h6 class="mb-0">
+            <i class="fas fa-chart-bar me-2"></i>
+            Test Results: {{ job.id[:8] }}
+        </h6>
+    </div>
+    <div class="card-body">
+        {% if job.status.name == 'COMPLETED' %}
+            {% if results_summary %}
+                <div class="row g-3 mb-4">
+                    {% for key, value in results_summary.items() %}
+                    <div class="col-md-6">
+                        <div class="border rounded p-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted">{{ key.replace('_', ' ').title() }}</span>
+                                <span class="fw-bold">{{ value }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            {% if artifacts %}
+                <h6>Generated Artifacts</h6>
+                <div class="list-group">
+                    {% for artifact in artifacts %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-file me-2"></i>
+                            {{ artifact.name if artifact.name else 'Report' }}
+                        </div>
+                        <a href="{{ artifact.url if artifact.url else '#' }}" 
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-download me-1"></i>Download
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-muted text-center py-3">
+                    <i class="fas fa-file-alt fa-2x mb-2"></i>
+                    <p>No artifacts generated for this job.</p>
+                </div>
+            {% endif %}
+        {% elif job.status.name == 'FAILED' %}
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <strong>Job Failed!</strong>
+                {% if job.error_message %}
+                    <br>{{ job.error_message }}
+                {% endif %}
+            </div>
+        {% elif job.status.name == 'RUNNING' %}
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted">Job is still running...</p>
+            </div>
+        {% else %}
+            <div class="text-muted text-center py-3">
+                <i class="fas fa-clock fa-2x mb-2"></i>
+                <p>Job has not started yet.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>

@@ -1,0 +1,29 @@
+<!-- Job Logs Template -->
+<div class="card">
+    <div class="card-header">
+        <h6 class="mb-0">
+            <i class="fas fa-terminal me-2"></i>
+            Job Logs: {{ job.id[:8] }}
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="bg-dark text-light p-3 rounded" style="font-family: 'Courier New', monospace; font-size: 0.9rem; max-height: 400px; overflow-y: auto;">
+            {% if logs %}
+                {% for log in logs %}
+                <div class="mb-1">{{ log }}</div>
+                {% endfor %}
+            {% else %}
+                <div class="text-muted">No logs available for this job.</div>
+            {% endif %}
+        </div>
+        
+        {% if job.last_heartbeat %}
+        <div class="mt-3">
+            <small class="text-muted">
+                <i class="fas fa-heartbeat me-1"></i>
+                Last heartbeat: {{ job.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+            </small>
+        </div>
+        {% endif %}
+    </div>
+</div>

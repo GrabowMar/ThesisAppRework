@@ -237,9 +237,11 @@ class UnifiedCLIAnalyzer:
         """Initialize containerized testing infrastructure client."""
         try:
             import requests
+            import time
+            from typing import List
             
             class ContainerizedTestingClient:
-                """Client for communicating with containerized testing infrastructure."""
+                """Enhanced client for communicating with containerized testing infrastructure."""
                 
                 def __init__(self):
                     self.api_gateway_url = "http://localhost:8000"
@@ -247,68 +249,253 @@ class UnifiedCLIAnalyzer:
                         'security-scanner': 'http://localhost:8001',
                         'performance-tester': 'http://localhost:8002',
                         'zap-scanner': 'http://localhost:8003',
+                        'ai-analyzer': 'http://localhost:8004',
                         'test-coordinator': 'http://localhost:8005'
                     }
                     self.logger = logging.getLogger(__name__)
+                    self.timeout = 300  # 5 minutes default timeout
                 
                 def health_check(self):
                     """Check if all containerized services are healthy."""
                     try:
-                        response = requests.get(f"{self.api_gateway_url}/health", timeout=5)
-                        return response.status_code == 200
-                    except Exception:
+                        # Check each service directly
+                        healthy_services = []
+                        for service, url in self.services.items():
+                            try:
+                                response = requests.get(f"{url}/health", timeout=5)
+                                if response.status_code == 200:
+                                    healthy_services.append(service)
+                                    self.logger.debug(f"Service {service} is healthy")
+                                else:
+                                    self.logger.warning(f"Service {service} unhealthy: {response.status_code}")
+                            except Exception as e:
+                                self.logger.warning(f"Service {service} unreachable: {e}")
+                        
+                        # Consider healthy if at least security scanner is available
+                        return 'security-scanner' in healthy_services
+                    except Exception as e:
+                        self.logger.error(f"Health check failed: {e}")
                         return False
                 
-                def run_security_scan(self, app_path: str, tools: list):
+                def run_security_scan(self, model: str, app_num: int, tools: List[str], scan_type: str = "backend"):
                     """Run security scan using containerized scanner."""
                     try:
-                        data = {
-                            'app_path': app_path,
-                            'tools': tools
+                        # Prepare request payload matching API contract
+                        request_data = {
+                            "model": model,
+                            "app_num": app_num,
+                            "test_type": f"security_{scan_type}",
+                            "tools": tools,
+                            "scan_depth": "standard",
+                            "include_dependencies": True,
+                            "timeout": self.timeout
                         }
+                        
+                        self.logger.info(f"Submitting security scan: {model}/app{app_num} with tools {tools}")
+                        
+                        # Submit test request
                         response = requests.post(
-                            f"{self.services['security-scanner']}/analyze",
-                            json=data,
-                            timeout=300
+                            f"{self.services['security-scanner']}/tests",
+                            json=request_data,
+                            timeout=30
                         )
-                        return response.json() if response.status_code == 200 else None
+                        
+                        if response.status_code != 200:
+                            self.logger.error(f"Failed to submit test: {response.status_code} - {response.text}")
+                            return None
+                        
+                        result = response.json()
+                        if not result.get("success"):
+                            self.logger.error(f"Test submission failed: {result.get('error')}")
+                            return None
+                        
+                        test_id = result["data"]["test_id"]
+                        self.logger.info(f"Test submitted successfully, ID: {test_id}")
+                        
+                        # Poll for results
+                        return self._poll_test_results(test_id, "security-scanner")
+                        
                     except Exception as e:
                         self.logger.error(f"Security scan failed: {e}")
                         return None
                 
-                def run_performance_test(self, target_url: str, config: dict):
+                def run_performance_test(self, target_url: str, users: int = 10, duration: int = 60):
                     """Run performance test using containerized tester."""
                     try:
-                        data = {
-                            'target_url': target_url,
-                            'config': config
+                        request_data = {
+                            "model": "performance_test",
+                            "app_num": 1,
+                            "test_type": "performance",
+                            "target_url": target_url,
+                            "users": users,
+                            "spawn_rate": min(users // 2, 5),
+                            "duration": duration,
+                            "timeout": duration + 60
                         }
+                        
+                        self.logger.info(f"Submitting performance test: {target_url} with {users} users for {duration}s")
+                        
                         response = requests.post(
-                            f"{self.services['performance-tester']}/test",
-                            json=data,
-                            timeout=600
+                            f"{self.services['performance-tester']}/tests",
+                            json=request_data,
+                            timeout=30
                         )
-                        return response.json() if response.status_code == 200 else None
+                        
+                        if response.status_code != 200:
+                            return None
+                        
+                        result = response.json()
+                        if not result.get("success"):
+                            return None
+                        
+                        test_id = result["data"]["test_id"]
+                        return self._poll_test_results(test_id, "performance-tester")
+                        
                     except Exception as e:
                         self.logger.error(f"Performance test failed: {e}")
                         return None
                 
-                def run_zap_scan(self, target_url: str, scan_type: str):
+                def run_zap_scan(self, target_url: str, scan_type: str = "spider"):
                     """Run ZAP scan using containerized scanner."""
                     try:
-                        data = {
-                            'target_url': target_url,
-                            'scan_type': scan_type
+                        request_data = {
+                            "model": "zap_scan",
+                            "app_num": 1,
+                            "test_type": "security_zap",
+                            "target_url": target_url,
+                            "scan_type": scan_type,
+                            "timeout": 900  # 15 minutes for ZAP scans
                         }
+                        
+                        self.logger.info(f"Submitting ZAP scan: {target_url} ({scan_type})")
+                        
                         response = requests.post(
-                            f"{self.services['zap-scanner']}/scan",
-                            json=data,
-                            timeout=900
+                            f"{self.services['zap-scanner']}/tests",
+                            json=request_data,
+                            timeout=30
                         )
-                        return response.json() if response.status_code == 200 else None
+                        
+                        if response.status_code != 200:
+                            return None
+                        
+                        result = response.json()
+                        if not result.get("success"):
+                            return None
+                        
+                        test_id = result["data"]["test_id"]
+                        return self._poll_test_results(test_id, "zap-scanner")
+                        
                     except Exception as e:
                         self.logger.error(f"ZAP scan failed: {e}")
                         return None
+                
+                def _poll_test_results(self, test_id: str, service_name: str, max_wait: int = None):
+                    """Poll for test results with proper status checking."""
+                    max_wait = max_wait or self.timeout
+                    service_url = self.services[service_name]
+                    start_time = time.time()
+                    poll_interval = 5  # Start with 5 second intervals
+                    
+                    self.logger.info(f"Polling for results: {test_id} (max wait: {max_wait}s)")
+                    
+                    while time.time() - start_time < max_wait:
+                        try:
+                            # Check status first
+                            status_response = requests.get(
+                                f"{service_url}/tests/{test_id}/status",
+                                timeout=10
+                            )
+                            
+                            if status_response.status_code == 200:
+                                status_data = status_response.json()
+                                if status_data.get("success"):
+                                    status = status_data["data"]["status"]
+                                    
+                                    self.logger.debug(f"Test {test_id} status: {status}")
+                                    
+                                    if status in ["completed", "failed"]:
+                                        # Get final results
+                                        result_response = requests.get(
+                                            f"{service_url}/tests/{test_id}/result",
+                                            timeout=10
+                                        )
+                                        
+                                        if result_response.status_code == 200:
+                                            result_data = result_response.json()
+                                            if result_data.get("success"):
+                                                self.logger.info(f"Test {test_id} completed successfully")
+                                                return self._format_test_results(result_data["data"])
+                                            else:
+                                                self.logger.error(f"Failed to get results: {result_data.get('error')}")
+                                                return None
+                                        else:
+                                            self.logger.error(f"Result request failed: {result_response.status_code}")
+                                            return None
+                                    
+                                    elif status == "running":
+                                        # Continue polling
+                                        elapsed = time.time() - start_time
+                                        self.logger.info(f"Test {test_id} still running... ({elapsed:.0f}s elapsed)")
+                                        time.sleep(poll_interval)
+                                        # Gradually increase poll interval
+                                        poll_interval = min(poll_interval * 1.2, 30)
+                                        continue
+                                    
+                                    else:
+                                        self.logger.error(f"Test {test_id} in unexpected status: {status}")
+                                        return None
+                                        
+                            else:
+                                self.logger.warning(f"Status check failed: {status_response.status_code}")
+                                time.sleep(poll_interval)
+                                continue
+                                
+                        except Exception as e:
+                            self.logger.warning(f"Polling error: {e}")
+                            time.sleep(poll_interval)
+                            continue
+                    
+                    self.logger.error(f"Test {test_id} timed out after {max_wait}s")
+                    return None
+                
+                def _format_test_results(self, raw_result: dict):
+                    """Format test results for display and further processing."""
+                    try:
+                        # Extract key information
+                        formatted_result = {
+                            'test_id': raw_result.get('test_id', 'unknown'),
+                            'status': raw_result.get('status', 'unknown'),
+                            'started_at': raw_result.get('started_at'),
+                            'completed_at': raw_result.get('completed_at'),
+                            'duration': raw_result.get('duration', 0),
+                            'total_issues': raw_result.get('total_issues', 0),
+                            'issues': raw_result.get('issues', []),
+                            'tools_used': raw_result.get('tools_used', []),
+                            'metadata': raw_result.get('metadata', {}),
+                            'metrics': raw_result.get('metrics', {})  # Include performance metrics
+                        }
+                        
+                        # Count issues by severity for security scans
+                        if formatted_result['issues']:
+                            severity_counts = {
+                                'critical': 0,
+                                'high': 0, 
+                                'medium': 0,
+                                'low': 0
+                            }
+                            
+                            for issue in formatted_result['issues']:
+                                severity = issue.get('severity', 'low').lower()
+                                if severity in severity_counts:
+                                    severity_counts[severity] += 1
+                            
+                            formatted_result['severity_counts'] = severity_counts
+                        
+                        return formatted_result
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error formatting results: {e}")
+                        return raw_result
             
             client = ContainerizedTestingClient()
             
@@ -1031,7 +1218,7 @@ Examples:
     def _handle_security_analysis(self, args: argparse.Namespace) -> int:
         """Handle security analysis operations."""
         try:
-            # Prepare job configuration
+            # Prepare tools list
             tools = []
             if args.tools:
                 tools = [tool.strip() for tool in args.tools.split(',')]
@@ -1041,40 +1228,135 @@ Examples:
                 tools = self.config['security_tools'][category]
             
             tool_options = {}
-            if args.tool_options:
+            if hasattr(args, 'tool_options') and args.tool_options:
                 tool_options = json.loads(args.tool_options)
             
-            job_config = {
-                'model': args.model,
-                'app_num': int(args.app),
+            # Extract model and app information
+            model = args.model
+            app_num = int(args.app)
+            scan_type = args.security_action  # 'backend' or 'frontend'
+            
+            self.logger.info(f"Starting {scan_type} security analysis for {model}/app{app_num}")
+            self.logger.info(f"Tools: {', '.join(tools)}")
+            
+            # Try containerized analysis first
+            if self.containerized_testing_client:
+                self.logger.info("[*] Using containerized security analysis...")
+                
+                result = self.containerized_testing_client.run_security_scan(
+                    model=model,
+                    app_num=app_num, 
+                    tools=tools,
+                    scan_type=scan_type
+                )
+                
+                if result:
+                    self._display_security_results(result)
+                    return 0
+                else:
+                    self.logger.warning("Containerized analysis failed, falling back to local simulation")
+            
+            # Fallback to local simulation
+            self.logger.info("[*] Using fallback security analysis...")
+            return self._run_fallback_security_analysis({
+                'model': model,
+                'app_num': app_num,
                 'tools': tools,
                 'tool_options': tool_options,
-                'scan_depth': args.scan_depth,
+                'scan_depth': getattr(args, 'scan_depth', 'standard'),
                 'include_dependencies': getattr(args, 'include_dependencies', True)
-            }
-            
-            # Check if containerized service is available
-            if self.testing_service:
-                self.logger.info("[*] Running containerized security analysis...")
-                # Create security analysis job
-                result = self.testing_service.create_security_analysis_job(job_config)
-                
-                if not result.get('success'):
-                    self.logger.error(f"Failed to create security analysis job: {result.get('error')}")
-                    return 1
-                
-                job_id = result['job_id']
-                self.logger.info(f"Created security analysis job: {job_id}")
-                
-                # Monitor job progress
-                return self._monitor_job_progress(job_id)
-            else:
-                self.logger.info("[*] Running fallback security analysis...")
-                return self._run_fallback_security_analysis(job_config)
+            })
                 
         except Exception as e:
             self.logger.error(f"Security analysis failed: {e}")
             return 1
+    
+    def _display_security_results(self, result: dict):
+        """Display security analysis results in a formatted way."""
+        try:
+            self.logger.info("=" * 60)
+            self.logger.info("SECURITY ANALYSIS RESULTS")
+            self.logger.info("=" * 60)
+            
+            # Basic information
+            test_id = result.get('test_id', 'unknown')
+            duration = result.get('duration', 0)
+            status = result.get('status', 'unknown')
+            
+            self.logger.info(f"Test ID: {test_id}")
+            self.logger.info(f"Status: {status.upper()}")
+            self.logger.info(f"Duration: {duration:.1f}s")
+            
+            # Tools used
+            tools_used = result.get('tools_used', [])
+            if tools_used:
+                self.logger.info(f"Tools Used: {', '.join(tools_used)}")
+            
+            # Issue summary
+            total_issues = result.get('total_issues', 0)
+            self.logger.info(f"Total Issues Found: {total_issues}")
+            
+            # Severity breakdown
+            severity_counts = result.get('severity_counts', {})
+            if severity_counts:
+                self.logger.info("Issue Breakdown:")
+                for severity, count in severity_counts.items():
+                    if count > 0:
+                        icon = {
+                            'critical': '[!]',
+                            'high': '[!]', 
+                            'medium': '[!]',
+                            'low': '[.]'
+                        }.get(severity, '[?]')
+                        self.logger.info(f"  {icon} {severity.capitalize()}: {count}")
+            
+            # Detailed issues
+            issues = result.get('issues', [])
+            if issues and len(issues) <= 10:  # Show details for small number of issues
+                self.logger.info("\nDetailed Issues:")
+                for i, issue in enumerate(issues, 1):
+                    self.logger.info(f"\n{i}. {issue.get('tool', 'Unknown')} - {issue.get('severity', 'unknown').upper()}")
+                    self.logger.info(f"   File: {issue.get('file_path', 'unknown')}")
+                    if issue.get('line_number'):
+                        self.logger.info(f"   Line: {issue['line_number']}")
+                    self.logger.info(f"   Message: {issue.get('message', 'No message')}")
+                    if issue.get('solution'):
+                        self.logger.info(f"   Solution: {issue['solution']}")
+            elif len(issues) > 10:
+                self.logger.info(f"\n{len(issues)} issues found (showing summary only due to large count)")
+                # Show just the most critical
+                critical_issues = [i for i in issues if i.get('severity') == 'critical']
+                high_issues = [i for i in issues if i.get('severity') == 'high'] 
+                
+                if critical_issues:
+                    self.logger.info(f"\nCritical Issues ({len(critical_issues)}):")
+                    for issue in critical_issues[:3]:  # Show top 3
+                        self.logger.info(f"  - {issue.get('file_path', 'unknown')}: {issue.get('message', 'No message')}")
+                
+                if high_issues:
+                    self.logger.info(f"\nHigh Severity Issues ({len(high_issues)}):")
+                    for issue in high_issues[:3]:  # Show top 3
+                        self.logger.info(f"  - {issue.get('file_path', 'unknown')}: {issue.get('message', 'No message')}")
+            
+            # Overall assessment
+            self.logger.info("\n" + "=" * 60)
+            if total_issues == 0:
+                self.logger.info("ASSESSMENT: No security issues detected [+]")
+            elif severity_counts.get('critical', 0) > 0:
+                self.logger.info("ASSESSMENT: Critical security issues found [!]")
+            elif severity_counts.get('high', 0) > 0:
+                self.logger.info("ASSESSMENT: High severity issues found [!]")
+            elif severity_counts.get('medium', 0) > 0:
+                self.logger.info("ASSESSMENT: Medium severity issues found [.]")
+            else:
+                self.logger.info("ASSESSMENT: Only low severity issues found [.]")
+            
+            self.logger.info("=" * 60)
+            
+        except Exception as e:
+            self.logger.error(f"Error displaying results: {e}")
+            # Fallback to simple display
+            self.logger.info(f"Analysis completed with {result.get('total_issues', 0)} issues found")
     
     def _run_fallback_security_analysis(self, job_config):
         """Run fallback security analysis when containerized services aren't available."""
@@ -1145,34 +1427,102 @@ Examples:
     def _handle_zap_scan(self, args: argparse.Namespace) -> int:
         """Handle ZAP security scanning."""
         try:
-            scan_options = {}
-            if args.scan_options:
-                scan_options = json.loads(args.scan_options)
+            target_url = args.target
+            scan_type = args.scan_type
             
-            job_config = {
-                'model': args.model or 'cli-initiated',
-                'app_num': args.app or 0,
-                'target_url': args.target,
-                'scan_type': args.scan_type,
-                'scan_options': scan_options
-            }
+            self.logger.info(f"Starting ZAP scan: {target_url} ({scan_type})")
             
-            # Create ZAP scan job
-            result = self.testing_service.create_zap_scan_job(job_config)
-            
-            if not result.get('success'):
-                self.logger.error(f"Failed to create ZAP scan job: {result.get('error')}")
+            # Try containerized ZAP scanner first
+            if self.containerized_testing_client:
+                self.logger.info("[*] Using containerized ZAP scanner...")
+                
+                result = self.containerized_testing_client.run_zap_scan(
+                    target_url=target_url,
+                    scan_type=scan_type
+                )
+                
+                if result:
+                    self._display_zap_results(result)
+                    return 0
+                else:
+                    self.logger.warning("Containerized ZAP scan failed")
+                    return 1
+            else:
+                self.logger.warning("ZAP containerized service not available")
                 return 1
-            
-            job_id = result['job_id']
-            self.logger.info(f"Created ZAP scan job: {job_id}")
-            
-            # Monitor job progress
-            return self._monitor_job_progress(job_id)
-            
+                
         except Exception as e:
             self.logger.error(f"ZAP scan failed: {e}")
             return 1
+    
+    def _display_zap_results(self, result: dict):
+        """Display ZAP scan results in a formatted way."""
+        try:
+            self.logger.info("=" * 60)
+            self.logger.info("ZAP SECURITY SCAN RESULTS")
+            self.logger.info("=" * 60)
+            
+            # Basic information
+            test_id = result.get('test_id', 'unknown')
+            duration = result.get('duration', 0)
+            status = result.get('status', 'unknown')
+            target_url = result.get('metadata', {}).get('target_url', 'unknown')
+            scan_type = result.get('metadata', {}).get('scan_type', 'unknown')
+            
+            self.logger.info(f"Test ID: {test_id}")
+            self.logger.info(f"Target: {target_url}")
+            self.logger.info(f"Scan Type: {scan_type}")
+            self.logger.info(f"Status: {status.upper()}")
+            self.logger.info(f"Duration: {duration:.1f}s")
+            
+            # Alert summary
+            total_issues = result.get('total_issues', 0)
+            self.logger.info(f"Total Alerts: {total_issues}")
+            
+            # Risk breakdown
+            severity_counts = result.get('severity_counts', {})
+            if severity_counts:
+                self.logger.info("Risk Breakdown:")
+                risk_mapping = {
+                    'critical': 'High Risk',
+                    'high': 'High Risk',
+                    'medium': 'Medium Risk', 
+                    'low': 'Low Risk'
+                }
+                for severity, count in severity_counts.items():
+                    if count > 0:
+                        risk_level = risk_mapping.get(severity, severity.capitalize())
+                        icon = '[!]' if severity in ['critical', 'high'] else '[.]'
+                        self.logger.info(f"  {icon} {risk_level}: {count}")
+            
+            # Show sample alerts
+            issues = result.get('issues', [])
+            if issues:
+                self.logger.info(f"\nSample Alerts (showing up to 5 of {len(issues)}):")
+                for i, issue in enumerate(issues[:5], 1):
+                    self.logger.info(f"\n{i}. {issue.get('message', 'Unknown Alert')}")
+                    self.logger.info(f"   Severity: {issue.get('severity', 'unknown').upper()}")
+                    self.logger.info(f"   URL: {issue.get('file_path', 'unknown')}")
+                    if issue.get('description'):
+                        desc = issue['description'][:100] + "..." if len(issue['description']) > 100 else issue['description']
+                        self.logger.info(f"   Description: {desc}")
+            
+            # Overall assessment
+            self.logger.info("\n" + "=" * 60)
+            if total_issues == 0:
+                self.logger.info("ASSESSMENT: No security vulnerabilities detected [+]")
+            elif severity_counts.get('critical', 0) > 0 or severity_counts.get('high', 0) > 0:
+                self.logger.info("ASSESSMENT: High risk vulnerabilities found [!]")
+            elif severity_counts.get('medium', 0) > 0:
+                self.logger.info("ASSESSMENT: Medium risk vulnerabilities found [.]")
+            else:
+                self.logger.info("ASSESSMENT: Only low risk issues found [.]")
+            
+            self.logger.info("=" * 60)
+            
+        except Exception as e:
+            self.logger.error(f"Error displaying ZAP results: {e}")
+            self.logger.info(f"ZAP scan completed with {result.get('total_issues', 0)} alerts")
     
     def _handle_performance_command(self, args: argparse.Namespace) -> int:
         """Handle performance testing commands."""
@@ -1187,38 +1537,114 @@ Examples:
             return 1
     
     def _handle_performance_test(self, args: argparse.Namespace) -> int:
-        """Handle performance test execution."""
+        """Handle performance testing."""
         try:
-            test_options = {}
-            if args.test_options:
-                test_options = json.loads(args.test_options)
+            target_url = args.target
+            duration = args.duration
+            users = args.users
             
-            job_config = {
-                'model': args.model or 'cli-initiated',
-                'app_num': args.app or 0,
-                'target_url': args.target,
-                'users': args.users,
-                'spawn_rate': args.spawn_rate,
-                'duration': args.duration,
-                **test_options
-            }
+            self.logger.info(f"Starting performance test: {target_url} ({users} users, {duration}s)")
             
-            # Create performance test job
-            result = self.testing_service.create_performance_test_job(job_config)
-            
-            if not result.get('success'):
-                self.logger.error(f"Failed to create performance test job: {result.get('error')}")
+            # Try containerized performance testing first
+            if self.containerized_testing_client:
+                self.logger.info("[*] Using containerized performance tester...")
+                
+                result = self.containerized_testing_client.run_performance_test(
+                    target_url=target_url,
+                    users=users,
+                    duration=duration
+                )
+                
+                if result:
+                    self._display_performance_results(result)
+                    return 0
+                else:
+                    self.logger.warning("Containerized performance test failed")
+                    return 1
+            else:
+                self.logger.warning("Performance testing containerized service not available")
                 return 1
-            
-            job_id = result['job_id']
-            self.logger.info(f"Created performance test job: {job_id}")
-            
-            # Monitor job progress
-            return self._monitor_job_progress(job_id)
-            
+                
         except Exception as e:
             self.logger.error(f"Performance test failed: {e}")
             return 1
+    
+    def _display_performance_results(self, result: dict):
+        """Display performance test results in a formatted way."""
+        try:
+            self.logger.info("=" * 60)
+            self.logger.info("PERFORMANCE TEST RESULTS")
+            self.logger.info("=" * 60)
+            
+            # Basic information
+            test_id = result.get('test_id', 'unknown')
+            duration = result.get('duration', 0)
+            status = result.get('status', 'unknown')
+            target_url = result.get('metadata', {}).get('target_url', 'unknown')
+            concurrent_users = result.get('metadata', {}).get('concurrent_users', 0)
+            
+            self.logger.info(f"Test ID: {test_id}")
+            self.logger.info(f"Target: {target_url}")
+            self.logger.info(f"Users: {concurrent_users}")
+            self.logger.info(f"Duration: {duration:.1f}s")
+            self.logger.info(f"Status: {status.upper()}")
+            
+            # Performance metrics
+            metrics = result.get('metrics', {})
+            if metrics:
+                self.logger.info("\nPerformance Metrics:")
+                
+                # Request statistics
+                total_requests = metrics.get('total_requests', 0)
+                failed_requests = metrics.get('failed_requests', 0)
+                success_rate = ((total_requests - failed_requests) / total_requests * 100) if total_requests > 0 else 0
+                
+                self.logger.info(f"  Total Requests: {total_requests}")
+                self.logger.info(f"  Failed Requests: {failed_requests}")
+                self.logger.info(f"  Success Rate: {success_rate:.1f}%")
+                
+                # Response times
+                if 'response_times' in metrics:
+                    rt = metrics['response_times']
+                    self.logger.info(f"  Average Response Time: {rt.get('average', 0):.2f}ms")
+                    self.logger.info(f"  Median Response Time: {rt.get('median', 0):.2f}ms")
+                    self.logger.info(f"  95th Percentile: {rt.get('p95', 0):.2f}ms")
+                    self.logger.info(f"  Max Response Time: {rt.get('max', 0):.2f}ms")
+                
+                # Throughput
+                rps = metrics.get('requests_per_second', 0)
+                self.logger.info(f"  Requests per Second: {rps:.2f}")
+                
+                # Errors breakdown
+                errors = metrics.get('errors', {})
+                if errors:
+                    self.logger.info("\nError Breakdown:")
+                    for error_type, count in errors.items():
+                        if count > 0:
+                            self.logger.info(f"  {error_type}: {count}")
+            
+            # Performance assessment
+            self.logger.info("\n" + "=" * 60)
+            
+            # Basic assessment logic
+            success_rate = ((metrics.get('total_requests', 0) - metrics.get('failed_requests', 0)) / 
+                          metrics.get('total_requests', 1)) * 100 if metrics.get('total_requests', 0) > 0 else 0
+            avg_response = metrics.get('response_times', {}).get('average', 0)
+            
+            if success_rate >= 99 and avg_response < 200:
+                self.logger.info("ASSESSMENT: Excellent performance [+]")
+            elif success_rate >= 95 and avg_response < 500:
+                self.logger.info("ASSESSMENT: Good performance [.]")
+            elif success_rate >= 90 and avg_response < 1000:
+                self.logger.info("ASSESSMENT: Acceptable performance [.]")
+            else:
+                self.logger.info("ASSESSMENT: Performance issues detected [!]")
+            
+            self.logger.info("=" * 60)
+            
+        except Exception as e:
+            self.logger.error(f"Error displaying performance results: {e}")
+            self.logger.info(f"Performance test completed: {result.get('status', 'unknown')}")
     
     def _handle_batch_command(self, args: argparse.Namespace) -> int:
         """Handle batch operation commands."""

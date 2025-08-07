@@ -851,6 +851,472 @@ def testing_dashboard():
         logger.error(f"Error loading unified testing dashboard: {e}")
         return ResponseHandler.error_response("Error loading testing dashboard", 500) 
 
+
+# ===========================
+# TESTING API ROUTES (for HTMX UI)
+# ===========================
+
+@testing_bp.route("/api/infrastructure-status")
+def get_infrastructure_status():
+    """Get infrastructure status for HTMX updates."""
+    try:
+        # Simple health check without creating new services
+        services = {}
+        # Only check services that should be running (exclude ai-analyzer for now)
+        service_ports = {
+            'api_gateway': 8000,
+            'security_scanner': 8001,
+            'performance_tester': 8002,
+            'zap_scanner': 8003,
+            'test_coordinator': 8005
+        }
+        
+        overall_health = 0
+        for service_name, port in service_ports.items():
+            try:
+                # Quick health check with short timeout
+                import requests
+                response = requests.get(f"http://localhost:{port}/health", timeout=0.5)
+                if response.status_code == 200:
+                    services[service_name] = {
+                        'status': 'healthy',
+                        'port': port,
+                        'uptime': response.json().get('uptime', '0s')
+                    }
+                    overall_health += 1
+                else:
+                    services[service_name] = {'status': 'unhealthy', 'port': port}
+            except Exception:
+                services[service_name] = {'status': 'down', 'port': port}
+        
+        overall_health = round((overall_health / len(service_ports)) * 100)
+        
+        return render_template("partials/infrastructure_status.html", 
+                             services=services, 
+                             overall_health=overall_health)
+    except Exception as e:
+        logger.error(f"Error getting infrastructure status: {e}")
+        return render_template("partials/infrastructure_status_error.html", error=str(e))
+
+
+@testing_bp.route("/api/stats")
+def get_test_stats():
+    """Get test statistics for HTMX updates."""
+    try:
+        from models import BatchJob, JobStatus
+        
+        # Get stats from database
+        total_jobs = BatchJob.query.count()
+        running_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.RUNNING).count()
+        completed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.COMPLETED).count()
+        failed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.FAILED).count()
+        pending_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.PENDING).count()
+        
+        # Calculate success rate
+        success_rate = round((completed_jobs / max(total_jobs, 1)) * 100, 1) if total_jobs > 0 else 100
+        
+        stats = {
+            'total_jobs': total_jobs,
+            'running_jobs': running_jobs,
+            'completed_jobs': completed_jobs,
+            'failed_jobs': failed_jobs,
+            'pending_jobs': pending_jobs,
+            'success_rate': success_rate
+        }
+        
+        return render_template("partials/test_statistics.html", stats=stats)
+    except Exception as e:
+        logger.error(f"Error getting test stats: {e}")
+        return render_template("partials/test_statistics_error.html", error=str(e))
+
+
+@testing_bp.route("/api/jobs")
+def get_test_jobs():
+    """Get test jobs list for HTMX updates."""
+    try:
+        from models import BatchJob, JobStatus
+        
+        # Get filter parameters
+        status_filter = request.args.get('status')
+        type_filter = request.args.get('type')
+        limit = int(request.args.get('limit', 10))
+        
+        # Build query
+        query = BatchJob.query
+        
+        if status_filter:
+            if status_filter == 'running':
+                query = query.filter(BatchJob.status == JobStatus.RUNNING)
+            elif status_filter == 'completed':
+                query = query.filter(BatchJob.status == JobStatus.COMPLETED)
+            elif status_filter == 'failed':
+                query = query.filter(BatchJob.status == JobStatus.FAILED)
+            elif status_filter == 'pending':
+                query = query.filter(BatchJob.status == JobStatus.PENDING)
+        
+        if type_filter:
+            # Filter by analysis types (stored in JSON field)
+            query = query.filter(BatchJob.analysis_types_json.contains(type_filter))
+        
+        # Get jobs
+        jobs = query.order_by(BatchJob.created_at.desc()).limit(limit).all()
+        
+        return render_template("partials/test_jobs_list.html", jobs=jobs)
+    except Exception as e:
+        logger.error(f"Error getting test jobs: {e}")
+        return render_template("partials/test_jobs_error.html", error=str(e))
+
+
+@testing_bp.route("/api/new-test-form")
+def get_new_test_form():
+    """Get new test form modal for HTMX."""
+    try:
+        from models import ModelCapability
+        
+        # Get available models
+        models = ModelCapability.query.all()
+        
+        # Get available test types
+        test_types = [
+            {'value': 'security', 'name': 'Security Scan', 'description': 'Comprehensive security analysis'},
+            {'value': 'performance', 'name': 'Performance Test', 'description': 'Load testing and performance metrics'},
+            {'value': 'zap', 'name': 'ZAP Scan', 'description': 'OWASP ZAP vulnerability scanning'},
+            {'value': 'ai', 'name': 'AI Analysis', 'description': 'AI-powered code analysis'}
+        ]
+        
+        return render_template("partials/new_test_modal.html", 
+                             models=models, 
+                             test_types=test_types)
+    except Exception as e:
+        logger.error(f"Error getting new test form: {e}")
+        return render_template("partials/new_test_form_error.html", error=str(e))
+
+
+@testing_bp.route("/api/infrastructure/start", methods=["POST"])
+def start_infrastructure():
+    """Start testing infrastructure."""
+    try:
+        # Use run_in_terminal to start containers
+        import subprocess
+        result = subprocess.run(
+            ["docker-compose", "up", "-d"],
+            cwd="testing-infrastructure",
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            flash("Testing infrastructure started successfully", "success")
+        else:
+            flash(f"Failed to start infrastructure: {result.stderr}", "error")
+        
+        # Return updated status
+        return get_infrastructure_status()
+    except Exception as e:
+        logger.error(f"Error starting infrastructure: {e}")
+        flash(f"Error starting infrastructure: {e}", "error")
+        return get_infrastructure_status()
+
+
+@testing_bp.route("/api/infrastructure/stop", methods=["POST"])
+def stop_infrastructure():
+    """Stop testing infrastructure."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["docker-compose", "down"],
+            cwd="testing-infrastructure",
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            flash("Testing infrastructure stopped successfully", "success")
+        else:
+            flash(f"Failed to stop infrastructure: {result.stderr}", "error")
+        
+        # Return updated status
+        return get_infrastructure_status()
+    except Exception as e:
+        logger.error(f"Error stopping infrastructure: {e}")
+        flash(f"Error stopping infrastructure: {e}", "error")
+        return get_infrastructure_status()
+
+
+@testing_bp.route("/api/submit-test", methods=["POST"])
+def submit_test():
+    """Submit a new test via the web UI."""
+    try:
+        # Get form data
+        test_type = request.form.get('test_type')
+        model_slug = request.form.get('model_slug')
+        app_number = int(request.form.get('app_number'))
+        use_containerized = request.form.get('use_containerized') == 'on'
+        
+        if not all([test_type, model_slug, app_number]):
+            return render_template("partials/test_submission_error.html", 
+                                 error="Missing required fields")
+        
+        # Get testing service
+        from service_manager import ServiceLocator
+        analyzer = ServiceLocator.get_service('security_service')
+        
+        if not analyzer:
+            return render_template("partials/test_submission_error.html", 
+                                 error="Testing service not available")
+        
+        # Submit test based on type
+        result = None
+        if test_type == 'security':
+            if use_containerized and hasattr(analyzer, 'containerized_testing_client'):
+                # Get enabled tools
+                tools = []
+                if request.form.get('bandit') == 'on':
+                    tools.append('bandit')
+                if request.form.get('safety') == 'on':
+                    tools.append('safety')
+                if request.form.get('pylint') == 'on':
+                    tools.append('pylint')
+                if request.form.get('eslint') == 'on':
+                    tools.append('eslint')
+                if request.form.get('retire') == 'on':
+                    tools.append('retire')
+                if request.form.get('npm_audit') == 'on':
+                    tools.append('npm-audit')
+                
+                if not tools:
+                    tools = ['bandit', 'safety', 'eslint']  # Default tools
+                
+                result = analyzer.containerized_testing_client.run_security_scan(
+                    model=model_slug,
+                    app_num=app_number,
+                    tools=tools
+                )
+            else:
+                return render_template("partials/test_submission_error.html", 
+                                     error="Legacy security testing not implemented in UI")
+        
+        elif test_type == 'performance':
+            if use_containerized and hasattr(analyzer, 'containerized_testing_client'):
+                concurrent_users = int(request.form.get('concurrent_users', 10))
+                duration = int(request.form.get('duration', 60))
+                target_url = request.form.get('target_url', f'http://localhost:3000')
+                
+                result = analyzer.containerized_testing_client.run_performance_test(
+                    target_url=target_url,
+                    users=concurrent_users,
+                    duration=duration
+                )
+            else:
+                return render_template("partials/test_submission_error.html", 
+                                     error="Legacy performance testing not implemented in UI")
+        
+        elif test_type == 'zap':
+            if use_containerized and hasattr(analyzer, 'containerized_testing_client'):
+                scan_type = request.form.get('scan_type', 'quick')
+                target_url = request.form.get('target_url', f'http://localhost:3000')
+                
+                result = analyzer.containerized_testing_client.run_zap_scan(
+                    target_url=target_url,
+                    scan_type=scan_type
+                )
+            else:
+                return render_template("partials/test_submission_error.html", 
+                                     error="Legacy ZAP testing not implemented in UI")
+        
+        else:
+            return render_template("partials/test_submission_error.html", 
+                                 error=f"Test type '{test_type}' not supported")
+        
+        # Check result
+        if result:
+            test_id = result.get('test_id', 'unknown')
+            return render_template("partials/test_submission_success.html", 
+                                 test_id=test_id, 
+                                 test_type=test_type,
+                                 model_slug=model_slug,
+                                 app_number=app_number)
+        else:
+            return render_template("partials/test_submission_error.html", 
+                                 error="Test submission failed - no result returned")
+        
+    except Exception as e:
+        logger.error(f"Error submitting test: {e}")
+        return render_template("partials/test_submission_error.html", 
+                             error=str(e))
+
+
+# ===========================
+# TEST MANAGEMENT ROUTES
+# ===========================
+
+@testing_bp.route("/api/job/<job_id>/start", methods=["POST"])
+def start_test_job(job_id):
+    """Start a specific test job."""
+    try:
+        from models import BatchJob, JobStatus
+        from extensions import db
+        
+        job = BatchJob.query.filter_by(id=job_id).first()
+        if not job:
+            return render_template("partials/job_action_error.html", 
+                                 error="Job not found", job_id=job_id)
+        
+        if job.status != JobStatus.PENDING:
+            return render_template("partials/job_action_error.html", 
+                                 error=f"Job is not in pending status (current: {job.status.name})", 
+                                 job_id=job_id)
+        
+        # Update job status
+        job.status = JobStatus.RUNNING
+        from datetime import datetime
+        job.started_at = datetime.utcnow()
+        db.session.commit()
+        
+        # Here you would normally start the actual job processing
+        # For now, just simulate starting
+        
+        return render_template("partials/job_action_success.html", 
+                             action="started", job_id=job_id)
+
+    except Exception as e:
+        logger.error(f"Error starting job {job_id}: {e}")
+        return render_template("partials/job_action_error.html", 
+                             error=str(e), job_id=job_id)
+
+
+@testing_bp.route("/api/job/<job_id>/stop", methods=["POST"])
+def stop_test_job(job_id):
+    """Stop a running test job."""
+    try:
+        from models import BatchJob, JobStatus
+        from extensions import db
+        
+        job = BatchJob.query.filter_by(id=job_id).first()
+        if not job:
+            return render_template("partials/job_action_error.html", 
+                                 error="Job not found", job_id=job_id)
+        
+        if job.status != JobStatus.RUNNING:
+            return render_template("partials/job_action_error.html", 
+                                 error=f"Job is not running (current: {job.status.name})", 
+                                 job_id=job_id)
+        
+        # Update job status
+        job.status = JobStatus.CANCELLED
+        from datetime import datetime
+        job.completed_at = datetime.utcnow()
+        if job.started_at:
+            duration = (job.completed_at - job.started_at).total_seconds()
+            job.actual_duration_seconds = duration
+        db.session.commit()
+        
+        return render_template("partials/job_action_success.html", 
+                             action="stopped", job_id=job_id)
+
+    except Exception as e:
+        logger.error(f"Error stopping job {job_id}: {e}")
+        return render_template("partials/job_action_error.html", 
+                             error=str(e), job_id=job_id)
+
+
+@testing_bp.route("/api/job/<job_id>/progress")
+def get_job_progress(job_id):
+    """Get progress for a specific job."""
+    try:
+        from models import BatchJob
+        
+        job = BatchJob.query.filter_by(id=job_id).first()
+        if not job:
+            return render_template("partials/job_progress_error.html", 
+                                 error="Job not found", job_id=job_id)
+        
+        progress_percent = 0
+        if job.total_tasks > 0:
+            progress_percent = round((job.completed_tasks / job.total_tasks) * 100, 1)
+        
+        return render_template("partials/job_progress.html", 
+                             job=job, 
+                             progress_percent=progress_percent)
+
+    except Exception as e:
+        logger.error(f"Error getting job progress {job_id}: {e}")
+        return render_template("partials/job_progress_error.html", 
+                             error=str(e), job_id=job_id)
+
+
+@testing_bp.route("/api/job/<job_id>/results")
+def get_job_results(job_id):
+    """Get results for a specific job."""
+    try:
+        from models import BatchJob
+        import json
+        
+        job = BatchJob.query.filter_by(id=job_id).first()
+        if not job:
+            return render_template("partials/job_results_error.html", 
+                                 error="Job not found", job_id=job_id)
+        
+        # Parse results summary
+        results_summary = {}
+        if job.results_summary_json:
+            try:
+                results_summary = json.loads(job.results_summary_json)
+            except json.JSONDecodeError:
+                results_summary = {'error': 'Invalid results format'}
+        
+        # Parse artifacts
+        artifacts = []
+        if job.artifacts_json:
+            try:
+                artifacts = json.loads(job.artifacts_json)
+            except json.JSONDecodeError:
+                artifacts = []
+        
+        return render_template("partials/job_results.html", 
+                             job=job, 
+                             results_summary=results_summary,
+                             artifacts=artifacts)
+
+    except Exception as e:
+        logger.error(f"Error getting job results {job_id}: {e}")
+        return render_template("partials/job_results_error.html", 
+                             error=str(e), job_id=job_id)
+
+
+@testing_bp.route("/api/job/<job_id>/logs")
+def get_job_logs(job_id):
+    """Get logs for a specific job."""
+    try:
+        from models import BatchJob
+        
+        job = BatchJob.query.filter_by(id=job_id).first()
+        if not job:
+            return render_template("partials/job_logs_error.html", 
+                                 error="Job not found", job_id=job_id)
+        
+        # For now, return formatted error details as logs
+        logs = []
+        if job.error_details_json:
+            import json
+            try:
+                error_details = json.loads(job.error_details_json)
+                logs = [f"ERROR: {error_details.get('message', 'Unknown error')}"]
+            except json.JSONDecodeError:
+                logs = [f"ERROR: {job.error_message or 'No log details available'}"]
+        else:
+            logs = ["INFO: Job completed successfully" if job.status.name == 'COMPLETED' else f"INFO: Job status - {job.status.name}"]
+        
+        return render_template("partials/job_logs.html", 
+                             job=job, 
+                             logs=logs)
+
+    except Exception as e:
+        logger.error(f"Error getting job logs {job_id}: {e}")
+        return render_template("partials/job_logs_error.html", 
+                             error=str(e), job_id=job_id)
+
+
 # ===========================
 # CONTAINER MANAGEMENT ROUTES
 # ===========================

@@ -856,6 +856,13 @@ class BatchJob(db.Model):
                 return []
         return []
     
+    def get_primary_job_type(self) -> str:
+        """Get the primary job type for display purposes."""
+        analysis_types = self.get_analysis_types()
+        if analysis_types:
+            return analysis_types[0]  # Return first analysis type
+        return "unknown"
+    
     def set_analysis_types(self, types_list: List[str]) -> None:
         """Set analysis types from list."""
         self.analysis_types_json = json.dumps(types_list)
