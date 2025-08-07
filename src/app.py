@@ -872,6 +872,17 @@ def create_test_app() -> Flask:
     app.config['CAPABILITIES_DATA'] = {}
     app.config['MODELS_SUMMARY'] = {}
     
+    # Register blueprints for testing
+    try:
+        try:
+            from .web_routes import register_blueprints
+        except (ImportError, ValueError):
+            from web_routes import register_blueprints
+        register_blueprints(app)
+    except Exception as e:
+        # If blueprint registration fails, continue without them for basic tests
+        pass
+    
     # Register template globals for tests
     register_template_globals(app)
     

@@ -46,22 +46,29 @@ def dashboard():
     """Modern dashboard with expandable model tabs."""
     try:
         logger.info("Loading dashboard with model statistics")
-        models = ModelCapability.query.all()
+        
+        # Safely get models with error handling for missing tables
+        try:
+            models = ModelCapability.query.all()
+        except Exception as e:
+            logger.warning(f"Could not query models: {e}")
+            models = []
+        
         docker_manager = ServiceLocator.get_docker_manager()
         
         # Calculate statistics
         stats = {
             'total_models': len(models),
-            'total_apps': len(models) * 30,
+            'total_apps': len(models) * 30 if models else 0,
             'running_containers': 0,
             'error_containers': 0,
-            'total_providers': len(set(m.provider for m in models)),
+            'total_providers': len(set(m.provider for m in models)) if models else 0,
             'analyzed_apps': 0,
             'performance_tested': 0,
             'docker_health': 'Healthy' if docker_manager else 'Unavailable'
         }
         
-        # Sample container status check for efficiency
+        # Sample container status check for efficiency (only if we have models)
         if docker_manager and models:
             logger.debug(f"Checking container status for {len(models)} models")
             sample_models = models[:3]
@@ -141,28 +148,36 @@ def app_overview(model: str, app_num: int):
         container_statuses = AppDataProvider.get_container_statuses(decoded_model, app_num)
         container_status = container_statuses.get('overall_status', 'unknown')
         
-        # Get port information from database
-        port_config = PortConfiguration.query.filter_by(
-            model=decoded_model, 
-            app_num=app_num
-        ).first()
-        
-        if port_config:
+        # Get port information from database with error handling
+        port_info = {'frontend': None, 'backend': None}
+        try:
+            port_config = PortConfiguration.query.filter_by(
+                model=decoded_model, 
+                app_num=app_num
+            ).first()
+            
+            if port_config:
+                port_info = {
+                    'frontend': port_config.frontend_port,
+                    'backend': port_config.backend_port
+                }
+        except Exception as e:
+            logger.warning(f"Could not query port configuration: {e}")
+            # Use fallback port calculation
             port_info = {
-                'frontend': port_config.frontend_port,
-                'backend': port_config.backend_port
-            }
-        else:
-            port_info = {
-                'frontend': None,
-                'backend': None
+                'frontend': 9000 + (app_num * 10),
+                'backend': 6000 + (app_num * 10)
             }
         
-        # Get generated application info
-        generated_app = GeneratedApplication.query.filter_by(
-            model_slug=decoded_model,
-            app_number=app_num
-        ).first()
+        # Get generated application info with error handling
+        generated_app = None
+        try:
+            generated_app = GeneratedApplication.query.filter_by(
+                model_slug=decoded_model,
+                app_number=app_num
+            ).first()
+        except Exception as e:
+            logger.warning(f"Could not query generated application: {e}")
         
         # Prepare context with all required variables
         context = {

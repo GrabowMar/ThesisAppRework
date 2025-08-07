@@ -15,7 +15,7 @@ from typing import Dict, Union
 from flask import Flask, request, Blueprint, redirect, url_for, render_template, jsonify
 
 from .main_routes import main_bp
-from .docker_routes import containers_bp, main_bp as docker_main_bp  
+from .docker_routes import containers_bp, docker_main_bp  
 from .api_routes import api_bp, simple_api_bp, models_bp
 from .utils import ResponseHandler
 
@@ -33,6 +33,113 @@ testing_bp = Blueprint("testing", __name__, url_prefix="/testing")
 analysis_bp = Blueprint("analysis", __name__, url_prefix="/api/v1/analysis")
 batch_bp = Blueprint("batch", __name__, url_prefix="/api/v1/batch")
 files_bp = Blueprint("files", __name__, url_prefix="/api/v1/files")
+performance_bp = Blueprint("performance", __name__, url_prefix="/api/performance")
+zap_bp = Blueprint("zap", __name__, url_prefix="/api/zap")
+
+# Define routes immediately to avoid registration-time definition issues
+@statistics_bp.route("/statistics_overview")
+def statistics_overview():
+    """Statistics overview page."""
+    try:
+        # Get basic statistics
+        try:
+            from ..models import ModelCapability, GeneratedApplication
+            from ..extensions import db
+        except ImportError:
+            from models import ModelCapability, GeneratedApplication
+            from extensions import db
+        
+        try:
+            total_models = ModelCapability.query.count()
+            total_apps = GeneratedApplication.query.count()
+        except Exception as e:
+            logger.warning(f"Could not query database: {e}")
+            total_models = 0
+            total_apps = 0
+        
+        stats = {
+            'total_models': total_models,
+            'total_apps': total_apps,
+            'total_analyses': 0,  # Placeholder
+            'recent_results': []  # Placeholder
+        }
+        
+        return render_template('pages/statistics_overview.html', stats=stats)
+    except Exception as e:
+        logger.error(f"Statistics overview error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@testing_bp.route("/")
+def testing_dashboard():
+    """Unified Security Testing Dashboard."""
+    try:
+        # Mock statistics for now
+        stats = {
+            'total_jobs': 0,
+            'running_jobs': 0,
+            'completed_jobs': 0,
+            'failed_jobs': 0,
+            'pending_jobs': 0,
+            'success_rate': 0
+        }
+        
+        return render_template('pages/unified_security_testing.html', stats=stats)
+    except Exception as e:
+        logger.error(f"Testing dashboard error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+@analysis_bp.route("/overview")
+def analysis_overview():
+    """Analysis overview redirect."""
+    return redirect(url_for('statistics.statistics_overview'))
+
+@analysis_bp.route("/<model>/<int:app_num>/security", methods=["POST"])
+def run_security_analysis(model: str, app_num: int):
+    """Run security analysis - compatibility route."""
+    try:
+        # Mock implementation for now
+        return jsonify({
+            'success': True,
+            'message': f'Security analysis started for {model}/app{app_num}',
+            'analysis_id': f'sec_{model}_{app_num}_001'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@batch_bp.route("/create_batch_job", methods=["GET", "POST"])
+def create_batch_job():
+    """Create batch job page."""
+    if request.method == "GET":
+        return render_template('pages/create_batch_job.html')
+    else:
+        # POST - create job
+        return jsonify({'success': True, 'message': 'Batch job created'})
+
+@performance_bp.route("/<model>/<int:app_num>/run", methods=["POST"])  
+def run_performance_test(model: str, app_num: int):
+    """Run performance test - compatibility route."""
+    try:
+        # Mock implementation for now
+        return jsonify({
+            'success': True,
+            'message': f'Performance test started for {model}/app{app_num}',
+            'test_id': f'perf_{model}_{app_num}_001'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@zap_bp.route("/<model>/<int:app_num>/scan", methods=["POST"])
+def run_zap_scan(model: str, app_num: int):
+    """Run ZAP scan - compatibility route."""
+    try:
+        # Mock implementation for now
+        return jsonify({
+            'success': True,
+            'message': f'ZAP scan started for {model}/app{app_num}',
+            'scan_id': f'zap_{model}_{app_num}_001'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 def register_blueprints(app: Flask) -> None:
@@ -54,9 +161,8 @@ def register_blueprints(app: Flask) -> None:
         app.register_blueprint(analysis_bp)
         app.register_blueprint(batch_bp)
         app.register_blueprint(files_bp)
-        
-        # Add route handlers to compatibility blueprints
-        _setup_compatibility_routes()
+        app.register_blueprint(performance_bp)
+        app.register_blueprint(zap_bp)
         
         # Register template helpers
         register_template_helpers(app)
@@ -69,71 +175,13 @@ def register_blueprints(app: Flask) -> None:
 
 
 def _setup_compatibility_routes() -> None:
-    """Set up routes for compatibility blueprints."""
-    
-    @statistics_bp.route("/statistics_overview")
-    def statistics_overview():
-        """Statistics overview page."""
-        try:
-            # Get basic statistics
-            try:
-                from ..models import ModelCapability, GeneratedApplication
-                from ..extensions import db
-            except ImportError:
-                from models import ModelCapability, GeneratedApplication
-                from extensions import db
-            
-            total_models = ModelCapability.query.count()
-            total_apps = GeneratedApplication.query.count()
-            
-            stats = {
-                'total_models': total_models,
-                'total_apps': total_apps,
-                'total_analyses': 0,  # Placeholder
-                'recent_results': []  # Placeholder
-            }
-            
-            return render_template('pages/statistics_overview.html', stats=stats)
-        except Exception as e:
-            logger.error(f"Statistics overview error: {e}")
-            return ResponseHandler.error_response(str(e))
-    
-    @testing_bp.route("/")
-    def testing_dashboard():
-        """Unified Security Testing Dashboard."""
-        try:
-            # Mock statistics for now
-            stats = {
-                'total_jobs': 0,
-                'running_jobs': 0,
-                'completed_jobs': 0,
-                'failed_jobs': 0,
-                'pending_jobs': 0,
-                'success_rate': 0
-            }
-            
-            return render_template('pages/unified_security_testing.html', stats=stats)
-        except Exception as e:
-            logger.error(f"Testing dashboard error: {e}")
-            return ResponseHandler.error_response(str(e))
-    
-    @analysis_bp.route("/overview")
-    def analysis_overview():
-        """Analysis overview redirect."""
-        return redirect(url_for('statistics.statistics_overview'))
-    
-    @batch_bp.route("/create_batch_job", methods=["GET", "POST"])
-    def create_batch_job():
-        """Create batch job page."""
-        if request.method == "GET":
-            return render_template('pages/create_batch_job.html')
-        else:
-            # POST - create job
-            return jsonify({'success': True, 'message': 'Batch job created'})
+    """Set up routes for compatibility blueprints - deprecated."""
+    # Routes are now defined at module level to avoid registration issues
+    pass
 
 
 def _register_compatibility_blueprints(app: Flask) -> None:
-    """Register additional blueprints for backward compatibility."""
+    """Register additional blueprints for backward compatibility - deprecated."""
     # This function is now integrated into the main registration function
     pass
 

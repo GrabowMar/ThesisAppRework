@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Create blueprints
 containers_bp = Blueprint("containers", __name__, url_prefix="/api/v1/containers")
-main_bp = Blueprint("main", __name__)  # For /docker route
+docker_main_bp = Blueprint("docker_main", __name__)  # For /docker route
 
 
 # ===========================
@@ -114,7 +114,7 @@ def container_logs(model_slug: str, app_num: int):
 # DOCKER OVERVIEW ROUTES
 # ===========================
 
-@main_bp.route("/docker")
+@docker_main_bp.route("/docker")
 def docker_redirect():
     """Docker management page - serve docker content directly."""
     # Call docker_overview function directly to serve content instead of redirecting
@@ -132,7 +132,7 @@ def docker_redirect():
         return f"Error: Docker management unavailable - {str(e)}", 500
 
 
-@main_bp.route("/docker")
+@docker_main_bp.route("/docker")
 def docker_overview():
     """Docker management overview."""
     try:
@@ -235,4 +235,64 @@ class DockerOperations:
             elif "unable to get image" in error_msg:
                 error_msg = "Docker images not built. Please build the containers first."
             
-            return {'success': False, 'error': error_msg}
+@docker_main_bp.route("/docker/start/<model>/<int:app_num>", methods=["POST"])
+def docker_start_action(model: str, app_num: int):
+    """Start containers for a specific model/app - legacy route format."""
+    try:
+        result = DockerOperations.execute_action('start', model, app_num)
+        if result['success']:
+            from flask import jsonify
+            return jsonify({
+                'success': True,
+                'message': f"Started containers for {model}/app{app_num}",
+                'data': result
+            })
+        else:
+            from flask import jsonify
+            return jsonify({'success': False, 'error': result.get('error', 'Start operation failed')}), 500
+    except Exception as e:
+        logger.error(f"Docker start error: {e}")
+        from flask import jsonify
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@docker_main_bp.route("/docker/stop/<model>/<int:app_num>", methods=["POST"])
+def docker_stop_action(model: str, app_num: int):
+    """Stop containers for a specific model/app - legacy route format."""
+    try:
+        result = DockerOperations.execute_action('stop', model, app_num)
+        if result['success']:
+            from flask import jsonify
+            return jsonify({
+                'success': True,
+                'message': f"Stopped containers for {model}/app{app_num}",
+                'data': result
+            })
+        else:
+            from flask import jsonify
+            return jsonify({'success': False, 'error': result.get('error', 'Stop operation failed')}), 500
+    except Exception as e:
+        logger.error(f"Docker stop error: {e}")
+        from flask import jsonify
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@docker_main_bp.route("/docker/restart/<model>/<int:app_num>", methods=["POST"])
+def docker_restart_action(model: str, app_num: int):
+    """Restart containers for a specific model/app - legacy route format."""
+    try:
+        result = DockerOperations.execute_action('restart', model, app_num)
+        if result['success']:
+            from flask import jsonify
+            return jsonify({
+                'success': True,
+                'message': f"Restarted containers for {model}/app{app_num}",
+                'data': result
+            })
+        else:
+            from flask import jsonify
+            return jsonify({'success': False, 'error': result.get('error', 'Restart operation failed')}), 500
+    except Exception as e:
+        logger.error(f"Docker restart error: {e}")
+        from flask import jsonify
+        return jsonify({'success': False, 'error': str(e)}), 500
