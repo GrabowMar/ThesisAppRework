@@ -917,6 +917,35 @@ class DockerManager(BaseService):
             self.logger.error(f"Cleanup failed: {e}")
             return False, str(e)
     
+    def list_containers(self, name_filter: str = None, all_containers: bool = True) -> List[Dict[str, Any]]:
+        """List Docker containers with optional name filtering."""
+        if not self.client:
+            return []
+        
+        try:
+            containers = self.client.containers.list(all=all_containers)
+            container_list = []
+            
+            for container in containers:
+                container_info = {
+                    'id': container.id[:12],
+                    'name': container.name,
+                    'status': container.status,
+                    'image': container.image.tags[0] if container.image.tags else container.id[:12],
+                    'created': container.attrs['Created'],
+                    'labels': container.labels
+                }
+                
+                # Apply name filter if provided
+                if name_filter is None or name_filter in container.name:
+                    container_list.append(container_info)
+            
+            return container_list
+            
+        except Exception as e:
+            self.logger.error(f"Error listing containers: {e}")
+            return []
+    
     def cleanup(self):
         """Cleanup resources."""
         if self.client:

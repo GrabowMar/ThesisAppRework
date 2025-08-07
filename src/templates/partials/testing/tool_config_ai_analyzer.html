@@ -1,0 +1,328 @@
+<!-- AI Analyzer Configuration -->
+<div class="tool-config-panel" id="ai-analyzer-config" style="display: none;">
+    <div class="row">
+        <!-- Model Selection -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-robot me-2"></i>AI Model Configuration</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="ai_model_provider" class="form-label">Provider</label>
+                        <select name="ai_model_provider" id="ai_model_provider" class="form-select" required>
+                            <option value="">Select Provider</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="local">Local Model</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="ai_model_selection" style="display: none;">
+                        <label for="ai_model_name" class="form-label">Model</label>
+                        <select name="ai_model_name" id="ai_model_name" class="form-select">
+                            <!-- Options will be populated based on provider -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ai_temperature" class="form-label">Temperature</label>
+                        <input type="range" name="ai_temperature" id="ai_temperature" class="form-range" 
+                               min="0" max="1" step="0.1" value="0.3">
+                        <div class="d-flex justify-content-between">
+                            <small>Conservative (0)</small>
+                            <small id="temperature_value">0.3</small>
+                            <small>Creative (1)</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ai_max_tokens" class="form-label">Max Tokens</label>
+                        <input type="number" name="ai_max_tokens" id="ai_max_tokens" class="form-control" 
+                               min="100" max="8192" value="2048" step="100">
+                        <div class="form-text">Maximum response length</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analysis Configuration -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0"><i class="fas fa-brain me-2"></i>Analysis Settings</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Analysis Types</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="ai_analysis_types" 
+                                   value="security" id="ai_security" checked>
+                            <label class="form-check-label" for="ai_security">
+                                Security Vulnerability Analysis
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="ai_analysis_types" 
+                                   value="code_quality" id="ai_quality">
+                            <label class="form-check-label" for="ai_quality">
+                                Code Quality Assessment
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="ai_analysis_types" 
+                                   value="performance" id="ai_performance">
+                            <label class="form-check-label" for="ai_performance">
+                                Performance Analysis
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="ai_analysis_types" 
+                                   value="best_practices" id="ai_practices">
+                            <label class="form-check-label" for="ai_practices">
+                                Best Practices Review
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ai_analysis_depth" class="form-label">Analysis Depth</label>
+                        <select name="ai_analysis_depth" id="ai_analysis_depth" class="form-select">
+                            <option value="basic">Basic - Quick Overview</option>
+                            <option value="standard" selected>Standard - Comprehensive</option>
+                            <option value="deep">Deep - Detailed Analysis</option>
+                            <option value="expert">Expert - Maximum Detail</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ai_context_window" class="form-label">Context Window</label>
+                        <select name="ai_context_window" id="ai_context_window" class="form-select">
+                            <option value="function">Function Level</option>
+                            <option value="file" selected>File Level</option>
+                            <option value="module">Module Level</option>
+                            <option value="project">Project Level</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Output & Reporting -->
+    <div class="row mt-3">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-file-alt me-2"></i>Output Configuration</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="ai_output_format" class="form-label">Output Format</label>
+                        <select name="ai_output_format" id="ai_output_format" class="form-select">
+                            <option value="structured">Structured Report</option>
+                            <option value="narrative" selected>Narrative Analysis</option>
+                            <option value="checklist">Checklist Format</option>
+                            <option value="json">JSON Format</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ai_detail_level" class="form-label">Detail Level</label>
+                        <select name="ai_detail_level" id="ai_detail_level" class="form-select">
+                            <option value="summary">Summary Only</option>
+                            <option value="detailed" selected>Detailed</option>
+                            <option value="verbose">Verbose</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="ai_include_examples" 
+                               id="ai_include_examples" checked>
+                        <label class="form-check-label" for="ai_include_examples">
+                            Include code examples and fixes
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="ai_include_references" 
+                               id="ai_include_references">
+                        <label class="form-check-label" for="ai_include_references">
+                            Include external references
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Advanced Settings -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Advanced Settings</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="ai_custom_prompt" class="form-label">Custom Prompt (Optional)</label>
+                        <textarea name="ai_custom_prompt" id="ai_custom_prompt" class="form-control" rows="3" 
+                                  placeholder="Additional instructions for the AI analysis..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ai_focus_areas" class="form-label">Focus Areas</label>
+                        <input type="text" name="ai_focus_areas" id="ai_focus_areas" class="form-control" 
+                               placeholder="e.g., authentication, data validation, error handling">
+                        <div class="form-text">Comma-separated areas to focus on</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ai_exclude_patterns" class="form-label">Exclude Patterns</label>
+                        <input type="text" name="ai_exclude_patterns" id="ai_exclude_patterns" class="form-control" 
+                               placeholder="*.test.py, migrations/, __pycache__/">
+                        <div class="form-text">Files/directories to exclude</div>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="ai_parallel_analysis" 
+                               id="ai_parallel_analysis">
+                        <label class="form-check-label" for="ai_parallel_analysis">
+                            Enable parallel analysis (faster but more resource intensive)
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Real-time Validation -->
+    <div class="row mt-3">
+        <div class="col-12">
+            <div class="validation-feedback" id="ai_validation_feedback"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// AI Analyzer specific JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Provider change handler
+    document.getElementById('ai_model_provider').addEventListener('change', function() {
+        const provider = this.value;
+        const modelSelection = document.getElementById('ai_model_selection');
+        const modelSelect = document.getElementById('ai_model_name');
+        
+        if (provider) {
+            modelSelection.style.display = 'block';
+            updateModelOptions(provider, modelSelect);
+        } else {
+            modelSelection.style.display = 'none';
+        }
+    });
+    
+    // Temperature slider
+    document.getElementById('ai_temperature').addEventListener('input', function() {
+        document.getElementById('temperature_value').textContent = this.value;
+    });
+    
+    // Analysis type dependencies
+    document.querySelectorAll('input[name="ai_analysis_types"]').forEach(checkbox => {
+        checkbox.addEventListener('change', validateAnalysisTypes);
+    });
+    
+    // Real-time validation
+    validateAIConfiguration();
+});
+
+function updateModelOptions(provider, selectElement) {
+    const models = {
+        'openai': [
+            { value: 'gpt-4', text: 'GPT-4' },
+            { value: 'gpt-4-turbo', text: 'GPT-4 Turbo' },
+            { value: 'gpt-3.5-turbo', text: 'GPT-3.5 Turbo' }
+        ],
+        'anthropic': [
+            { value: 'claude-3-opus', text: 'Claude 3 Opus' },
+            { value: 'claude-3-sonnet', text: 'Claude 3 Sonnet' },
+            { value: 'claude-3-haiku', text: 'Claude 3 Haiku' }
+        ],
+        'openrouter': [
+            { value: 'anthropic/claude-3-opus', text: 'Claude 3 Opus (via OpenRouter)' },
+            { value: 'openai/gpt-4-turbo', text: 'GPT-4 Turbo (via OpenRouter)' },
+            { value: 'meta-llama/llama-2-70b-chat', text: 'Llama 2 70B' }
+        ],
+        'local': [
+            { value: 'ollama/codellama', text: 'Code Llama (Ollama)' },
+            { value: 'ollama/llama2', text: 'Llama 2 (Ollama)' },
+            { value: 'custom', text: 'Custom Local Model' }
+        ]
+    };
+    
+    // Clear existing options
+    selectElement.innerHTML = '<option value="">Select Model</option>';
+    
+    // Add new options
+    if (models[provider]) {
+        models[provider].forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.value;
+            option.textContent = model.text;
+            selectElement.appendChild(option);
+        });
+    }
+}
+
+function validateAnalysisTypes() {
+    const checkedTypes = document.querySelectorAll('input[name="ai_analysis_types"]:checked');
+    const feedback = document.getElementById('ai_validation_feedback');
+    
+    if (checkedTypes.length === 0) {
+        showValidationError(feedback, 'Please select at least one analysis type');
+        return false;
+    } else {
+        clearValidationError(feedback);
+        return true;
+    }
+}
+
+function validateAIConfiguration() {
+    const provider = document.getElementById('ai_model_provider').value;
+    const analysisTypes = validateAnalysisTypes();
+    const feedback = document.getElementById('ai_validation_feedback');
+    
+    if (!provider) {
+        showValidationError(feedback, 'Please select an AI provider');
+        return false;
+    }
+    
+    if (!analysisTypes) {
+        return false;
+    }
+    
+    // Additional validations
+    const maxTokens = parseInt(document.getElementById('ai_max_tokens').value);
+    if (maxTokens < 100) {
+        showValidationError(feedback, 'Max tokens should be at least 100');
+        return false;
+    }
+    
+    clearValidationError(feedback);
+    showValidationSuccess(feedback, 'AI Analyzer configuration is valid');
+    return true;
+}
+
+function showValidationError(element, message) {
+    element.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>${message}</div>`;
+}
+
+function showValidationSuccess(element, message) {
+    element.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>${message}</div>`;
+}
+
+function clearValidationError(element) {
+    element.innerHTML = '';
+}
+
+// Export configuration for validation
+window.validateAIAnalyzer = validateAIConfiguration;
+</script>

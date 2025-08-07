@@ -1,0 +1,183 @@
+<!-- Model & Application Selection Component -->
+<div class="model-selector">
+    <div class="row">
+        <!-- Model Selection -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="fas fa-robot me-2"></i>Select Models</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="select_all_models">
+                            <label class="form-check-label" for="select_all_models">
+                                <strong>Select All Models</strong>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="model-list" style="max-height: 300px; overflow-y: auto;">
+                        {% for model in models_data %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="selected_models" 
+                                   value="{{ model.slug }}" id="model_{{ loop.index }}">
+                            <label class="form-check-label" for="model_{{ loop.index }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>{{ model.name }}</strong>
+                                        <small class="text-muted d-block">{{ model.slug }}</small>
+                                    </div>
+                                    <span class="badge bg-secondary">30 apps</span>
+                                </div>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Selected models will be tested with the chosen tools
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Application Selection -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-layer-group me-2"></i>Select Applications</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Application Range</label>
+                        <div class="row">
+                            <div class="col-6">
+                                <input type="number" name="app_start" id="app_start" class="form-control" 
+                                       min="1" max="30" value="1" placeholder="Start">
+                            </div>
+                            <div class="col-6">
+                                <input type="number" name="app_end" id="app_end" class="form-control" 
+                                       min="1" max="30" value="30" placeholder="End">
+                            </div>
+                        </div>
+                        <div class="form-text">Test applications from number X to Y</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Or select specific applications:</label>
+                        <textarea name="specific_apps" id="specific_apps" class="form-control" rows="3" 
+                                  placeholder="1,3,5,7-10,15,20-25"></textarea>
+                        <div class="form-text">Comma-separated list or ranges (e.g., 1,3,5-10)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="include_all_apps" id="include_all_apps">
+                            <label class="form-check-label" for="include_all_apps">
+                                Test All Available Applications
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Application Health Status -->
+                    <div class="mb-3">
+                        <label class="form-label">Filter by Health Status</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="health_status" value="healthy" id="health_healthy" checked>
+                            <label class="form-check-label" for="health_healthy">
+                                <i class="fas fa-check-circle text-success me-1"></i>Healthy
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="health_status" value="degraded" id="health_degraded">
+                            <label class="form-check-label" for="health_degraded">
+                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>Degraded
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="health_status" value="unhealthy" id="health_unhealthy">
+                            <label class="form-check-label" for="health_unhealthy">
+                                <i class="fas fa-times-circle text-danger me-1"></i>Unhealthy
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <small>
+                            <i class="fas fa-lightbulb me-1"></i>
+                            <strong>Tip:</strong> Start with a small range for initial testing
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Batch Configuration Options -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Batch Configuration</h6>
+                </div>
+                <div class="card-body">
+                    {% include "partials/testing/batch_options.html" %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Model selection functionality
+document.getElementById('select_all_models').addEventListener('change', function() {
+    const modelCheckboxes = document.querySelectorAll('input[name="selected_models"]');
+    modelCheckboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+    });
+});
+
+// Application range management
+document.getElementById('specific_apps').addEventListener('input', function() {
+    if (this.value.trim()) {
+        document.getElementById('app_start').disabled = true;
+        document.getElementById('app_end').disabled = true;
+        document.getElementById('include_all_apps').disabled = true;
+    } else {
+        document.getElementById('app_start').disabled = false;
+        document.getElementById('app_end').disabled = false;
+        document.getElementById('include_all_apps').disabled = false;
+    }
+});
+
+document.getElementById('include_all_apps').addEventListener('change', function() {
+    if (this.checked) {
+        document.getElementById('app_start').disabled = true;
+        document.getElementById('app_end').disabled = true;
+        document.getElementById('specific_apps').disabled = true;
+    } else {
+        document.getElementById('app_start').disabled = false;
+        document.getElementById('app_end').disabled = false;
+        document.getElementById('specific_apps').disabled = false;
+    }
+});
+
+// Validate app range
+document.getElementById('app_start').addEventListener('change', validateAppRange);
+document.getElementById('app_end').addEventListener('change', validateAppRange);
+
+function validateAppRange() {
+    const start = parseInt(document.getElementById('app_start').value);
+    const end = parseInt(document.getElementById('app_end').value);
+    
+    if (start && end && start > end) {
+        document.getElementById('app_end').setCustomValidity('End must be greater than or equal to start');
+    } else {
+        document.getElementById('app_end').setCustomValidity('');
+    }
+}
+</script>

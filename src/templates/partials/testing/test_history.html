@@ -48,7 +48,7 @@
                     {% endif %}
                 </td>
                 <td>
-                    <small>{{ test.started_at|datetime }}</small>
+                    <small>{{ test.started_at.strftime('%Y-%m-%d %H:%M') if test.started_at else 'N/A' }}</small>
                 </td>
                 <td>
                     <small>{{ test.duration or '-' }}</small>

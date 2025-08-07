@@ -31,6 +31,7 @@ try:
         ModelCapability, GeneratedApplication, PortConfiguration,
         SecurityAnalysis, JobStatus
     )
+    from constants import AnalysisStatus, TaskStatus, SeverityLevel
     from core_services import get_container_names
     # Updated imports to use unified CLI analyzer
     from unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
@@ -42,12 +43,17 @@ except ImportError as e:
             ModelCapability, GeneratedApplication, PortConfiguration,
             SecurityAnalysis, JobStatus
         )
+        from .constants import AnalysisStatus, TaskStatus, SeverityLevel
         from .core_services import get_container_names
         from .unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
     except ImportError:
         # If imports still fail, set them to None for graceful degradation
+        db = None
         UnifiedCLIAnalyzer = None
         ToolCategory = None
+        AnalysisStatus = None
+        TaskStatus = None 
+        SeverityLevel = None
         logger = logging.getLogger(__name__)
         logger.warning(f"Some imports failed: {e}")
 
@@ -105,18 +111,25 @@ class ResponseHandler:
                 partial_type = request.args.get('partial')
                 if partial_type:
                     # Use specific partial template
-                    template_base = template_name.replace('.html', '')
+                    template_base = template_name.replace('.html', '').replace('pages/', '')
                     result = render_template(f"partials/{template_base}_{partial_type}.html", **context)
                 else:
                     # Use corresponding partial template
-                    template_base = template_name.replace('.html', '')
+                    template_base = template_name.replace('.html', '').replace('pages/', '')
                     result = render_template(f"partials/{template_base}.html", **context)
             else:
-                result = render_template(f"pages/{template_name}", **context)
+                # Clean template name handling to avoid double paths
+                clean_template = template_name
+                if clean_template.startswith('pages/'):
+                    # Template already has pages/ prefix, use as-is
+                    result = render_template(clean_template, **context)
+                else:
+                    # Add pages/ prefix
+                    result = render_template(f"pages/{clean_template}", **context)
             
             # Log template rendering performance
             duration = (time.time() - start_time) * 1000
-            logger.debug(f"Template {template_name} rendered in {duration:.2f}ms")
+            logger.debug(f"Template {clean_template} rendered successfully in {duration:.2f}ms")
             
             return result
             
@@ -792,9 +805,264 @@ testing_bp = Blueprint("testing", __name__, url_prefix="/testing")  # For templa
 # TESTING ROUTES (Security Testing Platform)
 # ===========================
 
+# ===========================
+# NEW SPLIT TESTING INTERFACE ROUTES
+# ===========================
+
 @testing_bp.route("/")
 def testing_dashboard():
-    """Unified Security Testing Dashboard with container management."""
+    """Redirect to new dashboard page."""
+    return redirect(url_for('testing.test_dashboard'))
+
+@testing_bp.route("/create")
+def test_creation_page():
+    """Full-page test creation interface."""
+    try:
+        from models import ModelCapability
+        from flask import current_app
+        
+        # Get all available models
+        models = ModelCapability.query.all()
+        models_data = [{'slug': m.canonical_slug, 'name': m.model_name} for m in models]
+        
+        # Get tool configurations
+        tools_config = {
+            'bandit': {
+                'name': 'Bandit',
+                'description': 'Python security linter for common security issues',
+                'options': ['confidence', 'severity', 'exclude_paths', 'format']
+            },
+            'safety': {
+                'name': 'Safety',
+                'description': 'Python dependency vulnerability scanner',
+                'options': ['check_type', 'output_format', 'policy_file']
+            },
+            'zap': {
+                'name': 'OWASP ZAP',
+                'description': 'Web application security scanner',
+                'options': ['scan_type', 'target_url', 'api_definition']
+            },
+            'performance': {
+                'name': 'Performance Testing',
+                'description': 'Locust-based load testing',
+                'options': ['users', 'spawn_rate', 'duration']
+            }
+        }
+        
+        return ResponseHandler.render_response("pages/test_creation.html", 
+                                             models_data=models_data,
+                                             tools_config=tools_config)
+        
+    except Exception as e:
+        logger.error(f"Error loading test creation page: {e}")
+        return ResponseHandler.error_response("Error loading test creation page", 500)
+
+@testing_bp.route("/dashboard")
+def test_dashboard():
+    """Central hub for managing active tests, service status, and historical data."""
+    try:
+        # Try absolute imports first, then relative
+        try:
+            from src.models import BatchJob, JobStatus, ContainerizedTest
+        except ImportError:
+            from models import BatchJob, JobStatus, ContainerizedTest
+        # AnalysisStatus should be available from global import
+        
+        # Ensure we have AnalysisStatus available
+        if AnalysisStatus is None:
+            # Fallback import if global import failed
+            try:
+                from constants import AnalysisStatus as LocalAnalysisStatus
+                analysis_status = LocalAnalysisStatus
+            except ImportError:
+                # Last resort - create enum values manually
+                class FallbackAnalysisStatus:
+                    RUNNING = "running"
+                    PENDING = "pending"
+                analysis_status = FallbackAnalysisStatus
+        else:
+            analysis_status = AnalysisStatus
+        
+        # Get basic stats for dashboard
+        total_jobs = BatchJob.query.count()
+        running_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.RUNNING).count()
+        completed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.COMPLETED).count()
+        failed_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.FAILED).count()
+        pending_jobs = BatchJob.query.filter(BatchJob.status == JobStatus.PENDING).count()
+        
+        # Get active containerized tests
+        active_tests = ContainerizedTest.query.filter(
+            ContainerizedTest.status.in_([analysis_status.RUNNING, analysis_status.PENDING])
+        ).limit(10).all()
+        
+        # Get recent tests for history
+        recent_tests = BatchJob.query.order_by(BatchJob.created_at.desc()).limit(20).all()
+        
+        stats = {
+            'total_jobs': total_jobs,
+            'running_jobs': running_jobs,
+            'completed_jobs': completed_jobs,
+            'failed_jobs': failed_jobs,
+            'pending_jobs': pending_jobs,
+            'success_rate': round((completed_jobs / max(total_jobs, 1)) * 100, 1)
+        }
+        
+        # Get testing infrastructure status
+        try:
+            testing_service = get_unified_cli_analyzer()
+            infrastructure_health = {
+                'services': {
+                    'security_scanner': {'status': 'healthy'},
+                    'performance_tester': {'status': 'healthy'}, 
+                    'zap_scanner': {'status': 'healthy'},
+                    'api_gateway': {'status': 'healthy'}
+                },
+                'overall_health': 100
+            }
+        except Exception as e:
+            logger.warning(f"Could not get infrastructure health: {e}")
+            infrastructure_health = {
+                'services': {
+                    'security_scanner': {'status': 'unknown'},
+                    'performance_tester': {'status': 'unknown'}, 
+                    'zap_scanner': {'status': 'unknown'},
+                    'api_gateway': {'status': 'unknown'}
+                },
+                'overall_health': 0
+            }
+        
+        return ResponseHandler.render_response("pages/test_dashboard.html", 
+                                             stats=stats, 
+                                             active_tests=active_tests,
+                                             recent_tests=recent_tests,
+                                             infrastructure_health=infrastructure_health)
+        
+    except Exception as e:
+        logger.error(f"Error loading test dashboard: {e}")
+        return ResponseHandler.error_response("Error loading testing dashboard", 500)
+
+@testing_bp.route("/results/<test_id>")
+def test_results(test_id):
+    """Comprehensive test results display with tool-specific visualizations."""
+    try:
+        # Try absolute imports first, then relative
+        try:
+            from src.models import BatchJob, ContainerizedTest
+        except ImportError:
+            from models import BatchJob, ContainerizedTest
+        
+        # Try to find the test in BatchJob first
+        batch_job = BatchJob.query.filter_by(id=test_id).first()
+        containerized_test = ContainerizedTest.query.filter_by(test_id=test_id).first()
+        
+        if not batch_job and not containerized_test:
+            return ResponseHandler.error_response("Test not found", 404)
+        
+        # Get test results based on type
+        if batch_job:
+            test_data = {
+                'id': batch_job.id,
+                'name': batch_job.name,
+                'status': batch_job.status.value if batch_job.status else 'unknown',
+                'type': 'batch',
+                'results': batch_job.get_results_summary(),
+                'created_at': batch_job.created_at,
+                'completed_at': batch_job.completed_at
+            }
+        else:
+            test_data = {
+                'id': containerized_test.test_id,
+                'name': f"Test {containerized_test.test_id}",
+                'status': containerized_test.status.value if containerized_test.status else 'unknown',
+                'type': 'containerized',
+                'results': containerized_test.get_result_data(),
+                'created_at': containerized_test.created_at,
+                'completed_at': containerized_test.completed_at
+            }
+        
+        return ResponseHandler.render_response("pages/test_results.html", 
+                                             test_data=test_data)
+        
+    except Exception as e:
+        logger.error(f"Error loading test results for {test_id}: {e}")
+        return ResponseHandler.error_response("Error loading test results", 500)
+
+@testing_bp.route("/api/tool-config/<tool_name>")
+def get_tool_configuration(tool_name):
+    """Get tool-specific configuration panel via HTMX."""
+    try:
+        tool_configs = {
+            'bandit': 'partials/testing/tool_config_bandit.html',
+            'safety': 'partials/testing/tool_config_safety.html',
+            'zap': 'partials/testing/tool_config_zap.html',
+            'performance': 'partials/testing/tool_config_performance.html',
+            'ai': 'partials/testing/tool_config_ai.html'
+        }
+        
+        template = tool_configs.get(tool_name)
+        if not template:
+            return ResponseHandler.error_response("Tool configuration not found", 404)
+        
+        return ResponseHandler.render_response(template)
+        
+    except Exception as e:
+        logger.error(f"Error loading tool configuration for {tool_name}: {e}")
+        return ResponseHandler.error_response("Error loading tool configuration", 500)
+
+@testing_bp.route("/api/validate-config", methods=["POST"])
+def validate_configuration():
+    """Validate configuration in real-time."""
+    try:
+        data = request.get_json()
+        tool_name = data.get('tool_name')
+        config = data.get('config', {})
+        
+        # Basic validation schemas
+        validation_schemas = {
+            'bandit': {
+                'confidence': {'required': False, 'type': 'string', 'options': ['low', 'medium', 'high']},
+                'severity': {'required': False, 'type': 'array'},
+                'exclude_paths': {'required': False, 'type': 'string'}
+            },
+            'zap': {
+                'scan_type': {'required': True, 'type': 'string', 'options': ['baseline', 'active', 'api', 'full']},
+                'target_url': {'required': True, 'type': 'url'},
+                'max_time': {'required': False, 'type': 'integer', 'min': 0}
+            }
+        }
+        
+        schema = validation_schemas.get(tool_name, {})
+        errors = []
+        
+        for field, rules in schema.items():
+            value = config.get(field)
+            
+            if rules.get('required') and not value:
+                errors.append(f"{field} is required")
+            
+            if value and rules.get('type') == 'url':
+                import re
+                url_pattern = re.compile(r'^https?://.+')
+                if not url_pattern.match(value):
+                    errors.append(f"{field} must be a valid URL")
+        
+        return jsonify({
+            'valid': len(errors) == 0,
+            'errors': errors,
+            'tool_name': tool_name
+        })
+        
+    except Exception as e:
+        logger.error(f"Error validating configuration: {e}")
+        return jsonify({'valid': False, 'errors': [str(e)]})
+
+# ===========================
+# LEGACY TESTING ROUTES (for backward compatibility)
+# ===========================
+
+@testing_bp.route("/legacy")
+def legacy_testing_dashboard():
+    """Legacy unified Security Testing Dashboard."""
     try:
         from models import BatchJob, JobStatus
         from flask import current_app
@@ -6160,6 +6428,183 @@ def testing_api_test_action(test_id, action):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@testing_bp.route("/api/active-tests")
+def api_active_tests():
+    """Get active tests for dashboard."""
+    try:
+        # Try absolute imports first, then relative
+        try:
+            from src.models import BatchJob, JobStatus
+        except ImportError:
+            from models import BatchJob, JobStatus
+        
+        # Get active tests from database
+        active_tests = BatchJob.query.filter(
+            BatchJob.status.in_([JobStatus.RUNNING, JobStatus.QUEUED, JobStatus.PENDING])
+        ).order_by(BatchJob.created_at.desc()).limit(10).all()
+        
+        tests_data = []
+        for test in active_tests:
+            tests_data.append({
+                'id': test.id,
+                'model_slug': test.get_primary_model() or 'Multiple Models',
+                'app_number': test.get_primary_app_num() or 'All Apps',
+                'test_type': test.get_primary_job_type(),
+                'type_color': 'primary' if test.get_primary_job_type() == 'security' else 'info',
+                'progress': test.progress_percentage,
+                'status': test.status.name,
+                'created_at': test.created_at
+            })
+        
+        return render_template('partials/testing/active_tests.html', active_tests=tests_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting active tests: {e}")
+        return render_template('partials/error_message.html', error=f"Failed to load active tests: {str(e)}")
+
+
+@testing_bp.route("/api/test-history")
+def api_test_history():
+    """Get test history for dashboard."""
+    try:
+        # Try absolute imports first, then relative
+        try:
+            from src.models import BatchJob, JobStatus
+        except ImportError:
+            from models import BatchJob, JobStatus
+        
+        # Get recent tests from database
+        recent_tests = BatchJob.query.filter(
+            BatchJob.status.in_([JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED])
+        ).order_by(BatchJob.completed_at.desc()).limit(20).all()
+        
+        tests_data = []
+        for test in recent_tests:
+            tests_data.append({
+                'id': test.id,
+                'name': test.name,
+                'status': test.status.name,
+                'model_slug': test.get_primary_model(),
+                'app_number': test.get_primary_app_num(),
+                'test_type': test.get_primary_job_type(),
+                'started_at': test.created_at,
+                'completed_at': test.completed_at,
+                'duration': test.actual_duration_seconds,
+                'type_color': 'primary' if test.get_primary_job_type() == 'security' else 'info'
+            })
+        
+        return render_template('partials/testing/test_history.html', tests=tests_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting test history: {e}")
+        return render_template('partials/error_message.html', error=f"Failed to load test history: {str(e)}")
+
+
+@testing_bp.route("/api/service-status")
+def api_service_status():
+    """Get service status for dashboard."""
+    try:
+        docker_manager = ServiceLocator.get_docker_manager()
+        if not docker_manager:
+            return render_template('partials/error_message.html', error="Docker manager not available")
+        
+        # Check containerized services
+        services = []
+        service_names = ['security-scanner', 'performance-tester', 'zap-scanner', 'api-gateway', 'ai-analyzer']
+        
+        for service_name in service_names:
+            try:
+                containers = docker_manager.list_containers(name_filter=service_name)
+                if containers:
+                    container = containers[0]
+                    # Handle both dict and object formats for container
+                    if hasattr(container, 'status'):
+                        container_status = container.status
+                    elif isinstance(container, dict):
+                        container_status = container.get('Status', container.get('state', 'unknown'))
+                    else:
+                        container_status = 'unknown'
+                    
+                    status = 'running' if 'running' in str(container_status).lower() else 'stopped'
+                    port = None
+                    
+                    # Handle ports - check both object and dict formats
+                    if hasattr(container, 'ports') and container.ports:
+                        for port_info in container.ports.values():
+                            if port_info:
+                                port = port_info[0]['HostPort']
+                                break
+                    elif isinstance(container, dict) and container.get('Ports'):
+                        ports = container.get('Ports', [])
+                        if ports and len(ports) > 0 and 'PublicPort' in ports[0]:
+                            port = ports[0]['PublicPort']
+                else:
+                    status = 'not_found'
+                    port = None
+                
+                services.append({
+                    'name': service_name.replace('-', ' ').title(),
+                    'status': status,
+                    'port': port
+                })
+            except Exception as e:
+                logger.warning(f"Error checking service {service_name}: {e}")
+                services.append({
+                    'name': service_name.replace('-', ' ').title(),
+                    'status': 'error',
+                    'port': None
+                })
+        
+        return render_template('partials/testing/infrastructure_status.html', services=services)
+        
+    except Exception as e:
+        logger.error(f"Error getting service status: {e}")
+        return render_template('partials/error_message.html', error=f"Failed to load service status: {str(e)}")
+
+
+@testing_bp.route("/api/export-results")
+def api_export_results():
+    """Export test results."""
+    try:
+        from models import BatchJob
+        import csv
+        from io import StringIO
+        
+        # Get all completed tests
+        tests = BatchJob.query.filter_by(status=JobStatus.COMPLETED).all()
+        
+        # Create CSV data
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['ID', 'Name', 'Type', 'Model', 'Status', 'Created', 'Completed', 'Duration'])
+        
+        # Write data
+        for test in tests:
+            writer.writerow([
+                test.id,
+                test.name,
+                test.get_primary_job_type(),
+                test.get_primary_model(),
+                test.status.name,
+                test.created_at.strftime('%Y-%m-%d %H:%M:%S') if test.created_at else '',
+                test.completed_at.strftime('%Y-%m-%d %H:%M:%S') if test.completed_at else '',
+                test.actual_duration_seconds or ''
+            ])
+        
+        # Create response
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = 'attachment; filename=test_results.csv'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error exporting results: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ===========================
 # DOCKER ROUTES (moved to main_bp)
 # ===========================
@@ -6239,6 +6684,37 @@ def internal_error(error):
 
 def register_template_helpers(app):
     """Register Jinja2 template helpers."""
+    
+    @app.template_filter('datetime')
+    def datetime_filter(value, format='%Y-%m-%d %H:%M:%S'):
+        """Format datetime for display - alias for datetime filter."""
+        try:
+            if not value:
+                return ''
+            
+            # If it's already a string, try to parse it
+            if isinstance(value, str):
+                try:
+                    if 'T' in value:
+                        parsed_dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        return parsed_dt.strftime(format)
+                    else:
+                        # Assume it's already formatted
+                        return value
+                except (ValueError, TypeError):
+                    # If parsing fails, return the original string
+                    return str(value)
+            
+            # If it's a datetime object, format it
+            if hasattr(value, 'strftime'):
+                return value.strftime(format)
+            
+            # Fallback - convert to string
+            return str(value) if value else ''
+            
+        except Exception:
+            # Ultimate fallback
+            return str(value) if value else ''
     
     @app.template_filter('format_datetime')
     def format_datetime(value):

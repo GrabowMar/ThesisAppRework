@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+
+{% block title %}Create Security Test - Testing Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Tool-specific styling */
+.severity-critical { border-left: 4px solid #dc3545; background-color: #f8d7da; }
+.severity-high { border-left: 4px solid #fd7e14; background-color: #ffeaa7; }
+.severity-medium { border-left: 4px solid #ffc107; background-color: #fff3cd; }
+.severity-low { border-left: 4px solid #28a745; background-color: #d4edda; }
+
+/* ZAP risk styling */
+.risk-high { border: 2px solid #dc3545; }
+.risk-medium { border: 2px solid #ffc107; }
+.risk-low { border: 2px solid #28a745; }
+.risk-info { border: 2px solid #17a2b8; }
+
+/* Configuration panels */
+.tool-config-panel {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background: #f8f9fa;
+}
+
+.tool-config-panel.active {
+    border-color: #0d6efd;
+    background: #e7f3ff;
+}
+
+.step-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+}
+
+.step {
+    flex: 1;
+    text-align: center;
+    position: relative;
+}
+
+.step.active .step-number {
+    background: #0d6efd;
+    color: white;
+}
+
+.step.completed .step-number {
+    background: #198754;
+    color: white;
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #6c757d;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.tool-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.tool-card {
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tool-card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.tool-card.selected {
+    border-color: #0d6efd;
+    background: #e7f3ff;
+}
+
+.tool-card h5 {
+    color: #0d6efd;
+    margin-bottom: 10px;
+}
+
+.validation-feedback {
+    display: none;
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 5px;
+}
+
+.validation-feedback.show {
+    display: block;
+}
+
+.validation-success {
+    color: #198754;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-1">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>
+                        Create Security Test
+                    </h1>
+                    <p class="text-muted mb-0">Configure and launch comprehensive security testing</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+        <div class="step active" id="step-1">
+            <div class="step-number">1</div>
+            <div class="step-title">Tool Selection</div>
+        </div>
+        <div class="step" id="step-2">
+            <div class="step-number">2</div>
+            <div class="step-title">Configuration</div>
+        </div>
+        <div class="step" id="step-3">
+            <div class="step-number">3</div>
+            <div class="step-title">Target Selection</div>
+        </div>
+        <div class="step" id="step-4">
+            <div class="step-number">4</div>
+            <div class="step-title">Review & Submit</div>
+        </div>
+    </div>
+
+    <!-- Main Form -->
+    <form id="test-creation-form" hx-post="/testing/api/create-test" hx-target="#submission-result">
+        <!-- Step 1: Tool Selection -->
+        <div class="step-content" id="step-1-content">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Select Testing Tools</h5>
+                </div>
+                <div class="card-body">
+                    <div class="tool-selector">
+                        <!-- Bandit Tool -->
+                        <div class="tool-card" data-tool="bandit">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_tools" value="bandit" id="tool-bandit">
+                                <label class="form-check-label" for="tool-bandit">
+                                    <h5><i class="fab fa-python me-2"></i>Bandit</h5>
+                                </label>
+                            </div>
+                            <p class="text-muted mb-2">Python security linter for common security issues</p>
+                            <div class="small text-info">
+                                <i class="fas fa-check me-1"></i>SQL injection detection<br>
+                                <i class="fas fa-check me-1"></i>Hardcoded credentials<br>
+                                <i class="fas fa-check me-1"></i>Shell injection
+                            </div>
+                        </div>
+
+                        <!-- Safety Tool -->
+                        <div class="tool-card" data-tool="safety">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_tools" value="safety" id="tool-safety">
+                                <label class="form-check-label" for="tool-safety">
+                                    <h5><i class="fas fa-shield-alt me-2"></i>Safety</h5>
+                                </label>
+                            </div>
+                            <p class="text-muted mb-2">Python dependency vulnerability scanner</p>
+                            <div class="small text-info">
+                                <i class="fas fa-check me-1"></i>Known vulnerabilities<br>
+                                <i class="fas fa-check me-1"></i>Package security<br>
+                                <i class="fas fa-check me-1"></i>CVE database
+                            </div>
+                        </div>
+
+                        <!-- ZAP Tool -->
+                        <div class="tool-card" data-tool="zap">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_tools" value="zap" id="tool-zap">
+                                <label class="form-check-label" for="tool-zap">
+                                    <h5><i class="fas fa-globe me-2"></i>OWASP ZAP</h5>
+                                </label>
+                            </div>
+                            <p class="text-muted mb-2">Web application security scanner</p>
+                            <div class="small text-info">
+                                <i class="fas fa-check me-1"></i>OWASP Top 10<br>
+                                <i class="fas fa-check me-1"></i>API security<br>
+                                <i class="fas fa-check me-1"></i>Active scanning
+                            </div>
+                        </div>
+
+                        <!-- Performance Tool -->
+                        <div class="tool-card" data-tool="performance">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_tools" value="performance" id="tool-performance">
+                                <label class="form-check-label" for="tool-performance">
+                                    <h5><i class="fas fa-tachometer-alt me-2"></i>Performance Testing</h5>
+                                </label>
+                            </div>
+                            <p class="text-muted mb-2">Locust-based load testing</p>
+                            <div class="small text-info">
+                                <i class="fas fa-check me-1"></i>Load testing<br>
+                                <i class="fas fa-check me-1"></i>Stress testing<br>
+                                <i class="fas fa-check me-1"></i>Performance metrics
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-primary" onclick="nextStep(2)" id="step-1-next">
+                            Next: Configuration <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Tool Configuration -->
+        <div class="step-content d-none" id="step-2-content">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Configure Selected Tools</h5>
+                </div>
+                <div class="card-body">
+                    <div id="tool-configurations">
+                        <!-- Tool configuration panels will be loaded here via HTMX -->
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" onclick="previousStep(1)">
+                            <i class="fas fa-arrow-left me-2"></i>Previous
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="nextStep(3)" id="step-2-next">
+                            Next: Target Selection <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Model & Application Selection -->
+        <div class="step-content d-none" id="step-3-content">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-bullseye me-2"></i>Select Targets</h5>
+                </div>
+                <div class="card-body">
+                    {% include "partials/testing/model_selector.html" %}
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button type="button" class="btn btn-outline-secondary" onclick="previousStep(2)">
+                            <i class="fas fa-arrow-left me-2"></i>Previous
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="nextStep(4)" id="step-3-next">
+                            Next: Review <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Review & Submit -->
+        <div class="step-content d-none" id="step-4-content">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Review & Submit</h5>
+                </div>
+                <div class="card-body">
+                    <div id="test-summary">
+                        <!-- Test summary will be generated here -->
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button type="button" class="btn btn-outline-secondary" onclick="previousStep(3)">
+                            <i class="fas fa-arrow-left me-2"></i>Previous
+                        </button>
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-rocket me-2"></i>Launch Test
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Submission Result -->
+    <div id="submission-result" class="mt-4"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentStep = 1;
+const totalSteps = 4;
+
+// Step navigation
+function nextStep(step) {
+    if (validateCurrentStep()) {
+        hideStep(currentStep);
+        showStep(step);
+        updateStepIndicator(step);
+        currentStep = step;
+        
+        // Load tool configurations if moving to step 2
+        if (step === 2) {
+            loadToolConfigurations();
+        }
+        
+        // Generate summary if moving to step 4
+        if (step === 4) {
+            generateTestSummary();
+        }
+    }
+}
+
+function previousStep(step) {
+    hideStep(currentStep);
+    showStep(step);
+    updateStepIndicator(step);
+    currentStep = step;
+}
+
+function showStep(step) {
+    document.getElementById(`step-${step}-content`).classList.remove('d-none');
+}
+
+function hideStep(step) {
+    document.getElementById(`step-${step}-content`).classList.add('d-none');
+}
+
+function updateStepIndicator(activeStep) {
+    for (let i = 1; i <= totalSteps; i++) {
+        const stepElement = document.getElementById(`step-${i}`);
+        stepElement.classList.remove('active', 'completed');
+        
+        if (i === activeStep) {
+            stepElement.classList.add('active');
+        } else if (i < activeStep) {
+            stepElement.classList.add('completed');
+        }
+    }
+}
+
+function validateCurrentStep() {
+    switch (currentStep) {
+        case 1:
+            const selectedTools = document.querySelectorAll('input[name="selected_tools"]:checked');
+            if (selectedTools.length === 0) {
+                alert('Please select at least one testing tool.');
+                return false;
+            }
+            return true;
+        case 2:
+            return validateToolConfigurations();
+        case 3:
+            return validateTargetSelection();
+        default:
+            return true;
+    }
+}
+
+function validateToolConfigurations() {
+    // Real-time validation via HTMX
+    const configData = new FormData(document.getElementById('test-creation-form'));
+    const selectedTools = Array.from(document.querySelectorAll('input[name="selected_tools"]:checked'))
+                              .map(input => input.value);
+    
+    // Basic validation for required fields
+    let isValid = true;
+    selectedTools.forEach(tool => {
+        const panel = document.querySelector(`[data-tool-config="${tool}"]`);
+        if (panel) {
+            const requiredFields = panel.querySelectorAll('input[required], select[required]');
+            requiredFields.forEach(field => {
+                if (!field.value) {
+                    showValidationError(field, 'This field is required');
+                    isValid = false;
+                } else {
+                    hideValidationError(field);
+                }
+            });
+        }
+    });
+    
+    return isValid;
+}
+
+function validateTargetSelection() {
+    const selectedModels = document.querySelectorAll('input[name="selected_models"]:checked');
+    if (selectedModels.length === 0) {
+        alert('Please select at least one model to test.');
+        return false;
+    }
+    return true;
+}
+
+function loadToolConfigurations() {
+    const selectedTools = Array.from(document.querySelectorAll('input[name="selected_tools"]:checked'))
+                              .map(input => input.value);
+    
+    const configContainer = document.getElementById('tool-configurations');
+    configContainer.innerHTML = '';
+    
+    selectedTools.forEach(tool => {
+        htmx.ajax('GET', `/testing/api/tool-config/${tool}`, {
+            target: '#tool-configurations',
+            swap: 'beforeend'
+        });
+    });
+}
+
+function generateTestSummary() {
+    const selectedTools = Array.from(document.querySelectorAll('input[name="selected_tools"]:checked'))
+                              .map(input => input.value);
+    const selectedModels = Array.from(document.querySelectorAll('input[name="selected_models"]:checked'))
+                               .map(input => input.value);
+    
+    const summaryHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Selected Tools (${selectedTools.length})</h6>
+                <ul class="list-group list-group-flush">
+                    ${selectedTools.map(tool => `<li class="list-group-item">${tool}</li>`).join('')}
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6>Selected Models (${selectedModels.length})</h6>
+                <ul class="list-group list-group-flush">
+                    ${selectedModels.map(model => `<li class="list-group-item">${model}</li>`).join('')}
+                </ul>
+            </div>
+        </div>
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Estimated Duration:</strong> ${selectedTools.length * selectedModels.length * 5} minutes
+        </div>
+    `;
+    
+    document.getElementById('test-summary').innerHTML = summaryHTML;
+}
+
+function showValidationError(field, message) {
+    let feedback = field.parentNode.querySelector('.validation-feedback');
+    if (!feedback) {
+        feedback = document.createElement('div');
+        feedback.className = 'validation-feedback';
+        field.parentNode.appendChild(feedback);
+    }
+    feedback.textContent = message;
+    feedback.classList.add('show');
+    field.classList.add('is-invalid');
+}
+
+function hideValidationError(field) {
+    const feedback = field.parentNode.querySelector('.validation-feedback');
+    if (feedback) {
+        feedback.classList.remove('show');
+    }
+    field.classList.remove('is-invalid');
+}
+
+// Tool card selection
+document.addEventListener('DOMContentLoaded', function() {
+    const toolCards = document.querySelectorAll('.tool-card');
+    toolCards.forEach(card => {
+        card.addEventListener('click', function() {
+            const checkbox = this.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            this.classList.toggle('selected', checkbox.checked);
+        });
+    });
+    
+    // Prevent checkbox clicks from bubbling
+    const checkboxes = document.querySelectorAll('.tool-card input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('click', function(e) {
+            e.stopPropagation();
+            this.closest('.tool-card').classList.toggle('selected', this.checked);
+        });
+    });
+});
+</script>
+{% endblock %}

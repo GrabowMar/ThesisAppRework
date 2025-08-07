@@ -971,6 +971,26 @@ class BatchJob(db.Model):
         """Check if job can be restarted."""
         return self.status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]
     
+    def get_primary_model(self) -> Optional[str]:
+        """Get the first model from the models list."""
+        models = self.get_models()
+        return models[0] if models else None
+    
+    def get_primary_app_num(self) -> Optional[int]:
+        """Get the first app number from the app range."""
+        app_range = self.get_app_range()
+        if 'start' in app_range:
+            return app_range['start']
+        elif 'apps' in app_range and app_range['apps']:
+            # If it's a list of specific apps
+            return min(app_range['apps'])
+        return None
+    
+    @property
+    def progress_percentage(self) -> float:
+        """Alias for get_progress_percentage for backward compatibility."""
+        return self.get_progress_percentage()
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {

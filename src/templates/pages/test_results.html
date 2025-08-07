@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+
+{% block title %}Test Results: {{ test_data.name }} - Testing Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Tool-specific result styling */
+.severity-critical { 
+    border-left: 4px solid #dc3545; 
+    background-color: #f8d7da; 
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 0 5px 5px 0;
+}
+
+.severity-high { 
+    border-left: 4px solid #fd7e14; 
+    background-color: #ffeaa7; 
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 0 5px 5px 0;
+}
+
+.severity-medium { 
+    border-left: 4px solid #ffc107; 
+    background-color: #fff3cd; 
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 0 5px 5px 0;
+}
+
+.severity-low { 
+    border-left: 4px solid #28a745; 
+    background-color: #d4edda; 
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 0 5px 5px 0;
+}
+
+/* ZAP risk styling */
+.risk-high { border: 2px solid #dc3545; background-color: #f8d7da; }
+.risk-medium { border: 2px solid #ffc107; background-color: #fff3cd; }
+.risk-low { border: 2px solid #28a745; background-color: #d4edda; }
+.risk-info { border: 2px solid #17a2b8; background-color: #d1ecf1; }
+
+/* Performance metrics */
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+    padding: 20px;
+    color: white;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+/* Code highlighting */
+.code-block {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 10px 0;
+    font-family: 'Courier New', monospace;
+}
+
+.code-block pre {
+    margin: 0;
+    background: transparent;
+    border: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.code-line-number {
+    color: #6c757d;
+    margin-right: 10px;
+    user-select: none;
+}
+
+/* Vulnerability cards */
+.vulnerability-card {
+    border-radius: 8px;
+    margin-bottom: 20px;
+    padding: 15px;
+}
+
+.vulnerability-card .card-header {
+    border-radius: 8px 8px 0 0;
+    padding: 15px;
+}
+
+/* Evidence highlighting */
+.evidence {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 10px;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+/* Performance charts */
+.chart-container {
+    position: relative;
+    height: 400px;
+    margin: 20px 0;
+}
+
+/* Result tabs */
+.nav-tabs .nav-link {
+    border-radius: 10px 10px 0 0;
+    border: none;
+    background: #f8f9fa;
+    color: #6c757d;
+    margin-right: 5px;
+}
+
+.nav-tabs .nav-link.active {
+    background: #0d6efd;
+    color: white;
+}
+
+/* Export buttons */
+.export-options {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+/* Filter controls */
+.filter-controls {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+/* Status indicators */
+.status-success { color: #28a745; }
+.status-failed { color: #dc3545; }
+.status-running { color: #17a2b8; }
+.status-pending { color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-1">
+                        <i class="fas fa-chart-line text-primary me-2"></i>
+                        Test Results: {{ test_data.name }}
+                    </h1>
+                    <p class="text-muted mb-0">
+                        <span class="badge bg-{{ 'success' if test_data.status == 'completed' else 'primary' if test_data.status == 'running' else 'danger' if test_data.status == 'failed' else 'secondary' }}">
+                            {{ test_data.status|title }}
+                        </span>
+                        • Started: {{ test_data.created_at.strftime('%Y-%m-%d %H:%M') if test_data.created_at else 'Unknown' }}
+                        {% if test_data.completed_at %}
+                        • Completed: {{ test_data.completed_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('testing.test_dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-download me-2"></i>Export
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/testing/api/results/{{ test_data.id }}/export?format=pdf">
+                                <i class="fas fa-file-pdf me-2"></i>PDF Report
+                            </a></li>
+                            <li><a class="dropdown-item" href="/testing/api/results/{{ test_data.id }}/export?format=json">
+                                <i class="fas fa-file-code me-2"></i>JSON Data
+                            </a></li>
+                            <li><a class="dropdown-item" href="/testing/api/results/{{ test_data.id }}/export?format=csv">
+                                <i class="fas fa-file-csv me-2"></i>CSV Report
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Summary -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Test Summary</h5>
+                </div>
+                <div class="card-body">
+                    {% include "partials/testing/results/result_summary.html" %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tool-Specific Results -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <ul class="nav nav-tabs card-header-tabs" id="resultTabs" role="tablist">
+                        {% if test_data.results.get('bandit_results') %}
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#bandit-results" role="tab">
+                                <i class="fab fa-python me-2"></i>Bandit
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% if test_data.results.get('safety_results') %}
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#safety-results" role="tab">
+                                <i class="fas fa-shield-alt me-2"></i>Safety
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% if test_data.results.get('zap_results') %}
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#zap-results" role="tab">
+                                <i class="fas fa-globe me-2"></i>ZAP
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% if test_data.results.get('performance_results') %}
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#performance-results" role="tab">
+                                <i class="fas fa-tachometer-alt me-2"></i>Performance
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% if test_data.results.get('ai_results') %}
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#ai-results" role="tab">
+                                <i class="fas fa-brain me-2"></i>AI Analysis
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content" id="resultTabContent">
+                        {% if test_data.results.get('bandit_results') %}
+                        <div class="tab-pane fade show active" id="bandit-results" role="tabpanel">
+                            {% include "partials/testing/results/bandit_results.html" %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if test_data.results.get('safety_results') %}
+                        <div class="tab-pane fade" id="safety-results" role="tabpanel">
+                            {% include "partials/testing/results/safety_results.html" %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if test_data.results.get('zap_results') %}
+                        <div class="tab-pane fade" id="zap-results" role="tabpanel">
+                            {% include "partials/testing/results/zap_results.html" %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if test_data.results.get('performance_results') %}
+                        <div class="tab-pane fade" id="performance-results" role="tabpanel">
+                            {% include "partials/testing/results/performance_results.html" %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if test_data.results.get('ai_results') %}
+                        <div class="tab-pane fade" id="ai-results" role="tabpanel">
+                            {% include "partials/testing/results/ai_results.html" %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Tools -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-balance-scale me-2"></i>Compare Results</h5>
+                </div>
+                <div class="card-body">
+                    {% include "partials/testing/results/comparison_view.html" %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/plugins/autoloader/prism-autoloader.min.js"></script>
+
+<script>
+// Initialize syntax highlighting
+Prism.highlightAll();
+
+// Filter functionality
+function filterResults(tool, filterType, filterValue) {
+    const resultsContainer = document.querySelector(`#${tool}-results`);
+    const items = resultsContainer.querySelectorAll('.result-item');
+    
+    items.forEach(item => {
+        const itemValue = item.dataset[filterType];
+        if (filterValue === 'all' || itemValue === filterValue) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// Search functionality
+function searchResults(tool, searchTerm) {
+    const resultsContainer = document.querySelector(`#${tool}-results`);
+    const items = resultsContainer.querySelectorAll('.result-item');
+    
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        if (searchTerm === '' || text.includes(searchTerm.toLowerCase())) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// Expand/collapse functionality
+function toggleDetails(element) {
+    const details = element.nextElementSibling;
+    if (details && details.classList.contains('result-details')) {
+        details.style.display = details.style.display === 'none' ? 'block' : 'none';
+        const icon = element.querySelector('.toggle-icon');
+        if (icon) {
+            icon.classList.toggle('fa-chevron-right');
+            icon.classList.toggle('fa-chevron-down');
+        }
+    }
+}
+
+// Initialize collapsible sections
+document.addEventListener('DOMContentLoaded', function() {
+    const collapsibleHeaders = document.querySelectorAll('.collapsible-header');
+    collapsibleHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            toggleDetails(this);
+        });
+    });
+    
+    // Initialize performance charts if performance results exist
+    if (document.getElementById('performance-results')) {
+        initializePerformanceCharts();
+    }
+});
+
+// Performance chart initialization
+function initializePerformanceCharts() {
+    const performanceData = {{ test_data.results.get('performance_results', {})|tojson|safe }};
+    
+    if (performanceData.response_times) {
+        // Response Time Chart
+        const ctx = document.getElementById('responseTimeChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: performanceData.response_times.map((_, index) => index + 1),
+                    datasets: [{
+                        label: 'Response Time (ms)',
+                        data: performanceData.response_times,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Response Time (ms)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Request Number'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+    
+    if (performanceData.endpoints) {
+        // Endpoint Performance Chart
+        const endpointCtx = document.getElementById('endpointChart');
+        if (endpointCtx) {
+            new Chart(endpointCtx, {
+                type: 'bar',
+                data: {
+                    labels: performanceData.endpoints.map(ep => ep.name),
+                    datasets: [{
+                        label: 'Average Response Time (ms)',
+                        data: performanceData.endpoints.map(ep => ep.avg_response_time),
+                        backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                        borderColor: '#0d6efd',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Response Time (ms)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+}
+
+// Copy code functionality
+function copyCode(button) {
+    const codeBlock = button.nextElementSibling.querySelector('code');
+    const text = codeBlock.textContent;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.classList.add('btn-success');
+        button.classList.remove('btn-outline-secondary');
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+    });
+}
+
+// Comparison functionality
+function compareWithTest(testId) {
+    window.open(`/testing/api/results/compare?test1={{ test_data.id }}&test2=${testId}`, '_blank');
+}
+
+// Historical trend analysis
+function showTrendAnalysis(tool) {
+    htmx.ajax('GET', `/testing/api/results/{{ test_data.id }}/trends?tool=${tool}`, {
+        target: '#trend-analysis-content',
+        swap: 'innerHTML'
+    });
+    
+    const modal = new bootstrap.Modal(document.getElementById('trendAnalysisModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

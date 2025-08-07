@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Test Management Dashboard - Testing Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Service status indicators */
+.service-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-healthy { background: #28a745; }
+.status-degraded { background: #ffc107; }
+.status-unhealthy { background: #dc3545; }
+.status-unknown { background: #6c757d; }
+
+/* Statistics cards */
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-align: center;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+/* Active tests */
+.test-progress {
+    height: 20px;
+    background: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.test-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745, #20c997);
+    transition: width 0.3s ease;
+}
+
+/* Test history table */
+.test-history-table {
+    font-size: 0.9rem;
+}
+
+.test-status-badge {
+    font-size: 0.75rem;
+}
+
+/* Service logs */
+.service-logs {
+    background: #212529;
+    color: #ffffff;
+    border-radius: 5px;
+    padding: 15px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.log-entry {
+    margin-bottom: 5px;
+    white-space: pre-wrap;
+}
+
+.log-timestamp {
+    color: #6c757d;
+}
+
+.log-level-error { color: #dc3545; }
+.log-level-warning { color: #ffc107; }
+.log-level-info { color: #17a2b8; }
+.log-level-debug { color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-1">
+                        <i class="fas fa-tachometer-alt text-primary me-2"></i>
+                        Test Management Dashboard
+                    </h1>
+                    <p class="text-muted mb-0">Monitor active tests, service health, and testing statistics</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>New Test
+                    </a>
+                    <button class="btn btn-outline-secondary" 
+                            hx-get="/testing/api/infrastructure-status"
+                            hx-target="#service-status-panel"
+                            hx-swap="innerHTML">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Management Panel -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-server me-2"></i>Service Management
+                        </h5>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-success" 
+                                    hx-post="/testing/api/infrastructure/start"
+                                    hx-target="#service-status-panel"
+                                    hx-swap="innerHTML">
+                                <i class="fas fa-play me-1"></i>Start All
+                            </button>
+                            <button class="btn btn-sm btn-warning" 
+                                    hx-post="/testing/api/infrastructure/restart"
+                                    hx-target="#service-status-panel"
+                                    hx-swap="innerHTML">
+                                <i class="fas fa-redo me-1"></i>Restart All
+                            </button>
+                            <button class="btn btn-sm btn-danger" 
+                                    hx-post="/testing/api/infrastructure/stop"
+                                    hx-target="#service-status-panel"
+                                    hx-swap="innerHTML">
+                                <i class="fas fa-stop me-1"></i>Stop All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="service-status-panel"
+                         hx-get="/testing/api/service-status"
+                         hx-trigger="load, every 30s"
+                         hx-swap="innerHTML">
+                        {% include "partials/testing/service_status.html" %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Dashboard -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ stats.total_jobs }}</div>
+                <div class="metric-label">Total Tests</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ stats.running_jobs }}</div>
+                <div class="metric-label">Active Tests</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ stats.completed_jobs }}</div>
+                <div class="metric-label">Completed</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ stats.success_rate }}%</div>
+                <div class="metric-label">Success Rate</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Tests Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-play-circle text-success me-2"></i>Active Tests
+                        </h5>
+                        <span class="badge bg-primary">{{ active_tests|length }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="active-tests-panel"
+                         hx-get="/testing/api/active-tests"
+                         hx-trigger="load, every 5s"
+                         hx-swap="innerHTML">
+                        {% include "partials/testing/active_tests.html" %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test History -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-history me-2"></i>Test History
+                        </h5>
+                        <div class="d-flex gap-2">
+                            <!-- Filter Controls -->
+                            <select class="form-select form-select-sm" 
+                                    hx-get="/testing/api/test-history"
+                                    hx-trigger="change"
+                                    hx-target="#test-history-panel"
+                                    hx-include="[name='status'],[name='type'],[name='limit']"
+                                    name="status" style="width: auto;">
+                                <option value="">All Status</option>
+                                <option value="completed">Completed</option>
+                                <option value="running">Running</option>
+                                <option value="failed">Failed</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                            <select class="form-select form-select-sm"
+                                    hx-get="/testing/api/test-history"
+                                    hx-trigger="change"
+                                    hx-target="#test-history-panel"
+                                    hx-include="[name='status'],[name='type'],[name='limit']"
+                                    name="type" style="width: auto;">
+                                <option value="">All Types</option>
+                                <option value="security">Security</option>
+                                <option value="performance">Performance</option>
+                                <option value="zap">ZAP Scan</option>
+                                <option value="ai">AI Analysis</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-primary"
+                                    hx-get="/testing/api/export-results"
+                                    hx-include="[name='status'],[name='type']">
+                                <i class="fas fa-download me-1"></i>Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="test-history-panel"
+                         hx-get="/testing/api/test-history"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        {% include "partials/testing/test_history.html" %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Logs Modal -->
+    <div class="modal fade" id="serviceLogsModal" tabindex="-1" aria-labelledby="serviceLogsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="serviceLogsModalLabel">Service Logs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="service-logs-content">
+                        <!-- Logs will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="refreshLogs()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Service logs functionality
+function showServiceLogs(serviceName) {
+    document.getElementById('serviceLogsModalLabel').textContent = `${serviceName} Logs`;
+    
+    htmx.ajax('GET', `/testing/api/service-logs/${serviceName}`, {
+        target: '#service-logs-content',
+        swap: 'innerHTML'
+    });
+    
+    const modal = new bootstrap.Modal(document.getElementById('serviceLogsModal'));
+    modal.show();
+}
+
+function refreshLogs() {
+    const serviceName = document.getElementById('serviceLogsModalLabel').textContent.replace(' Logs', '');
+    
+    htmx.ajax('GET', `/testing/api/service-logs/${serviceName}`, {
+        target: '#service-logs-content',
+        swap: 'innerHTML'
+    });
+}
+
+// Test management functions
+function cancelTest(testId) {
+    if (confirm('Are you sure you want to cancel this test?')) {
+        htmx.ajax('POST', `/testing/api/job/${testId}/cancel`, {
+            target: '#active-tests-panel',
+            swap: 'innerHTML'
+        });
+    }
+}
+
+function restartTest(testId) {
+    if (confirm('Are you sure you want to restart this test?')) {
+        htmx.ajax('POST', `/testing/api/job/${testId}/restart`, {
+            target: '#active-tests-panel',
+            swap: 'innerHTML'
+        });
+    }
+}
+
+function deleteTest(testId) {
+    if (confirm('Are you sure you want to delete this test? This action cannot be undone.')) {
+        htmx.ajax('DELETE', `/testing/api/job/${testId}`, {
+            target: '#test-history-panel',
+            swap: 'innerHTML'
+        });
+    }
+}
+
+// Auto-refresh functionality
+let autoRefreshInterval;
+
+function startAutoRefresh() {
+    autoRefreshInterval = setInterval(() => {
+        // Refresh active tests
+        htmx.ajax('GET', '/testing/api/active-tests', {
+            target: '#active-tests-panel',
+            swap: 'innerHTML'
+        });
+        
+        // Refresh service status
+        htmx.ajax('GET', '/testing/api/service-status', {
+            target: '#service-status-panel',
+            swap: 'innerHTML'
+        });
+    }, 10000); // Refresh every 10 seconds
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+}
+
+// Start auto-refresh when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    startAutoRefresh();
+});
+
+// Stop auto-refresh when page is hidden
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        stopAutoRefresh();
+    } else {
+        startAutoRefresh();
+    }
+});
+
+// Batch operations
+function selectAllTests() {
+    const checkboxes = document.querySelectorAll('input[name="selected_tests"]');
+    checkboxes.forEach(checkbox => checkbox.checked = true);
+}
+
+function deselectAllTests() {
+    const checkboxes = document.querySelectorAll('input[name="selected_tests"]');
+    checkboxes.forEach(checkbox => checkbox.checked = false);
+}
+
+function batchDeleteTests() {
+    const selectedTests = Array.from(document.querySelectorAll('input[name="selected_tests"]:checked'))
+                              .map(checkbox => checkbox.value);
+    
+    if (selectedTests.length === 0) {
+        alert('Please select tests to delete.');
+        return;
+    }
+    
+    if (confirm(`Are you sure you want to delete ${selectedTests.length} selected tests?`)) {
+        htmx.ajax('POST', '/testing/api/batch-delete', {
+            values: { test_ids: selectedTests },
+            target: '#test-history-panel',
+            swap: 'innerHTML'
+        });
+    }
+}
+
+function batchExportTests() {
+    const selectedTests = Array.from(document.querySelectorAll('input[name="selected_tests"]:checked'))
+                              .map(checkbox => checkbox.value);
+    
+    if (selectedTests.length === 0) {
+        alert('Please select tests to export.');
+        return;
+    }
+    
+    // Create a form and submit for download
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/testing/api/batch-export';
+    
+    selectedTests.forEach(testId => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'test_ids';
+        input.value = testId;
+        form.appendChild(input);
+    });
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+</script>
+{% endblock %}
