@@ -9,37 +9,36 @@ This module serves as a single source of truth for all shared constants.
 from enum import Enum
 from pathlib import Path
 
-
 # ===========================
 # APPLICATION CONSTANTS
 # ===========================
 
 class AppDefaults:
     """Application default configuration values."""
-    
+
     # Service timeouts
     CLEANUP_INTERVAL: int = 300  # 5 minutes
     IDLE_SCAN_TIMEOUT: int = 3600  # 1 hour
     MAX_ZAP_SCANS: int = 10
-    
+
     # Network configuration
     HOST: str = "127.0.0.1"
     PORT: int = 5000
-    
+
     # Threading and processing
     MAX_THREADS: int = 50
     BATCH_MAX_WORKERS: int = 4
-    
+
     # Timeouts
     REQUEST_TIMEOUT: int = 30
     DOCKER_TIMEOUT: int = 10
     CONTAINER_HEALTH_TIMEOUT: int = 60
     BUILD_TIMEOUT: int = 300
-    
+
     # Cache settings
     CACHE_TTL: int = 300  # 5 minutes
     DOCKER_CACHE_TTL: int = 10  # 10 seconds
-    
+
     # Logging
     LOG_MAX_BYTES: int = 10 * 1024 * 1024  # 10MB
     LOG_BACKUP_COUNT: int = 5
@@ -47,7 +46,7 @@ class AppDefaults:
 
 class ServiceNames:
     """Standardized service names for service locator pattern."""
-    
+
     DOCKER_MANAGER = "docker_manager"
     SCAN_MANAGER = "scan_manager"
     MODEL_SERVICE = "model_service"
@@ -60,11 +59,11 @@ class ServiceNames:
 
 class ContainerNames:
     """Standard container naming patterns."""
-    
+
     BACKEND = "backend"
     FRONTEND = "frontend"
     DATABASE = "database"
-    
+
     @staticmethod
     def get_container_name(model: str, app_num: int, container_type: str) -> str:
         """Generate standardized container name."""
@@ -78,7 +77,7 @@ class ContainerNames:
 
 class BaseEnum(str, Enum):
     """Base enum class with string values for consistent behavior."""
-    
+
     def __str__(self):
         return self.value
 
@@ -229,26 +228,26 @@ class TestingStatus(BaseEnum):
 
 class Paths:
     """Centralized path definitions."""
-    
+
     # Base paths
     SRC_DIR = Path(__file__).parent
     PROJECT_ROOT = SRC_DIR.parent
-    
+
     # Data directories
     MISC_DIR = PROJECT_ROOT / "misc"
     MODELS_DIR = MISC_DIR / "models"
     LOGS_DIR = PROJECT_ROOT / "logs"
     DATA_DIR = SRC_DIR / "data"
     REPORTS_DIR = PROJECT_ROOT / "reports"
-    
+
     # Configuration files
     PORT_CONFIG = MISC_DIR / "port_config.json"
     MODEL_CAPABILITIES = MISC_DIR / "model_capabilities.json"
     MODELS_SUMMARY = MISC_DIR / "models_summary.json"
-    
+
     # Testing infrastructure
     TESTING_INFRASTRUCTURE = PROJECT_ROOT / "testing-infrastructure"
-    
+
     @classmethod
     def ensure_directories(cls):
         """Ensure all required directories exist."""
@@ -265,18 +264,18 @@ class Paths:
 
 class NetworkConfig:
     """Network configuration constants."""
-    
+
     # Port ranges
     BACKEND_PORT_START = 5001
     FRONTEND_PORT_START = 8001
     TESTING_SERVICES_PORT_START = 8000
-    
+
     # Service ports
     SECURITY_SCANNER_PORT = 8001
     PERFORMANCE_TESTER_PORT = 8002
     ZAP_SCANNER_PORT = 8003
     API_GATEWAY_PORT = 8000
-    
+
     # URLs
     TESTING_SERVICES_BASE_URL = "http://localhost:8000"
 
@@ -287,7 +286,7 @@ class NetworkConfig:
 
 class ErrorMessages:
     """Standardized error messages."""
-    
+
     SERVICE_NOT_FOUND = "Service '{service_name}' not found"
     DOCKER_NOT_AVAILABLE = "Docker service is not available"
     CONTAINER_NOT_FOUND = "Container '{container_name}' not found"
@@ -303,7 +302,7 @@ class ErrorMessages:
 
 class HTTPStatus:
     """HTTP status codes for API responses."""
-    
+
     OK = 200
     CREATED = 201
     ACCEPTED = 202
