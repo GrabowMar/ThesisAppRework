@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Application Docker - {{ app_info.model }}/App {{ app_info.app_num }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Docker Containers - {{ model }}/App {{ app_num }}</h5>
+                </div>
+                <div class="card-body">
+                    <p>Docker container management for this application.</p>
+                    
+                    {% if container_statuses %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Backend Container</h6>
+                            <span class="badge badge-{{ 'success' if container_statuses.backend == 'running' else 'secondary' }}">
+                                {{ container_statuses.backend|title }}
+                            </span>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Frontend Container</h6>
+                            <span class="badge badge-{{ 'success' if container_statuses.frontend == 'running' else 'secondary' }}">
+                                {{ container_statuses.frontend|title }}
+                            </span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No container information available.</p>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-success" onclick="startContainers()">Start</button>
+                        <button class="btn btn-warning" onclick="stopContainers()">Stop</button>
+                        <button class="btn btn-info" onclick="restartContainers()">Restart</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function startContainers() {
+    // Container management functionality would go here
+    alert('Start containers functionality not implemented in minimal template');
+}
+
+function stopContainers() {
+    alert('Stop containers functionality not implemented in minimal template');
+}
+
+function restartContainers() {
+    alert('Restart containers functionality not implemented in minimal template');
+}
+</script>
+{% endblock %}

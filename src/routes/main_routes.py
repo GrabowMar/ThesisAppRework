@@ -377,68 +377,82 @@ def models_overview():
         provider = request.args.get('provider', '').strip()
         sort_by = request.args.get('sort', 'model_name')
         
-        # Build query
-        query = ModelCapability.query
+        # Build query with error handling for missing tables
+        try:
+            query = ModelCapability.query
+            
+            if search:
+                pattern = f"%{search}%"
+                query = query.filter(
+                    ModelCapability.model_name.ilike(pattern) |
+                    ModelCapability.model_id.ilike(pattern) |
+                    ModelCapability.provider.ilike(pattern)
+                )
+            
+            if provider:
+                query = query.filter_by(provider=provider)
+            
+            # Apply sorting
+            sort_map = {
+                'provider': ModelCapability.provider,
+                'context_window': ModelCapability.context_window.desc(),
+                'input_price': ModelCapability.input_price_per_token.asc(),
+                'output_price': ModelCapability.output_price_per_token.asc(),
+                'safety_score': ModelCapability.safety_score.desc(),
+                'cost_efficiency': ModelCapability.cost_efficiency.desc()
+            }
+            query = query.order_by(sort_map.get(sort_by, ModelCapability.model_name))
+            
+            models = query.all()
+            
+            # Get unique providers
+            providers = db.session.query(ModelCapability.provider).distinct().order_by(ModelCapability.provider).all()
+            providers = [p.provider for p in providers]
+            
+        except Exception as e:
+            logger.warning(f"Could not query models: {e}")
+            models = []
+            providers = []
         
-        if search:
-            pattern = f"%{search}%"
-            query = query.filter(
-                ModelCapability.model_name.ilike(pattern) |
-                ModelCapability.model_id.ilike(pattern) |
-                ModelCapability.provider.ilike(pattern)
-            )
-        
-        if provider:
-            query = query.filter_by(provider=provider)
-        
-        # Apply sorting
-        sort_map = {
-            'provider': ModelCapability.provider,
-            'context_window': ModelCapability.context_window.desc(),
-            'input_price': ModelCapability.input_price_per_token.asc(),
-            'output_price': ModelCapability.output_price_per_token.asc(),
-            'safety_score': ModelCapability.safety_score.desc(),
-            'cost_efficiency': ModelCapability.cost_efficiency.desc()
-        }
-        query = query.order_by(sort_map.get(sort_by, ModelCapability.model_name))
-        
-        models = query.all()
-        
-        # Get unique providers
-        providers = db.session.query(ModelCapability.provider).distinct().order_by(ModelCapability.provider).all()
-        providers = [p.provider for p in providers]
-        
-        # Get app statistics
-        app_stats = db.session.query(
-            GeneratedApplication.model_slug,
-            func.count(GeneratedApplication.id).label('total_apps'),
-            func.count(func.nullif(GeneratedApplication.generation_status, 'pending')).label('generated_apps'),
-            func.count(func.nullif(GeneratedApplication.container_status, 'stopped')).label('running_containers')
-        ).group_by(GeneratedApplication.model_slug).all()
-        
-        app_stats_dict = {stat.model_slug: stat for stat in app_stats}
+        # Get app statistics with error handling
+        try:
+            app_stats = db.session.query(
+                GeneratedApplication.model_slug,
+                func.count(GeneratedApplication.id).label('total_apps'),
+                func.count(func.nullif(GeneratedApplication.generation_status, 'pending')).label('generated_apps'),
+                func.count(func.nullif(GeneratedApplication.container_status, 'stopped')).label('running_containers')
+            ).group_by(GeneratedApplication.model_slug).all()
+            
+            app_stats_dict = {stat.model_slug: stat for stat in app_stats}
+        except Exception as e:
+            logger.warning(f"Could not query app statistics: {e}")
+            app_stats_dict = {}
         
         # Enhance models with statistics
         enhanced_models = []
         for model in models:
-            model_data = model.to_dict()
-            
-            # Add app statistics
-            if model.canonical_slug in app_stats_dict:
-                stat = app_stats_dict[model.canonical_slug]
-                model_data.update({
-                    'total_apps': stat.total_apps,
-                    'generated_apps': stat.generated_apps,
-                    'running_containers': stat.running_containers
-                })
-            else:
-                model_data.update({
-                    'total_apps': 0,
-                    'generated_apps': 0,
-                    'running_containers': 0
-                })
-            
-            enhanced_models.append(model_data)
+            try:
+                model_data = model.to_dict()
+                
+                # Add app statistics
+                if model.canonical_slug in app_stats_dict:
+                    stat = app_stats_dict[model.canonical_slug]
+                    model_data.update({
+                        'total_apps': stat.total_apps,
+                        'generated_apps': stat.generated_apps,
+                        'running_containers': stat.running_containers
+                    })
+                else:
+                    model_data.update({
+                        'total_apps': 0,
+                        'generated_apps': 0,
+                        'running_containers': 0
+                    })
+                
+                enhanced_models.append(model_data)
+            except Exception as e:
+                logger.warning(f"Error processing model {model.model_id}: {e}")
+                continue
         
         # Calculate summary statistics
         summary_stats = {
@@ -449,7 +463,7 @@ def models_overview():
             'vision_models': sum(1 for m in enhanced_models if m.get('supports_vision')),
             'function_calling_models': sum(1 for m in enhanced_models if m.get('supports_function_calling')),
             'free_models': sum(1 for m in enhanced_models if m.get('is_free')),
-            'avg_context_window': sum(m.get('context_window', 0) for m in enhanced_models) // max(1, len(enhanced_models))
+            'avg_context_window': sum(m.get('context_window', 0) for m in enhanced_models) // max(1, len(enhanced_models)) if enhanced_models else 0
         }
         
         context = {
