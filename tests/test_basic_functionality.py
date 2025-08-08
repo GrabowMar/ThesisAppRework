@@ -4,7 +4,6 @@ Simple test to verify basic route functionality without Flask test client issues
 import pytest
 from pathlib import Path
 import sys
-import os
 
 # Add src to path
 src_path = Path(__file__).parent.parent.parent / "src"
@@ -43,11 +42,11 @@ def test_route_functions_exist():
     """Test that route handler functions exist."""
     try:
         from web_routes import (
-            main_bp, api_bp, statistics_bp, batch_bp, docker_bp
+            main_bp, api_bp, statistics_bp, batch_bp, containers_bp
         )
         
         # Check blueprints exist
-        blueprints = [main_bp, api_bp, statistics_bp, batch_bp, docker_bp]
+        blueprints = [main_bp, api_bp, statistics_bp, batch_bp, containers_bp]
         
         for bp in blueprints:
             assert bp is not None, f"Blueprint {bp.name} is None"
@@ -61,13 +60,11 @@ def test_service_helpers_exist():
     """Test that service helper functions exist."""
     try:
         from web_routes import (
-            get_settings, get_app_status, get_container_logs,
-            get_app_files, get_file_content
+            get_infrastructure_status, get_test_stats
         )
         
         # These should be callable functions
-        helpers = [get_settings, get_app_status, get_container_logs,
-                  get_app_files, get_file_content]
+        helpers = [get_infrastructure_status, get_test_stats]
         
         for helper in helpers:
             assert callable(helper), f"Helper {helper.__name__} is not callable"

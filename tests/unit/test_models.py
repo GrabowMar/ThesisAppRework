@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 from models import (
     ModelCapability, PortConfiguration, GeneratedApplication,
-    SecurityAnalysis, PerformanceTest, BatchAnalysis,
-    AnalysisStatus, SeverityLevel
+    SecurityAnalysis, PerformanceTest, BatchAnalysis
 )
+from constants import AnalysisStatus, SeverityLevel
 from extensions import db
 
 

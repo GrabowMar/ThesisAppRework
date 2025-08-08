@@ -738,6 +738,16 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             # Create service manager and store in app config  
             app.config['service_manager'] = ServiceManager(app)
             
+            # Initialize Celery for background task processing
+            try:
+                from .tasks import celery_app
+                celery_app.conf.update(app.config)
+                app.config['celery'] = celery_app
+                app.logger.info("Celery background task system initialized")
+            except ImportError as celery_error:
+                app.logger.warning(f"Celery not available: {celery_error}")
+                app.config['celery'] = None
+            
             # Unified CLI analyzer provides batch operations and testing infrastructure
             app.logger.info("Unified CLI analyzer services available")
             
@@ -798,7 +808,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             'services': {
                 'unified_cli_analyzer': True,  # Always available via unified CLI analyzer
                 'docker_manager': app.config.get('docker_manager') is not None,
-                'service_manager': app.config.get('service_manager') is not None
+                'service_manager': app.config.get('service_manager') is not None,
+                'celery': app.config.get('celery') is not None
             }
         })
     
@@ -819,20 +830,22 @@ def main() -> int:
     # Print a cleaner application banner
     print(f"""
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃            Thesis Research App 2.0              ┃
-    ┃                HTMX Edition                     ┃
+    ┃            Thesis Research App 3.0              ┃
+    ┃          HTMX + Celery Edition                  ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
     
     🚀 Server running at: http://{host}:{port}
     🔧 Mode: {'Development' if debug else 'Production'}
-    ⚡ Features: HTMX Integration, Docker Manager, Batch Processing
+    ⚡ Features: HTMX Integration, Docker Manager, Celery Tasks
     
     📊 Available Tools:
        • Security Analysis & Scanning
        • Performance Testing
        • AI Model Integration
        • Docker Container Management
+       • Background Task Processing
     
+    🔥 Start Celery worker: python celery_worker.py
     💡 {'Auto-reload enabled' if debug else 'Running in optimized mode'}
     """)
     

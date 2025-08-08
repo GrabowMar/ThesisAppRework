@@ -445,6 +445,18 @@ class ServiceLocator:
     def get_model_validation_service():
         """Get model validation service."""
         return ServiceLocator.get_service("MODEL_VALIDATION_SERVICE")
+    
+    @staticmethod
+    def get_celery():
+        """Get Celery instance for background tasks."""
+        if has_app_context():
+            return current_app.config.get('celery')
+        return None
+    
+    @staticmethod
+    def get_task_service():
+        """Get task management service (Celery-based)."""
+        return ServiceLocator.get_celery()
 
 
 def get_service(name: str, service_type: Type[T] = None) -> Optional[T]:

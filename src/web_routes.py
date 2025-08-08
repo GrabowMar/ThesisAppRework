@@ -4175,6 +4175,156 @@ def view_job(job_id: str):
 
 
 # ===========================
+# TASK MANAGEMENT ROUTES (CELERY)
+# ===========================
+
+@api_bp.route("/tasks/<task_id>/status")
+def get_task_status(task_id):
+    """Get status of a Celery background task."""
+    try:
+        celery_app = ServiceLocator.get_celery()
+        if not celery_app:
+            return ResponseHandler.error_response("Task service not available", 503)
+        
+        # Get task result
+        result = celery_app.AsyncResult(task_id)
+        
+        status_data = {
+            'task_id': task_id,
+            'status': result.status,
+            'ready': result.ready(),
+            'successful': result.successful() if result.ready() else None,
+            'failed': result.failed() if result.ready() else None
+        }
+        
+        # Add result data if completed
+        if result.ready():
+            if result.successful():
+                status_data['result'] = result.result
+            elif result.failed():
+                status_data['error'] = str(result.result)
+                status_data['traceback'] = getattr(result.result, 'traceback', None)
+        else:
+            # Add progress info if available
+            if result.state == 'PROGRESS':
+                status_data['progress'] = result.info
+        
+        return ResponseHandler.success_response(data=status_data)
+        
+    except Exception as e:
+        logger.error(f"Task status error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/tasks/<task_id>/cancel", methods=["POST"])
+def cancel_task(task_id):
+    """Cancel a running Celery task."""
+    try:
+        celery_app = ServiceLocator.get_celery()
+        if not celery_app:
+            return ResponseHandler.error_response("Task service not available", 503)
+        
+        # Revoke the task
+        celery_app.control.revoke(task_id, terminate=True)
+        
+        return ResponseHandler.success_response(
+            message=f"Task {task_id} cancellation requested"
+        )
+        
+    except Exception as e:
+        logger.error(f"Task cancel error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/tasks/security/<model>/<int:app_num>", methods=["POST"])
+def start_security_analysis_task(model, app_num):
+    """Start security analysis as background task."""
+    try:
+        celery_app = ServiceLocator.get_celery()
+        if not celery_app:
+            return ResponseHandler.error_response("Task service not available", 503)
+        
+        # Get analysis configuration
+        data = request.get_json() or {}
+        tools = data.get('tools', ['bandit', 'safety', 'eslint'])
+        
+        # Import task function
+        from tasks import run_security_analysis_task
+        
+        # Start background task
+        result = run_security_analysis_task.delay(model, app_num, tools)
+        
+        return ResponseHandler.success_response(
+            data={'task_id': result.id},
+            message=f"Security analysis started for {model} app {app_num}"
+        )
+        
+    except Exception as e:
+        logger.error(f"Start security analysis task error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/tasks/performance/<model>/<int:app_num>", methods=["POST"])
+def start_performance_test_task(model, app_num):
+    """Start performance test as background task."""
+    try:
+        celery_app = ServiceLocator.get_celery()
+        if not celery_app:
+            return ResponseHandler.error_response("Task service not available", 503)
+        
+        # Get test configuration
+        data = request.get_json() or {}
+        config = {
+            'duration': data.get('duration', 60),
+            'users': data.get('users', 10),
+            'spawn_rate': data.get('spawn_rate', 1.0)
+        }
+        
+        # Import task function
+        from tasks import run_performance_test_task
+        
+        # Start background task
+        result = run_performance_test_task.delay(model, app_num, config)
+        
+        return ResponseHandler.success_response(
+            data={'task_id': result.id},
+            message=f"Performance test started for {model} app {app_num}"
+        )
+        
+    except Exception as e:
+        logger.error(f"Start performance test task error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+@api_bp.route("/tasks/ai-analysis/<model>/<int:app_num>", methods=["POST"])
+def start_ai_analysis_task(model, app_num):
+    """Start AI analysis as background task."""
+    try:
+        celery_app = ServiceLocator.get_celery()
+        if not celery_app:
+            return ResponseHandler.error_response("Task service not available", 503)
+        
+        # Get analysis requirements
+        data = request.get_json() or {}
+        requirements = data.get('requirements', 'Perform comprehensive code analysis')
+        
+        # Import task function
+        from tasks import run_openrouter_analysis_task
+        
+        # Start background task
+        result = run_openrouter_analysis_task.delay(model, app_num, requirements)
+        
+        return ResponseHandler.success_response(
+            data={'task_id': result.id},
+            message=f"AI analysis started for {model} app {app_num}"
+        )
+        
+    except Exception as e:
+        logger.error(f"Start AI analysis task error: {e}")
+        return ResponseHandler.error_response(str(e))
+
+
+# ===========================
 # PERFORMANCE & SECURITY ANALYSIS ROUTES
 # ===========================
 
