@@ -41,7 +41,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python health_check.py
 
 # Expose port
-EXPOSE 8001
+EXPOSE 2001
 
 # Run the analyzer
 CMD ["python", "main.py"]

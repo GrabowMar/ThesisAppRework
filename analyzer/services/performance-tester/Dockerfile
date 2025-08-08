@@ -4,6 +4,8 @@ FROM python:3.11-slim
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    wget \
+    apache2-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -27,7 +29,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python health_check.py
 
 # Expose port
-EXPOSE 8003
+EXPOSE 2003
 
 # Run the analyzer
 CMD ["python", "main.py"]

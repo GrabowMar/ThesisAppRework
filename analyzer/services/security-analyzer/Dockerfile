@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
 
 # Create non-root user
 RUN useradd -m -u 1000 analyzer && \
-    mkdir -p /app /app/shared /app/sources /app/results && \
+    mkdir -p /app /app/sources /app/results && \
     chown -R analyzer:analyzer /app
 
 # Copy Python packages from build stage
@@ -29,7 +29,7 @@ COPY --from=build /root/.local /home/analyzer/.local
 
 # Copy application code
 COPY --chown=analyzer:analyzer main.py /app/
-COPY --chown=analyzer:analyzer ../../shared/ /app/shared/
+COPY --chown=analyzer:analyzer health_check.py /app/
 
 # Set environment
 ENV PATH=/home/analyzer/.local/bin:$PATH
@@ -42,10 +42,10 @@ WORKDIR /app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+    CMD python health_check.py
 
-# Expose port for health checks
-EXPOSE 8001
+# Expose port
+EXPOSE 2005
 
 # Run the security analyzer
 CMD ["python", "main.py"]

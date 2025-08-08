@@ -43,6 +43,7 @@ venv.bak/
 # Logs
 *.log
 logs/
+*.json
 
 # OS
 .DS_Store
@@ -56,6 +57,8 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+*results*.json
+*report*.json
 
 # Documentation
 docs/
@@ -65,3 +68,12 @@ README*
 # Development
 .env.example
 docker-compose.override.yml
+
+# Backup files
+*_backup.py
+*_old.py
+*_comprehensive.py
+*_clean.py
+
+# Test files (exclude from containers)
+test_*.py
