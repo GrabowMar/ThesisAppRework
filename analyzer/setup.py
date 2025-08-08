@@ -75,10 +75,10 @@ PYTHONPATH=/app
 # Service Configuration
 WEBSOCKET_HOST=0.0.0.0
 GATEWAY_PORT=8765
-STATIC_ANALYZER_PORT=8001
-DYNAMIC_ANALYZER_PORT=8002
-PERFORMANCE_TESTER_PORT=8003
-AI_ANALYZER_PORT=8004
+STATIC_ANALYZER_PORT=2001
+DYNAMIC_ANALYZER_PORT=2002
+PERFORMANCE_TESTER_PORT=2003
+AI_ANALYZER_PORT=2005
 
 # ZAP Configuration
 ZAP_PORT=8090
@@ -190,10 +190,10 @@ def check_service_health():
     print("\n🏥 Checking service health...")
     
     services = {
-        "static-analyzer": 8001,
-        "dynamic-analyzer": 8002,
-        "performance-tester": 8003,
-        "ai-analyzer": 8004
+        "static-analyzer": 2001,
+        "dynamic-analyzer": 2002,
+        "performance-tester": 2003,
+        "ai-analyzer": 2005
     }
     
     all_healthy = True
@@ -223,10 +223,10 @@ async def test_websocket_connectivity():
     print("\n🔌 Testing WebSocket connectivity...")
     
     services = {
-        "static-analyzer": 8001,
-        "dynamic-analyzer": 8002,
-        "performance-tester": 8003,
-        "ai-analyzer": 8004
+        "static-analyzer": 2001,
+        "dynamic-analyzer": 2002,
+        "performance-tester": 2003,
+        "ai-analyzer": 2005
     }
     
     for service, port in services.items():

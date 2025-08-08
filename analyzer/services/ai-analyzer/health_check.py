@@ -16,7 +16,7 @@ async def check_health() -> Dict[str, Any]:
         # Connect to the service
         uri = "ws://localhost:8004"
         
-        async with websockets.connect(uri, timeout=5) as websocket:
+        async with websockets.connect(uri, open_timeout=5) as websocket:
             # Send heartbeat message
             heartbeat_msg = {
                 "type": "heartbeat",

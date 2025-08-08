@@ -15,7 +15,7 @@
       "failed": 2,
       "success_rate": 0.0,
       "total_issues_found": 0,
-      "average_duration": 0.0556785
+      "average_duration": 4.12646
     }
   },
   "model_statistics": {
@@ -29,7 +29,7 @@
   "failure_analysis": {
     "total_failures": 2,
     "failure_reasons": {
-      "Unexpected error: BaseEventLoop.create_connection() got an unexpected keyword argument 'timeout'": 2
+      "Cannot connect to Static Analyzer at ws://localhost:8001": 2
     }
   },
   "test_details": [
@@ -47,11 +47,11 @@
         "has_docker_compose": true
       },
       "analyzer_type": "static",
-      "start_time": "2025-08-08T18:28:22.678689",
-      "end_time": "2025-08-08T18:28:22.789032",
+      "start_time": "2025-08-08T18:38:05.933618",
+      "end_time": "2025-08-08T18:38:10.134085",
       "success": false,
-      "error_message": "Unexpected error: BaseEventLoop.create_connection() got an unexpected keyword argument 'timeout'",
-      "duration_seconds": 0.110343,
+      "error_message": "Cannot connect to Static Analyzer at ws://localhost:8001",
+      "duration_seconds": 4.200467,
       "issues_found": 0,
       "status": "failed",
       "result_data": null
@@ -70,15 +70,15 @@
         "has_docker_compose": true
       },
       "analyzer_type": "static",
-      "start_time": "2025-08-08T18:28:22.789032",
-      "end_time": "2025-08-08T18:28:22.790046",
+      "start_time": "2025-08-08T18:38:10.134085",
+      "end_time": "2025-08-08T18:38:14.186538",
       "success": false,
-      "error_message": "Unexpected error: BaseEventLoop.create_connection() got an unexpected keyword argument 'timeout'",
-      "duration_seconds": 0.001014,
+      "error_message": "Cannot connect to Static Analyzer at ws://localhost:8001",
+      "duration_seconds": 4.052453,
       "issues_found": 0,
       "status": "failed",
       "result_data": null
     }
   ],
-  "generated_at": "2025-08-08T18:28:22.796309"
+  "generated_at": "2025-08-08T18:38:14.196331"
 }

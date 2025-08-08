@@ -54,25 +54,25 @@ logger = logging.getLogger(__name__)
 # Analyzer service configuration
 ANALYZER_SERVICES = {
     'static': {
-        'port': 8001,
+        'port': 2001,
         'name': 'Static Analyzer',
         'description': 'Code quality and security analysis',
         'timeout': 120
     },
     'dynamic': {
-        'port': 8002,
+        'port': 2002,
         'name': 'Dynamic Analyzer',
         'description': 'OWASP ZAP security scanning',
         'timeout': 300
     },
     'performance': {
-        'port': 8003,
+        'port': 2003,
         'name': 'Performance Tester',
         'description': 'Load testing with Locust',
         'timeout': 180
     },
     'ai': {
-        'port': 8004,
+        'port': 2005,
         'name': 'AI Analyzer',
         'description': 'OpenRouter-powered analysis',
         'timeout': 240
@@ -326,7 +326,7 @@ class AnalyzerTester:
         try:
             logger.info(f"Testing {analyzer_config['name']} on {app_info}")
             
-            async with websockets.connect(uri, timeout=10) as websocket:
+            async with websockets.connect(uri, open_timeout=10) as websocket:
                 # Prepare analysis request based on analyzer type
                 if analyzer_type == 'static':
                     request_data = {

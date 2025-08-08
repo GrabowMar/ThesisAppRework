@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Dynamic Analyzer Service - Simple WebSocket Server
-==================================================
+Static Analyzer Service - Simple WebSocket Server
+================================================
 
-A simple dynamic analysis service that responds to health checks and ping messages.
-This service listens on port 2002 and can be extended to perform actual dynamic analysis.
+A simple static analysis service that responds to health checks and ping messages.
+This service listens on port 8001 and can be extended to perform actual static analysis.
 
 Usage:
     python main.py
 
-The service will start on ws://localhost:2002
+The service will start on ws://localhost:8001
 """
 
 import asyncio
@@ -23,11 +23,11 @@ from websockets.asyncio.server import serve
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class DynamicAnalyzer:
-    """Simple dynamic analyzer service."""
+class StaticAnalyzer:
+    """Simple static analyzer service."""
     
     def __init__(self):
-        self.service_name = "dynamic-analyzer"
+        self.service_name = "static-analyzer"
         self.version = "1.0.0"
         self.start_time = datetime.now()
     
@@ -66,7 +66,7 @@ class DynamicAnalyzer:
                 app_number = message_data.get("app_number", 0)
                 
                 # Simulate analysis
-                await asyncio.sleep(2)  # Simulate processing time
+                await asyncio.sleep(1)  # Simulate processing time
                 
                 response = {
                     "type": "analysis_result",
@@ -75,15 +75,18 @@ class DynamicAnalyzer:
                     "app_number": app_number,
                     "service": self.service_name,
                     "results": {
-                        "execution_paths": 15,
-                        "vulnerabilities_found": 2,
-                        "performance_issues": 5,
-                        "security_score": 7.5
+                        "total_files": 10,
+                        "issues_found": 3,
+                        "severity_breakdown": {
+                            "high": 1,
+                            "medium": 1,
+                            "low": 1
+                        }
                     },
                     "timestamp": datetime.now().isoformat()
                 }
                 await websocket.send(json.dumps(response))
-                logger.info(f"Completed dynamic analysis for {model_slug} app {app_number}")
+                logger.info(f"Completed analysis for {model_slug} app {app_number}")
                 
             else:
                 # Unknown message type
@@ -109,7 +112,7 @@ class DynamicAnalyzer:
 
 async def handle_client(websocket):
     """Handle client connections."""
-    analyzer = DynamicAnalyzer()
+    analyzer = StaticAnalyzer()
     client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
     logger.info(f"New client connected: {client_addr}")
     
@@ -141,15 +144,15 @@ async def handle_client(websocket):
         logger.error(f"Unexpected error with client {client_addr}: {e}")
 
 async def main():
-    """Start the dynamic analyzer service."""
+    """Start the static analyzer service."""
     host = os.getenv('WEBSOCKET_HOST', 'localhost')
-    port = int(os.getenv('WEBSOCKET_PORT', 2002))
+    port = int(os.getenv('WEBSOCKET_PORT', 8001))
     
-    logger.info(f"Starting Dynamic Analyzer service on {host}:{port}")
+    logger.info(f"Starting Static Analyzer service on {host}:{port}")
     
     try:
         async with serve(handle_client, host, port):
-            logger.info(f"Dynamic Analyzer listening on ws://{host}:{port}")
+            logger.info(f"Static Analyzer listening on ws://{host}:{port}")
             logger.info("Service ready to accept connections")
             await asyncio.Future()  # Run forever
     except Exception as e:

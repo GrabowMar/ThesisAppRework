@@ -1,0 +1,246 @@
+{
+  "timestamp": "2025-08-08T19:36:49.203921",
+  "summary": {
+    "total_tests": 18,
+    "passed": 17,
+    "failed": 1
+  },
+  "tests": [
+    {
+      "name": "Database Connection",
+      "success": true,
+      "execution_time": 0.003233671188354492,
+      "error_message": "",
+      "details": {
+        "tables": [
+          "model_capabilities",
+          "port_configurations",
+          "batch_analyses",
+          "security_analyses",
+          "performance_tests",
+          "alembic_version",
+          "openrouter_analyses",
+          "zap_analyses",
+          "generated_applications",
+          "batch_jobs",
+          "batch_tasks",
+          "batch_workers",
+          "containerized_tests"
+        ]
+      }
+    },
+    {
+      "name": "Model Discovery",
+      "success": true,
+      "execution_time": 0.0029134750366210938,
+      "error_message": "",
+      "details": {
+        "models": 25,
+        "ports": 750,
+        "apps": 26
+      }
+    },
+    {
+      "name": "Service Availability - static",
+      "success": true,
+      "execution_time": 0.007195234298706055,
+      "error_message": "",
+      "details": {
+        "port": 2001,
+        "status": "running"
+      }
+    },
+    {
+      "name": "Service Availability - dynamic",
+      "success": true,
+      "execution_time": 0.003377676010131836,
+      "error_message": "",
+      "details": {
+        "port": 2002,
+        "status": "running"
+      }
+    },
+    {
+      "name": "Service Availability - performance",
+      "success": true,
+      "execution_time": 0.0027849674224853516,
+      "error_message": "",
+      "details": {
+        "port": 2003,
+        "status": "running"
+      }
+    },
+    {
+      "name": "Service Availability - security",
+      "success": true,
+      "execution_time": 0.0031681060791015625,
+      "error_message": "",
+      "details": {
+        "port": 2004,
+        "status": "running"
+      }
+    },
+    {
+      "name": "Service Availability - ai",
+      "success": true,
+      "execution_time": 0.0037970542907714844,
+      "error_message": "",
+      "details": {
+        "port": 2005,
+        "status": "running"
+      }
+    },
+    {
+      "name": "WebSocket Connection - static",
+      "success": true,
+      "execution_time": 0.1797163486480713,
+      "error_message": "",
+      "details": {
+        "response": {
+          "type": "pong",
+          "timestamp": "2025-08-08T19:36:49.123571",
+          "service": "static-analyzer"
+        }
+      }
+    },
+    {
+      "name": "WebSocket Connection - dynamic",
+      "success": true,
+      "execution_time": 0.006561994552612305,
+      "error_message": "",
+      "details": {
+        "response": {
+          "type": "pong",
+          "timestamp": "2025-08-08T19:36:49.131698",
+          "service": "dynamic-analyzer"
+        }
+      }
+    },
+    {
+      "name": "WebSocket Connection - performance",
+      "success": true,
+      "execution_time": 0.0067594051361083984,
+      "error_message": "",
+      "details": {
+        "response": {
+          "type": "pong",
+          "timestamp": "2025-08-08T19:36:49.139784",
+          "service": "performance-tester"
+        }
+      }
+    },
+    {
+      "name": "WebSocket Connection - security",
+      "success": true,
+      "execution_time": 0.006062746047973633,
+      "error_message": "",
+      "details": {
+        "response": {
+          "type": "pong",
+          "timestamp": "2025-08-08T19:36:49.147439",
+          "service": "security-analyzer"
+        }
+      }
+    },
+    {
+      "name": "WebSocket Connection - ai",
+      "success": true,
+      "execution_time": 0.006591081619262695,
+      "error_message": "",
+      "details": {
+        "response": {
+          "type": "pong",
+          "timestamp": "2025-08-08T19:36:49.155209",
+          "service": "ai-analyzer"
+        }
+      }
+    },
+    {
+      "name": "Service Health - static",
+      "success": true,
+      "execution_time": 0.005604267120361328,
+      "error_message": "",
+      "details": {
+        "health": {
+          "type": "health_response",
+          "status": "healthy",
+          "service": "static-analyzer",
+          "version": "1.0.0",
+          "uptime": 0.000867,
+          "timestamp": "2025-08-08T19:36:49.162723"
+        }
+      }
+    },
+    {
+      "name": "Service Health - dynamic",
+      "success": true,
+      "execution_time": 0.004859209060668945,
+      "error_message": "",
+      "details": {
+        "health": {
+          "type": "health_response",
+          "status": "healthy",
+          "service": "dynamic-analyzer",
+          "version": "1.0.0",
+          "uptime": 0.000846,
+          "timestamp": "2025-08-08T19:36:49.168865"
+        }
+      }
+    },
+    {
+      "name": "Service Health - performance",
+      "success": true,
+      "execution_time": 0.005913972854614258,
+      "error_message": "",
+      "details": {
+        "health": {
+          "type": "health_response",
+          "status": "healthy",
+          "service": "performance-tester",
+          "version": "1.0.0",
+          "uptime": 0.001102,
+          "timestamp": "2025-08-08T19:36:49.175446"
+        }
+      }
+    },
+    {
+      "name": "Service Health - security",
+      "success": true,
+      "execution_time": 0.008820056915283203,
+      "error_message": "",
+      "details": {
+        "health": {
+          "type": "health_response",
+          "status": "healthy",
+          "service": "security-analyzer",
+          "version": "1.0.0",
+          "uptime": 0.001039,
+          "timestamp": "2025-08-08T19:36:49.185541"
+        }
+      }
+    },
+    {
+      "name": "Service Health - ai",
+      "success": true,
+      "execution_time": 0.007814168930053711,
+      "error_message": "",
+      "details": {
+        "health": {
+          "type": "health_response",
+          "status": "healthy",
+          "service": "ai-analyzer",
+          "version": "1.0.0",
+          "uptime": 0.000818,
+          "timestamp": "2025-08-08T19:36:49.195003"
+        }
+      }
+    },
+    {
+      "name": "Model Analysis - static",
+      "success": false,
+      "execution_time": 0.0033316612243652344,
+      "error_message": "No test model available",
+      "details": {}
+    }
+  ]
+}
