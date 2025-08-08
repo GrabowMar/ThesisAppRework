@@ -878,25 +878,5 @@ def create_test_app() -> Flask:
     return app
 
 
-# Pytest compatibility functions
-def pytest_configure() -> None:
-    """Configure pytest for this application."""
-    pass
-
-
-def test_app_creation() -> None:
-    """Test that the application can be created successfully."""
-    app: Flask = create_test_app()
-    assert app is not None
-    assert app.config['TESTING'] is True
-
-
-def test_config_loading() -> None:
-    """Test that configuration is loaded correctly."""
-    app: Flask = create_test_app()
-    assert app.config['SECRET_KEY'] is not None
-    assert app.config['SQLALCHEMY_DATABASE_URI'] is not None
-
-
 if __name__ == '__main__':
     exit(main())

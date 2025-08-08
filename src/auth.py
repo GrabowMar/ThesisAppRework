@@ -100,9 +100,7 @@ class User(UserMixin, db.Model):
         """Check if user is admin."""
         return self.role == 'admin'
     
-    def is_researcher(self) -> bool:
-        """Check if user is researcher or admin."""
-        return self.role in ['researcher', 'admin']
+
     
     def can_create_batch_jobs(self) -> bool:
         """Check if user can create batch jobs."""
@@ -134,18 +132,7 @@ class User(UserMixin, db.Model):
             return False
         return utc_now() < self.locked_until
     
-    def record_api_request(self) -> None:
-        """Record API request for rate limiting."""
-        self.api_requests_count += 1
-        
-        # Reset counter daily
-        if self.api_requests_last_reset:
-            from datetime import timedelta
-            if utc_now() - self.api_requests_last_reset > timedelta(days=1):
-                self.api_requests_count = 1
-                self.api_requests_last_reset = utc_now()
-        else:
-            self.api_requests_last_reset = utc_now()
+
     
     def get_api_rate_limit(self) -> int:
         """Get daily API rate limit based on role."""
@@ -156,11 +143,7 @@ class User(UserMixin, db.Model):
         }
         return limits.get(self.role, 100)
     
-    def can_make_api_request(self) -> bool:
-        """Check if user can make an API request."""
-        if not self.can_access_api():
-            return False
-        return self.api_requests_count < self.get_api_rate_limit()
+
     
     def get_preferences(self) -> dict:
         """Get user preferences."""
@@ -173,10 +156,7 @@ class User(UserMixin, db.Model):
         except json.JSONDecodeError:
             return {}
     
-    def set_preferences(self, preferences: dict) -> None:
-        """Set user preferences."""
-        import json
-        self.preferences_json = json.dumps(preferences)
+
     
     def get_full_name(self) -> str:
         """Get user's full name."""
@@ -352,22 +332,4 @@ def create_default_admin() -> Optional[User]:
         return None
 
 
-def get_user_by_api_key(api_key: str) -> Optional[User]:
-    """Get user by API key."""
-    if not api_key:
-        return None
-    
-    return User.query.filter_by(api_key=api_key, is_active=True).first()
 
-
-def get_user_by_token(token: str) -> Optional[User]:
-    """Get user by session token."""
-    if not token:
-        return None
-    
-    session_token = SessionToken.query.filter_by(token=token).first()
-    if not session_token or not session_token.is_valid():
-        return None
-    
-    session_token.record_usage()
-    return session_token.user

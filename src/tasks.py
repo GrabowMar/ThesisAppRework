@@ -6,19 +6,17 @@ Asynchronous task implementations for long-running analysis operations.
 """
 
 import json
-import time
 import traceback
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
 from celery import Celery, current_task
-from celery.exceptions import Retry
 from flask import Flask
 
 try:
     from .celery_config import *
     from .models import (
-        SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis,
+        SecurityAnalysis, PerformanceTest, OpenRouterAnalysis,
         BatchJob, BatchTask, GeneratedApplication, db
     )
     from .constants import AnalysisStatus, TaskStatus, JobStatus
@@ -28,7 +26,7 @@ try:
 except ImportError:
     from celery_config import *
     from models import (
-        SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis,
+        SecurityAnalysis, PerformanceTest, OpenRouterAnalysis,
         BatchJob, BatchTask, GeneratedApplication, db
     )
     from constants import AnalysisStatus, TaskStatus, JobStatus
