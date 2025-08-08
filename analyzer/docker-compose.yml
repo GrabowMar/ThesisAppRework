@@ -1,0 +1,272 @@
+# Modern Docker Compose for Analyzer Infrastructure
+# Uses 2025 best practices: no version field, health checks, non-root users
+
+services:
+  # WebSocket Gateway
+  gateway:
+    build: .
+    ports:
+      - "8765:8765"
+    environment:
+      - LOG_LEVEL=INFO
+      - GATEWAY_HOST=0.0.0.0
+      - GATEWAY_PORT=8765
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio; import websockets; asyncio.run(websockets.connect('ws://localhost:8765')).__aenter__()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    depends_on:
+      security-analyzer:
+        condition: service_healthy
+      performance-tester:
+        condition: service_healthy
+      dependency-scanner:
+        condition: service_healthy
+
+  # Security Analyzer Service
+  security-analyzer:
+    build: ./services/security-analyzer
+    environment:
+      - LOG_LEVEL=INFO
+      - GATEWAY_URI=ws://gateway:8765
+      - SERVICE_ID=security-analyzer-1
+      - PYTHONPATH=/app
+    volumes:
+      - ../misc/models:/app/sources:ro
+      - security-results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Performance Tester Service
+  performance-tester:
+    build: ./services/performance-tester
+    environment:
+      - LOG_LEVEL=INFO
+      - GATEWAY_URI=ws://gateway:8765
+      - SERVICE_ID=performance-tester-1
+      - PYTHONPATH=/app
+    volumes:
+      - performance-reports:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Dependency Scanner Service
+  dependency-scanner:
+    build: ./services/dependency-scanner
+    environment:
+      - LOG_LEVEL=INFO
+      - GATEWAY_URI=ws://gateway:8765
+      - SERVICE_ID=dependency-scanner-1
+      - PYTHONPATH=/app
+    volumes:
+      - ../misc/models:/app/sources:ro
+      - dependency-results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8003/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Code Quality Service
+  code-quality:
+    build: ./services/code-quality
+    environment:
+      - LOG_LEVEL=INFO
+      - GATEWAY_URI=ws://gateway:8765
+      - SERVICE_ID=code-quality-1
+      - PYTHONPATH=/app
+    volumes:
+      - ../misc/models:/app/sources:ro
+      - quality-results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8004/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # AI Analyzer Service
+  ai-analyzer:
+    build: ./services/ai-analyzer
+    environment:
+      - LOG_LEVEL=INFO
+      - GATEWAY_URI=ws://gateway:8765
+      - SERVICE_ID=ai-analyzer-1
+      - PYTHONPATH=/app
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - ../misc/models:/app/sources:ro
+      - ai-results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8005/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Redis for caching and task queues
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    user: "999:999"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    user: "nobody"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    user: "472:472"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+
+volumes:
+  security-results:
+    driver: local
+  performance-reports:
+    driver: local
+  dependency-results:
+    driver: local
+  quality-results:
+    driver: local
+  ai-results:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  analyzer-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
