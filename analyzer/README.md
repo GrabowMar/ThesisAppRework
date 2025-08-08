@@ -1,442 +1,270 @@
-# Analyzer Infrastructure
+# Analyzer Infrastructure Testing on Real Models
 
-Containerized microservices for comprehensive application analysis including security, performance, and AI-powered requirements testing.
+This directory contains comprehensive testing tools for the analyzer infrastructure using real AI-generated models from the `misc/models/` directory.
 
-## Overview
+## 🎯 Overview
 
-This infrastructure provides four specialized analyzer services:
+The testing infrastructure validates four analyzer services against actual AI-generated applications:
 
-1. **Static Analyzer** - Security and quality analysis using multiple tools
-2. **Dynamic Analyzer** - OWASP ZAP-based security scanning  
-3. **Performance Tester** - Locust-based load testing
-4. **AI Analyzer** - OpenRouter-powered requirements and code analysis
+1. **Static Analyzer** (Port 8001): Code quality and security analysis using Bandit, Pylint, ESLint
+2. **Dynamic Analyzer** (Port 8002): OWASP ZAP security scanning for running applications  
+3. **Performance Tester** (Port 8003): Load testing using Locust
+4. **AI Analyzer** (Port 8004): OpenRouter-powered code analysis and requirements checking
 
-All services communicate via WebSocket protocols and can analyze applications stored in the `misc/models/` directory.
+## 📊 Database-Driven Testing
 
-## Architecture
+All test targets are automatically discovered from the database:
+- **PortConfiguration**: Localhost addresses and port assignments for each model/app
+- **ModelCapability**: Metadata about AI models and their capabilities
+- **GeneratedApplication**: Application instances and their status
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Web App       │    │   Gateway       │    │   Services      │
-│   (src/)        │───▶│   (WebSocket)   │───▶│   Container     │
-│                 │    │   Port 8765     │    │   Network       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                               │
-                      ┌────────────────────────┼────────────────────────┐
-                      │                        │                        │
-            ┌─────────▼──┐            ┌───────▼───┐            ┌───────▼───┐
-            │  Static    │            │  Dynamic  │            │Performance│
-            │ Analyzer   │            │ Analyzer  │            │  Tester   │
-            │ Port 8001  │            │Port 8002  │            │Port 8003  │
-            └────────────┘            └───────────┘            └───────────┘
-                      │                        │                        │
-                      │                ┌───────▼───┐                    │
-                      │                │    AI     │                    │
-                      │                │ Analyzer  │                    │
-                      │                │Port 8004  │                    │
-                      │                └───────────┘                    │
-                      │                        │                        │
-                      └────────────────────────┼────────────────────────┘
-                                               │
-                                    ┌─────────▼──┐
-                                    │   Redis    │
-                                    │   Cache    │
-                                    └────────────┘
-```
+**Current Test Data**: 25 AI models, 750 port configurations, 30 applications per model
 
-## Services
+## 🚀 Quick Start
 
-### Static Analyzer (Port 8001)
-**Purpose**: Frontend and backend security/quality analysis  
-**Tools**: Bandit, Safety, Pylint, ESLint, Stylelint  
-**Languages**: Python, JavaScript/TypeScript, CSS, HTML
-
-**Features**:
-- Multi-language static analysis
-- Security vulnerability detection
-- Code quality assessment
-- Dependency security scanning
-- Comprehensive reporting
-
-### Dynamic Analyzer (Port 8002)
-**Purpose**: Runtime security testing  
-**Tools**: OWASP ZAP v2.14.0  
-**Target**: Running web applications
-
-**Features**:
-- Spider crawling for endpoint discovery
-- Active security scanning
-- Vulnerability assessment
-- OWASP Top 10 coverage
-- Dynamic penetration testing
-
-### Performance Tester (Port 8003)
-**Purpose**: Load testing and performance analysis  
-**Tools**: Locust framework  
-**Scenarios**: Basic load, stress test, spike test, endurance test
-
-**Features**:
-- Multiple load testing scenarios
-- Real-time performance monitoring
-- Bottleneck identification
-- Scalability assessment
-- Performance score calculation
-
-### AI Analyzer (Port 8004)
-**Purpose**: AI-powered code and requirements analysis  
-**Tools**: OpenRouter API integration  
-**Analysis Types**: Requirements check, code review, security audit, architecture review, documentation check
-
-**Features**:
-- Requirements compliance verification
-- AI-powered code review
-- Security audit with AI insights
-- Architecture pattern analysis
-- Documentation completeness check
-
-## Quick Start
-
-### Prerequisites
-- Docker and Docker Compose
-- OpenRouter API key (for AI analysis)
-- Windows environment (tested on Windows 11)
-
-### Environment Setup
-
-1. **Clone and navigate to analyzer directory**:
-   ```powershell
-   cd analyzer/
-   ```
-
-2. **Set up environment variables** (create `.env` file):
-   ```bash
-   OPENROUTER_API_KEY=your_openrouter_api_key_here
-   LOG_LEVEL=INFO
-   ```
-
-3. **Build and start services**:
-   ```powershell
-   docker-compose up --build
-   ```
-
-4. **Verify services are running**:
-   ```powershell
-   # Check all services
-   docker-compose ps
-   
-   # Test individual services
-   docker-compose exec static-analyzer python health_check.py
-   docker-compose exec dynamic-analyzer python health_check.py
-   docker-compose exec performance-tester python health_check.py
-   docker-compose exec ai-analyzer python health_check.py
-   ```
-
-### Testing the Services
-
-**Static Analysis Example**:
-```python
-import asyncio
-import websockets
-import json
-
-async def test_static_analysis():
-    uri = "ws://localhost:8001"
-    async with websockets.connect(uri) as websocket:
-        request = {
-            "type": "analysis_request",
-            "data": {
-                "analysis_type": "static",
-                "source_path": "/app/sources/anthropic_claude-3.7-sonnet/app1",
-                "tools": ["bandit", "pylint", "eslint"]
-            }
-        }
-        await websocket.send(json.dumps(request))
-        response = await websocket.recv()
-        print("Static Analysis Result:", json.loads(response))
-
-asyncio.run(test_static_analysis())
-```
-
-**Performance Testing Example**:
-```python
-import asyncio
-import websockets
-import json
-
-async def test_performance():
-    uri = "ws://localhost:8003"
-    async with websockets.connect(uri) as websocket:
-        request = {
-            "type": "analysis_request", 
-            "data": {
-                "analysis_type": "performance",
-                "target_url": "http://localhost:3000",
-                "scenario": "stress_test",
-                "duration": 60,
-                "users": 10
-            }
-        }
-        await websocket.send(json.dumps(request))
-        response = await websocket.recv()
-        print("Performance Test Result:", json.loads(response))
-
-asyncio.run(test_performance())
-```
-
-## Configuration
-
-### Service Ports
-- **Gateway**: 8765 (WebSocket coordination)
-- **Static Analyzer**: 8001
-- **Dynamic Analyzer**: 8002 (ZAP on 8090 internally)
-- **Performance Tester**: 8003
-- **AI Analyzer**: 8004
-- **Redis**: 6379 (internal)
-
-### Volume Mounts
-- **Source Code**: `../misc/models:/app/sources:ro` (read-only)
-- **Results**: Individual volumes per service
-- **Redis Data**: Persistent cache storage
-
-### Resource Limits
-- **Static/AI Analyzers**: 1-2GB RAM, 0.5-1.0 CPU
-- **Dynamic Analyzer**: 2GB RAM, 1.0 CPU (ZAP requirements)
-- **Performance Tester**: 2GB RAM, 1.0 CPU
-- **Redis**: 256MB RAM, 0.1 CPU
-
-## API Protocol
-
-All services use a unified WebSocket protocol with the following message types:
-
-### Request Format
-```json
-{
-  "type": "analysis_request",
-  "id": "unique_request_id",
-  "timestamp": "2025-01-27T10:00:00Z",
-  "data": {
-    "analysis_type": "static|dynamic|performance|ai",
-    "source_path": "/app/sources/model/app1",
-    "configuration": {...}
-  }
-}
-```
-
-### Response Format
-```json
-{
-  "type": "analysis_result",
-  "id": "response_id",
-  "correlation_id": "request_id",
-  "timestamp": "2025-01-27T10:05:00Z",
-  "data": {
-    "analysis_id": "uuid",
-    "status": "completed|failed|in_progress",
-    "issues": [...],
-    "summary": {...},
-    "metadata": {...}
-  }
-}
-```
-
-### Progress Updates
-```json
-{
-  "type": "progress_update",
-  "data": {
-    "analysis_id": "uuid",
-    "stage": "analyzing",
-    "progress": 0.75,
-    "message": "Running security scan..."
-  }
-}
-```
-
-## Integration with Main Application
-
-The analyzer infrastructure integrates with the main Flask application in `src/`:
-
-1. **Service Discovery**: Use `ServiceLocator` to access analyzer services
-2. **Database Storage**: Results stored in SQLAlchemy models
-3. **Web Interface**: HTMX endpoints for triggering analysis
-4. **Configuration**: Dynamic configuration from database
-
-### Example Integration
-```python
-from src.service_manager import ServiceLocator
-
-# Get analyzer service
-analyzer_service = ServiceLocator.get_analyzer_service()
-
-# Start analysis
-result = await analyzer_service.analyze_application(
-    model_slug="anthropic_claude-3.7-sonnet",
-    app_number=1,
-    analysis_types=["static", "performance", "ai"]
-)
-```
-
-## Monitoring and Health Checks
-
-### Health Check Endpoints
-Each service provides health check functionality:
+### 1. Install Dependencies
 ```bash
-# Individual service health
-docker-compose exec static-analyzer python health_check.py
-docker-compose exec dynamic-analyzer python health_check.py
-docker-compose exec performance-tester python health_check.py
-docker-compose exec ai-analyzer python health_check.py
+python install_dependencies.py
 ```
 
-### Docker Health Checks
-Services include Docker health checks with automatic restart on failure:
-```yaml
-healthcheck:
-  test: ["CMD", "python", "health_check.py"]
-  interval: 30s
-  timeout: 5s
-  retries: 3
-  start_period: 15s
-```
-
-### Logs
+### 2. Quick Demo (No Services Required)
 ```bash
-# View all service logs
-docker-compose logs -f
+python quick_test_demo.py
+```
+This runs static analysis only on 2 applications to verify the infrastructure.
 
-# View specific service logs
-docker-compose logs -f static-analyzer
-docker-compose logs -f dynamic-analyzer
-docker-compose logs -f performance-tester
-docker-compose logs -f ai-analyzer
+### 3. Start Analyzer Services
+```bash
+python run_all_services.py
 ```
 
-## Troubleshooting
+### 4. Run Comprehensive Tests
+```bash
+# Quick test (1 app per model, static analyzer only)
+python test_real_models.py --quick
+
+# Test specific model and apps
+python test_real_models.py --models anthropic_claude-3.7-sonnet --apps 1,2,3
+
+# Test all models with specific analyzers
+python test_real_models.py --all-models --analyzers static,ai --parallel 3
+
+# Full comprehensive test (WARNING: Takes 30+ minutes)
+python test_real_models.py --all-models --parallel 2
+```
+
+## 📋 Available Models (Examples)
+
+From database query, here are some available models:
+- `anthropic_claude-3.7-sonnet` (30 apps, ports 9051-9080/6051-6080)
+- `deepseek_deepseek-chat` (30 apps, ports 9081-9110/6081-6110) 
+- `google_gemini-1.5-pro-002` (30 apps, ports 9111-9140/6111-6140)
+- `openai_gpt-4o` (30 apps, ports 9141-9170/6141-6170)
+- And 21 more models...
+
+Each model has 30 generated applications in `misc/models/{model_name}/app{1-30}/` with:
+- `backend/` - Python Flask applications
+- `frontend/` - React/HTML/CSS applications  
+- `docker-compose.yml` - Container orchestration
+
+## 🔍 Test Results and Reports
+
+### Console Output
+Real-time progress with emoji indicators:
+```
+🚀 Starting tests on 6 applications with 4 analyzers
+📋 Analyzers: static, dynamic, performance, ai
+⚡ Parallel workers: 2
+
+📊 Overall Results:
+   Total Tests: 24
+   Successful: 20 (83.3%)
+   Failed: 4
+   Models Tested: 3
+   Applications Tested: 6
+   Total Issues Found: 47
+
+🔍 Analyzer Performance:
+   Static Analyzer:
+     Tests: 6, Success: 6 (100.0%)
+     Issues Found: 23, Avg Duration: 15.2s
+```
+
+### JSON Reports
+Detailed reports saved as `analyzer_test_report_YYYYMMDD_HHMMSS.json`:
+```json
+{
+  "summary": {
+    "total_tests": 24,
+    "successful_tests": 20,
+    "success_rate": 0.833,
+    "total_issues_found": 47
+  },
+  "analyzer_statistics": {
+    "static": {
+      "total_tests": 6,
+      "successful": 6,
+      "total_issues_found": 23
+    }
+  },
+  "test_details": [...]
+}
+```
+
+## 🛠 Command Line Options
+
+```bash
+# Model Selection
+--models MODEL1,MODEL2          # Test specific models
+--all-models                    # Test all available models
+--apps 1,2,3                   # Test specific app numbers
+--max-apps N                   # Limit apps per model
+
+# Analyzer Selection  
+--analyzers static,dynamic,ai   # Choose which analyzers to test
+--quick                        # Quick mode (1 app, static only)
+
+# Execution Control
+--parallel N                   # Number of parallel tests (default: 2)
+--db-path PATH                 # Database file path
+--output FILENAME              # Custom output file name
+```
+
+## 📁 File Structure
+
+```
+analyzer/
+├── test_real_models.py         # Main comprehensive testing script
+├── quick_test_demo.py          # Simple demonstration script  
+├── install_dependencies.py     # Dependency installer
+├── run_all_services.py         # Service orchestration script
+├── services/                   # Individual analyzer services
+│   ├── static_analyzer/        # Bandit, Pylint, ESLint analysis
+│   ├── dynamic_analyzer/       # OWASP ZAP security scanning
+│   ├── performance_tester/     # Locust load testing
+│   └── ai_analyzer/           # OpenRouter AI analysis
+└── README.md                   # This file
+```
+
+## 🔧 Architecture
+
+### Test Flow
+1. **Discovery**: Query database for model port configurations
+2. **Validation**: Check model directories and application structure
+3. **Analysis**: Send WebSocket requests to analyzer services
+4. **Monitoring**: Track progress and collect results
+5. **Reporting**: Generate comprehensive JSON reports and console summaries
+
+### Database Integration
+```python
+# Example: Get port configurations
+with get_session() as session:
+    ports = session.query(PortConfiguration).filter_by(
+        model='anthropic_claude-3.7-sonnet'
+    ).all()
+    
+    for port in ports:
+        app_url = f"http://localhost:{port.frontend_port}"
+        # Test application at this URL
+```
+
+### WebSocket Communication
+```python
+# Example: Static analysis request
+request = {
+    "type": "analysis_request",
+    "data": {
+        "analysis_type": "static",
+        "source_path": "/path/to/app",
+        "tools": ["bandit", "pylint", "eslint"]
+    }
+}
+```
+
+## ⚠️ Requirements & Limitations
+
+### Service Dependencies
+- **Static Analyzer**: Python packages (bandit, pylint), Node.js packages (eslint)
+- **Dynamic Analyzer**: OWASP ZAP proxy, requires running applications
+- **Performance Tester**: Locust, requires accessible application endpoints
+- **AI Analyzer**: OpenRouter API key, internet connection
+
+### System Requirements
+- **Memory**: 4GB+ RAM (parallel testing can be memory intensive)
+- **Network**: Localhost connectivity on ports 6051-6200, 8001-8004, 9051-9200
+- **Storage**: 100MB+ for test reports and logs
+- **Time**: Full test suite takes 30+ minutes
+
+### Known Limitations
+- Dynamic analysis requires applications to be running (not implemented in this version)
+- Performance testing simulates load but doesn't start actual application containers
+- AI analysis requires valid OpenRouter API configuration
+- Some models may have malformed applications that cause test failures
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-**1. Service Won't Start**
+**Database Not Found**
 ```bash
-# Check service status
-docker-compose ps
-
-# View logs for errors
-docker-compose logs service-name
-
-# Restart specific service
-docker-compose restart service-name
+❌ Database file not found: ../src/data/thesis_app.db
 ```
+Solution: Run the main Flask application first to create the database.
 
-**2. WebSocket Connection Issues**
+**Service Connection Failed**
 ```bash
-# Check if service is listening
-docker-compose exec service-name netstat -tulpn | grep 800X
-
-# Test WebSocket connectivity
-docker-compose exec service-name python -c "import websockets; print('WebSocket library available')"
+❌ Cannot connect to Static Analyzer at ws://localhost:8001
 ```
+Solution: Start analyzer services with `python run_all_services.py`
 
-**3. ZAP/Dynamic Analyzer Issues**
+**No Models Found**
 ```bash
-# Check ZAP daemon status
-docker-compose exec dynamic-analyzer ps aux | grep zap
-
-# Check ZAP logs
-docker-compose exec dynamic-analyzer cat /zap/data/zap.log
+❌ No applications found for testing
 ```
+Solution: Check that `misc/models/` directory exists and contains model folders.
 
-**4. AI Analyzer Issues**
+**WebSocket Import Error**
 ```bash
-# Check OpenRouter API key
-docker-compose exec ai-analyzer env | grep OPENROUTER
-
-# Test API connectivity
-docker-compose exec ai-analyzer python -c "import requests; print(requests.get('https://openrouter.ai/api/v1/models').status_code)"
+⚠️ websockets library not installed
 ```
+Solution: Run `python install_dependencies.py`
 
-### Performance Optimization
-
-**Resource Scaling**:
-```yaml
-# Increase resources for heavy workloads
-deploy:
-  resources:
-    limits:
-      memory: 4G
-      cpus: '2.0'
-```
-
-**Parallel Analysis**:
-- Use multiple instances of the same service
-- Configure load balancing in the gateway
-- Scale horizontally with Docker Swarm
-
-### Development and Testing
-
-**Running Individual Services**:
+### Debug Mode
+Enable verbose logging:
 ```bash
-# Build specific service
-docker-compose build static-analyzer
-
-# Run service in isolation
-docker-compose up static-analyzer redis
-
-# Access service shell
-docker-compose exec static-analyzer /bin/bash
+export PYTHONPATH=. 
+python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
+python test_real_models.py --quick
 ```
 
-**Testing Protocol Changes**:
-```bash
-# Update shared protocol
-cd shared/
-# Make changes to protocol.py
+## 📈 Performance Expectations
 
-# Rebuild affected services
-docker-compose build static-analyzer dynamic-analyzer performance-tester ai-analyzer
-```
+### Timing Estimates
+- **Static Analysis**: 10-30 seconds per application
+- **Dynamic Analysis**: 60-180 seconds per application (when implemented)
+- **Performance Testing**: 30-90 seconds per application
+- **AI Analysis**: 30-120 seconds per application (depends on API speed)
 
-## Contributing
+### Resource Usage
+- **CPU**: Moderate usage during analysis, high during parallel execution
+- **Memory**: ~100MB per analyzer service, ~50MB per test
+- **Network**: Local WebSocket traffic, external API calls for AI analysis
+- **Disk**: Log files and JSON reports grow with test volume
 
-### Adding New Analyzers
+## 🎯 Future Enhancements
 
-1. **Create service directory**: `services/your-analyzer/`
-2. **Implement Dockerfile**: Follow existing patterns
-3. **Create main.py**: Implement WebSocket handler
-4. **Add requirements.txt**: List dependencies
-5. **Create health_check.py**: Implement health check
-6. **Update docker-compose.yml**: Add service configuration
-7. **Update shared protocol**: Add new message types if needed
+1. **Container Integration**: Automatically start/stop application containers for dynamic testing
+2. **Real-time Dashboard**: Web interface for monitoring test progress
+3. **Comparative Analysis**: Compare analyzer results across different AI models
+4. **Automated Scheduling**: Cron-based regular testing of model updates
+5. **Custom Analyzers**: Plugin system for adding new analysis types
+6. **Performance Benchmarking**: Historical performance tracking and trends
 
-### Service Template Structure
-```
-services/your-analyzer/
-├── Dockerfile
-├── main.py
-├── requirements.txt
-├── health_check.py
-└── README.md
-```
+## 📞 Support
 
-## Security Considerations
-
-- **Non-root users**: All containers run as non-root
-- **Read-only mounts**: Source code mounted read-only
-- **Network isolation**: Services in isolated Docker network
-- **Resource limits**: Prevent resource exhaustion
-- **API key security**: Environment variables for secrets
-- **Health monitoring**: Automatic restart on failure
-
-## Modern Docker Practices (2025)
-
-### ✅ What We Implement
-- **No `version:` field** in docker-compose.yml
-- **Health checks** for all services
-- **Non-root users** (1000:1000) for security
-- **Multi-stage builds** for minimal images
-- **Resource limits** and reservations
-- **.dockerignore** for optimized builds
-- **Restart policies** for reliability
-
-## License
-
-This analyzer infrastructure is part of the ThesisAppRework project. Please refer to the main project license for usage terms.
+For issues or questions:
+1. Check the troubleshooting section above
+2. Review log files in `logs/` directory
+3. Examine JSON reports for detailed error information
+4. Use `--quick` mode to isolate issues
+5. Test individual analyzer services separately
