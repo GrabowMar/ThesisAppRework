@@ -2,37 +2,6 @@
 # Uses 2025 best practices: no version field, health checks, non-root users
 
 services:
-  # WebSocket Gateway
-  gateway:
-    build: .
-    ports:
-      - "8765:8765"
-    environment:
-      - LOG_LEVEL=INFO
-      - GATEWAY_HOST=0.0.0.0
-      - GATEWAY_PORT=8765
-    healthcheck:
-      test: ["CMD", "python", "health_check.py"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    user: "1000:1000"
-    restart: unless-stopped
-    networks:
-      - analyzer-network
-    depends_on:
-      static-analyzer:
-        condition: service_healthy
-      dynamic-analyzer:
-        condition: service_healthy
-      performance-tester:
-        condition: service_healthy
-      security-analyzer:
-        condition: service_healthy
-      ai-analyzer:
-        condition: service_healthy
-
   # Static Security & Quality Analyzer
   static-analyzer:
     build: ./services/static-analyzer
@@ -162,38 +131,6 @@ services:
           memory: 1G
           cpus: '0.5'
 
-  # Security Analyzer (Bandit, Safety, etc.)
-  security-analyzer:
-    build: ./services/security-analyzer
-    ports:
-      - "2005:2005"
-    environment:
-      - LOG_LEVEL=INFO
-      - WEBSOCKET_HOST=0.0.0.0
-      - WEBSOCKET_PORT=2005
-      - PYTHONPATH=/app
-    volumes:
-      - ../misc/models:/app/sources:ro
-      - security-results:/app/results
-    healthcheck:
-      test: ["CMD", "python", "health_check.py"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-    user: "1000:1000"
-    restart: unless-stopped
-    networks:
-      - analyzer-network
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '0.5'
-        reservations:
-          memory: 512M
-          cpus: '0.25'
-
   # Redis for caching and task queues
   redis:
     image: redis:7-alpine
@@ -223,8 +160,6 @@ volumes:
   performance-reports:
     driver: local
   ai-results:
-    driver: local
-  security-results:
     driver: local
   zap-data:
     driver: local

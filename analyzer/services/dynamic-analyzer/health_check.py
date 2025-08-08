@@ -1,8 +1,12 @@
-"""Health check for static analyzer service."""
-import sys
+#!/usr/bin/env python3
+"""
+Health check for Dynamic Analyzer service.
+"""
+
 import asyncio
 import websockets
 import json
+import sys
 import os
 from datetime import datetime
 
@@ -10,7 +14,7 @@ async def health_check():
     """Perform health check on the service."""
     try:
         # Use the correct port from environment or default
-        port = int(os.getenv('WEBSOCKET_PORT', 2001))
+        port = int(os.getenv('WEBSOCKET_PORT', 2002))
         uri = f"ws://localhost:{port}"
         
         async with websockets.connect(uri, timeout=5.0) as websocket:

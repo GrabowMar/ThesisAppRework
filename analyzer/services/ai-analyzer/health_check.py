@@ -7,41 +7,43 @@ import asyncio
 import websockets
 import json
 import sys
+import os
+from datetime import datetime
 from typing import Dict, Any
 
 async def check_health() -> Dict[str, Any]:
     """Check if the AI analyzer service is healthy."""
     
     try:
-        # Connect to the service
-        uri = "ws://localhost:8004"
+        # Use the correct port from environment or default
+        port = int(os.getenv('WEBSOCKET_PORT', 2004))
+        uri = f"ws://localhost:{port}"
         
-        async with websockets.connect(uri, open_timeout=5) as websocket:
-            # Send heartbeat message
-            heartbeat_msg = {
-                "type": "heartbeat",
-                "data": {"check": "health"},
-                "id": "health_check_001",
-                "timestamp": "2025-01-27T10:00:00Z"
+        async with websockets.connect(uri, timeout=5.0) as websocket:
+            # Send simple health check message
+            message = {
+                "type": "health_check",
+                "timestamp": datetime.now().isoformat(),
+                "id": "health_check_001"
             }
             
-            await websocket.send(json.dumps(heartbeat_msg))
+            await websocket.send(json.dumps(message))
             
             # Wait for response
-            response = await asyncio.wait_for(websocket.recv(), timeout=5)
+            response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
             response_data = json.loads(response)
             
-            if response_data.get("type") == "heartbeat":
+            if response_data.get('status') == 'healthy':
                 return {
                     "status": "healthy",
                     "service": "ai-analyzer",
-                    "details": response_data.get("data", {})
+                    "details": response_data
                 }
             else:
                 return {
                     "status": "unhealthy",
                     "service": "ai-analyzer",
-                    "error": "Invalid response format"
+                    "error": f"Invalid response: {response_data}"
                 }
                 
     except asyncio.TimeoutError:
