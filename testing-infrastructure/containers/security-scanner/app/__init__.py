@@ -1,1 +1,0 @@
-# Security Scanner App Package
