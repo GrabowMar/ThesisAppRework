@@ -1,0 +1,38 @@
+{% if statuses %}
+    {% set backend_status = statuses.backend|default('stopped') %}
+    {% set frontend_status = statuses.frontend|default('stopped') %}
+    
+    {% if backend_status == 'running' and frontend_status == 'running' %}
+        {% set overall_status = 'running' %}
+        {% set status_class = 'success' %}
+        {% set status_icon = 'fa-play' %}
+        {% set status_text = 'Running' %}
+    {% elif backend_status in ['exited', 'dead'] or frontend_status in ['exited', 'dead'] %}
+        {% set overall_status = 'error' %}
+        {% set status_class = 'danger' %}
+        {% set status_icon = 'fa-exclamation-triangle' %}
+        {% set status_text = 'Error' %}
+    {% else %}
+        {% set overall_status = 'stopped' %}
+        {% set status_class = 'secondary' %}
+        {% set status_icon = 'fa-stop' %}
+        {% set status_text = 'Stopped' %}
+    {% endif %}
+{% else %}
+    {% set overall_status = 'unknown' %}
+    {% set status_class = 'warning' %}
+    {% set status_icon = 'fa-question' %}
+    {% set status_text = 'Unknown' %}
+{% endif %}
+
+<span class="status-badge status-indicator {{ overall_status }}"
+      {% if error_message %}title="{{ error_message }}"{% endif %}>
+    <span class="status-icon">
+        <i class="fas {{ status_icon }}"></i>
+    </span>
+    {{ status_text }}
+</span>
+
+{% if error_message %}
+<small class="text-danger d-block mt-1">{{ error_message|truncate(50) }}</small>
+{% endif %}

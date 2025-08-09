@@ -1,0 +1,131 @@
+{% if active_tests %}
+<div class="row">
+    {% for test in active_tests %}
+    <div class="col-12 mb-3">
+        <div class="card border-start border-4 
+                    {% if test.status == 'running' %}border-warning
+                    {% elif test.status == 'pending' %}border-info
+                    {% elif test.status == 'completed' %}border-success
+                    {% elif test.status == 'failed' %}border-danger
+                    {% else %}border-secondary{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="card-title mb-1">
+                            {% if test.type == 'batch' %}
+                                <i class="fas fa-layer-group me-2"></i>Batch Job
+                            {% elif test.type == 'security' %}
+                                <i class="fas fa-shield-alt me-2"></i>Security Test
+                            {% elif test.type == 'performance' %}
+                                <i class="fas fa-tachometer-alt me-2"></i>Performance Test
+                            {% elif test.type == 'zap' %}
+                                <i class="fas fa-bug me-2"></i>ZAP Scan
+                            {% elif test.type == 'ai' %}
+                                <i class="fas fa-brain me-2"></i>AI Analysis
+                            {% else %}
+                                <i class="fas fa-cog me-2"></i>{{ test.type.title() }} Test
+                            {% endif %}
+                        </h6>
+                        
+                        <div class="text-muted small">
+                            <div><strong>Test ID:</strong> <code>{{ test.test_id }}</code></div>
+                            
+                            {% if test.containerized_test %}
+                                {% set ct = test.containerized_test %}
+                                {% if ct.application %}
+                                    <div><strong>Model:</strong> {{ ct.application.model_slug }}</div>
+                                    <div><strong>App:</strong> #{{ ct.application.app_number }}</div>
+                                {% endif %}
+                                {% if ct.get_tools_used() %}
+                                    <div><strong>Tools:</strong> 
+                                        {% for tool in ct.get_tools_used() %}
+                                            <span class="badge bg-light text-dark me-1">{{ tool }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <div><strong>Service:</strong> {{ ct.service_endpoint or 'N/A' }}</div>
+                            {% elif test.job %}
+                                {% set job = test.job %}
+                                <div><strong>Job Type:</strong> {{ job.job_type or 'batch' }}</div>
+                                {% if job.analysis_types_json %}
+                                    <div><strong>Analysis:</strong> {{ job.analysis_types_json }}</div>
+                                {% endif %}
+                            {% endif %}
+                            
+                            <div><strong>Started:</strong> {{ test.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-end">
+                        <span class="badge 
+                                   {% if test.status == 'running' %}bg-warning text-dark
+                                   {% elif test.status == 'pending' %}bg-info
+                                   {% elif test.status == 'completed' %}bg-success
+                                   {% elif test.status == 'failed' %}bg-danger
+                                   {% else %}bg-secondary{% endif %}">
+                            {% if test.status == 'running' %}
+                                <i class="fas fa-spinner fa-spin me-1"></i>Running
+                            {% elif test.status == 'pending' %}
+                                <i class="fas fa-clock me-1"></i>Pending
+                            {% elif test.status == 'completed' %}
+                                <i class="fas fa-check me-1"></i>Completed
+                            {% elif test.status == 'failed' %}
+                                <i class="fas fa-times me-1"></i>Failed
+                            {% else %}
+                                {{ test.status.title() }}
+                            {% endif %}
+                        </span>
+                        
+                        <div class="mt-2">
+                            {% if test.containerized_test %}
+                                <button class="btn btn-sm btn-outline-primary" 
+                                        hx-get="/testing/api/containerized-test/{{ test.containerized_test.id }}/status"
+                                        hx-target="#test-status-{{ test.id }}"
+                                        hx-swap="innerHTML">
+                                    <i class="fas fa-refresh me-1"></i>Check Status
+                                </button>
+                                
+                                {% if test.status in ['completed', 'failed'] %}
+                                    <button class="btn btn-sm btn-outline-info ms-1" 
+                                            hx-get="/testing/api/containerized-test/{{ test.containerized_test.id }}/results"
+                                            hx-target="#modal-container"
+                                            hx-swap="innerHTML">
+                                        <i class="fas fa-eye me-1"></i>View Results
+                                    </button>
+                                {% endif %}
+                            {% elif test.job %}
+                                <button class="btn btn-sm btn-outline-primary" 
+                                        hx-get="/testing/api/job/{{ test.job.id }}/status"
+                                        hx-target="#test-status-{{ test.id }}"
+                                        hx-swap="innerHTML">
+                                    <i class="fas fa-refresh me-1"></i>Check Status
+                                </button>
+                            {% endif %}
+                        </div>
+                        
+                        <div id="test-status-{{ test.id }}" class="mt-2 small text-muted"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+// Update the active test count
+document.getElementById('active-test-count').textContent = '{{ active_tests|length }}';
+</script>
+
+{% else %}
+<div class="text-center py-4">
+    <i class="fas fa-clipboard-list text-muted" style="font-size: 3rem;"></i>
+    <p class="text-muted mt-2">No test jobs found</p>
+    <button class="btn btn-primary" 
+            hx-get="/testing/api/new-test-form"
+            hx-target="#modal-container"
+            hx-swap="innerHTML">
+        <i class="fas fa-plus me-2"></i>Start Your First Test
+    </button>
+</div>
+{% endif %}

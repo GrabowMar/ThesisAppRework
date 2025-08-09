@@ -1,0 +1,38 @@
+<div class="alert alert-success" role="alert">
+    <i class="fas fa-check-circle me-2"></i>
+    <strong>Test Submitted Successfully!</strong>
+    <br>
+    <div class="mt-2">
+        <strong>Test ID:</strong> <code>{{ test_id }}</code><br>
+        <strong>Type:</strong> {{ test_type.title() }}<br>
+        <strong>Model:</strong> {{ model_slug }}<br>
+        <strong>App:</strong> {{ app_number }}
+    </div>
+    <div class="mt-3">
+        <p class="mb-2">Your test has been submitted to the containerized testing infrastructure.</p>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-primary" 
+                    hx-get="/testing/api/jobs?status=running"
+                    hx-target="#active-tests"
+                    hx-swap="innerHTML">
+                <i class="fas fa-eye me-1"></i>View Active Tests
+            </button>
+            <button class="btn btn-sm btn-secondary"
+                    onclick="document.getElementById('modal-container').innerHTML = '';">
+                <i class="fas fa-times me-1"></i>Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh active tests list
+setTimeout(function() {
+    htmx.trigger('#active-tests', 'refresh');
+}, 2000);
+
+// Close modal after 5 seconds
+setTimeout(function() {
+    document.getElementById('modal-container').innerHTML = '';
+}, 5000);
+</script>
