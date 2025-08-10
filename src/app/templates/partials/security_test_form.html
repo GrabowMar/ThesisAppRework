@@ -1,0 +1,240 @@
+<!-- Security Test Configuration Form -->
+<form hx-post="{{ url_for('analysis.run_security_test') }}" 
+      hx-target="#security-test-results"
+      hx-swap="innerHTML"
+      hx-indicator="#security-test-loading">
+    
+    <!-- Model and App Selection -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <label for="model-select" class="form-label">Select Model</label>
+            <select class="form-select" id="model-select" name="model_slug" required
+                    hx-get="{{ url_for('analysis.get_model_apps') }}"
+                    hx-target="#app-select-container"
+                    hx-trigger="change">
+                <option value="">Choose a model...</option>
+                {% for model in models %}
+                <option value="{{ model.model_slug }}">{{ model.model_name }} ({{ model.provider|title }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="app-select" class="form-label">Select Application</label>
+            <div id="app-select-container">
+                <select class="form-select" id="app-select" name="app_number" required disabled>
+                    <option value="">Choose a model first...</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Security Test Configuration -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-shield-alt me-2"></i>Security Test Configuration
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Static Analysis Tools -->
+                <div class="col-md-6">
+                    <h6 class="mb-3">Static Analysis Tools</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="bandit" name="static_tools" value="bandit" checked>
+                        <label class="form-check-label" for="bandit">
+                            <strong>Bandit</strong> - Python security linter
+                            <br><small class="text-muted">Finds common security issues in Python code</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="safety" name="static_tools" value="safety" checked>
+                        <label class="form-check-label" for="safety">
+                            <strong>Safety</strong> - Known vulnerability scanner
+                            <br><small class="text-muted">Checks dependencies for known vulnerabilities</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="eslint" name="static_tools" value="eslint">
+                        <label class="form-check-label" for="eslint">
+                            <strong>ESLint Security</strong> - JavaScript security rules
+                            <br><small class="text-muted">Security-focused linting for JavaScript</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="npm-audit" name="static_tools" value="npm-audit">
+                        <label class="form-check-label" for="npm-audit">
+                            <strong>NPM Audit</strong> - Node.js dependency scanner
+                            <br><small class="text-muted">Scans npm dependencies for vulnerabilities</small>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Dynamic Analysis Tools -->
+                <div class="col-md-6">
+                    <h6 class="mb-3">Dynamic Analysis Tools</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="zap-scanner" name="dynamic_tools" value="zap-scanner">
+                        <label class="form-check-label" for="zap-scanner">
+                            <strong>OWASP ZAP</strong> - Web application scanner
+                            <br><small class="text-muted">Comprehensive web security testing</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="nikto" name="dynamic_tools" value="nikto">
+                        <label class="form-check-label" for="nikto">
+                            <strong>Nikto</strong> - Web server scanner
+                            <br><small class="text-muted">Scans for dangerous files and configurations</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="custom-tests" name="dynamic_tools" value="custom-tests">
+                        <label class="form-check-label" for="custom-tests">
+                            <strong>Custom Security Tests</strong> - Application-specific tests
+                            <br><small class="text-muted">Tailored security tests for common vulnerabilities</small>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Advanced Options -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-cogs me-2"></i>Advanced Options
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="severity-filter" class="form-label">Minimum Severity Level</label>
+                    <select class="form-select" id="severity-filter" name="min_severity">
+                        <option value="low">Low and above</option>
+                        <option value="medium" selected>Medium and above</option>
+                        <option value="high">High and above</option>
+                        <option value="critical">Critical only</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="timeout" class="form-label">Timeout (minutes)</label>
+                    <input type="number" class="form-control" id="timeout" name="timeout" 
+                           value="30" min="5" max="120">
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="parallel-execution" name="parallel_execution" checked>
+                        <label class="form-check-label" for="parallel-execution">
+                            Enable parallel execution (faster but more resource intensive)
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="generate-report" name="generate_report" checked>
+                        <label class="form-check-label" for="generate-report">
+                            Generate detailed PDF report
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Test Results Preview -->
+    <div id="security-test-results" class="mb-4">
+        <!-- Results will be loaded here -->
+    </div>
+    
+    <!-- Loading Indicator -->
+    <div id="security-test-loading" class="text-center py-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Running security analysis...</span>
+        </div>
+        <p class="text-muted mt-2">Running security analysis, this may take several minutes...</p>
+        <div class="progress mt-3" style="height: 6px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                 role="progressbar" style="width: 0%" id="security-progress-bar"></div>
+        </div>
+    </div>
+    
+    <!-- Form Actions -->
+    <div class="d-flex justify-content-between">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-2"></i>Cancel
+        </button>
+        <div>
+            <button type="button" class="btn btn-outline-primary me-2" onclick="resetSecurityForm()">
+                <i class="fas fa-undo me-2"></i>Reset
+            </button>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-shield-alt me-2"></i>Start Security Analysis
+            </button>
+        </div>
+    </div>
+</form>
+
+<script>
+function resetSecurityForm() {
+    document.getElementById('model-select').value = '';
+    document.getElementById('app-select').innerHTML = '<option value="">Choose a model first...</option>';
+    document.getElementById('app-select').disabled = true;
+    
+    // Reset checkboxes to default
+    document.getElementById('bandit').checked = true;
+    document.getElementById('safety').checked = true;
+    document.getElementById('eslint').checked = false;
+    document.getElementById('npm-audit').checked = false;
+    document.getElementById('zap-scanner').checked = false;
+    document.getElementById('nikto').checked = false;
+    document.getElementById('custom-tests').checked = false;
+    
+    // Reset advanced options
+    document.getElementById('severity-filter').value = 'medium';
+    document.getElementById('timeout').value = '30';
+    document.getElementById('parallel-execution').checked = true;
+    document.getElementById('generate-report').checked = true;
+    
+    // Clear results
+    document.getElementById('security-test-results').innerHTML = '';
+}
+
+// Form validation
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form[hx-post]');
+    const modelSelect = document.getElementById('model-select');
+    const appSelect = document.getElementById('app-select');
+    
+    // Enable form submission only when model and app are selected
+    function validateForm() {
+        const hasModel = modelSelect.value !== '';
+        const hasApp = appSelect.value !== '';
+        const hasTools = document.querySelectorAll('input[name="static_tools"]:checked, input[name="dynamic_tools"]:checked').length > 0;
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = !(hasModel && hasApp && hasTools);
+        
+        if (!hasTools) {
+            submitBtn.title = 'Please select at least one security tool';
+        } else if (!hasModel || !hasApp) {
+            submitBtn.title = 'Please select a model and application';
+        } else {
+            submitBtn.title = '';
+        }
+    }
+    
+    // Add event listeners for validation
+    modelSelect.addEventListener('change', validateForm);
+    appSelect.addEventListener('change', validateForm);
+    
+    document.querySelectorAll('input[name="static_tools"], input[name="dynamic_tools"]').forEach(checkbox => {
+        checkbox.addEventListener('change', validateForm);
+    });
+    
+    // Initial validation
+    validateForm();
+});
+</script>

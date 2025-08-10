@@ -1,0 +1,181 @@
+<!-- Models Grid View -->
+{% if models %}
+<div class="row g-3">
+    {% for model in models %}
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card model-card h-100" data-model-slug="{{ model.model_slug }}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="provider-badge me-2">
+                        {% if model.provider == 'openai' %}
+                            <i class="fab fa-openai text-success"></i>
+                        {% elif model.provider == 'anthropic' %}
+                            <i class="fas fa-brain text-primary"></i>
+                        {% elif model.provider == 'google' %}
+                            <i class="fab fa-google text-warning"></i>
+                        {% elif model.provider == 'microsoft' %}
+                            <i class="fab fa-microsoft text-info"></i>
+                        {% elif model.provider == 'meta' %}
+                            <i class="fab fa-meta text-primary"></i>
+                        {% else %}
+                            <i class="fas fa-robot text-secondary"></i>
+                        {% endif %}
+                        <small class="text-muted">{{ model.provider|title }}</small>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" 
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('models.model_apps', model_slug=model.model_slug) }}">
+                                <i class="fas fa-apps me-2"></i>View Applications
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="openSecurityTestModal()">
+                                <i class="fas fa-shield-alt me-2"></i>Run Security Analysis
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="openPerformanceTestModal()">
+                                <i class="fas fa-tachometer-alt me-2"></i>Performance Test
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="exportModelData('{{ model.model_slug }}')">
+                                <i class="fas fa-download me-2"></i>Export Data
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <h5 class="card-title">{{ model.model_name }}</h5>
+                <p class="card-text text-muted">{{ model.description or "Advanced AI model for generating web applications" }}</p>
+                
+                <!-- Model Stats -->
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="stat-value">{{ model.apps_count or 0 }}</div>
+                        <div class="stat-label">Apps</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-value">{{ model.analyses_count or 0 }}</div>
+                        <div class="stat-label">Analyses</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-value">{{ model.success_rate or 0 }}%</div>
+                        <div class="stat-label">Success</div>
+                    </div>
+                </div>
+                
+                <!-- Model Status -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="badge bg-{{ 'success' if model.status == 'active' else 'secondary' }}">
+                        <i class="fas fa-{{ 'check-circle' if model.status == 'active' else 'pause-circle' }} me-1"></i>
+                        {{ model.status|title }}
+                    </span>
+                    <small class="text-muted">
+                        <i class="fas fa-clock me-1"></i>
+                        Updated {{ model.last_updated.strftime('%m/%d/%Y') if model.last_updated else 'N/A' }}
+                    </small>
+                </div>
+                
+                <!-- Capabilities Tags -->
+                {% if model.capabilities %}
+                <div class="mb-3">
+                    {% for capability in model.capabilities[:3] %}
+                    <span class="badge bg-light text-dark me-1">{{ capability }}</span>
+                    {% endfor %}
+                    {% if model.capabilities|length > 3 %}
+                    <span class="badge bg-secondary">+{{ model.capabilities|length - 3 }} more</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-primary btn-sm" 
+                            onclick="window.location.href='{{ url_for('models.model_apps', model_slug=model.model_slug) }}'">
+                        <i class="fas fa-eye me-1"></i>View Apps
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" 
+                            onclick="openModelActions('{{ model.model_slug }}')">
+                        <i class="fas fa-cog me-1"></i>Actions
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-center mt-4">
+    <nav aria-label="Models pagination">
+        <ul class="pagination">
+            <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                <a class="page-link" href="#" 
+                   hx-get="{{ url_for('models.models_overview', page=pagination.prev_num) if pagination.has_prev else '#' }}"
+                   hx-target="#models-container"
+                   hx-include="[name='provider'], [name='search'], [name='sortBy']">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            </li>
+            
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num != pagination.page %}
+                    <li class="page-item">
+                        <a class="page-link" href="#"
+                           hx-get="{{ url_for('models.models_overview', page=page_num) }}"
+                           hx-target="#models-container"
+                           hx-include="[name='provider'], [name='search'], [name='sortBy']">
+                            {{ page_num }}
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% endif %}
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+                {% endif %}
+            {% endfor %}
+            
+            <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                <a class="page-link" href="#"
+                   hx-get="{{ url_for('models.models_overview', page=pagination.next_num) if pagination.has_next else '#' }}"
+                   hx-target="#models-container"
+                   hx-include="[name='provider'], [name='search'], [name='sortBy']">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</div>
+{% endif %}
+
+{% else %}
+<!-- No Models Found -->
+<div class="text-center py-5">
+    <div class="mb-4">
+        <i class="fas fa-robot text-muted" style="font-size: 4rem;"></i>
+    </div>
+    <h4 class="text-muted">No Models Found</h4>
+    <p class="text-muted">No AI models match your current filters. Try adjusting your search criteria.</p>
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('searchFilter').value=''; htmx.trigger(document.getElementById('searchFilter'), 'keyup');">
+        <i class="fas fa-refresh me-2"></i>Clear Filters
+    </button>
+</div>
+{% endif %}

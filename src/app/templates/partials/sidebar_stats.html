@@ -1,0 +1,32 @@
+<!-- Quick Stats Sidebar Widget -->
+<div class="stat-item">
+    <div>
+        <div class="stat-value">{{ stats.total_models }}</div>
+        <div class="stat-label">Models</div>
+    </div>
+    <i class="fas fa-robot text-primary"></i>
+</div>
+
+<div class="stat-item">
+    <div>
+        <div class="stat-value">{{ stats.running_containers }}</div>
+        <div class="stat-label">Running</div>
+    </div>
+    <i class="fas fa-play text-success"></i>
+</div>
+
+<div class="stat-item">
+    <div>
+        <div class="stat-value">{{ stats.completed_analyses }}</div>
+        <div class="stat-label">Analyses</div>
+    </div>
+    <i class="fas fa-shield-alt text-info"></i>
+</div>
+
+<div class="stat-item">
+    <div>
+        <div class="stat-value">{{ stats.active_tests }}</div>
+        <div class="stat-label">Active Tests</div>
+    </div>
+    <i class="fas fa-cogs text-warning"></i>
+</div>

@@ -1,0 +1,134 @@
+<!-- System Status Overview -->
+<div class="row g-3">
+    <!-- Database Status -->
+    <div class="col-12">
+        <div class="status-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="status-icon">
+                        <i class="fas fa-database text-{{ 'success' if system_status.database.status == 'healthy' else 'danger' }}"></i>
+                    </div>
+                    <div>
+                        <div class="status-label">Database</div>
+                        <div class="status-value">{{ system_status.database.status|title }}</div>
+                    </div>
+                </div>
+                <small class="text-muted">{{ system_status.database.message }}</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Celery Services -->
+    <div class="col-12">
+        <div class="status-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="status-icon">
+                        <i class="fas fa-cogs text-{{ 'success' if system_status.celery.status == 'healthy' else 'warning' if system_status.celery.status == 'warning' else 'danger' }}"></i>
+                    </div>
+                    <div>
+                        <div class="status-label">Celery Workers</div>
+                        <div class="status-value">{{ system_status.celery.status|title }}</div>
+                    </div>
+                </div>
+                <small class="text-muted">{{ system_status.celery.message }}</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analyzer Services -->
+    <div class="col-12">
+        <div class="status-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="status-icon">
+                        <i class="fas fa-shield-alt text-{{ 'success' if system_status.analyzer.status == 'healthy' else 'warning' if system_status.analyzer.status == 'warning' else 'danger' }}"></i>
+                    </div>
+                    <div>
+                        <div class="status-label">Analyzer Services</div>
+                        <div class="status-value">{{ system_status.analyzer.status|title }}</div>
+                    </div>
+                </div>
+                <small class="text-muted">{{ system_status.analyzer.message }}</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- System Resources -->
+    <div class="col-12">
+        <div class="status-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="status-icon">
+                        <i class="fas fa-server text-{{ 'success' if system_status.resources.cpu_usage < 80 else 'warning' if system_status.resources.cpu_usage < 95 else 'danger' }}"></i>
+                    </div>
+                    <div>
+                        <div class="status-label">System Resources</div>
+                        <div class="status-value">CPU: {{ system_status.resources.cpu_usage }}%</div>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    <i class="fas fa-hdd me-1"></i>{{ system_status.resources.disk_usage }}%
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Analyses -->
+    <div class="col-12">
+        <div class="status-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="status-icon">
+                        <i class="fas fa-cogs text-{{ 'success' if system_status.analyses.running == 0 else 'info' }}"></i>
+                    </div>
+                    <div>
+                        <div class="status-label">Active Analyses</div>
+                        <div class="status-value">{{ system_status.analyses.running }} Running</div>
+                    </div>
+                </div>
+                <small class="text-muted">{{ system_status.analyses.queued }} Queued</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Actions -->
+<div class="mt-3">
+    <div class="d-grid gap-2">
+        <button type="button" class="btn btn-sm btn-outline-primary" 
+                hx-get="{{ url_for('api.system_health_detailed') }}"
+                hx-target="#system-status-detailed"
+                hx-swap="innerHTML">
+            <i class="fas fa-sync me-2"></i>Refresh Status
+        </button>
+        {% if system_status.has_issues %}
+        <button type="button" class="btn btn-sm btn-outline-warning" 
+                onclick="showSystemIssues()">
+            <i class="fas fa-exclamation-triangle me-2"></i>View Issues
+        </button>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-outline-info" 
+                onclick="showSystemLogs()">
+            <i class="fas fa-file-alt me-2"></i>View Logs
+        </button>
+    </div>
+</div>
+
+<!-- Last Updated -->
+<div class="text-center mt-3">
+    <small class="text-muted">
+        <i class="fas fa-clock me-1"></i>
+        Last updated: {{ system_status.last_updated.strftime('%H:%M:%S') }}
+    </small>
+</div>
+
+<script>
+function showSystemIssues() {
+    showToast('System issues overview coming soon', 'info');
+}
+
+function showSystemLogs() {
+    showToast('System logs viewer coming soon', 'info');
+}
+</script>
