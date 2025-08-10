@@ -53,7 +53,7 @@ def dashboard():
         ).all()
         
         return render_template(
-            'dashboard.html',
+            'pages/dashboard.html',
             stats=stats,
             recent_apps=recent_apps,
             recent_analyses=recent_analyses,
@@ -62,7 +62,10 @@ def dashboard():
     except Exception as e:
         logger.error(f"Error loading dashboard: {e}")
         flash('Error loading dashboard', 'error')
-        return render_template('error.html', error=str(e))
+        return render_template('pages/error.html', 
+                             error_code=500,
+                             error_title='Dashboard Error',
+                             error_message=str(e))
 
 
 @main_bp.route('/health')
@@ -75,6 +78,63 @@ def health_check():
 def about():
     """About page with project information."""
     return render_template('pages/about.html')
+
+
+@main_bp.route('/statistics')
+def statistics():
+    """Statistics overview page."""
+    try:
+        # Get statistical data
+        stats = {
+            'total_tests': SecurityAnalysis.query.count() + PerformanceTest.query.count(),
+            'passed_tests': SecurityAnalysis.query.filter_by(status='completed').count(),
+            'failed_tests': SecurityAnalysis.query.filter_by(status='failed').count(),
+            'avg_duration': '4.2s',  # TODO: Calculate actual average
+            'success_rate': '87.3%',  # TODO: Calculate actual rate
+            'active_models': ModelCapability.query.count()
+        }
+        
+        return render_template('pages/statistics.html', stats=stats)
+    except Exception as e:
+        logger.error(f"Error loading statistics: {e}")
+        flash('Error loading statistics', 'error')
+        return render_template('pages/error.html', 
+                             error_code=500,
+                             error_title='Statistics Error',
+                             error_message=str(e))
+
+
+@main_bp.route('/testing')
+def testing():
+    """Testing platform overview page."""
+    try:
+        # Get testing statistics
+        stats = {
+            'active_tests': SecurityAnalysis.query.filter_by(status='running').count() +
+                           PerformanceTest.query.filter_by(status='running').count(),
+            'completed_tests': SecurityAnalysis.query.filter_by(status='completed').count() +
+                              PerformanceTest.query.filter_by(status='completed').count(),
+            'queued_tests': SecurityAnalysis.query.filter_by(status='pending').count() +
+                           PerformanceTest.query.filter_by(status='pending').count(),
+            'failed_tests': SecurityAnalysis.query.filter_by(status='failed').count() +
+                           PerformanceTest.query.filter_by(status='failed').count()
+        }
+        
+        return render_template('pages/testing.html', stats=stats)
+    except Exception as e:
+        logger.error(f"Error loading testing page: {e}")
+        flash('Error loading testing page', 'error')
+        return render_template('pages/error.html', 
+                             error_code=500,
+                             error_title='Testing Page Error',
+                             error_message=str(e))
+
+
+@main_bp.route('/models_overview')
+def models_overview():
+    """Redirect to models overview page."""
+    from flask import redirect, url_for
+    return redirect(url_for('models.models_overview'))
 
 
 @main_bp.route('/batch')
@@ -104,14 +164,17 @@ def batch_overview():
         )
         
         return render_template(
-            'batch_overview.html',
+            'pages/batch_overview.html',
             batches=batches,
             batch_stats=batch_stats
         )
     except Exception as e:
         logger.error(f"Error loading batch overview: {e}")
         flash('Error loading batch overview', 'error')
-        return render_template('error.html', error=str(e))
+        return render_template('pages/error.html', 
+                             error_code=500,
+                             error_title='Batch Overview Error',
+                             error_message=str(e))
 
 
 @main_bp.route('/batch/list')

@@ -1,0 +1,249 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Dashboard - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Dashboard</h1>
+            <p class="text-muted">Overview of AI model testing and analysis</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" onclick="refreshDashboard()">
+                <i class="fas fa-sync-alt me-1"></i>Refresh
+            </button>
+            <button class="btn btn-primary" onclick="showQuickActions()">
+                <i class="fas fa-plus me-1"></i>Quick Actions
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0" id="total-models">-</h4>
+                            <small>Total Models</small>
+                        </div>
+                        <i class="fas fa-robot fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0" id="running-containers">-</h4>
+                            <small>Running Containers</small>
+                        </div>
+                        <i class="fas fa-play fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0" id="pending-tests">-</h4>
+                            <small>Pending Tests</small>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0" id="completed-tests">-</h4>
+                            <small>Completed Tests</small>
+                        </div>
+                        <i class="fas fa-check fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="row">
+        <!-- Recent Models -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Models</h5>
+                    <a href="{{ url_for('main.models_overview') }}" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    <!-- TODO: Connect to backend for recent models data -->
+                    <div id="recent-models-list" 
+                         hx-get="/api/dashboard/recent-models" 
+                         hx-trigger="load, every 30s">
+                        {% include 'partials/loading_spinner.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">System Status</h5>
+                </div>
+                <div class="card-body">
+                    <!-- TODO: Connect to backend for system status -->
+                    <div id="system-status" 
+                         hx-get="/api/dashboard/system-status" 
+                         hx-trigger="load, every 10s">
+                        {% include 'partials/loading_spinner.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Feed -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Activity</h5>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary active" onclick="filterActivity('all')">All</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="filterActivity('tests')">Tests</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="filterActivity('containers')">Containers</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="filterActivity('errors')">Errors</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- TODO: Connect to backend for activity feed -->
+                    <div id="activity-feed" 
+                         hx-get="/api/dashboard/activity" 
+                         hx-trigger="load, every 15s">
+                        {% include 'partials/loading_spinner.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Dashboard JavaScript
+class Dashboard {
+    constructor() {
+        this.autoRefreshInterval = null;
+        this.currentFilter = 'all';
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.loadInitialData();
+        this.setupAutoRefresh();
+    }
+
+    setupEventListeners() {
+        // HTMX event listeners
+        document.addEventListener('htmx:afterRequest', (e) => {
+            if (e.detail.target.id === 'recent-models-list') {
+                this.updateStats();
+            }
+        });
+    }
+
+    loadInitialData() {
+        // TODO: Replace with actual backend calls
+        this.updateMockStats();
+    }
+
+    updateMockStats() {
+        // Mock data - TODO: Replace with backend data
+        document.getElementById('total-models').textContent = '12';
+        document.getElementById('running-containers').textContent = '8';
+        document.getElementById('pending-tests').textContent = '3';
+        document.getElementById('completed-tests').textContent = '45';
+    }
+
+    updateStats() {
+        // TODO: Implement real stats update from backend
+        console.log('Updating dashboard stats...');
+    }
+
+    setupAutoRefresh() {
+        // Auto-refresh stats every 30 seconds
+        this.autoRefreshInterval = setInterval(() => {
+            this.updateStats();
+        }, 30000);
+    }
+
+    refreshDashboard() {
+        // Trigger HTMX refresh for all components
+        htmx.trigger('#recent-models-list', 'refresh');
+        htmx.trigger('#system-status', 'refresh');
+        htmx.trigger('#activity-feed', 'refresh');
+        this.updateStats();
+        
+        this.showToast('Dashboard refreshed', 'success');
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+}
+
+// Global functions
+window.refreshDashboard = function() {
+    dashboard.refreshDashboard();
+};
+
+window.showQuickActions = function() {
+    // TODO: Implement quick actions modal
+    console.log('Quick actions modal - TODO');
+};
+
+window.filterActivity = function(filter) {
+    dashboard.currentFilter = filter;
+    
+    // Update button states
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // TODO: Filter activity feed
+    console.log(`Filtering activity by: ${filter}`);
+};
+
+// Initialize dashboard
+let dashboard;
+document.addEventListener('DOMContentLoaded', function() {
+    dashboard = new Dashboard();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,234 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Batch Analysis Overview - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Batch Analysis Overview</h1>
+            <p class="text-muted">Manage and monitor batch analysis jobs</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" onclick="refreshBatchOverview()">
+                <i class="fas fa-sync-alt me-1"></i>Refresh
+            </button>
+            <button class="btn btn-primary" onclick="createBatch()">
+                <i class="fas fa-plus me-1"></i>New Batch
+            </button>
+        </div>
+    </div>
+
+    <!-- Batch Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ batch_stats.total }}</h4>
+                    <small>Total Batches</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ batch_stats.running }}</h4>
+                    <small>Running</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ batch_stats.completed }}</h4>
+                    <small>Completed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ batch_stats.failed }}</h4>
+                    <small>Failed</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch List -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Batch Jobs</h5>
+            <div class="d-flex gap-2">
+                <select class="form-select form-select-sm" style="width: auto;" onchange="filterBatches(this.value)">
+                    <option value="">All Status</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="pending">Pending</option>
+                </select>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if batches.items %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Progress</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for batch in batches.items %}
+                                <tr>
+                                    <td>{{ batch.id }}</td>
+                                    <td>{{ batch.name or 'Batch Analysis' }}</td>
+                                    <td>
+                                        {% include 'components/status_badge.html' with {
+                                            'status': batch.status,
+                                            'text': batch.status|title
+                                        } %}
+                                    </td>
+                                    <td>{{ batch.created_at.strftime('%Y-%m-%d %H:%M') if batch.created_at else 'N/A' }}</td>
+                                    <td>
+                                        {% if batch.status == 'running' %}
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                     role="progressbar" 
+                                                     style="width: {{ batch.progress|default(0) }}%">
+                                                    {{ batch.progress|default(0) }}%
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-primary" onclick="viewBatch({{ batch.id }})">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            {% if batch.status == 'running' %}
+                                                <button class="btn btn-outline-warning" onclick="stopBatch({{ batch.id }})">
+                                                    <i class="fas fa-stop"></i>
+                                                </button>
+                                            {% elif batch.status in ['failed', 'completed'] %}
+                                                <button class="btn btn-outline-success" onclick="restartBatch({{ batch.id }})">
+                                                    <i class="fas fa-redo"></i>
+                                                </button>
+                                            {% endif %}
+                                            <button class="btn btn-outline-danger" onclick="deleteBatch({{ batch.id }})">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if batches.pages > 1 %}
+                    <nav aria-label="Batch pagination">
+                        <ul class="pagination justify-content-center">
+                            {% if batches.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('main.batch_overview', page=batches.prev_num) }}">Previous</a>
+                                </li>
+                            {% endif %}
+                            
+                            {% for page_num in batches.iter_pages() %}
+                                {% if page_num %}
+                                    {% if page_num != batches.page %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ url_for('main.batch_overview', page=page_num) }}">{{ page_num }}</a>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                    {% endif %}
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">…</span>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if batches.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('main.batch_overview', page=batches.next_num) }}">Next</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                {% include 'partials/empty_state.html' with {
+                    'icon': 'layer-group',
+                    'title': 'No Batch Jobs Found',
+                    'message': 'No batch analysis jobs have been created yet.',
+                    'action_text': 'Create First Batch',
+                    'action_url': '#'
+                } %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function refreshBatchOverview() {
+    window.location.reload();
+}
+
+function createBatch() {
+    // TODO: Implement batch creation modal
+    console.log('Create batch - TODO');
+}
+
+function filterBatches(status) {
+    const url = new URL(window.location);
+    if (status) {
+        url.searchParams.set('status', status);
+    } else {
+        url.searchParams.delete('status');
+    }
+    window.location.href = url.toString();
+}
+
+function viewBatch(batchId) {
+    // TODO: Navigate to batch detail page
+    console.log(`View batch ${batchId} - TODO`);
+}
+
+function stopBatch(batchId) {
+    if (confirm('Are you sure you want to stop this batch job?')) {
+        // TODO: Implement batch stop
+        console.log(`Stop batch ${batchId} - TODO`);
+    }
+}
+
+function restartBatch(batchId) {
+    if (confirm('Are you sure you want to restart this batch job?')) {
+        // TODO: Implement batch restart
+        console.log(`Restart batch ${batchId} - TODO`);
+    }
+}
+
+function deleteBatch(batchId) {
+    if (confirm('Are you sure you want to delete this batch job? This action cannot be undone.')) {
+        // TODO: Implement batch deletion
+        console.log(`Delete batch ${batchId} - TODO`);
+    }
+}
+</script>
+{% endblock %}

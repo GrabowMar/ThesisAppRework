@@ -78,7 +78,15 @@ def create_app(config_name: str = 'default') -> Flask:
         Configured Flask application
     """
     
-    app = Flask(__name__)
+    # Set template and static folders relative to src directory
+    import os
+    src_dir = os.path.dirname(os.path.dirname(__file__))  # Get src directory
+    template_folder = os.path.join(src_dir, 'templates')
+    static_folder = os.path.join(src_dir, 'static')
+    
+    app = Flask(__name__, 
+                template_folder=template_folder,
+                static_folder=static_folder)
     
     # Configuration
     # Create data directory if it doesn't exist

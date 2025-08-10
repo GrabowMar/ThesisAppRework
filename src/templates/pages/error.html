@@ -1,0 +1,117 @@
+{% extends "layout/base.html" %}
+
+{% block title %}
+{% if error_code %}Error {{ error_code }}{% else %}Error{% endif %} - Research Platform
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-6">
+            <!-- Error Card -->
+            <div class="card border-0 shadow-lg mt-5">
+                <div class="card-body text-center p-5">
+                    <!-- Error Icon -->
+                    <div class="mb-4">
+                        {% if error_code == 404 %}
+                            <i class="fas fa-search fa-4x text-muted"></i>
+                        {% elif error_code >= 500 %}
+                            <i class="fas fa-server fa-4x text-danger"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-triangle fa-4x text-warning"></i>
+                        {% endif %}
+                    </div>
+
+                    <!-- Error Code -->
+                    {% if error_code %}
+                        <h1 class="display-1 fw-bold text-muted">{{ error_code }}</h1>
+                    {% endif %}
+
+                    <!-- Error Title -->
+                    <h2 class="h4 mb-3">
+                        {% if error_code == 404 %}
+                            Page Not Found
+                        {% elif error_code == 403 %}
+                            Access Forbidden
+                        {% elif error_code == 500 %}
+                            Internal Server Error
+                        {% elif error_code == 503 %}
+                            Service Unavailable
+                        {% else %}
+                            {{ error_title|default('An Error Occurred') }}
+                        {% endif %}
+                    </h2>
+
+                    <!-- Error Message -->
+                    <p class="text-muted mb-4">
+                        {% if error_message %}
+                            {{ error_message }}
+                        {% elif error_code == 404 %}
+                            The page you're looking for doesn't exist or has been moved.
+                        {% elif error_code == 403 %}
+                            You don't have permission to access this resource.
+                        {% elif error_code == 500 %}
+                            Something went wrong on our end. We're working to fix it.
+                        {% elif error_code == 503 %}
+                            The service is temporarily unavailable. Please try again later.
+                        {% else %}
+                            An unexpected error has occurred. Please try again later.
+                        {% endif %}
+                    </p>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex flex-column flex-sm-row gap-2 justify-content-center">
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+                            <i class="fas fa-home me-1"></i>Go to Dashboard
+                        </a>
+                        <button class="btn btn-outline-secondary" onclick="history.back()">
+                            <i class="fas fa-arrow-left me-1"></i>Go Back
+                        </button>
+                        {% if error_code >= 500 %}
+                            <button class="btn btn-outline-info" onclick="window.location.reload()">
+                                <i class="fas fa-redo me-1"></i>Try Again
+                            </button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Additional Help -->
+                    <div class="mt-4">
+                        <small class="text-muted">
+                            If you continue to experience issues, please 
+                            <a href="#" class="text-decoration-none" onclick="showSupport()">contact support</a>.
+                        </small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Status Message -->
+            {% if error_code >= 500 and error_code < 600 %}
+                <div class="text-center mt-4">
+                    <div class="alert alert-warning border-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Our technical team has been notified and is working to resolve this issue.
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showSupport() {
+    // TODO: Implement support contact modal or redirect
+    alert('Support contact functionality - TODO');
+}
+
+// Add keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' || e.key === 'Backspace') {
+        history.back();
+    } else if (e.key === 'Home') {
+        window.location.href = "{{ url_for('main.dashboard') }}";
+    }
+});
+</script>
+{% endblock %}

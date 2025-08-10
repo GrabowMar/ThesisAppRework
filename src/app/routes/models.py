@@ -102,7 +102,7 @@ def models_overview():
                 models_by_provider[model.provider].append(model)
             
             return render_template(
-                'models_overview.html',
+                'pages/models_overview.html',
                 models_by_provider=models_by_provider,
                 total_models=models_pagination.total,
                 pagination=models_pagination
@@ -114,7 +114,10 @@ def models_overview():
             return f'<div class="alert alert-danger">Error loading models: {str(e)}</div>'
         else:
             flash('Error loading models', 'error')
-            return render_template('error.html', error=str(e))
+            return render_template('pages/error.html', 
+                                 error_code=500,
+                                 error_title='Models Error',
+                                 error_message=str(e))
 
 
 @models_bp.route('/applications')
@@ -153,7 +156,7 @@ def applications():
         providers = [p[0] for p in providers]
         
         return render_template(
-            'applications.html',
+            'pages/applications.html',
             applications=applications,
             providers=providers,
             current_filters={
@@ -165,7 +168,10 @@ def applications():
     except Exception as e:
         logger.error(f"Error loading applications: {e}")
         flash('Error loading applications', 'error')
-        return render_template('error.html', error=str(e))
+        return render_template('pages/error.html', 
+                             error_code=500,
+                             error_title='Applications Error',
+                             error_message=str(e))
 
 
 @models_bp.route('/application/<int:app_id>')
@@ -192,7 +198,7 @@ def application_detail(app_id):
         ).order_by(OpenRouterAnalysis.created_at.desc()).all()
         
         return render_template(
-            'application_detail.html',
+            'pages/application_detail.html',
             app=app,
             security_analyses=security_analyses,
             performance_tests=performance_tests,
@@ -202,7 +208,10 @@ def application_detail(app_id):
     except Exception as e:
         logger.error(f"Error loading application {app_id}: {e}")
         flash('Error loading application', 'error')
-        return render_template('error.html', error=str(e))
+        return render_template('pages/error.html', 
+                             error_code=500,
+                             error_title='Application Error',
+                             error_message=str(e))
 
 
 @models_bp.route('/model_actions/<model_slug>')
@@ -249,11 +258,14 @@ def model_apps(model_slug):
         apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
         
         return render_template(
-            'model_apps.html',
+            'pages/model_apps.html',
             model=model,
             apps=apps
         )
     except Exception as e:
         logger.error(f"Error loading model apps for {model_slug}: {e}")
         flash(f'Error loading applications: {str(e)}', 'error')
-        return render_template('error.html', error=str(e))
+        return render_template('pages/error.html', 
+                             error_code=500,
+                             error_title='Model Applications Error',
+                             error_message=str(e))

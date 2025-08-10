@@ -1,0 +1,257 @@
+{% extends "layout/base.html" %}
+
+{% block title %}About - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">About AI Research Platform</h1>
+            <p class="text-muted">Information about the platform and research project</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Project Overview -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Project Overview
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="lead">
+                        This platform is designed for comprehensive analysis and testing of AI language models, 
+                        focusing on security vulnerabilities, performance characteristics, and functional capabilities.
+                    </p>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Research Focus</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-shield-alt text-primary me-2"></i>Security vulnerability analysis</li>
+                                <li><i class="fas fa-tachometer-alt text-success me-2"></i>Performance benchmarking</li>
+                                <li><i class="fas fa-cogs text-warning me-2"></i>Functional testing</li>
+                                <li><i class="fas fa-chart-line text-info me-2"></i>Comparative analysis</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Supported Providers</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-robot text-primary me-2"></i>OpenAI GPT Models</li>
+                                <li><i class="fas fa-brain text-success me-2"></i>Anthropic Claude</li>
+                                <li><i class="fas fa-search text-warning me-2"></i>Google Gemini</li>
+                                <li><i class="fas fa-plus text-info me-2"></i>Extensible architecture</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Technical Architecture -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-code me-2"></i>Technical Architecture
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Backend Technologies</h6>
+                            <ul class="list-unstyled small">
+                                <li><strong>Flask:</strong> Web framework</li>
+                                <li><strong>SQLAlchemy:</strong> Database ORM</li>
+                                <li><strong>Celery:</strong> Task queue</li>
+                                <li><strong>Docker:</strong> Containerization</li>
+                                <li><strong>Redis:</strong> Caching & message broker</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Frontend Technologies</h6>
+                            <ul class="list-unstyled small">
+                                <li><strong>Bootstrap 5:</strong> UI framework</li>
+                                <li><strong>HTMX:</strong> Dynamic interactions</li>
+                                <li><strong>Chart.js:</strong> Data visualization</li>
+                                <li><strong>Font Awesome:</strong> Icons</li>
+                                <li><strong>Jinja2:</strong> Template engine</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Testing Services -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-vial me-2"></i>Testing Services
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Security Testing</h6>
+                            <ul class="list-unstyled small">
+                                <li><i class="fas fa-bug text-danger me-2"></i>Static code analysis</li>
+                                <li><i class="fas fa-shield-alt text-warning me-2"></i>Vulnerability scanning</li>
+                                <li><i class="fas fa-lock text-success me-2"></i>Dependency auditing</li>
+                                <li><i class="fas fa-search text-info me-2"></i>OWASP ZAP integration</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Performance Testing</h6>
+                            <ul class="list-unstyled small">
+                                <li><i class="fas fa-stopwatch text-primary me-2"></i>Response time analysis</li>
+                                <li><i class="fas fa-weight text-success me-2"></i>Load testing</li>
+                                <li><i class="fas fa-memory text-warning me-2"></i>Resource monitoring</li>
+                                <li><i class="fas fa-chart-bar text-info me-2"></i>Benchmark comparisons</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- System Information -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-server me-2"></i>System Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td><strong>Version:</strong></td>
+                                <td>2.0.0</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Environment:</strong></td>
+                                <td><span class="badge bg-info">Development</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Database:</strong></td>
+                                <td>SQLite</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Task Queue:</strong></td>
+                                <td>Celery</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Web Server:</strong></td>
+                                <td>Flask Development</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Quick Statistics -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>Platform Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <div class="border rounded p-2">
+                                <h6 class="mb-1" id="total-models">-</h6>
+                                <small class="text-muted">Models</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="border rounded p-2">
+                                <h6 class="mb-1" id="total-tests">-</h6>
+                                <small class="text-muted">Tests</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-2">
+                                <h6 class="mb-1" id="total-analyses">-</h6>
+                                <small class="text-muted">Analyses</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-2">
+                                <h6 class="mb-1" id="active-containers">-</h6>
+                                <small class="text-muted">Active</small>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- TODO: Load real statistics -->
+                    <div class="text-center mt-3">
+                        <button class="btn btn-sm btn-outline-primary" onclick="loadStats()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh Stats
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-envelope me-2"></i>Contact & Support
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">
+                        For questions, issues, or contributions to this research platform, 
+                        please contact the development team.
+                    </p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="showSupport()">
+                            <i class="fas fa-question-circle me-1"></i>Get Support
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="showDocumentation()">
+                            <i class="fas fa-book me-1"></i>Documentation
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load platform statistics
+function loadStats() {
+    // TODO: Load real statistics from API
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('total-models').textContent = data.models || '-';
+            document.getElementById('total-tests').textContent = data.performance_tests || '-';
+            document.getElementById('total-analyses').textContent = data.security_analyses || '-';
+            document.getElementById('active-containers').textContent = data.active_containers || '-';
+        })
+        .catch(error => {
+            console.error('Error loading stats:', error);
+        });
+}
+
+function showSupport() {
+    // TODO: Implement support modal or redirect
+    alert('Support contact functionality - TODO');
+}
+
+function showDocumentation() {
+    // TODO: Open documentation
+    alert('Documentation link - TODO');
+}
+
+// Load stats on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+});
+</script>
+{% endblock %}
