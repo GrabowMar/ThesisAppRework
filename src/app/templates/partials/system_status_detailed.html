@@ -1,0 +1,39 @@
+<!-- System Status Detailed Partial -->
+<div class="row">
+    {% if status_details %}
+        {% for component, details in status_details.items() %}
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        {% if component == 'database' %}
+                            <i class="bi bi-database text-primary me-2 fs-4"></i>
+                        {% elif component == 'celery' %}
+                            <i class="bi bi-cpu text-warning me-2 fs-4"></i>
+                        {% elif component == 'analyzer' %}
+                            <i class="bi bi-gear text-info me-2 fs-4"></i>
+                        {% endif %}
+                        <h6 class="mb-0 text-capitalize">{{ component }}</h6>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <span class="badge bg-{{ 'success' if details.status == 'healthy' else 'warning' if details.status == 'available' or details.status == 'warning' else 'danger' }}">
+                            {{ details.status.title() }}
+                        </span>
+                    </div>
+                    
+                    <p class="mb-1 small">{{ details.message }}</p>
+                    {% if details.details %}
+                    <small class="text-muted">{{ details.details }}</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12 text-center py-4">
+            <i class="bi bi-exclamation-triangle text-warning fs-1 mb-3"></i>
+            <p class="text-muted">Unable to retrieve system status</p>
+        </div>
+    {% endif %}
+</div>

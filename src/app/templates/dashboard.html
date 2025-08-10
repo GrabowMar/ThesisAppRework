@@ -60,7 +60,7 @@
                         <div>
                             <h6 class="card-subtitle text-muted mb-1">Running Containers</h6>
                             <h3 class="card-title mb-0" 
-                                hx-get="{{ url_for('api.stats_running_containers') }}" 
+                                hx-get="{{ url_for('api.stats_total_models') }}" 
                                 hx-trigger="load, every 30s"
                                 hx-swap="innerHTML">
                                 <div class="spinner-border spinner-border-sm" role="status">

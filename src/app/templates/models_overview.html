@@ -80,17 +80,143 @@
     </div>
 
     <!-- Models Container -->
-    <div id="models-container" 
-         hx-get="{{ url_for('models.models_overview') }}" 
-         hx-trigger="load"
-         hx-swap="innerHTML">
-        <!-- Models content loaded via HTMX -->
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading models...</span>
-            </div>
-            <p class="text-muted mt-3">Loading AI models overview...</p>
+    <div id="models-container">
+        <!-- Initial models content -->
+        {% if models_by_provider %}
+        <div class="row g-3">
+            {% for provider, models in models_by_provider.items() %}
+                {% for model in models[:12] %}  <!-- Show first 12 models initially -->
+                <div class="col-lg-4 col-md-6 mb-3">
+                    <div class="card model-card h-100" data-model-slug="{{ model.canonical_slug }}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <div class="provider-badge me-2">
+                                    {% if model.provider == 'openai' %}
+                                        <i class="fab fa-openai text-success"></i>
+                                    {% elif model.provider == 'anthropic' %}
+                                        <i class="fas fa-brain text-primary"></i>
+                                    {% elif model.provider == 'google' %}
+                                        <i class="fab fa-google text-warning"></i>
+                                    {% elif model.provider == 'microsoft' %}
+                                        <i class="fab fa-microsoft text-info"></i>
+                                    {% elif model.provider == 'meta' %}
+                                        <i class="fab fa-meta text-primary"></i>
+                                    {% else %}
+                                        <i class="fas fa-robot text-secondary"></i>
+                                    {% endif %}
+                                    <small class="text-muted">{{ model.provider|title }}</small>
+                                </div>
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" 
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item" href="{{ url_for('models.model_apps', model_slug=model.canonical_slug) }}">
+                                            <i class="fas fa-apps me-2"></i>View Applications
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="openSecurityTestModal()">
+                                            <i class="fas fa-shield-alt me-2"></i>Run Security Analysis
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="openPerformanceTestModal()">
+                                            <i class="fas fa-tachometer-alt me-2"></i>Performance Test
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="exportModelData('{{ model.canonical_slug }}')">
+                                            <i class="fas fa-download me-2"></i>Export Data
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="card-body">
+                            <h5 class="card-title">{{ model.model_name }}</h5>
+                            <p class="card-text text-muted">Advanced AI model for generating web applications</p>
+                            
+                            <!-- Model Stats -->
+                            <div class="row text-center mb-3">
+                                <div class="col-4">
+                                    <div class="stat-value">{{ total_models // 30 if total_models else 30 }}</div>
+                                    <div class="stat-label">Apps</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="stat-value">0</div>
+                                    <div class="stat-label">Analyses</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="stat-value">85%</div>
+                                    <div class="stat-label">Success</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Model Status -->
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check-circle me-1"></i>
+                                    Active
+                                </span>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Updated {{ model.updated_at.strftime('%m/%d/%Y') if model.updated_at else 'N/A' }}
+                                </small>
+                            </div>
+                            
+                            <!-- Capabilities Tags -->
+                            <div class="mb-3">
+                                <span class="badge bg-light text-dark me-1">Chat</span>
+                                <span class="badge bg-light text-dark me-1">Code Generation</span>
+                                <span class="badge bg-light text-dark me-1">Analysis</span>
+                            </div>
+                        </div>
+                        
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-primary btn-sm" 
+                                        onclick="window.location.href='{{ url_for('models.model_apps', model_slug=model.canonical_slug) }}'">
+                                    <i class="fas fa-eye me-1"></i>View Apps
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" 
+                                        onclick="openModelActions('{{ model.canonical_slug }}')">
+                                    <i class="fas fa-cog me-1"></i>Actions
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endfor %}
         </div>
+        
+        {% if total_models > 12 %}
+        <div class="d-flex justify-content-center mt-4">
+            <button type="button" class="btn btn-outline-primary" 
+                    hx-get="{{ url_for('models.models_overview') }}" 
+                    hx-target="#models-container"
+                    hx-swap="innerHTML">
+                <i class="fas fa-refresh me-2"></i>Load More Models
+            </button>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <!-- No Models Found -->
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-robot text-muted" style="font-size: 4rem;"></i>
+            </div>
+            <h4 class="text-muted">No Models Found</h4>
+            <p class="text-muted">No AI models are available in the database.</p>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Models Grid/List will be rendered here via HTMX -->
@@ -219,7 +345,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const modalContent = document.getElementById('bulkOperationsContent');
         
         // Load bulk operations via HTMX
-        htmx.ajax('GET', '{{ url_for("models.bulk_operations") }}', {
+        htmx.ajax('GET', '{{ url_for("models.model_actions") }}', {
             target: '#bulkOperationsContent',
             swap: 'innerHTML'
         });

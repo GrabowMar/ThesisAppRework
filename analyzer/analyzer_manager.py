@@ -838,7 +838,7 @@ async def main():
     command = sys.argv[1].lower()
     manager = AnalyzerManager()
     
-    print("🔬 Unified Analyzer Manager v1.0")
+    print("Unified Analyzer Manager v1.0")
     print("=" * 60)
     
     try:

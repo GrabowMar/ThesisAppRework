@@ -26,26 +26,95 @@ models_bp = Blueprint('models', __name__)
 def models_overview():
     """Models overview page showing all available AI models."""
     try:
-        models = ModelCapability.query.order_by(
-            ModelCapability.provider, ModelCapability.model_name
-        ).all()
+        # Get filter parameters
+        provider_filter = request.args.get('provider')
+        search_filter = request.args.get('search')
+        sort_by = request.args.get('sortBy', 'name')
+        view_mode = request.args.get('view_mode', 'grid')
+        page = request.args.get('page', 1, type=int)
+        per_page = 12  # Number of models per page
         
-        # Group by provider
-        models_by_provider = {}
-        for model in models:
-            if model.provider not in models_by_provider:
-                models_by_provider[model.provider] = []
-            models_by_provider[model.provider].append(model)
+        # Build query
+        query = ModelCapability.query
         
-        return render_template(
-            'models_overview.html',
-            models_by_provider=models_by_provider,
-            total_models=len(models)
+        if provider_filter:
+            query = query.filter(ModelCapability.provider == provider_filter)
+        
+        if search_filter:
+            query = query.filter(
+                ModelCapability.model_name.contains(search_filter)
+            )
+        
+        # Apply sorting
+        if sort_by == 'provider':
+            query = query.order_by(ModelCapability.provider, ModelCapability.model_name)
+        elif sort_by == 'name':
+            query = query.order_by(ModelCapability.model_name)
+        elif sort_by == 'last_updated':
+            query = query.order_by(ModelCapability.updated_at.desc())
+        else:
+            query = query.order_by(ModelCapability.model_name)
+        
+        # Paginate
+        models_pagination = query.paginate(
+            page=page, per_page=per_page, error_out=False
         )
+        
+        # Add additional stats to models
+        models_with_stats = []
+        for model in models_pagination.items:
+            app_count = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).count()
+            
+            # Add computed fields
+            model.apps_count = app_count
+            model.analyses_count = 0  # This could be computed from related analyses
+            model.success_rate = 85  # Placeholder - could be computed
+            model.status = 'active'  # Placeholder
+            model.capabilities = ['Chat', 'Code Generation', 'Analysis']  # Placeholder
+            model.last_updated = model.updated_at
+            model.model_slug = model.canonical_slug  # Add this for template compatibility
+            models_with_stats.append(model)
+        
+        # Check if this is an HTMX request
+        is_htmx = request.headers.get('HX-Request')
+        
+        if is_htmx:
+            # Return just the partial content for HTMX
+            if view_mode == 'list':
+                return render_template(
+                    'partials/models_list.html',
+                    models=models_with_stats,
+                    pagination=models_pagination
+                )
+            else:
+                return render_template(
+                    'partials/models_grid.html',
+                    models=models_with_stats,
+                    pagination=models_pagination
+                )
+        else:
+            # Return full page for regular requests
+            # Group by provider for initial load
+            models_by_provider = {}
+            for model in models_with_stats:
+                if model.provider not in models_by_provider:
+                    models_by_provider[model.provider] = []
+                models_by_provider[model.provider].append(model)
+            
+            return render_template(
+                'models_overview.html',
+                models_by_provider=models_by_provider,
+                total_models=models_pagination.total,
+                pagination=models_pagination
+            )
+            
     except Exception as e:
         logger.error(f"Error loading models: {e}")
-        flash('Error loading models', 'error')
-        return render_template('error.html', error=str(e))
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger">Error loading models: {str(e)}</div>'
+        else:
+            flash('Error loading models', 'error')
+            return render_template('error.html', error=str(e))
 
 
 @models_bp.route('/applications')
@@ -70,7 +139,7 @@ def applications():
             query = query.filter(GeneratedApplication.provider == provider_filter)
         
         if status_filter:
-            query = query.filter(GeneratedApplication.status == status_filter)
+            query = query.filter(GeneratedApplication.generation_status == status_filter)
         
         # Paginate results
         applications = query.order_by(
@@ -137,29 +206,54 @@ def application_detail(app_id):
 
 
 @models_bp.route('/model_actions/<model_slug>')
-def model_actions(model_slug):
+@models_bp.route('/model_actions')  # Support both with and without model_slug
+def model_actions(model_slug=None):
     """HTMX endpoint for model actions modal content."""
     try:
-        model = ModelCapability.query.filter_by(model_slug=model_slug).first_or_404()
-        
-        # Get related statistics
-        app_count = GeneratedApplication.query.filter_by(model_slug=model_slug).count()
-        security_count = db.session.query(SecurityAnalysis).join(GeneratedApplication).filter(
-            GeneratedApplication.model_slug == model_slug
-        ).count()
-        performance_count = db.session.query(PerformanceTest).join(GeneratedApplication).filter(
-            GeneratedApplication.model_slug == model_slug
-        ).count()
-        
-        return render_template(
-            'partials/model_actions.html',
-            model=model,
-            stats={
-                'applications': app_count,
-                'security_tests': security_count,
-                'performance_tests': performance_count
-            }
-        )
+        if model_slug:
+            # Specific model actions
+            model = ModelCapability.query.filter_by(model_slug=model_slug).first_or_404()
+            
+            # Get related statistics
+            app_count = GeneratedApplication.query.filter_by(model_slug=model_slug).count()
+            security_count = db.session.query(SecurityAnalysis).join(GeneratedApplication).filter(
+                GeneratedApplication.model_slug == model_slug
+            ).count()
+            performance_count = db.session.query(PerformanceTest).join(GeneratedApplication).filter(
+                GeneratedApplication.model_slug == model_slug
+            ).count()
+            
+            return render_template(
+                'partials/model_actions.html',
+                model=model,
+                stats={
+                    'applications': app_count,
+                    'security_tests': security_count,
+                    'performance_tests': performance_count
+                }
+            )
+        else:
+            # Bulk operations view
+            return render_template('partials/bulk_operations.html')
+            
     except Exception as e:
         logger.error(f"Error loading model actions for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error loading model actions: {str(e)}</div>'
+
+
+@models_bp.route('/model_apps/<model_slug>')
+def model_apps(model_slug):
+    """View applications for a specific model."""
+    try:
+        model = ModelCapability.query.filter_by(model_slug=model_slug).first_or_404()
+        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+        
+        return render_template(
+            'model_apps.html',
+            model=model,
+            apps=apps
+        )
+    except Exception as e:
+        logger.error(f"Error loading model apps for {model_slug}: {e}")
+        flash(f'Error loading applications: {str(e)}', 'error')
+        return render_template('error.html', error=str(e))

@@ -1,0 +1,33 @@
+<!-- Recent Activity Detailed Partial -->
+<div class="list-group list-group-flush">
+    {% if activities %}
+        {% for activity in activities %}
+        <div class="list-group-item d-flex justify-content-between align-items-start border-0 py-3">
+            <div class="me-auto">
+                <div class="d-flex align-items-center mb-1">
+                    {% if activity.type == 'security' %}
+                        <i class="bi bi-shield-check text-primary me-2"></i>
+                    {% elif activity.type == 'performance' %}
+                        <i class="bi bi-speedometer2 text-success me-2"></i>
+                    {% else %}
+                        <i class="bi bi-gear text-secondary me-2"></i>
+                    {% endif %}
+                    <h6 class="mb-0">{{ activity.title }}</h6>
+                </div>
+                <p class="mb-1 text-muted small">{{ activity.details }}</p>
+                {% if activity.timestamp %}
+                <small class="text-muted">{{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+                {% endif %}
+            </div>
+            <span class="badge bg-{{ 'success' if activity.status == 'completed' else 'warning' if activity.status == 'running' else 'secondary' }} rounded-pill">
+                {{ activity.status.title() }}
+            </span>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center py-4 text-muted">
+            <i class="bi bi-clock-history fs-1 mb-3"></i>
+            <p>No recent activity</p>
+        </div>
+    {% endif %}
+</div>

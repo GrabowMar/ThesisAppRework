@@ -1,0 +1,176 @@
+<!-- Models List View -->
+{% if models %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Model</th>
+                <th>Provider</th>
+                <th>Applications</th>
+                <th>Analyses</th>
+                <th>Success Rate</th>
+                <th>Status</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for model in models %}
+            <tr class="model-row" data-model-slug="{{ model.model_slug }}">
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="model-icon me-3">
+                            {% if model.provider == 'openai' %}
+                                <i class="fab fa-openai text-success fs-4"></i>
+                            {% elif model.provider == 'anthropic' %}
+                                <i class="fas fa-brain text-primary fs-4"></i>
+                            {% elif model.provider == 'google' %}
+                                <i class="fab fa-google text-warning fs-4"></i>
+                            {% elif model.provider == 'microsoft' %}
+                                <i class="fab fa-microsoft text-info fs-4"></i>
+                            {% elif model.provider == 'meta' %}
+                                <i class="fab fa-meta text-primary fs-4"></i>
+                            {% else %}
+                                <i class="fas fa-robot text-secondary fs-4"></i>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <div class="fw-semibold">{{ model.model_name }}</div>
+                            <small class="text-muted">{{ model.model_id }}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-light text-dark">{{ model.provider|title }}</span>
+                </td>
+                <td>
+                    <span class="fw-semibold">{{ model.apps_count or 0 }}</span>
+                </td>
+                <td>
+                    <span class="fw-semibold">{{ model.analyses_count or 0 }}</span>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="progress me-2" style="width: 60px; height: 8px;">
+                            <div class="progress-bar bg-{{ 'success' if (model.success_rate or 0) >= 80 else 'warning' if (model.success_rate or 0) >= 60 else 'danger' }}" 
+                                 style="width: {{ model.success_rate or 0 }}%"></div>
+                        </div>
+                        <small class="text-muted">{{ model.success_rate or 0 }}%</small>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-{{ 'success' if model.status == 'active' else 'secondary' }}">
+                        <i class="fas fa-{{ 'check-circle' if model.status == 'active' else 'pause-circle' }} me-1"></i>
+                        {{ model.status|title }}
+                    </span>
+                </td>
+                <td>
+                    <small class="text-muted">
+                        {{ model.last_updated.strftime('%m/%d/%Y') if model.last_updated else 'N/A' }}
+                    </small>
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <a href="{{ url_for('models.model_apps', model_slug=model.model_slug) }}" 
+                           class="btn btn-outline-primary">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary" 
+                                onclick="openModelActions('{{ model.model_slug }}')">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" 
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="openSecurityTestModal()">
+                                        <i class="fas fa-shield-alt me-2"></i>Security Analysis
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="openPerformanceTestModal()">
+                                        <i class="fas fa-tachometer-alt me-2"></i>Performance Test
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="exportModelData('{{ model.model_slug }}')">
+                                        <i class="fas fa-download me-2"></i>Export Data
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-center mt-4">
+    <nav aria-label="Models pagination">
+        <ul class="pagination">
+            <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                <a class="page-link" href="#" 
+                   hx-get="{{ url_for('models.models_overview', page=pagination.prev_num) if pagination.has_prev else '#' }}"
+                   hx-target="#models-container"
+                   hx-include="[name='provider'], [name='search'], [name='sortBy']">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            </li>
+            
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num != pagination.page %}
+                    <li class="page-item">
+                        <a class="page-link" href="#"
+                           hx-get="{{ url_for('models.models_overview', page=page_num) }}"
+                           hx-target="#models-container"
+                           hx-include="[name='provider'], [name='search'], [name='sortBy']">
+                            {{ page_num }}
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% endif %}
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+                {% endif %}
+            {% endfor %}
+            
+            <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                <a class="page-link" href="#"
+                   hx-get="{{ url_for('models.models_overview', page=pagination.next_num) if pagination.has_next else '#' }}"
+                   hx-target="#models-container"
+                   hx-include="[name='provider'], [name='search'], [name='sortBy']">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</div>
+{% endif %}
+
+{% else %}
+<!-- No Models Found -->
+<div class="text-center py-5">
+    <div class="mb-4">
+        <i class="fas fa-robot text-muted" style="font-size: 4rem;"></i>
+    </div>
+    <h4 class="text-muted">No Models Found</h4>
+    <p class="text-muted">No AI models match your current filters. Try adjusting your search criteria.</p>
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('searchFilter').value=''; htmx.trigger(document.getElementById('searchFilter'), 'keyup');">
+        <i class="fas fa-refresh me-2"></i>Clear Filters
+    </button>
+</div>
+{% endif %}
