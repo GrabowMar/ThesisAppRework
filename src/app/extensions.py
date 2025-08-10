@@ -23,6 +23,7 @@ class AppComponents:
         self.celery = None
         self.task_manager = None
         self.analyzer_integration = None
+        self.background_service = None
     
     def init_app(self, app: Flask):
         """Initialize components with Flask app."""
@@ -39,6 +40,10 @@ class AppComponents:
     def set_analyzer_integration(self, analyzer_integration):
         """Set analyzer integration instance."""
         self.analyzer_integration = analyzer_integration
+    
+    def set_background_service(self, background_service):
+        """Set background service instance."""
+        self.background_service = background_service
 
 def get_components() -> Optional[AppComponents]:
     """Get components from current Flask app."""
@@ -58,6 +63,11 @@ def get_analyzer_integration():
     """Get analyzer integration from app components."""
     components = get_components()
     return components.analyzer_integration if components else None
+
+def get_background_service():
+    """Get background service from app components."""
+    components = get_components()
+    return components.background_service if components else None
 
 # Configure requests for containerized services
 requests_session = requests.Session()

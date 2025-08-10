@@ -21,55 +21,59 @@
     </div>
 
     <!-- Quick Stats -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h4 class="mb-0" id="total-models">-</h4>
-                            <small>Total Models</small>
+    <div id="dashboard-stats" 
+         hx-get="{{ url_for('api.dashboard_stats') }}" 
+         hx-trigger="load, every 60s">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h4 class="mb-0" id="total-models">-</h4>
+                                <small>Total Models</small>
+                            </div>
+                            <i class="fas fa-robot fa-2x opacity-75"></i>
                         </div>
-                        <i class="fas fa-robot fa-2x opacity-75"></i>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h4 class="mb-0" id="running-containers">-</h4>
-                            <small>Running Containers</small>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h4 class="mb-0" id="running-containers">-</h4>
+                                <small>Running Containers</small>
+                            </div>
+                            <i class="fas fa-play fa-2x opacity-75"></i>
                         </div>
-                        <i class="fas fa-play fa-2x opacity-75"></i>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h4 class="mb-0" id="pending-tests">-</h4>
-                            <small>Pending Tests</small>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h4 class="mb-0" id="pending-tests">-</h4>
+                                <small>Pending Tests</small>
+                            </div>
+                            <i class="fas fa-clock fa-2x opacity-75"></i>
                         </div>
-                        <i class="fas fa-clock fa-2x opacity-75"></i>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h4 class="mb-0" id="completed-tests">-</h4>
-                            <small>Completed Tests</small>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h4 class="mb-0" id="completed-tests">-</h4>
+                                <small>Completed Tests</small>
+                            </div>
+                            <i class="fas fa-check fa-2x opacity-75"></i>
                         </div>
-                        <i class="fas fa-check fa-2x opacity-75"></i>
                     </div>
                 </div>
             </div>
@@ -88,7 +92,7 @@
                 <div class="card-body">
                     <!-- TODO: Connect to backend for recent models data -->
                     <div id="recent-models-list" 
-                         hx-get="/api/dashboard/recent-models" 
+                         hx-get="{{ url_for('api.dashboard_recent_models') }}" 
                          hx-trigger="load, every 30s">
                         {% include 'partials/loading_spinner.html' %}
                     </div>
@@ -105,7 +109,7 @@
                 <div class="card-body">
                     <!-- TODO: Connect to backend for system status -->
                     <div id="system-status" 
-                         hx-get="/api/dashboard/system-status" 
+                         hx-get="{{ url_for('api.dashboard_system_status') }}" 
                          hx-trigger="load, every 10s">
                         {% include 'partials/loading_spinner.html' %}
                     </div>
@@ -130,9 +134,34 @@
                 <div class="card-body">
                     <!-- TODO: Connect to backend for activity feed -->
                     <div id="activity-feed" 
-                         hx-get="/api/dashboard/activity" 
+                         hx-get="{{ url_for('api.dashboard_activity') }}" 
                          hx-trigger="load, every 15s">
                         {% include 'partials/loading_spinner.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Dashboard Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Real-time Monitoring
+                    </h5>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="realTimeToggle" checked>
+                        <label class="form-check-label" for="realTimeToggle">
+                            Auto-refresh
+                        </label>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="realtime-dashboard">
+                        {% include 'partials/realtime_dashboard.html' %}
                     </div>
                 </div>
             </div>
@@ -189,6 +218,31 @@ class Dashboard {
         this.autoRefreshInterval = setInterval(() => {
             this.updateStats();
         }, 30000);
+        
+        // Real-time toggle functionality
+        const realTimeToggle = document.getElementById('realTimeToggle');
+        if (realTimeToggle) {
+            realTimeToggle.addEventListener('change', (e) => {
+                const realtimeDashboard = document.getElementById('realtime-dashboard');
+                if (e.target.checked) {
+                    // Enable auto-refresh for real-time components
+                    realtimeDashboard.querySelectorAll('[hx-trigger]').forEach(el => {
+                        const trigger = el.getAttribute('hx-trigger');
+                        if (!trigger.includes('every')) {
+                            el.setAttribute('hx-trigger', trigger + ', every 10s');
+                        }
+                    });
+                    console.log('Real-time monitoring enabled');
+                } else {
+                    // Disable auto-refresh
+                    realtimeDashboard.querySelectorAll('[hx-trigger]').forEach(el => {
+                        const trigger = el.getAttribute('hx-trigger');
+                        el.setAttribute('hx-trigger', trigger.replace(/, every \d+s/g, ''));
+                    });
+                    console.log('Real-time monitoring disabled');
+                }
+            });
+        }
     }
 
     refreshDashboard() {

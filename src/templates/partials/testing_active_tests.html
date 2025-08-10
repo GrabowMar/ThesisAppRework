@@ -1,0 +1,52 @@
+<!-- Testing Active Tests Partial -->
+{% if active_tests %}
+    <div class="row">
+        {% for test in active_tests %}
+        <div class="col-md-6 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">{{ test.task_type.replace('_', ' ').title() }}</h6>
+                            <p class="mb-1 text-muted">{{ test.message }}</p>
+                        </div>
+                        <div>
+                            {% if test.status == 'running' %}
+                                <span class="badge bg-primary">Running</span>
+                            {% elif test.status == 'pending' %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if test.progress > 0 %}
+                    <div class="mt-2">
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ test.progress }}%" 
+                                 aria-valuenow="{{ test.progress }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100"></div>
+                        </div>
+                        <small class="text-muted">{{ test.progress }}% complete</small>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>
+                            Started {{ test.started_at.strftime('%H:%M:%S') if test.started_at else 'unknown' }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-4">
+        <i class="fas fa-flask fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">No active tests</h5>
+        <p class="text-muted">All tests have completed or no tests are running.</p>
+    </div>
+{% endif %}

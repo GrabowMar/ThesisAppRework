@@ -221,7 +221,7 @@ def model_actions(model_slug=None):
     try:
         if model_slug:
             # Specific model actions
-            model = ModelCapability.query.filter_by(model_slug=model_slug).first_or_404()
+            model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
             
             # Get related statistics
             app_count = GeneratedApplication.query.filter_by(model_slug=model_slug).count()
@@ -254,7 +254,7 @@ def model_actions(model_slug=None):
 def model_apps(model_slug):
     """View applications for a specific model."""
     try:
-        model = ModelCapability.query.filter_by(model_slug=model_slug).first_or_404()
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
         apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
         
         return render_template(

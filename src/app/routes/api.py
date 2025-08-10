@@ -6,7 +6,7 @@ RESTful API endpoints for external integrations.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, render_template
 
@@ -572,3 +572,759 @@ def stats_running_containers():
     except Exception as e:
         logger.error(f"Error getting running containers: {e}")
         return "0"
+
+
+# Dashboard-specific HTMX endpoints
+@api_bp.route('/dashboard/recent-models')
+def dashboard_recent_models():
+    """HTMX endpoint for dashboard recent models section."""
+    try:
+        from ..models import ModelCapability, GeneratedApplication
+        from ..extensions import db
+        from sqlalchemy import desc
+        
+        # Get recently updated models with their app counts
+        recent_models = db.session.query(ModelCapability).order_by(
+            desc(ModelCapability.updated_at)
+        ).limit(5).all()
+        
+        # Add app counts and recent activity
+        models_data = []
+        for model in recent_models:
+            app_count = db.session.query(GeneratedApplication).filter_by(
+                model_slug=model.canonical_slug
+            ).count()
+            
+            models_data.append({
+                'model': model,
+                'app_count': app_count,
+                'last_activity': model.updated_at or model.created_at
+            })
+        
+        return render_template('partials/dashboard_recent_models.html', models_data=models_data)
+    except Exception as e:
+        logger.error(f"Error getting dashboard recent models: {e}")
+        return render_template('partials/dashboard_recent_models.html', models_data=[])
+
+
+@api_bp.route('/dashboard/system-status')
+def dashboard_system_status():
+    """HTMX endpoint for dashboard system status section."""
+    try:
+        from ..extensions import get_components
+        from sqlalchemy import text
+        from ..extensions import db
+        from datetime import datetime
+        
+        # Comprehensive system status check
+        status_info = {
+            'timestamp': datetime.now(),
+            'services': {}
+        }
+        
+        # Database status
+        try:
+            db.session.execute(text('SELECT 1'))
+            status_info['services']['database'] = {
+                'status': 'healthy',
+                'message': 'Connected',
+                'icon': 'fas fa-database',
+                'color': 'success'
+            }
+        except Exception as e:
+            status_info['services']['database'] = {
+                'status': 'error',
+                'message': 'Connection failed',
+                'icon': 'fas fa-database',
+                'color': 'danger'
+            }
+        
+        # Celery status
+        try:
+            components = get_components()
+            if components and components.celery:
+                status_info['services']['celery'] = {
+                    'status': 'healthy',
+                    'message': 'Running',
+                    'icon': 'fas fa-tasks',
+                    'color': 'success'
+                }
+            else:
+                status_info['services']['celery'] = {
+                    'status': 'warning',
+                    'message': 'Not configured',
+                    'icon': 'fas fa-tasks',
+                    'color': 'warning'
+                }
+        except Exception:
+            status_info['services']['celery'] = {
+                'status': 'error',
+                'message': 'Error',
+                'icon': 'fas fa-tasks',
+                'color': 'danger'
+            }
+        
+        # Analyzer status
+        try:
+            components = get_components()
+            if components and components.analyzer_integration:
+                status_info['services']['analyzer'] = {
+                    'status': 'available',
+                    'message': 'Ready',
+                    'icon': 'fas fa-search',
+                    'color': 'info'
+                }
+            else:
+                status_info['services']['analyzer'] = {
+                    'status': 'warning',
+                    'message': 'Not configured',
+                    'icon': 'fas fa-search',
+                    'color': 'warning'
+                }
+        except Exception:
+            status_info['services']['analyzer'] = {
+                'status': 'error',
+                'message': 'Error',
+                'icon': 'fas fa-search',
+                'color': 'danger'
+            }
+        
+        # Docker status (simplified)
+        try:
+            components = get_components()
+            # Simplified check - just verify components exist
+            if components:
+                status_info['services']['docker'] = {
+                    'status': 'available',
+                    'message': 'Service available',
+                    'icon': 'fab fa-docker',
+                    'color': 'info'
+                }
+            else:
+                status_info['services']['docker'] = {
+                    'status': 'warning',
+                    'message': 'Not available',
+                    'icon': 'fab fa-docker',
+                    'color': 'warning'
+                }
+        except Exception:
+            status_info['services']['docker'] = {
+                'status': 'error',
+                'message': 'Error',
+                'icon': 'fab fa-docker',
+                'color': 'danger'
+            }
+        
+        return render_template('partials/dashboard_system_status.html', status_info=status_info)
+    except Exception as e:
+        logger.error(f"Error getting dashboard system status: {e}")
+        from datetime import datetime
+        return render_template('partials/dashboard_system_status.html', status_info={
+            'timestamp': datetime.now(),
+            'services': {}
+        })
+
+
+@api_bp.route('/dashboard/activity')
+def dashboard_activity():
+    """HTMX endpoint for dashboard activity feed."""
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest, BatchAnalysis, GeneratedApplication
+        from ..extensions import db
+        from sqlalchemy import desc
+        from datetime import datetime, timezone
+        
+        # Collect recent activities from different sources
+        activities = []
+        
+        # Recent security analyses
+        recent_security = db.session.query(SecurityAnalysis).order_by(
+            desc(SecurityAnalysis.created_at)
+        ).limit(3).all()
+        
+        for analysis in recent_security:
+            activities.append({
+                'type': 'security',
+                'icon': 'fas fa-shield-alt',
+                'color': 'danger' if analysis.total_issues and analysis.total_issues > 0 else 'success',
+                'title': f'Security Analysis #{analysis.id}',
+                'description': f'Found {analysis.total_issues or 0} issues',
+                'timestamp': analysis.created_at or datetime.now(timezone.utc),
+                'status': analysis.status.value if analysis.status else 'completed'
+            })
+        
+        # Recent performance tests
+        recent_performance = db.session.query(PerformanceTest).order_by(
+            desc(PerformanceTest.created_at)
+        ).limit(3).all()
+        
+        for test in recent_performance:
+            activities.append({
+                'type': 'performance',
+                'icon': 'fas fa-tachometer-alt',
+                'color': 'info',
+                'title': f'Performance Test #{test.id}',
+                'description': f'{test.requests_per_second:.1f} RPS' if test.requests_per_second else 'Test completed',
+                'timestamp': test.created_at or datetime.now(timezone.utc),
+                'status': test.status.value if test.status else 'completed'
+            })
+        
+        # Recent batch analyses
+        recent_batches = db.session.query(BatchAnalysis).order_by(
+            desc(BatchAnalysis.created_at)
+        ).limit(2).all()
+        
+        for batch in recent_batches:
+            activities.append({
+                'type': 'batch',
+                'icon': 'fas fa-layer-group',
+                'color': 'primary',
+                'title': f'Batch Analysis #{batch.id}',
+                'description': f'{batch.total_tasks or 0} tasks',
+                'timestamp': batch.created_at or datetime.now(timezone.utc),
+                'status': batch.status.value if batch.status else 'pending'
+            })
+        
+        # Recent applications
+        recent_apps = db.session.query(GeneratedApplication).order_by(
+            desc(GeneratedApplication.created_at)
+        ).limit(2).all()
+        
+        for app in recent_apps:
+            activities.append({
+                'type': 'application',
+                'icon': 'fas fa-cogs',
+                'color': 'secondary',
+                'title': f'App {app.app_number} - {app.provider}',
+                'description': f'Model: {app.model_slug}',
+                'timestamp': app.created_at or datetime.now(timezone.utc),
+                'status': app.generation_status or 'generated'
+            })
+        
+        # Sort activities by timestamp (most recent first)
+        activities.sort(key=lambda x: x['timestamp'], reverse=True)
+        activities = activities[:10]  # Keep only the 10 most recent
+        
+        return render_template('partials/dashboard_activity.html', activities=activities)
+    except Exception as e:
+        logger.error(f"Error getting dashboard activity: {e}")
+        return render_template('partials/dashboard_activity.html', activities=[])
+
+
+@api_bp.route('/dashboard/stats')
+def dashboard_stats():
+    """HTMX endpoint for refreshing dashboard statistics."""
+    try:
+        from ..models import (
+            ModelCapability, GeneratedApplication, SecurityAnalysis, 
+            PerformanceTest, BatchAnalysis, ContainerizedTest
+        )
+        from ..extensions import db
+        from ..constants import JobStatus, ContainerState
+        
+        # Calculate dashboard statistics
+        stats = {
+            'total_models': db.session.query(ModelCapability).count(),
+            'running_containers': db.session.query(ContainerizedTest).filter_by(
+                status=ContainerState.RUNNING.value
+            ).count(),
+            'pending_tests': (
+                db.session.query(SecurityAnalysis).filter_by(status=JobStatus.PENDING).count() +
+                db.session.query(PerformanceTest).filter_by(status=JobStatus.PENDING).count()
+            ),
+            'completed_tests': (
+                db.session.query(SecurityAnalysis).filter_by(status=JobStatus.COMPLETED).count() +
+                db.session.query(PerformanceTest).filter_by(status=JobStatus.COMPLETED).count()
+            )
+        }
+        
+        return render_template('partials/dashboard_stats.html', stats=stats)
+    except Exception as e:
+        logger.error(f"Error getting dashboard stats: {e}")
+        return render_template('partials/dashboard_stats.html', stats={
+            'total_models': 0, 'running_containers': 0, 'pending_tests': 0, 'completed_tests': 0
+        })
+
+
+# Background task monitoring endpoints
+@api_bp.route('/tasks/status')
+def api_tasks_status():
+    """API endpoint for background task status."""
+    try:
+        from ..services.background_service import get_background_service
+        service = get_background_service()
+        summary = service.get_task_summary()
+        return jsonify(summary)
+    except Exception as e:
+        logger.error(f"Error getting task status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/tasks/active')
+def api_tasks_active():
+    """HTMX endpoint for active background tasks."""
+    try:
+        from ..services.background_service import get_background_service
+        service = get_background_service()
+        active_tasks = service.get_active_tasks()
+        
+        return render_template('partials/active_tasks.html', tasks=active_tasks)
+    except Exception as e:
+        logger.error(f"Error getting active tasks: {e}")
+        return render_template('partials/active_tasks.html', tasks=[])
+
+
+@api_bp.route('/tasks/<task_id>/status')
+def api_task_status(task_id):
+    """HTMX endpoint for individual task status."""
+    try:
+        from ..services.background_service import get_background_service
+        service = get_background_service()
+        task = service.get_task(task_id)
+        
+        if task:
+            return render_template('partials/task_status.html', task=task)
+        else:
+            return render_template('partials/task_status.html', task=None)
+    except Exception as e:
+        logger.error(f"Error getting task {task_id} status: {e}")
+        return render_template('partials/task_status.html', task=None)
+
+
+@api_bp.route('/realtime/dashboard')
+def realtime_dashboard():
+    """HTMX endpoint for real-time dashboard updates."""
+    try:
+        from ..models import (
+            ModelCapability, GeneratedApplication, SecurityAnalysis, 
+            PerformanceTest, BatchAnalysis, ContainerizedTest
+        )
+        from ..extensions import db
+        from ..constants import JobStatus, ContainerState
+        from ..services.background_service import get_background_service
+        
+        # Get current statistics
+        stats = {
+            'total_models': db.session.query(ModelCapability).count(),
+            'running_containers': db.session.query(ContainerizedTest).filter_by(
+                status=ContainerState.RUNNING.value
+            ).count(),
+            'pending_tests': (
+                db.session.query(SecurityAnalysis).filter_by(status=JobStatus.PENDING).count() +
+                db.session.query(PerformanceTest).filter_by(status=JobStatus.PENDING).count()
+            ),
+            'completed_tests': (
+                db.session.query(SecurityAnalysis).filter_by(status=JobStatus.COMPLETED).count() +
+                db.session.query(PerformanceTest).filter_by(status=JobStatus.COMPLETED).count()
+            )
+        }
+        
+        # Get background task summary
+        service = get_background_service()
+        task_summary = service.get_task_summary()
+        
+        # Get system health
+        from sqlalchemy import text
+        try:
+            db.session.execute(text('SELECT 1'))
+            system_health = "healthy"
+        except Exception:
+            system_health = "error"
+        
+        realtime_data = {
+            'stats': stats,
+            'tasks': task_summary,
+            'system_health': system_health,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+        
+        return render_template('partials/realtime_dashboard.html', data=realtime_data)
+    except Exception as e:
+        logger.error(f"Error getting realtime dashboard data: {e}")
+        return render_template('partials/realtime_dashboard.html', data={
+            'stats': {'total_models': 0, 'running_containers': 0, 'pending_tests': 0, 'completed_tests': 0},
+            'tasks': {'total': 0, 'pending': 0, 'running': 0, 'completed': 0, 'failed': 0, 'recent': []},
+            'system_health': 'unknown',
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
+
+
+# Batch operation endpoints
+@api_bp.route('/batch/create', methods=['POST'])
+def api_batch_create():
+    """API endpoint to create a new batch analysis."""
+    try:
+        from flask import request
+        from ..services.background_service import get_background_service
+        from ..models import BatchAnalysis
+        from ..extensions import db
+        from ..constants import JobStatus
+        import uuid
+        
+        # Get request data
+        data = request.get_json() or {}
+        
+        # Create batch analysis record
+        batch_id_uuid = str(uuid.uuid4())
+        batch = BatchAnalysis(
+            batch_id=batch_id_uuid,
+            status=JobStatus.PENDING,
+            total_tasks=data.get('total_tasks', 0),
+            completed_tasks=0,
+            failed_tasks=0
+        )
+        
+        db.session.add(batch)
+        db.session.commit()
+        
+        # Create background task
+        service = get_background_service()
+        task = service.create_task(
+            task_id=f"batch_{batch_id_uuid}",
+            task_type="batch_analysis",
+            message=f"Starting batch analysis with {data.get('total_tasks', 0)} tasks"
+        )
+        
+        return jsonify({
+            'success': True,
+            'batch_id': batch_id_uuid,
+            'task_id': task.task_id
+        })
+    except Exception as e:
+        logger.error(f"Error creating batch: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/batch/<batch_id>/start', methods=['POST'])
+def api_batch_start(batch_id):
+    """API endpoint to start a batch analysis."""
+    try:
+        from ..services.background_service import get_background_service
+        from ..models import BatchAnalysis
+        from ..extensions import db
+        from ..constants import JobStatus
+        
+        # Update batch status
+        batch = db.session.query(BatchAnalysis).filter_by(batch_id=batch_id).first()
+        if not batch:
+            return jsonify({'error': 'Batch not found'}), 404
+        
+        batch.status = JobStatus.RUNNING
+        batch.started_at = datetime.now(timezone.utc)
+        db.session.commit()
+        
+        # Start background task
+        service = get_background_service()
+        task_id = f"batch_{batch_id}"
+        service.start_task(task_id)
+        
+        return jsonify({'success': True, 'status': 'started'})
+    except Exception as e:
+        logger.error(f"Error starting batch {batch_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/notifications/count')
+def api_notifications_count():
+    """HTMX endpoint for notification count."""
+    try:
+        from ..services.background_service import get_background_service
+        service = get_background_service()
+        
+        # Count active tasks as notifications
+        active_tasks = service.get_active_tasks()
+        failed_tasks = service.get_tasks(status="failed")
+        
+        notification_count = len(active_tasks) + len(failed_tasks)
+        
+        if notification_count > 0:
+            return f'<span class="badge bg-danger">{notification_count}</span>'
+        else:
+            return ''
+    except Exception as e:
+        logger.error(f"Error getting notification count: {e}")
+        return ''
+
+
+# Missing Models endpoints
+@api_bp.route('/models/list')
+def api_models_list():
+    """API endpoint for models list (HTMX)."""
+    try:
+        models = ModelCapability.query.all()
+        return render_template('partials/models_list.html', models=models)
+    except Exception as e:
+        logger.error(f"Error loading models list: {e}")
+        return f'<div class="alert alert-danger">Error loading models: {str(e)}</div>'
+
+
+# Statistics endpoints
+@api_bp.route('/statistics/test-results')
+def api_statistics_test_results():
+    """API endpoint for test results statistics (HTMX)."""
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest
+        from ..extensions import db
+        from sqlalchemy import func
+        
+        # Get test results statistics
+        security_count = db.session.query(SecurityAnalysis).count()
+        performance_count = db.session.query(PerformanceTest).count()
+        
+        # Get recent results
+        recent_security = db.session.query(SecurityAnalysis).order_by(
+            SecurityAnalysis.created_at.desc()
+        ).limit(5).all()
+        
+        recent_performance = db.session.query(PerformanceTest).order_by(
+            PerformanceTest.created_at.desc()
+        ).limit(5).all()
+        
+        return render_template('partials/statistics_test_results.html', 
+                             security_count=security_count,
+                             performance_count=performance_count,
+                             recent_security=recent_security,
+                             recent_performance=recent_performance)
+    except Exception as e:
+        logger.error(f"Error loading test results: {e}")
+        return f'<div class="alert alert-danger">Error loading test results: {str(e)}</div>'
+
+
+@api_bp.route('/statistics/model-rankings')
+def api_statistics_model_rankings():
+    """API endpoint for model rankings (HTMX)."""
+    try:
+        from ..models import ModelCapability, SecurityAnalysis, PerformanceTest, GeneratedApplication
+        from ..extensions import db
+        from sqlalchemy import func, desc
+        
+        # Get model rankings based on test results
+        model_stats = db.session.query(
+            ModelCapability.canonical_slug,
+            ModelCapability.model_name,
+            ModelCapability.provider,
+            func.count(SecurityAnalysis.id).label('security_tests'),
+            func.count(PerformanceTest.id).label('performance_tests')
+        ).outerjoin(
+            GeneratedApplication, ModelCapability.canonical_slug == GeneratedApplication.model_slug
+        ).outerjoin(
+            SecurityAnalysis, GeneratedApplication.id == SecurityAnalysis.application_id
+        ).outerjoin(
+            PerformanceTest, GeneratedApplication.id == PerformanceTest.application_id
+        ).group_by(ModelCapability.id
+        ).order_by(desc('security_tests')).all()
+        
+        return render_template('partials/statistics_model_rankings.html', models=model_stats)
+    except Exception as e:
+        logger.error(f"Error loading model rankings: {e}")
+        return f'<div class="alert alert-danger">Error loading model rankings: {str(e)}</div>'
+
+
+@api_bp.route('/statistics/error-analysis')
+def api_statistics_error_analysis():
+    """API endpoint for error analysis (HTMX)."""
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest, GeneratedApplication
+        from ..extensions import db
+        from sqlalchemy import func
+        
+        # Get error statistics
+        security_errors = db.session.query(SecurityAnalysis).filter(
+            SecurityAnalysis.status == 'failed'
+        ).count()
+        
+        performance_errors = db.session.query(PerformanceTest).filter(
+            PerformanceTest.status == 'failed'  
+        ).count()
+        
+        # Get recent errors with model information
+        recent_errors = []
+        
+        security_recent = db.session.query(SecurityAnalysis, GeneratedApplication).join(
+            GeneratedApplication, SecurityAnalysis.application_id == GeneratedApplication.id
+        ).filter(
+            SecurityAnalysis.status == 'failed'
+        ).order_by(SecurityAnalysis.created_at.desc()).limit(3).all()
+        
+        for analysis, app in security_recent:
+            error_msg = 'Unknown error'
+            if analysis.results_json:
+                try:
+                    import json
+                    results = json.loads(analysis.results_json)
+                    error_msg = results.get('error', 'Unknown error')
+                except:
+                    error_msg = 'JSON parsing error'
+            
+            recent_errors.append({
+                'type': 'Security Analysis',
+                'model': app.model_slug,
+                'error': error_msg,
+                'timestamp': analysis.created_at
+            })
+        
+        performance_recent = db.session.query(PerformanceTest, GeneratedApplication).join(
+            GeneratedApplication, PerformanceTest.application_id == GeneratedApplication.id
+        ).filter(
+            PerformanceTest.status == 'failed'
+        ).order_by(PerformanceTest.created_at.desc()).limit(3).all()
+        
+        for test, app in performance_recent:
+            error_msg = 'Unknown error'
+            if test.results_json:
+                try:
+                    import json
+                    results = json.loads(test.results_json)
+                    error_msg = results.get('error', 'Unknown error')
+                except:
+                    error_msg = 'JSON parsing error'
+            
+            recent_errors.append({
+                'type': 'Performance Test',
+                'model': app.model_slug,
+                'error': error_msg,
+                'timestamp': test.created_at
+            })
+        
+        # Sort by timestamp
+        recent_errors.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return render_template('partials/statistics_error_analysis.html',
+                             security_errors=security_errors,
+                             performance_errors=performance_errors,
+                             recent_errors=recent_errors[:5])
+    except Exception as e:
+        logger.error(f"Error loading error analysis: {e}")
+        return f'<div class="alert alert-danger">Error loading error analysis: {str(e)}</div>'
+
+
+# Testing endpoints
+@api_bp.route('/testing/active-tests')
+def api_testing_active_tests():
+    """API endpoint for active tests (HTMX)."""
+    try:
+        from ..extensions import get_background_service
+        
+        background_service = get_background_service()
+        if background_service:
+            active_tasks = []
+            for task_id, task in background_service.tasks.items():
+                if task.status in ['running', 'pending']:
+                    active_tasks.append(task)
+            
+            return render_template('partials/testing_active_tests.html', active_tests=active_tasks)
+        else:
+            return '<div class="text-muted">No active tests found</div>'
+    except Exception as e:
+        logger.error(f"Error loading active tests: {e}")
+        return f'<div class="alert alert-danger">Error loading active tests: {str(e)}</div>'
+
+
+@api_bp.route('/testing/service-status')
+def api_testing_service_status():
+    """API endpoint for testing service status (HTMX)."""
+    try:
+        from ..extensions import get_components
+        
+        components = get_components()
+        status = {
+            'background_service': 'available' if components and components.background_service else 'unavailable',
+            'task_manager': 'available' if components and components.task_manager else 'unavailable',
+            'analyzer': 'available' if components and components.analyzer_integration else 'unavailable'
+        }
+        
+        return render_template('partials/testing_service_status.html', status=status)
+    except Exception as e:
+        logger.error(f"Error loading service status: {e}")
+        return f'<div class="alert alert-danger">Error loading service status: {str(e)}</div>'
+
+
+@api_bp.route('/testing/templates')
+def api_testing_templates():
+    """API endpoint for testing templates (HTMX)."""
+    try:
+        import os
+        templates_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'misc', 'app_templates')
+        
+        templates = []
+        if os.path.exists(templates_dir):
+            for filename in os.listdir(templates_dir):
+                if filename.endswith('.md'):
+                    templates.append({
+                        'name': filename.replace('.md', '').replace('_', ' ').title(),
+                        'filename': filename
+                    })
+        
+        return render_template('partials/testing_templates.html', templates=templates)
+    except Exception as e:
+        logger.error(f"Error loading templates: {e}")
+        return f'<div class="alert alert-danger">Error loading templates: {str(e)}</div>'
+
+
+@api_bp.route('/testing/test-history')
+def api_testing_test_history():
+    """API endpoint for test history (HTMX)."""
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest, GeneratedApplication
+        from ..extensions import db
+        
+        # Get recent test history with model information
+        recent_security = db.session.query(SecurityAnalysis, GeneratedApplication).join(
+            GeneratedApplication, SecurityAnalysis.application_id == GeneratedApplication.id
+        ).order_by(SecurityAnalysis.created_at.desc()).limit(10).all()
+        
+        recent_performance = db.session.query(PerformanceTest, GeneratedApplication).join(
+            GeneratedApplication, PerformanceTest.application_id == GeneratedApplication.id
+        ).order_by(PerformanceTest.created_at.desc()).limit(10).all()
+        
+        # Combine and sort
+        all_tests = []
+        for analysis, app in recent_security:
+            all_tests.append({
+                'type': 'Security',
+                'model': app.model_slug,
+                'status': analysis.status,
+                'timestamp': analysis.created_at,
+                'id': analysis.id
+            })
+        
+        for test, app in recent_performance:
+            all_tests.append({
+                'type': 'Performance',
+                'model': app.model_slug,
+                'status': test.status,
+                'timestamp': test.created_at,
+                'id': test.id
+            })
+        
+        all_tests.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return render_template('partials/testing_test_history.html', tests=all_tests[:15])
+    except Exception as e:
+        logger.error(f"Error loading test history: {e}")
+        return f'<div class="alert alert-danger">Error loading test history: {str(e)}</div>'
+
+
+@api_bp.route('/testing/batch-progress')
+def api_testing_batch_progress():
+    """API endpoint for batch progress (HTMX)."""
+    try:
+        from ..models import BatchAnalysis
+        from ..extensions import db
+        
+        # Get active batch operations
+        active_batches = db.session.query(BatchAnalysis).filter(
+            BatchAnalysis.status.in_(['pending', 'running'])
+        ).order_by(BatchAnalysis.created_at.desc()).all()
+        
+        # Get recently completed batches
+        completed_batches = db.session.query(BatchAnalysis).filter(
+            BatchAnalysis.status.in_(['completed', 'failed'])
+        ).order_by(BatchAnalysis.created_at.desc()).limit(5).all()
+        
+        return render_template('partials/testing_batch_progress.html',
+                             active_batches=active_batches,
+                             completed_batches=completed_batches)
+    except Exception as e:
+        logger.error(f"Error loading batch progress: {e}")
+        return f'<div class="alert alert-danger">Error loading batch progress: {str(e)}</div>'

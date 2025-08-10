@@ -1,0 +1,59 @@
+<!-- Statistics Test Results Partial -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Security Analysis Results</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Total Tests:</span>
+                    <span class="badge bg-primary">{{ security_count }}</span>
+                </div>
+                {% if recent_security %}
+                    <h6 class="mt-3 mb-2">Recent Tests:</h6>
+                    {% for test in recent_security %}
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small>Test #{{ test.id }}</small>
+                        {% if test.status == 'completed' %}
+                            <span class="badge bg-success">{{ test.status }}</span>
+                        {% elif test.status == 'failed' %}
+                            <span class="badge bg-danger">{{ test.status }}</span>
+                        {% else %}
+                            <span class="badge bg-warning">{{ test.status }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Performance Test Results</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Total Tests:</span>
+                    <span class="badge bg-primary">{{ performance_count }}</span>
+                </div>
+                {% if recent_performance %}
+                    <h6 class="mt-3 mb-2">Recent Tests:</h6>
+                    {% for test in recent_performance %}
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small>Test #{{ test.id }}</small>
+                        {% if test.status == 'completed' %}
+                            <span class="badge bg-success">{{ test.status }}</span>
+                        {% elif test.status == 'failed' %}
+                            <span class="badge bg-danger">{{ test.status }}</span>
+                        {% else %}
+                            <span class="badge bg-warning">{{ test.status }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,63 @@
+<!-- Task Status Partial -->
+{% if task %}
+    <div class="task-status-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h6 class="mb-1">{{ task.task_type.replace('_', ' ').title() }}</h6>
+                <p class="mb-1 text-muted">{{ task.message }}</p>
+            </div>
+            <div>
+                {% if task.status == 'completed' %}
+                    <span class="badge bg-success">Completed</span>
+                {% elif task.status == 'running' %}
+                    <span class="badge bg-primary">Running</span>
+                {% elif task.status == 'failed' %}
+                    <span class="badge bg-danger">Failed</span>
+                {% elif task.status == 'pending' %}
+                    <span class="badge bg-warning">Pending</span>
+                {% else %}
+                    <span class="badge bg-secondary">{{ task.status.title() }}</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if task.status in ['running', 'completed'] and task.progress > 0 %}
+            <div class="mt-2">
+                <div class="progress" style="height: 6px;">
+                    <div class="progress-bar" role="progressbar" 
+                         style="width: {{ task.progress }}%" 
+                         aria-valuenow="{{ task.progress }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100"></div>
+                </div>
+                <small class="text-muted mt-1 d-block">{{ task.progress }}% complete</small>
+            </div>
+        {% endif %}
+        
+        <div class="mt-2">
+            <small class="text-muted">
+                <i class="fas fa-clock me-1"></i>
+                {% if task.completed_at %}
+                    Completed {{ task.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                {% elif task.started_at %}
+                    Started {{ task.started_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                {% else %}
+                    Created {{ task.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                {% endif %}
+            </small>
+        </div>
+        
+        {% if task.error %}
+            <div class="mt-2">
+                <div class="alert alert-danger p-2 mb-0">
+                    <small><i class="fas fa-exclamation-triangle me-1"></i>{{ task.error }}</small>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% else %}
+    <div class="text-center py-3">
+        <i class="fas fa-search fa-2x text-muted mb-2"></i>
+        <p class="text-muted mb-0">Task not found</p>
+    </div>
+{% endif %}

@@ -1,0 +1,48 @@
+<!-- Testing Service Status Partial -->
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    {% if status.background_service == 'available' %}
+                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                    {% else %}
+                        <i class="fas fa-times-circle fa-2x text-danger"></i>
+                    {% endif %}
+                </div>
+                <h6 class="mb-0">Background Service</h6>
+                <small class="text-muted">{{ status.background_service.title() }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    {% if status.task_manager == 'available' %}
+                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                    {% else %}
+                        <i class="fas fa-times-circle fa-2x text-danger"></i>
+                    {% endif %}
+                </div>
+                <h6 class="mb-0">Task Manager</h6>
+                <small class="text-muted">{{ status.task_manager.title() }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    {% if status.analyzer == 'available' %}
+                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                    {% else %}
+                        <i class="fas fa-times-circle fa-2x text-danger"></i>
+                    {% endif %}
+                </div>
+                <h6 class="mb-0">Analyzer Service</h6>
+                <small class="text-muted">{{ status.analyzer.title() }}</small>
+            </div>
+        </div>
+    </div>
+</div>
