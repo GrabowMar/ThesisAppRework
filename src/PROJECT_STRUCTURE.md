@@ -80,8 +80,10 @@ src/
 │   ├── README.md           # ✅ Application-specific README
 │   └── IMPLEMENTATION_SUMMARY.md # ✅ Implementation details
 │
-├── instance/               # Instance-specific files
-│   └── thesis_app.db       # ✅ SQLite database
+├── app/                    # Main application directory
+│   ├── data/               # Database and local files
+│   │   └── thesis_app.db   # ✅ SQLite database
+│   └── ...                 # Other app files
 │
 └── tests/                  # Test suite
     ├── __init__.py         # ✅ Tests package init
@@ -123,7 +125,7 @@ src/
 
 ### Data Layer
 - **SQLAlchemy Models**: Comprehensive database schema
-- **SQLite Database**: Development database in instance/
+- **SQLite Database**: Development database in app/data/
 - **Migration Support**: Ready for production database migration
 
 ## 🎯 Key Improvements Made

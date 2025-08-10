@@ -81,9 +81,16 @@ def create_app(config_name: str = 'default') -> Flask:
     app = Flask(__name__)
     
     # Configuration
+    # Create data directory if it doesn't exist
+    data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Database path in data folder
+    default_db_path = f'sqlite:///{os.path.join(data_dir, "thesis_app.db")}'
+    
     app.config.update(
         SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
-        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', 'sqlite:///thesis_app.db'),
+        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', default_db_path),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         
         # Celery configuration
@@ -122,6 +129,11 @@ def create_app(config_name: str = 'default') -> Flask:
     
     # Initialize services
     try:
+        # Initialize service locator with all core services
+        from app.services.service_locator import ServiceLocator
+        ServiceLocator.initialize(app)
+        logger.info("Service locator initialized with core services")
+        
         # Initialize task manager
         task_manager = TaskManager()
         components.set_task_manager(task_manager)
@@ -319,9 +331,16 @@ def create_cli_app() -> Flask:
     
     app = Flask(__name__)
     
+    # Create data directory if it doesn't exist
+    data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Database path in data folder
+    default_db_path = f'sqlite:///{os.path.join(data_dir, "thesis_app.db")}'
+    
     # Minimal configuration for CLI
     app.config.update(
-        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', 'sqlite:///thesis_app.db'),
+        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', default_db_path),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
     )
     

@@ -3,16 +3,21 @@ Model Service
 ============
 
 Service for managing AI model data and capabilities.
-Provides database-first access to model information.
+Provides database-first access to model information with JSON file synchronization.
 """
 
 import json
+import logging
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
 
 from flask import Flask
 
 from app.models import db, ModelCapability, PortConfiguration, GeneratedApplication
+from app.constants import Paths
+
+logger = logging.getLogger(__name__)
 
 
 class ModelService:
@@ -21,114 +26,168 @@ class ModelService:
     def __init__(self, app: Flask):
         self.app = app
         self.config = app.config
+        self.logger = logger
         
     def get_all_models(self, provider: Optional[str] = None) -> List[ModelCapability]:
         """Get all models, optionally filtered by provider."""
         query = ModelCapability.query
         if provider:
             query = query.filter_by(provider=provider)
-        return query.all()
+        return query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
     
-    def get_model_by_slug(self, model_slug: str) -> Optional[ModelCapability]:
-        """Get a specific model by its slug."""
-        return ModelCapability.query.filter_by(model_slug=model_slug).first()
+    def get_model_by_slug(self, canonical_slug: str) -> Optional[ModelCapability]:
+        """Get a specific model by its canonical slug."""
+        return ModelCapability.query.filter_by(canonical_slug=canonical_slug).first()
+    
+    def get_model_by_id(self, model_id: str) -> Optional[ModelCapability]:
+        """Get a specific model by its model ID."""
+        return ModelCapability.query.filter_by(model_id=model_id).first()
     
     def get_providers(self) -> List[str]:
         """Get list of all available providers."""
         return [provider[0] for provider in db.session.query(ModelCapability.provider).distinct()]
     
-    def get_model_apps(self, model_slug: str) -> List[GeneratedApplication]:
+    def get_model_apps(self, canonical_slug: str) -> List[GeneratedApplication]:
         """Get all applications for a specific model."""
-        return GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+        return GeneratedApplication.query.filter_by(model_slug=canonical_slug).all()
     
-    def get_app(self, model_slug: str, app_number: int) -> Optional[GeneratedApplication]:
+    def get_app(self, canonical_slug: str, app_number: int) -> Optional[GeneratedApplication]:
         """Get a specific application."""
         return GeneratedApplication.query.filter_by(
-            model_slug=model_slug, 
+            model_slug=canonical_slug, 
             app_number=app_number
         ).first()
     
     def get_app_ports(self, model_slug: str, app_number: int) -> Optional[PortConfiguration]:
         """Get port configuration for an application."""
         return PortConfiguration.query.filter_by(
-            model_slug=model_slug,
-            app_number=app_number
+            model=model_slug,
+            app_num=app_number
         ).first()
     
-    def sync_from_files(self) -> Dict[str, int]:
+    def populate_database_from_files(self) -> Dict[str, int]:
         """
-        Sync database from JSON files in misc/ directory.
-        Returns count of synced records.
+        Populate database from JSON files in misc/ directory.
+        Returns count of created/updated records.
         """
-        synced = {'models': 0, 'ports': 0, 'apps': 0}
+        populated = {'models': 0, 'ports': 0, 'apps': 0}
         
-        # Sync model capabilities
-        capabilities_file = Path(self.config['MODEL_CAPABILITIES_FILE'])
-        if capabilities_file.exists():
-            synced['models'] = self._sync_model_capabilities(capabilities_file)
+        try:
+            # Populate model capabilities
+            capabilities_file = Paths.MODEL_CAPABILITIES
+            if capabilities_file.exists():
+                populated['models'] = self._populate_model_capabilities(capabilities_file)
+                self.logger.info(f"Populated {populated['models']} models from capabilities file")
+            
+            # Populate port configurations  
+            port_config_file = Paths.PORT_CONFIG
+            if port_config_file.exists():
+                populated['ports'] = self._populate_port_configurations(port_config_file)
+                self.logger.info(f"Populated {populated['ports']} port configurations")
+            
+            # Scan for generated applications
+            models_dir = Paths.MODELS_DIR
+            if models_dir.exists():
+                populated['apps'] = self._populate_generated_applications(models_dir)
+                self.logger.info(f"Populated {populated['apps']} generated applications")
+                
+        except Exception as e:
+            self.logger.error(f"Error populating database from files: {e}")
+            raise
         
-        # Sync port configurations
-        port_config_file = Path(self.config['PORT_CONFIG_FILE'])
-        if port_config_file.exists():
-            synced['ports'] = self._sync_port_configurations(port_config_file)
-        
-        # Sync generated applications
-        models_dir = Path(self.config['MODELS_DIR'])
-        if models_dir.exists():
-            synced['apps'] = self._sync_generated_applications(models_dir)
-        
-        return synced
+        return populated
     
-    def _sync_model_capabilities(self, file_path: Path) -> int:
-        """Sync model capabilities from JSON file."""
-        with open(file_path) as f:
+    def _populate_model_capabilities(self, file_path: Path) -> int:
+        """Populate model capabilities from JSON file."""
+        with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
         count = 0
         models_data = data.get('models', {})
         
-        for model_slug, model_info in models_data.items():
+        # Skip metadata sections and get actual model data
+        for model_id, model_info in models_data.items():
+            if model_id in ['metadata', 'capabilities_summary']:
+                continue
+                
+            if not isinstance(model_info, dict):
+                continue
+                
             # Check if model exists
-            existing = ModelCapability.query.filter_by(model_slug=model_slug).first()
+            existing = ModelCapability.query.filter_by(model_id=model_id).first()
             
             if not existing:
+                # Extract pricing information
+                pricing = model_info.get('pricing', {})
+                input_price = 0.0
+                output_price = 0.0
+                
+                if isinstance(pricing, dict):
+                    input_price = float(pricing.get('input', 0) or 0)
+                    output_price = float(pricing.get('output', 0) or 0)
+                
                 # Create new model
                 model = ModelCapability(
-                    model_slug=model_slug,
+                    model_id=model_id,
+                    canonical_slug=model_info.get('canonical_slug', model_id.replace('/', '_')),
                     provider=model_info.get('provider', 'unknown'),
-                    model_name=model_info.get('name', model_slug),
-                    display_name=model_info.get('display_name'),
-                    supports_vision=model_info.get('supports_vision', False),
-                    supports_function_calling=model_info.get('supports_function_calling', False),
+                    model_name=model_info.get('model_name', model_id.split('/')[-1]),
                     is_free=model_info.get('is_free', False),
-                    input_price=model_info.get('pricing', {}).get('input'),
-                    output_price=model_info.get('pricing', {}).get('output'),
-                    context_length=model_info.get('context_length'),
-                    max_output_tokens=model_info.get('max_output_tokens')
+                    context_window=model_info.get('context_window', 0),
+                    max_output_tokens=model_info.get('max_output_tokens', 0),
+                    supports_function_calling=model_info.get('supports_function_calling', False),
+                    supports_vision=model_info.get('supports_vision', False),
+                    supports_streaming=model_info.get('supports_streaming', False),
+                    supports_json_mode=model_info.get('supports_json_mode', False),
+                    input_price_per_token=input_price,
+                    output_price_per_token=output_price,
+                    cost_efficiency=model_info.get('performance', {}).get('cost_efficiency', 0.0),
+                    safety_score=model_info.get('quality_metrics', {}).get('safety', 0.0)
                 )
+                
+                # Store full capabilities and metadata as JSON
+                capabilities = {
+                    'capabilities': model_info.get('capabilities', {}),
+                    'supported_parameters': model_info.get('supported_parameters', []),
+                    'input_modalities': model_info.get('input_modalities', []),
+                    'output_modalities': model_info.get('output_modalities', [])
+                }
+                model.set_capabilities(capabilities)
+                
+                metadata = {
+                    'architecture': model_info.get('architecture', {}),
+                    'performance': model_info.get('performance', {}),
+                    'quality_metrics': model_info.get('quality_metrics', {}),
+                    'rate_limits': model_info.get('rate_limits', {}),
+                    'provider_info': model_info.get('provider_info', {}),
+                    'usage_stats': model_info.get('usage_stats', {}),
+                    'last_updated': model_info.get('last_updated', datetime.now(timezone.utc).isoformat())
+                }
+                model.set_metadata(metadata)
+                
                 db.session.add(model)
                 count += 1
         
         db.session.commit()
         return count
     
-    def _sync_port_configurations(self, file_path: Path) -> int:
-        """Sync port configurations from JSON file."""
-        with open(file_path) as f:
+    def _populate_port_configurations(self, file_path: Path) -> int:
+        """Populate port configurations from JSON file."""
+        with open(file_path, 'r', encoding='utf-8') as f:
             port_configs = json.load(f)
         
         count = 0
         for config in port_configs:
             # Check if configuration exists
             existing = PortConfiguration.query.filter_by(
-                model_slug=config['model_name'],
-                app_number=config['app_number']
+                model=config['model_name'],
+                app_num=config['app_number']
             ).first()
             
             if not existing:
                 port_config = PortConfiguration(
-                    model_slug=config['model_name'],
-                    app_number=config['app_number'],
+                    model=config['model_name'],
+                    app_num=config['app_number'],
                     backend_port=config['backend_port'],
                     frontend_port=config['frontend_port']
                 )
@@ -138,8 +197,8 @@ class ModelService:
         db.session.commit()
         return count
     
-    def _sync_generated_applications(self, models_dir: Path) -> int:
-        """Scan models directory and sync generated applications."""
+    def _populate_generated_applications(self, models_dir: Path) -> int:
+        """Scan models directory and populate generated applications."""
         count = 0
         
         for model_dir in models_dir.iterdir():
@@ -168,16 +227,87 @@ class ModelService:
                     # Extract provider from model_slug
                     provider = model_slug.split('_')[0] if '_' in model_slug else 'unknown'
                     
+                    # Determine app type and frameworks by checking directories
+                    has_backend = (app_dir / 'backend').exists()
+                    has_frontend = (app_dir / 'frontend').exists() 
+                    has_docker_compose = (app_dir / 'docker-compose.yml').exists()
+                    
+                    # Detect frameworks (basic detection)
+                    backend_framework = None
+                    frontend_framework = None
+                    
+                    if has_backend:
+                        if (app_dir / 'backend' / 'requirements.txt').exists():
+                            backend_framework = 'python'
+                        elif (app_dir / 'backend' / 'package.json').exists():
+                            backend_framework = 'node'
+                    
+                    if has_frontend:
+                        if (app_dir / 'frontend' / 'package.json').exists():
+                            frontend_framework = 'react'  # Default assumption
+                        elif (app_dir / 'frontend' / 'index.html').exists():
+                            frontend_framework = 'vanilla'
+                    
                     app = GeneratedApplication(
                         model_slug=model_slug,
                         app_number=app_number,
+                        app_type='fullstack' if has_backend and has_frontend else 'backend' if has_backend else 'frontend',
                         provider=provider,
-                        backend_path=str(app_dir / 'backend'),
-                        frontend_path=str(app_dir / 'frontend'),
-                        docker_compose_path=str(app_dir / 'docker-compose.yml')
+                        has_backend=has_backend,
+                        has_frontend=has_frontend,
+                        has_docker_compose=has_docker_compose,
+                        backend_framework=backend_framework,
+                        frontend_framework=frontend_framework,
+                        container_status='stopped'
                     )
+                    
+                    # Store additional metadata
+                    metadata = {
+                        'directory_path': str(app_dir),
+                        'backend_path': str(app_dir / 'backend') if has_backend else None,
+                        'frontend_path': str(app_dir / 'frontend') if has_frontend else None,
+                        'docker_compose_path': str(app_dir / 'docker-compose.yml') if has_docker_compose else None
+                    }
+                    app.set_metadata(metadata)
+                    
                     db.session.add(app)
                     count += 1
         
         db.session.commit()
         return count
+
+    def get_model_summary(self) -> Dict[str, Any]:
+        """Get summary of all models (equivalent to models_summary.json)."""
+        models = self.get_all_models()
+        
+        # Group by provider for color assignment
+        provider_colors = {
+            'anthropic': '#D97706',
+            'openai': '#14B8A6', 
+            'google': '#3B82F6',
+            'deepseek': '#9333EA',
+            'mistralai': '#8B5CF6',
+            'qwen': '#F43F5E',
+            'minimax': '#7E22CE',
+            'x-ai': '#B91C1C',
+            'moonshotai': '#10B981',
+            'nvidia': '#0D9488',
+            'nousresearch': '#059669'
+        }
+        
+        summary = {
+            'extraction_timestamp': datetime.now(timezone.utc).isoformat(),
+            'total_models': len(models),
+            'apps_per_model': 30,  # Assuming 30 apps per model
+            'models': []
+        }
+        
+        for model in models:
+            model_entry = {
+                'name': model.canonical_slug,
+                'color': provider_colors.get(model.provider, '#666666'),
+                'provider': model.provider
+            }
+            summary['models'].append(model_entry)
+        
+        return summary

@@ -121,7 +121,7 @@ FLASK_ENV=development
 SECRET_KEY=your-secret-key
 
 # Database
-DATABASE_URL=sqlite:///instance/thesis_app.db
+DATABASE_URL=sqlite:///src/app/data/thesis_app.db
 
 # Celery (optional)
 CELERY_BROKER_URL=redis://localhost:6379/0
@@ -150,9 +150,9 @@ ThesisAppRework/
 │   │   ├── services/         # Business logic services
 │   │   ├── templates/        # Jinja2 templates
 │   │   ├── static/           # Static assets
+│   │   ├── data/             # Database and local files
 │   │   └── models.py         # Database models
 │   ├── config/               # Configuration files
-│   ├── instance/             # Database and local files
 │   └── main.py               # Application entry point
 ├── misc/                     # Generated applications and data
 │   ├── models/              # AI-generated application files

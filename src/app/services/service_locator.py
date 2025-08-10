@@ -35,21 +35,52 @@ class ServiceLocator:
         """Register all core application services."""
         # Import services here to avoid circular imports
         from .model_service import ModelService
-        from .analyzer_service import AnalyzerService
-        from .container_service import ContainerService
-        from .port_service import PortService
-        from .docker_manager import DockerManager
-        from .batch_service import BatchAnalysisService
-        from .security_service import SecurityService
         
-        # Register services
+        try:
+            from .analyzer_service import AnalyzerService
+        except ImportError:
+            AnalyzerService = None
+            
+        try:
+            from .container_service import ContainerService
+        except ImportError:
+            ContainerService = None
+            
+        try:
+            from .port_service import PortService
+        except ImportError:
+            PortService = None
+            
+        try:
+            from .docker_manager import DockerManager
+        except ImportError:
+            DockerManager = None
+            
+        try:
+            from .batch_service import BatchAnalysisService
+        except ImportError:
+            BatchAnalysisService = None
+            
+        try:
+            from .security_service import SecurityService
+        except ImportError:
+            SecurityService = None
+        
+        # Register available services
         cls.register('model_service', ModelService(app))
-        cls.register('analyzer_service', AnalyzerService(app))
-        cls.register('container_service', ContainerService(app))
-        cls.register('port_service', PortService(app))
-        cls.register('docker_manager', DockerManager())
-        cls.register('batch_service', BatchAnalysisService())
-        cls.register('security_service', SecurityService())
+        
+        if AnalyzerService:
+            cls.register('analyzer_service', AnalyzerService(app))
+        if ContainerService:
+            cls.register('container_service', ContainerService(app))
+        if PortService:
+            cls.register('port_service', PortService(app))
+        if DockerManager:
+            cls.register('docker_manager', DockerManager())
+        if BatchAnalysisService:
+            cls.register('batch_service', BatchAnalysisService())
+        if SecurityService:
+            cls.register('security_service', SecurityService())
     
     @classmethod
     def register(cls, name: str, service: object):
