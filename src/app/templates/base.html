@@ -17,6 +17,11 @@
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     
+    <!-- Google Fonts - Inter for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
     <!-- Bootstrap 5.3.7 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     
@@ -25,12 +30,17 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
     
     <!-- HTMX 1.9.12 -->
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     
     <!-- Hyperscript -->
     <script src="https://unpkg.com/hyperscript.org@0.9.12" defer></script>
+    
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js" defer></script>
     
     <!-- Bootstrap 5.3.7 JavaScript Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous" defer></script>
@@ -40,14 +50,29 @@
     
     {% block head %}{% endblock %}
 </head>
-<body class="bg-light">
-    <!-- Fixed Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top border-bottom">
-        <div class="container-fluid">
-            <!-- Brand -->
-            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('main.dashboard') }}">
-                <i class="fas fa-flask text-primary me-2"></i>
-                <span class="fw-bold">AI Research Platform</span>
+<body class="bg-light" _="
+  init 
+    set :theme to (localStorage.getItem('theme') or 'light')
+    if :theme is 'dark' then add .dark-mode to <body/>
+  end
+  on keydown[ctrlKey and key is 'k'] 
+    halt the event
+    call showGlobalSearch()
+  end
+">
+    <!-- Enhanced Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top shadow-sm" 
+         _="init add .page-enter">
+        <div class="container-fluid px-4">
+            <!-- Enhanced Brand -->
+            <a class="navbar-brand d-flex align-items-center hover-lift" href="{{ url_for('main.dashboard') }}">
+                <div class="brand-icon me-2">
+                    <i class="fas fa-brain text-gradient"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="fw-bold text-gradient">AI Research</span>
+                    <small class="d-block text-muted" style="font-size: 0.7rem; line-height: 1;">Platform</small>
+                </div>
             </a>
             
             <!-- Mobile toggle -->
@@ -60,93 +85,188 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             
-            <!-- Navigation Links -->
+            <!-- Enhanced Navigation Links -->
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.dashboard') }}">
-                            <i class="fas fa-chart-line me-1"></i>Dashboard
+                        <a class="nav-link d-flex align-items-center" href="{{ url_for('main.dashboard') }}"
+                           _="on click add .active to me then remove .active from .nav-link">
+                            <i class="fas fa-chart-line me-2"></i>
+                            <span>Dashboard</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('models.models_overview') }}">
-                            <i class="fas fa-robot me-1"></i>Models
+                        <a class="nav-link d-flex align-items-center" href="{{ url_for('models.models_overview') }}"
+                           _="on click add .active to me then remove .active from .nav-link">
+                            <i class="fas fa-robot me-2"></i>
+                            <span>Models</span>
+                            <span class="badge badge-primary ms-1" 
+                                  hx-get="{{ url_for('api.stats_total_models') }}" 
+                                  hx-trigger="load, every 30s">0</span>
                         </a>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="analysisDropdown" role="button" 
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" 
+                           id="analysisDropdown" role="button" 
                            data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-shield-alt me-1"></i>Analysis
+                            <i class="fas fa-shield-alt me-2"></i>
+                            <span>Analysis</span>
                         </a>
-                        <ul class="dropdown-menu" aria-labelledby="analysisDropdown">
-                            <li><a class="dropdown-item" href="#" onclick="openSecurityTestModal()">
-                                <i class="fas fa-shield-alt me-2"></i>Security Analysis
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="openPerformanceTestModal()">
-                                <i class="fas fa-tachometer-alt me-2"></i>Performance Testing
-                            </a></li>
+                        <ul class="dropdown-menu shadow-lg" aria-labelledby="analysisDropdown">
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center" href="#" 
+                                   onclick="openSecurityTestModal()">
+                                    <i class="fas fa-shield-alt me-3 text-danger"></i>
+                                    <div>
+                                        <div class="fw-medium">Security Analysis</div>
+                                        <small class="text-muted">Scan for vulnerabilities</small>
+                                    </div>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center" href="#" 
+                                   onclick="openPerformanceTestModal()">
+                                    <i class="fas fa-tachometer-alt me-3 text-success"></i>
+                                    <div>
+                                        <div class="fw-medium">Performance Testing</div>
+                                        <small class="text-muted">Load & stress testing</small>
+                                    </div>
+                                </a>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.api_stats') }}">
-                                <i class="fas fa-chart-bar me-2"></i>Statistics Overview
-                            </a></li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center" href="{{ url_for('main.api_stats') }}">
+                                    <i class="fas fa-chart-bar me-3 text-info"></i>
+                                    <div>
+                                        <div class="fw-medium">Statistics</div>
+                                        <small class="text-muted">Analysis overview</small>
+                                    </div>
+                                </a>
+                            </li>
                         </ul>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.batch_overview') }}">
-                            <i class="fas fa-layer-group me-1"></i>Batch Analysis
+                        <a class="nav-link d-flex align-items-center" href="{{ url_for('main.batch_overview') }}"
+                           _="on click add .active to me then remove .active from .nav-link">
+                            <i class="fas fa-layer-group me-2"></i>
+                            <span>Batch Analysis</span>
                         </a>
                     </li>
                 </ul>
                 
-                <!-- Right side actions -->
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="systemDropdown" role="button" 
-                           data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-cog me-1"></i>System
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="systemDropdown">
-                            <li><a class="dropdown-item" href="#" onclick="showSystemStatus()">
-                                <i class="fas fa-heartbeat me-2"></i>System Status
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="showContainerOverview()">
-                                <i class="fas fa-docker me-2"></i>Container Overview
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="exportData()">
-                                <i class="fas fa-download me-2"></i>Export Data
-                            </a></li>
-                            <li><a class="dropdown-item" href="#">
-                                <i class="fas fa-info-circle me-2"></i>About
-                            </a></li>
-                        </ul>
-                    </li>
-                    
-                    <!-- Quick Search -->
-                    <li class="nav-item">
-                        <div class="d-flex align-items-center ms-3">
-                            <div class="search-box">
-                                <i class="fas fa-search"></i>
+                <!-- Enhanced Right Side Actions -->
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <!-- Enhanced Quick Search -->
+                    <li class="nav-item me-3">
+                        <div class="search-container position-relative">
+                            <div class="search-box d-flex align-items-center">
+                                <i class="fas fa-search position-absolute start-0 ms-3 text-muted"></i>
                                 <input type="text" 
-                                       class="form-control form-control-sm" 
-                                       placeholder="Quick search..." 
+                                       class="form-control form-control-sm ps-5 pe-4" 
+                                       placeholder="Search models, apps... (Ctrl+K)" 
                                        id="global-search"
+                                       style="width: 280px; border-radius: 2rem;"
                                        hx-post="{{ url_for('api.quick_search') }}"
-                                       hx-trigger="keyup changed delay:500ms"
+                                       hx-trigger="keyup changed delay:300ms"
                                        hx-target="#search-results"
-                                       style="width: 200px;">
+                                       _="on focus add .search-focused to closest .search-container
+                                          on blur remove .search-focused from closest .search-container">
+                                <kbd class="position-absolute end-0 me-2 px-2 py-1 bg-light rounded text-muted small">⌘K</kbd>
                             </div>
+                            <div id="search-results" class="search-dropdown position-absolute top-100 start-0 w-100 mt-1 d-none"></div>
                         </div>
                     </li>
                     
-                    <!-- Status indicator -->
-                    <li class="nav-item">
-                        <div class="d-flex align-items-center ms-3">
-                            <div id="connection-status" class="status-indicator">
-                                <span class="status-dot status-ready"></span>
-                                <small class="text-muted">Connected</small>
-                            </div>
+                    <!-- System Status -->
+                    <li class="nav-item me-3">
+                        <div class="status-indicator d-flex align-items-center" 
+                             hx-get="{{ url_for('api.system_status') }}" 
+                             hx-trigger="load, every 30s"
+                             hx-swap="innerHTML">
+                            <div class="status-dot bg-success me-2"></div>
+                            <small class="text-muted">Online</small>
                         </div>
+                    </li>
+                    
+                    <!-- Theme Toggle -->
+                    <li class="nav-item me-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" 
+                                id="theme-toggle" 
+                                title="Toggle dark mode"
+                                _="on click 
+                                  if <body/> has .dark-mode 
+                                    then remove .dark-mode from <body/> 
+                                         set localStorage.theme to 'light'
+                                         set my innerHTML to '<i class=\"fas fa-moon\"></i>'
+                                    else add .dark-mode to <body/> 
+                                         set localStorage.theme to 'dark'
+                                         set my innerHTML to '<i class=\"fas fa-sun\"></i>'
+                                  end">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                    </li>
+                    
+                    <!-- System Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" 
+                           id="systemDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-cog me-1"></i>
+                            <span class="d-none d-md-inline">System</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-lg" aria-labelledby="systemDropdown">
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center" href="#" 
+                                   onclick="showSystemStatus()">
+                                    <i class="fas fa-heartbeat me-3 text-success"></i>
+                                    <div>
+                                        <div class="fw-medium">System Health</div>
+                                        <small class="text-muted">View system status</small>
+                                    </div>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center" href="#" 
+                                   onclick="showContainerOverview()">
+                                    <i class="fab fa-docker me-3 text-info"></i>
+                                    <div>
+                                        <div class="fw-medium">Containers</div>
+                                        <small class="text-muted">Docker management</small>
+                                    </div>
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center" href="#" 
+                                   onclick="exportData()">
+                                    <i class="fas fa-download me-3 text-primary"></i>
+                                    <div>
+                                        <div class="fw-medium">Export Data</div>
+                                        <small class="text-muted">Download results</small>
+                                    </div>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center" href="#" 
+                                   onclick="showKeyboardShortcuts()">
+                                    <i class="fas fa-keyboard me-3 text-secondary"></i>
+                                    <div>
+                                        <div class="fw-medium">Shortcuts</div>
+                                        <small class="text-muted">Keyboard shortcuts</small>
+                                    </div>
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center" href="#">
+                                    <i class="fas fa-info-circle me-3 text-info"></i>
+                                    <div>
+                                        <div class="fw-medium">About</div>
+                                        <small class="text-muted">Version & info</small>
+                                    </div>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                 </ul>
             </div>
@@ -310,88 +430,14 @@
     </div>
     
     <!-- Core JavaScript Files -->
-    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dynamic-styles.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/errorHandling.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/dynamic-styles.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/platform-ui.js') }}" defer></script>
     
     <!-- Global JavaScript Functions -->
     <script>
-        // Global modal functions
-        function openSecurityTestModal() {
-            const modal = new bootstrap.Modal(document.getElementById('securityTestModal'));
-            modal.show();
-        }
-        
-        function openPerformanceTestModal() {
-            showToast('Performance test modal coming soon', 'info');
-        }
-        
-        function openBatchAnalysisModal() {
-            showToast('Batch analysis modal coming soon', 'info');
-        }
-        
-        function showContainerOverview() {
-            showToast('Container overview coming soon', 'info');
-        }
-        
-        function showSystemStatus() {
-            showToast('System status coming soon', 'info');
-        }
-        
-        function exportData() {
-            showToast('Data export functionality coming soon', 'info');
-        }
-        
-        // Toast notification function
-        function showToast(message, type = 'info', duration = 5000) {
-            const toastContainer = document.getElementById('toastContainer');
-            const toastId = 'toast-' + Date.now();
-            
-            const toastHtml = `
-                <div class="toast" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true">
-                    <div class="toast-header">
-                        <i class="fas fa-${type === 'success' ? 'check-circle text-success' : type === 'error' ? 'exclamation-triangle text-danger' : type === 'warning' ? 'exclamation-circle text-warning' : 'info-circle text-info'} me-2"></i>
-                        <strong class="me-auto">Notification</strong>
-                        <small class="text-muted">just now</small>
-                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                    </div>
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                </div>
-            `;
-            
-            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-            const toastElement = document.getElementById(toastId);
-            const toast = new bootstrap.Toast(toastElement, { delay: duration });
-            toast.show();
-            
-            // Remove toast element after it's hidden
-            toastElement.addEventListener('hidden.bs.toast', () => {
-                toastElement.remove();
-            });
-        }
-        
-        // Global search functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize tooltips
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-            
-            // Auto-hide alerts
-            setTimeout(function() {
-                const alerts = document.querySelectorAll('.alert');
-                alerts.forEach(function(alert) {
-                    if (!alert.classList.contains('alert-permanent')) {
-                        const bsAlert = new bootstrap.Alert(alert);
-                        setTimeout(() => bsAlert.close(), 5000);
-                    }
-                });
-            }, 100);
-        });
-        
-        console.log('AI Research Platform base template loaded');
+        // Enhanced global functions
+        console.log('🎯 AI Research Platform JavaScript loaded');
     </script>
     
     {% block scripts %}{% endblock %}

@@ -529,3 +529,46 @@ def security_distribution_data():
         return render_template('partials/security_distribution.html', distribution={
             'high': 0, 'medium': 0, 'low': 0, 'clean': 0
         })
+
+
+@api_bp.route('/system_status')
+def system_status():
+    """HTMX endpoint for system status in sidebar."""
+    try:
+        from ..extensions import get_components
+        from sqlalchemy import text
+        from ..extensions import db
+        
+        # Quick system health check
+        try:
+            db.session.execute(text('SELECT 1'))
+            db_healthy = True
+        except Exception:
+            db_healthy = False
+        
+        if db_healthy:
+            return '<span class="badge bg-success">Online</span>'
+        else:
+            return '<span class="badge bg-danger">Offline</span>'
+    except Exception as e:
+        logger.error(f"Error getting system status: {e}")
+        return '<span class="badge bg-secondary">Unknown</span>'
+
+
+@api_bp.route('/stats_running_containers')
+def stats_running_containers():
+    """HTMX endpoint for running containers count."""
+    try:
+        # For now, return a placeholder. In production, this would check actual container status
+        from ..models import ContainerizedTest
+        from ..extensions import db
+        
+        # Count active containerized tests
+        active_tests = db.session.query(ContainerizedTest).filter(
+            ContainerizedTest.status == 'running'
+        ).count()
+        
+        return str(active_tests)
+    except Exception as e:
+        logger.error(f"Error getting running containers: {e}")
+        return "0"
