@@ -3,12 +3,14 @@ OpenRouter Service
 ==================
 
 Service for fetching comprehensive model information from OpenRouter API.
-Provides detailed model capabilities, pricing, and metadata.
+Provides detailed model capabilities, pricing, and metadata with database caching.
 """
 
 import logging
 import os
 import requests
+import time
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from flask import Flask
 
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class OpenRouterService:
-    """Service for integrating with OpenRouter API to fetch model details."""
+    """Service for integrating with OpenRouter API to fetch model details with caching."""
     
     def __init__(self, app: Flask = None):
         self.app = app
@@ -25,6 +27,14 @@ class OpenRouterService:
         self.site_url = os.getenv("OPENROUTER_SITE_URL", "https://thesis-app.local")
         self.site_name = os.getenv("OPENROUTER_SITE_NAME", "Thesis Research App")
         self.logger = logger
+        
+        # Cache configuration
+        self.cache_duration_hours = int(os.getenv("OPENROUTER_CACHE_HOURS", "1"))  # Default 1 hour
+        self.cache_enabled = os.getenv("OPENROUTER_CACHE_ENABLED", "true").lower() == "true"
+        
+        # In-memory cache for session-level caching
+        self._memory_cache = {}
+        self._memory_cache_expiry = None
         
         if not self.api_key:
             self.logger.warning("OpenRouter API key not found. Set OPENROUTER_API_KEY in .env file")
@@ -38,19 +48,26 @@ class OpenRouterService:
             "Content-Type": "application/json"
         }
     
-    def fetch_all_models(self) -> List[Dict[str, Any]]:
-        """
-        Fetch all available models from OpenRouter API.
-        
-        Returns:
-            List of model dictionaries with comprehensive information
-        """
+    def _is_memory_cache_valid(self) -> bool:
+        """Check if in-memory cache is valid."""
+        if not self._memory_cache or not self._memory_cache_expiry:
+            return False
+        return datetime.now(timezone.utc) < self._memory_cache_expiry
+    
+    def _update_memory_cache(self, models: List[Dict[str, Any]]) -> None:
+        """Update in-memory cache with fresh data."""
+        self._memory_cache = {model.get('id', ''): model for model in models if model.get('id')}
+        self._memory_cache_expiry = datetime.now(timezone.utc) + timedelta(minutes=5)  # 5-minute memory cache
+    
+    def _fetch_from_api(self) -> List[Dict[str, Any]]:
+        """Fetch models directly from OpenRouter API."""
         if not self.api_key:
             self.logger.error("Cannot fetch models: OpenRouter API key not configured")
             return []
         
         try:
             self.logger.info("Fetching all models from OpenRouter API...")
+            start_time = time.time()
             
             response = requests.get(
                 self.api_url,
@@ -58,10 +75,20 @@ class OpenRouterService:
                 timeout=30
             )
             
+            duration = time.time() - start_time
+            
             if response.status_code == 200:
                 data = response.json()
                 models = data.get("data", [])
-                self.logger.info(f"Successfully fetched {len(models)} models from OpenRouter")
+                self.logger.info(f"Successfully fetched {len(models)} models from OpenRouter in {duration:.2f}s")
+                
+                # Update in-memory cache
+                self._update_memory_cache(models)
+                
+                # Update database cache if enabled
+                if self.cache_enabled:
+                    self._update_database_cache(models, duration, response.status_code)
+                
                 return models
             else:
                 self.logger.error(f"OpenRouter API error: {response.status_code} - {response.text}")
@@ -74,6 +101,117 @@ class OpenRouterService:
             self.logger.error(f"Unexpected error fetching OpenRouter models: {e}")
             return []
     
+    def _update_database_cache(self, models: List[Dict[str, Any]], fetch_duration: float, status_code: int) -> None:
+        """Update database cache with fetched models."""
+        try:
+            from ..models import OpenRouterModelCache, db
+            from ..models import utc_now
+            
+            # Calculate expiry time
+            expiry_time = utc_now() + timedelta(hours=self.cache_duration_hours)
+            
+            # Batch update cache entries
+            for model in models:
+                model_id = model.get('id')
+                if not model_id:
+                    continue
+                
+                # Check if cache entry exists
+                cache_entry = OpenRouterModelCache.query.filter_by(model_id=model_id).first()
+                
+                if cache_entry:
+                    # Update existing entry
+                    cache_entry.set_model_data(model)
+                    cache_entry.cache_expires_at = expiry_time
+                    cache_entry.fetch_duration = fetch_duration
+                    cache_entry.api_response_status = status_code
+                    cache_entry.updated_at = utc_now()
+                else:
+                    # Create new entry
+                    cache_entry = OpenRouterModelCache(
+                        model_id=model_id,
+                        cache_expires_at=expiry_time,
+                        fetch_duration=fetch_duration,
+                        api_response_status=status_code
+                    )
+                    cache_entry.set_model_data(model)
+                    db.session.add(cache_entry)
+            
+            # Commit all changes
+            db.session.commit()
+            self.logger.info(f"Updated cache for {len(models)} models with {self.cache_duration_hours}h expiry")
+            
+        except Exception as e:
+            self.logger.error(f"Error updating database cache: {e}")
+            # Rollback on error
+            try:
+                from ..models import db
+                db.session.rollback()
+            except Exception:
+                pass
+    
+    def _get_from_database_cache(self) -> List[Dict[str, Any]]:
+        """Get models from database cache if valid."""
+        if not self.cache_enabled:
+            return []
+        
+        try:
+            from ..models import OpenRouterModelCache, utc_now
+            
+            # Get non-expired cache entries
+            valid_entries = OpenRouterModelCache.query.filter(
+                OpenRouterModelCache.cache_expires_at > utc_now()
+            ).all()
+            
+            if not valid_entries:
+                self.logger.debug("No valid cache entries found")
+                return []
+            
+            # Extract model data and update access time
+            models = []
+            for entry in valid_entries:
+                entry.mark_accessed()
+                model_data = entry.get_model_data()
+                if model_data:
+                    models.append(model_data)
+            
+            # Commit access time updates
+            from ..models import db
+            db.session.commit()
+            
+            if models:
+                self.logger.info(f"Retrieved {len(models)} models from database cache")
+                # Also update memory cache
+                self._update_memory_cache(models)
+            
+            return models
+            
+        except Exception as e:
+            self.logger.error(f"Error reading from database cache: {e}")
+            return []
+    
+    def fetch_all_models(self) -> List[Dict[str, Any]]:
+        """
+        Fetch all available models from cache or OpenRouter API.
+        
+        Returns:
+            List of model dictionaries with comprehensive information
+        """
+        # First check in-memory cache
+        if self._is_memory_cache_valid():
+            models = list(self._memory_cache.values())
+            self.logger.debug(f"Retrieved {len(models)} models from memory cache")
+            return models
+        
+        # Then check database cache
+        if self.cache_enabled:
+            cached_models = self._get_from_database_cache()
+            if cached_models:
+                return cached_models
+        
+        # Finally fetch from API
+        return self._fetch_from_api()
+    
     def fetch_model_by_id(self, model_id: str) -> Optional[Dict[str, Any]]:
         """
         Fetch detailed information for a specific model.
@@ -84,6 +222,30 @@ class OpenRouterService:
         Returns:
             Dict with model information or None if not found
         """
+        # Check memory cache first
+        if self._is_memory_cache_valid() and model_id in self._memory_cache:
+            self.logger.debug(f"Retrieved model {model_id} from memory cache")
+            return self._memory_cache[model_id]
+        
+        # Check database cache for specific model
+        if self.cache_enabled:
+            try:
+                from ..models import OpenRouterModelCache, utc_now
+                
+                cache_entry = OpenRouterModelCache.query.filter_by(model_id=model_id).first()
+                if cache_entry and not cache_entry.is_expired():
+                    cache_entry.mark_accessed()
+                    from ..models import db
+                    db.session.commit()
+                    
+                    model_data = cache_entry.get_model_data()
+                    if model_data:
+                        self.logger.debug(f"Retrieved model {model_id} from database cache")
+                        return model_data
+            except Exception as e:
+                self.logger.error(f"Error reading specific model from cache: {e}")
+        
+        # Fall back to fetching all models and finding the specific one
         models = self.fetch_all_models()
         for model in models:
             if model.get("id") == model_id:
@@ -234,3 +396,88 @@ class OpenRouterService:
             'modalities': sorted(list(modalities)),
             'last_updated': 'live'
         }
+    
+    def get_cache_info(self) -> Dict[str, Any]:
+        """
+        Get information about the current cache state.
+        
+        Returns:
+            Dict with cache statistics and status
+        """
+        cache_info = {
+            'cache_enabled': self.cache_enabled,
+            'cache_duration_hours': self.cache_duration_hours,
+            'memory_cache_valid': self._is_memory_cache_valid(),
+            'memory_cache_entries': len(self._memory_cache),
+            'database_cache_entries': 0,
+            'expired_cache_entries': 0,
+            'api_key_configured': bool(self.api_key)
+        }
+        
+        # Get database cache statistics
+        if self.cache_enabled:
+            try:
+                from ..models import OpenRouterModelCache, utc_now
+                
+                total_entries = OpenRouterModelCache.query.count()
+                expired_entries = OpenRouterModelCache.query.filter(
+                    OpenRouterModelCache.cache_expires_at <= utc_now()
+                ).count()
+                
+                cache_info.update({
+                    'database_cache_entries': total_entries,
+                    'expired_cache_entries': expired_entries,
+                    'valid_cache_entries': total_entries - expired_entries
+                })
+                
+            except Exception as e:
+                cache_info['cache_error'] = str(e)
+        
+        return cache_info
+    
+    def clear_cache(self, include_database: bool = True) -> Dict[str, Any]:
+        """
+        Clear cached data.
+        
+        Args:
+            include_database: Whether to clear database cache as well
+            
+        Returns:
+            Dict with information about what was cleared
+        """
+        result = {
+            'memory_cache_cleared': False,
+            'database_cache_cleared': False,
+            'entries_removed': 0
+        }
+        
+        # Clear memory cache
+        if self._memory_cache:
+            count = len(self._memory_cache)
+            self._memory_cache.clear()
+            self._memory_cache_expiry = None
+            result['memory_cache_cleared'] = True
+            result['memory_entries_removed'] = count
+        
+        # Clear database cache
+        if include_database and self.cache_enabled:
+            try:
+                from ..models import OpenRouterModelCache, db
+                
+                count = OpenRouterModelCache.query.count()
+                OpenRouterModelCache.query.delete()
+                db.session.commit()
+                
+                result['database_cache_cleared'] = True
+                result['database_entries_removed'] = count
+                result['entries_removed'] = count
+                
+            except Exception as e:
+                result['cache_error'] = str(e)
+                try:
+                    from ..models import db
+                    db.session.rollback()
+                except Exception:
+                    pass
+        
+        return result
