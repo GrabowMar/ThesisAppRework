@@ -185,7 +185,8 @@ class LoggingService:
                                     except (ValueError, TypeError, IndexError):
                                         return True
                                 return True
-                except:
+                except Exception as e:
+                    logging.warning(f"Request filtering error: {e}")
                     pass
                 return True
         return RequestFilter()
@@ -485,7 +486,8 @@ class DockerUtils:
             )
             cls._docker_available = result.returncode == 0
             return cls._docker_available
-        except:
+        except Exception as e:
+            logging.error(f"Docker availability check failed: {e}")
             cls._docker_available = False
             return False
     
@@ -509,7 +511,8 @@ class DockerUtils:
                     return True
             cls._compose_available = False
             return False
-        except:
+        except Exception as e:
+            logging.error(f"Docker Compose availability check failed: {e}")
             cls._compose_available = False
             return False
     
@@ -648,7 +651,8 @@ class BatchJob:
                         try:
                             dt = datetime.fromisoformat(data[field].replace('Z', '+00:00'))
                             data[f'{field}_formatted'] = dt.strftime('%Y-%m-%d %H:%M:%S')
-                        except:
+                        except (ValueError, TypeError) as e:
+                            logging.debug(f"Date parsing failed for {field}: {e}")
                             data[f'{field}_formatted'] = data[field]  # Use as-is if parsing fails
                     else:
                         data[f'{field}_formatted'] = str(data[field])
@@ -951,7 +955,8 @@ class DockerManager(BaseService):
         if self.client:
             try:
                 self.client.close()
-            except:
+            except Exception as e:
+                logging.debug(f"Docker client close failed: {e}")
                 pass
 
 
@@ -1690,7 +1695,8 @@ class ScanManager(BaseService):
                         end_time = datetime.fromisoformat(scan.get("end_time", scan["start_time"]))
                         if (current_time - end_time).total_seconds() > max_age_hours * 3600:
                             to_remove.append(scan_id)
-                    except:
+                    except (ValueError, TypeError) as e:
+                        logging.debug(f"Date parsing failed during scan cleanup: {e}")
                         continue
             
             for scan_id in to_remove:

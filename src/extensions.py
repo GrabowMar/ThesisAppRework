@@ -32,4 +32,14 @@ def init_extensions(app):
     app.config.setdefault('TESTING_SERVICES_TIMEOUT', 300)
     app.config.setdefault('TESTING_SERVICES_ENABLED', True)
     
+    # Initialize security settings
+    app.config.setdefault('WTF_CSRF_ENABLED', True)
+    app.config.setdefault('WTF_CSRF_TIME_LIMIT', 3600)  # 1 hour
+    app.config.setdefault('WTF_CSRF_SSL_STRICT', not app.debug)
+    
     app.logger.info("Extensions initialized with containerized testing services support")
+
+
+def get_session():
+    """Get database session with proper error handling."""
+    return db.session

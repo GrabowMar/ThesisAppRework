@@ -718,6 +718,16 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     # Initialize extensions (database, cache, etc.)
     init_extensions(app)
     
+    # Initialize security features
+    try:
+        from security import init_security
+        init_security(app)
+        app.logger.info("Security features initialized successfully")
+    except ImportError as e:
+        app.logger.warning(f"Security module not available: {e}")
+    except Exception as e:
+        app.logger.error(f"Failed to initialize security features: {e}")
+    
     # Load model integration data
     with app.app_context():
         try:

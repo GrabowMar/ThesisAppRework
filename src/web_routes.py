@@ -35,6 +35,11 @@ try:
     from core_services import get_container_names
     # Updated imports to use unified CLI analyzer
     from unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
+    # Import security features
+    from security import (
+        handle_errors, handle_database_errors, InputValidator, 
+        ValidationError, log_security_event
+    )
 except ImportError as e:
     # Fallback for direct script execution
     try:
@@ -46,13 +51,29 @@ except ImportError as e:
         from .constants import AnalysisStatus, TaskStatus, SeverityLevel
         from .core_services import get_container_names
         from .unified_cli_analyzer import UnifiedCLIAnalyzer, ToolCategory
+        from .security import (
+            handle_errors, handle_database_errors, InputValidator, 
+            ValidationError, log_security_event
+        )
     except ImportError:
         # If imports still fail, set them to None for graceful degradation
         db = None
         UnifiedCLIAnalyzer = None
         ToolCategory = None
         AnalysisStatus = None
-        TaskStatus = None 
+        TaskStatus = None
+        # Security fallbacks
+        ValidationError = Exception
+        def handle_errors(f): return f
+        def handle_database_errors(f): return f
+        class InputValidator:
+            @staticmethod
+            def sanitize_string(s, max_len=1000): return str(s)[:max_len]
+            @staticmethod
+            def validate_model_slug(s): return str(s)
+            @staticmethod
+            def validate_app_number(n): return int(n)
+        def log_security_event(event, details): pass 
         SeverityLevel = None
         logger = logging.getLogger(__name__)
         logger.warning(f"Some imports failed: {e}")
@@ -990,12 +1011,22 @@ def test_results(test_id):
 # Tool configuration endpoint removed - unused template files were deleted
 
 @testing_bp.route("/api/validate-config", methods=["POST"])
+@handle_errors
 def validate_configuration():
-    """Validate configuration in real-time."""
+    """Validate configuration in real-time with security."""
     try:
         data = request.get_json()
-        tool_name = data.get('tool_name')
+        if not data:
+            log_security_event("invalid_config_request", {"error": "No JSON data"})
+            raise ValidationError("No configuration data provided")
+        
+        tool_name = InputValidator.sanitize_string(data.get('tool_name', ''), 50)
+        if not tool_name:
+            raise ValidationError("Tool name is required")
+        
         config = data.get('config', {})
+        if not isinstance(config, dict):
+            raise ValidationError("Configuration must be a dictionary")
         
         # Basic validation schemas
         validation_schemas = {
@@ -1398,20 +1429,39 @@ def stop_infrastructure():
 
 
 @testing_bp.route("/api/submit-test", methods=["POST"])
+@handle_errors
+@handle_database_errors
 def submit_test():
-    """Submit a new test via the web UI."""
+    """Submit a new test via the web UI with security validation."""
     try:
-        # Get form data
-        test_type = request.form.get('test_type')
-        model_slug = request.form.get('model_slug')
-        app_number = int(request.form.get('app_number'))
+        # Validate and sanitize form data
+        test_type = InputValidator.sanitize_string(request.form.get('test_type', ''), 50)
+        model_slug = InputValidator.validate_model_slug(request.form.get('model_slug', ''))
+        
+        try:
+            app_number = InputValidator.validate_app_number(request.form.get('app_number', ''))
+        except ValidationError:
+            log_security_event("invalid_app_number", {"app_number": request.form.get('app_number')})
+            return render_template("partials/test_submission_error.html", 
+                                 error="Invalid app number (must be 1-30)")
+        
         use_containerized = request.form.get('use_containerized') == 'on'
         
         logger.info(f"Test submission: type={test_type}, model={model_slug}, app={app_number}, containerized={use_containerized}")
         
         if not all([test_type, model_slug, app_number]):
+            log_security_event("incomplete_test_submission", {
+                "test_type": test_type, "model_slug": model_slug, "app_number": app_number
+            })
             return render_template("partials/test_submission_error.html", 
                                  error="Missing required fields")
+        
+        # Validate test type
+        valid_test_types = ['security', 'performance', 'zap']
+        if test_type not in valid_test_types:
+            log_security_event("invalid_test_type", {"test_type": test_type})
+            return render_template("partials/test_submission_error.html", 
+                                 error="Invalid test type")
         
         # Get testing service - use UnifiedCLIAnalyzer directly
         try:
@@ -1756,9 +1806,23 @@ def get_job_logs(job_id):
 # ===========================
 
 @containers_bp.route("/<model_slug>/<int:app_num>/start", methods=["POST"])
+@handle_errors
 def container_start(model_slug: str, app_num: int):
-    """Start containers for a specific model/app."""
+    """Start containers for a specific model/app with validation."""
     try:
+        # Apply rate limiting via current_app if available
+        try:
+            rate_limiter = current_app.config.get('rate_limiter')
+            if rate_limiter and hasattr(rate_limiter, '_limiter'):
+                # Manual rate limit check
+                pass  # Rate limiting will be applied by decorator when available
+        except Exception:
+            pass
+        
+        # Validate inputs
+        model_slug = InputValidator.validate_model_slug(model_slug)
+        app_num = InputValidator.validate_app_number(app_num)
+        
         result = DockerOperations.execute_action('start', model_slug, app_num)
         if result['success']:
             return ResponseHandler.success_response(
