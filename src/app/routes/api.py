@@ -844,10 +844,10 @@ def dashboard_activity():
         activities.sort(key=lambda x: x['timestamp'], reverse=True)
         activities = activities[:10]  # Keep only the 10 most recent
         
-        return render_template('partials/dashboard_activity.html', activities=activities)
+        return render_template('partials/dashboard/recent_activity.html', activities=activities)
     except Exception as e:
         logger.error(f"Error getting dashboard activity: {e}")
-        return render_template('partials/dashboard_activity.html', activities=[])
+        return render_template('partials/dashboard/recent_activity.html', activities=[])
 
 
 @api_bp.route('/dashboard/stats')
@@ -1900,9 +1900,9 @@ def dashboard_system_health():
                 'color': 'danger'
             }
         
-        return render_template('partials/dashboard_system_health.html', 
-                                 health_info=health_info, 
-                                 compact_mode=compact_mode)
+        return render_template('partials/dashboard/system_health.html', 
+                                 system_health=health_info, 
+                                 compact=compact_mode)
         
     except Exception as e:
         logger.error(f"Error getting dashboard system health: {e}")
@@ -1918,9 +1918,9 @@ def dashboard_system_health():
                 }
             }
         }
-        return render_template('partials/dashboard_system_health.html', 
-                                 health_info=fallback_health, 
-                                 compact_mode=compact_mode)
+        return render_template('partials/dashboard/system_health.html', 
+                                 system_health=fallback_health, 
+                                 compact=compact_mode)
 
 @api_bp.route('/dashboard/analyzer-status')
 def dashboard_analyzer_status():
@@ -2010,7 +2010,7 @@ def dashboard_docker_status():
         else:
             docker_info['overall_status'] = 'unhealthy'
         
-        return render_template('partials/dashboard_docker_status.html', docker_info=docker_info)
+        return render_template('partials/dashboard/docker_status.html', docker_info=docker_info)
         
     except Exception as e:
         logger.error(f"Error getting Docker status: {e}")
@@ -2021,7 +2021,7 @@ def dashboard_docker_status():
             'containers': [],
             'overall_status': 'error'
         }
-        return render_template('partials/dashboard_docker_status.html', docker_info=fallback_info)
+        return render_template('partials/dashboard/docker_status.html', docker_info=fallback_info)
 
 @api_bp.route('/analyzer/start', methods=['POST'])
 def start_analyzer_services():

@@ -7,7 +7,7 @@ Core application routes including dashboard and basic pages.
 
 import logging
 
-from flask import Blueprint, render_template, flash, request
+from flask import Blueprint, render_template, flash, request, current_app
 
 from ..models import (
     ModelCapability, GeneratedApplication,
@@ -63,13 +63,19 @@ def dashboard():
         logger.error(f"Error loading dashboard: {e}")
         flash('Error loading dashboard', 'error')
         from datetime import datetime
+        import sys
+        import flask
         return render_template('pages/error.html', 
                              error_code=500,
                              error_title='Dashboard Error',
                              error_message=str(e),
                              error=str(e),
                              timestamp=datetime.now().isoformat(),
-                             request_id='dashboard-error')
+                             request_id='dashboard-error',
+                             python_version=sys.version,
+                             flask_version=getattr(flask, '__version__', 'unknown'),
+                             debug_mode=current_app.debug,
+                             environment=current_app.config.get('ENV', 'unknown'))
 
 
 @main_bp.route('/health')

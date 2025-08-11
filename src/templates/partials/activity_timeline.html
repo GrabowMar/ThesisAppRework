@@ -1,0 +1,135 @@
+<!-- Activity Timeline Widget -->
+<div class="activity-timeline">
+    {% if activities %}
+        {% for activity in activities %}
+        <div class="activity-item mb-3 
+                    {% if activity.type == 'success' %}border-start border-success border-3
+                    {% elif activity.type == 'warning' %}border-start border-warning border-3
+                    {% elif activity.type == 'error' %}border-start border-danger border-3
+                    {% else %}border-start border-primary border-3
+                    {% endif %}">
+            <div class="d-flex align-items-start">
+                <div class="activity-icon me-2 mt-1">
+                    {% if activity.type == 'success' %}
+                        <i class="fas fa-check-circle text-success"></i>
+                    {% elif activity.type == 'warning' %}
+                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                    {% elif activity.type == 'error' %}
+                        <i class="fas fa-times-circle text-danger"></i>
+                    {% elif activity.type == 'info' %}
+                        <i class="fas fa-info-circle text-info"></i>
+                    {% else %}
+                        <i class="fas fa-circle text-primary"></i>
+                    {% endif %}
+                </div>
+                <div class="activity-content flex-grow-1">
+                    <div class="activity-title fw-medium">
+                        {{ activity.title or activity.message or 'System Activity' }}
+                    </div>
+                    {% if activity.description %}
+                    <div class="activity-description text-muted small">
+                        {{ activity.description }}
+                    </div>
+                    {% endif %}
+                    <div class="activity-meta small text-muted mt-1">
+                        <i class="fas fa-clock me-1"></i>
+                        {% if activity.timestamp %}
+                            {{ activity.timestamp.strftime('%H:%M:%S') }}
+                        {% elif activity.created_at %}
+                            {{ activity.created_at.strftime('%H:%M:%S') }}
+                        {% else %}
+                            Just now
+                        {% endif %}
+                        
+                        {% if activity.source %}
+                            • <span class="activity-source">{{ activity.source }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center py-3">
+            <i class="fas fa-history text-muted mb-2" style="font-size: 2rem;"></i>
+            <p class="text-muted mb-0">No recent activity</p>
+            <small class="text-muted">System events will appear here</small>
+        </div>
+    {% endif %}
+    
+    <!-- View All Link -->
+    {% if activities and activities|length > 0 %}
+    <div class="text-center mt-3 pt-2 border-top">
+        <a href="{{ url_for('main.logs') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-list me-1"></i>View All Activity
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.activity-timeline {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.activity-item {
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.activity-item:hover {
+    background: rgba(255, 255, 255, 0.9);
+    transform: translateX(2px);
+}
+
+.activity-icon {
+    width: 20px;
+    text-align: center;
+}
+
+.activity-content {
+    min-height: 20px;
+}
+
+.activity-title {
+    font-size: 0.875rem;
+    line-height: 1.3;
+}
+
+.activity-description {
+    font-size: 0.8rem;
+    line-height: 1.2;
+    margin-top: 0.25rem;
+}
+
+.activity-meta {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.activity-source {
+    font-weight: 500;
+}
+
+/* Custom scrollbar */
+.activity-timeline::-webkit-scrollbar {
+    width: 4px;
+}
+
+.activity-timeline::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.activity-timeline::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.activity-timeline::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+</style>

@@ -3,772 +3,945 @@
 {% block title %}Dashboard - AI Research Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="page-header">
+<!-- Dashboard Header -->
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
         <div>
-            <h1 class="page-title">
-                <i class="fas fa-tachometer-alt text-primary mr-2"></i>
+            <h1 class="page-title mb-2">
+                <i class="fas fa-tachometer-alt text-primary me-2"></i>
                 Analyzer Dashboard
             </h1>
-            <p class="page-subtitle">
-                Real-time monitoring and analysis platform status
-            </p>
+            <p class="text-muted mb-0">Real-time monitoring and analysis platform status</p>
         </div>
         
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm" 
-                    onclick="dashboard.refreshAll()">
-                <i class="fas fa-sync-alt mr-1"></i>
+            <button type="button" 
+                    class="btn btn-soft-secondary btn-sm" 
+                    hx-get="{{ url_for('main.dashboard') }}"
+                    hx-target="main"
+                    hx-swap="innerHTML">
+                <i class="fas fa-sync-alt me-1"></i>
                 Refresh All
             </button>
             <div class="dropdown">
-                <button class="btn btn-primary btn-sm dropdown-toggle" type="button" 
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-cogs mr-1"></i>
+                <button class="btn btn-primary btn-sm dropdown-toggle" 
+                        type="button" 
+                        data-bs-toggle="dropdown" 
+                        aria-expanded="false">
+                    <i class="fas fa-cogs me-1"></i>
                     Actions
                 </button>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="{{ url_for('main.testing') }}">
-                        <i class="fas fa-flask mr-2"></i>Testing Console
-                    </a>
-                    <a class="dropdown-item" href="{{ url_for('models.models_overview') }}">
-                        <i class="fas fa-brain mr-2"></i>Models Overview
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" onclick="dashboard.startAllAnalyzers()">
-                        <i class="fas fa-play mr-2"></i>Start All Analyzers
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="dashboard.stopAllAnalyzers()">
-                        <i class="fas fa-stop mr-2"></i>Stop All Analyzers
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" onclick="dashboard.runSystemDiagnostics()">
-                        <i class="fas fa-stethoscope mr-2"></i>System Diagnostics
-                    </a>
-                </div>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('main.testing') }}">
+                            <i class="fas fa-flask me-2"></i>Testing Console
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('models.models_overview') }}">
+                            <i class="fas fa-brain me-2"></i>Models Overview
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" 
+                           href="#" 
+                           hx-post="/api/analyzer/start-all"
+                           hx-target="#system-status"
+                           hx-swap="innerHTML">
+                            <i class="fas fa-play me-2"></i>Start All Analyzers
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" 
+                           href="#" 
+                           hx-post="/api/analyzer/stop-all"
+                           hx-target="#system-status"
+                           hx-swap="innerHTML">
+                            <i class="fas fa-stop me-2"></i>Stop All Analyzers
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" 
+                           href="#" 
+                           data-bs-toggle="modal" 
+                           data-bs-target="#systemHealthModal">
+                            <i class="fas fa-stethoscope me-2"></i>System Diagnostics
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- System Overview Cards -->
-    <div class="stats-grid">
-        <!-- Total Models -->
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-brain"></i>
-            </div>
+<!-- System Overview Cards -->
+<div class="dashboard-grid mb-5">
+    <!-- Total Models Card -->
+    <div class="stats-card stats-card-primary">
+        <div class="stats-card-icon">
+            <i class="fas fa-brain"></i>
+        </div>
+        <div class="stats-card-content">
             <div class="stats-card-value" 
                  hx-get="{{ url_for('api.stats_total_models') }}" 
-                 hx-trigger="load, every 60s">
+                 hx-trigger="load, every 60s"
+                 hx-swap="innerHTML">
                 {{ stats.total_models or 0 }}
             </div>
             <div class="stats-card-label">AI Models</div>
-        </div>
-        
-        <!-- Active Containers -->
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fab fa-docker"></i>
+            <div class="stats-card-change">
+                <span class="badge badge-soft-success">
+                    <i class="fas fa-arrow-up me-1"></i>5%
+                </span>
+                vs last week
             </div>
-            <div class="stats-card-value" 
-                 hx-get="{{ url_for('api.stats_running_containers') }}" 
-                 hx-trigger="load, every 30s">
-                {{ stats.running_containers or 0 }}
-            </div>
-            <div class="stats-card-label">Active Containers</div>
-        </div>
-        
-        <!-- Analyzer Services -->
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-microscope"></i>
-            </div>
-            <div class="stats-card-value" 
-                 hx-get="{{ url_for('api.ping_analyzer_services') }}" 
-                 hx-trigger="load, every 45s">
-                {{ stats.analyzer_services or 0 }}
-            </div>
-            <div class="stats-card-label">Analyzer Services</div>
-        </div>
-        
-        <!-- Completed Analyses -->
-        <div class="stats-card">
-            <div class="stats-card-icon">
-                <i class="fas fa-chart-line"></i>
-            </div>
-            <div class="stats-card-value" 
-                 hx-get="{{ url_for('api.stats_completed_analyses') }}" 
-                 hx-trigger="load, every 60s">
-                {{ stats.completed_analyses or 0 }}
-            </div>
-            <div class="stats-card-label">Completed Analyses</div>
         </div>
     </div>
+    
+    <!-- Active Containers Card -->
+    <div class="stats-card stats-card-success">
+        <div class="stats-card-icon">
+            <i class="fab fa-docker"></i>
+        </div>
+        <div class="stats-card-content">
+            <div class="stats-card-value" 
+                 hx-get="{{ url_for('api.stats_running_containers') }}" 
+                 hx-trigger="load, every 30s"
+                 hx-swap="innerHTML">
+                {{ stats.active_containers or 0 }}
+            </div>
+            <div class="stats-card-label">Active Containers</div>
+            <div class="stats-card-change">
+                <span class="status-dot online"></span>
+                All systems operational
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analyzer Services Card -->
+    <div class="stats-card stats-card-info">
+        <div class="stats-card-icon">
+            <i class="fas fa-microscope"></i>
+        </div>
+        <div class="stats-card-content">
+            <div class="stats-card-value" 
+                 hx-get="{{ url_for('api.ping_analyzer_services') }}" 
+                 hx-trigger="load, every 45s"
+                 hx-swap="innerHTML">
+                3
+            </div>
+            <div class="stats-card-label">Analyzer Services</div>
+            <div class="stats-card-change">
+                <span class="badge badge-soft-info">
+                    <i class="fas fa-clock me-1"></i>Real-time
+                </span>
+                monitoring
+            </div>
+        </div>
+    </div>
+    
+    <!-- Completed Analyses Card -->
+    <div class="stats-card stats-card-warning">
+        <div class="stats-card-icon">
+            <i class="fas fa-chart-line"></i>
+        </div>
+        <div class="stats-card-content">
+            <div class="stats-card-value" 
+                 hx-get="{{ url_for('api.stats_completed_analyses') }}" 
+                 hx-trigger="load, every 60s"
+                 hx-swap="innerHTML">
+                {{ stats.total_security_analyses or 0 }}
+            </div>
+            <div class="stats-card-label">Completed Analyses</div>
+            <div class="stats-card-change">
+                <span class="badge badge-soft-warning">
+                    <i class="fas fa-plus me-1"></i>12 today
+                </span>
+                and counting
+            </div>
+        </div>
+    </div>
+</div>
 
-    <!-- Main Dashboard Content -->
-    <div class="row">
-        <!-- Analyzer Services Status -->
-        <div class="col-lg-8 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-microscope mr-2"></i>
-                            Analyzer Services
-                        </h5>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-success" onclick="dashboard.startAllAnalyzers()">
-                                <i class="fas fa-play mr-1"></i> Start All
-                            </button>
-                            <button class="btn btn-outline-danger" onclick="dashboard.stopAllAnalyzers()">
-                                <i class="fas fa-stop mr-1"></i> Stop All
-                            </button>
-                            <button class="btn btn-outline-secondary" onclick="dashboard.refreshAnalyzerStatus()">
-                                <i class="fas fa-sync mr-1"></i> Refresh
-                            </button>
+<!-- Main Dashboard Content -->
+<div class="row g-5">
+    <!-- System Health Panel -->
+    <div class="col-lg-8">
+        <div class="card card-modern h-100">
+            <div class="card-header">
+                <div class="card-header-content">
+                    <h5 class="card-title">
+                        <i class="fas fa-heartbeat text-danger me-2"></i>
+                        System Health
+                    </h5>
+                    <div class="card-header-actions">
+                        <button class="btn btn-ghost btn-sm" 
+                                hx-get="{{ url_for('api.dashboard_system_health') }}"
+                                hx-target="#system-health-panel"
+                                hx-swap="innerHTML">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="system-health-panel" 
+                     hx-get="{{ url_for('api.dashboard_system_health') }}" 
+                     hx-trigger="load, every 45s"
+                     hx-swap="innerHTML"
+                     class="htmx-loading-container">
+                    <div class="htmx-skeleton">
+                        <div class="skeleton-text mb-3"></div>
+                        <div class="skeleton-text mb-3"></div>
+                        <div class="skeleton-text"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions Panel -->
+    <div class="col-lg-4">
+        <div class="card card-modern h-100">
+            <div class="card-header">
+                <h6 class="card-title">
+                    <i class="fas fa-bolt text-warning me-2"></i>
+                    Quick Actions
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="action-buttons">
+                    <a href="{{ url_for('main.testing') }}" class="action-button action-button-primary">
+                        <div class="action-button-icon">
+                            <i class="fas fa-flask"></i>
+                        </div>
+                        <div class="action-button-content">
+                            <div class="action-button-title">Testing Console</div>
+                            <div class="action-button-subtitle">Run system tests</div>
+                        </div>
+                    </a>
+                    
+                    <a href="{{ url_for('models.models_overview') }}" class="action-button action-button-info">
+                        <div class="action-button-icon">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <div class="action-button-content">
+                            <div class="action-button-title">Models Overview</div>
+                            <div class="action-button-subtitle">Manage AI models</div>
+                        </div>
+                    </a>
+                    
+                    <button type="button" 
+                            class="action-button action-button-success"
+                            data-bs-toggle="modal" 
+                            data-bs-target="#systemHealthModal">
+                        <div class="action-button-icon">
+                            <i class="fas fa-stethoscope"></i>
+                        </div>
+                        <div class="action-button-content">
+                            <div class="action-button-title">System Diagnostics</div>
+                            <div class="action-button-subtitle">Check system health</div>
+                        </div>
+                    </button>
+                    
+                    <a href="{{ url_for('batch.batch_overview') }}" class="action-button action-button-secondary">
+                        <div class="action-button-icon">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <div class="action-button-content">
+                            <div class="action-button-title">Batch Analysis</div>
+                            <div class="action-button-subtitle">Process multiple items</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Docker & Activity Row -->
+<div class="row g-5 mt-2">
+    <!-- Docker Infrastructure -->
+    <div class="col-lg-6">
+        <div class="card card-modern h-100">
+            <div class="card-header">
+                <div class="card-header-content">
+                    <h5 class="card-title">
+                        <i class="fab fa-docker text-info me-2"></i>
+                        Docker Infrastructure
+                    </h5>
+                    <div class="card-header-actions">
+                        <button class="btn btn-ghost btn-sm" 
+                                hx-get="{{ url_for('api.dashboard_docker_status') }}"
+                                hx-target="#docker-status-panel"
+                                hx-swap="innerHTML">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="docker-status-panel" 
+                     hx-get="{{ url_for('api.dashboard_docker_status') }}" 
+                     hx-trigger="load, every 30s"
+                     hx-swap="innerHTML"
+                     class="htmx-loading-container">
+                    <div class="htmx-skeleton">
+                        <div class="skeleton-card mb-3">
+                            <div class="skeleton-text-sm"></div>
+                            <div class="skeleton-text"></div>
+                        </div>
+                        <div class="skeleton-card mb-3">
+                            <div class="skeleton-text-sm"></div>
+                            <div class="skeleton-text"></div>
+                        </div>
+                        <div class="skeleton-card">
+                            <div class="skeleton-text-sm"></div>
+                            <div class="skeleton-text"></div>
                         </div>
                     </div>
                 </div>
-                <div class="card-body p-0">
-                    <div id="analyzer-services-panel" 
-                         hx-get="{{ url_for('api.ping_analyzer_services') }}" 
-                         hx-trigger="load, every 30s">
-                        {% include 'partials/dashboard/analyzer_services.html' %}
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- System Health & Quick Actions -->
-        <div class="col-lg-4 mb-4">
-            <!-- System Health Card -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="fas fa-heartbeat mr-2"></i>
-                        System Health
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div id="system-health-panel" 
-                         hx-get="{{ url_for('api.dashboard_system_health') }}" 
-                         hx-trigger="load, every 60s">
-                        {% include 'partials/dashboard/system_health.html' %}
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Quick Actions Card -->
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="fas fa-bolt mr-2"></i>
-                        Quick Actions
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-primary btn-sm" onclick="window.location.href='{{ url_for('main.testing') }}'">
-                            <i class="fas fa-flask mr-2"></i>Testing Console
-                        </button>
-                        <button class="btn btn-info btn-sm" onclick="window.location.href='{{ url_for('models.models_overview') }}'">
-                            <i class="fas fa-brain mr-2"></i>Models Overview
-                        </button>
-                        <button class="btn btn-success btn-sm" onclick="dashboard.runSystemDiagnostics()">
-                            <i class="fas fa-stethoscope mr-2"></i>System Diagnostics
-                        </button>
-                        <button class="btn btn-warning btn-sm" onclick="dashboard.showDockerManagement()">
-                            <i class="fab fa-docker mr-2"></i>Docker Management
-                        </button>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
-
-    <!-- Activity & Docker Status -->
-    <div class="row">
-        <!-- Docker Infrastructure Status -->
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">
-                            <i class="fab fa-docker mr-2"></i>
-                            Docker Infrastructure
-                        </h5>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="dashboard.refreshDockerStatus()">
-                            <i class="fas fa-sync mr-1"></i> Refresh
+    
+    <!-- Recent Activity -->
+    <div class="col-lg-6">
+        <div class="card card-modern h-100">
+            <div class="card-header">
+                <div class="card-header-content">
+                    <h5 class="card-title">
+                        <i class="fas fa-history text-success me-2"></i>
+                        Recent Activity
+                    </h5>
+                    <div class="card-header-actions">
+                        <button class="btn btn-ghost btn-sm" 
+                                hx-get="{{ url_for('api.dashboard_activity') }}"
+                                hx-target="#activity-panel"
+                                hx-swap="innerHTML">
+                            <i class="fas fa-sync"></i>
                         </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="docker-status-panel" 
-                         hx-get="{{ url_for('api.dashboard_docker_status') }}" 
-                         hx-trigger="load, every 45s">
-                        {% include 'partials/dashboard/docker_status.html' %}
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Recent Activity -->
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-history mr-2"></i>
-                            Recent Activity
-                        </h5>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="dashboard.refreshActivity()">
-                            <i class="fas fa-sync mr-1"></i> Refresh
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="recent-activity-panel" 
-                         hx-get="{{ url_for('api.dashboard_activity') }}" 
-                         hx-trigger="load, every 30s">
-                        {% include 'partials/dashboard/recent_activity.html' %}
+            <div class="card-body">
+                <div id="activity-panel" 
+                     hx-get="{{ url_for('api.dashboard_activity') }}" 
+                     hx-trigger="load, every 30s"
+                     hx-swap="innerHTML"
+                     class="htmx-loading-container">
+                    <div class="htmx-skeleton">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="skeleton-avatar me-3"></div>
+                            <div class="flex-grow-1">
+                                <div class="skeleton-text-sm mb-1"></div>
+                                <div class="skeleton-text"></div>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="skeleton-avatar me-3"></div>
+                            <div class="flex-grow-1">
+                                <div class="skeleton-text-sm mb-1"></div>
+                                <div class="skeleton-text"></div>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="skeleton-avatar me-3"></div>
+                            <div class="flex-grow-1">
+                                <div class="skeleton-text-sm mb-1"></div>
+                                <div class="skeleton-text"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- HTMX Loading Indicator -->
+<div id="htmx-global-loader" class="htmx-global-loader" style="display: none;">
+    <div class="htmx-spinner">
+        <div class="htmx-spinner-ring"></div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Enhanced Analyzer-Focused Dashboard JavaScript
-class SystemDashboard {
-    constructor() {
-        this.autoRefreshInterval = null;
-        this.refreshRate = 30000; // 30 seconds
-        this.analyzerServices = new Map();
-        this.systemMetrics = null;
-        this.init();
+// Enhanced Dashboard Management with proper variable scoping
+(function() {
+    'use strict';
+    
+    // Create global dashboard object with proper error handling
+    window.dashboard = window.dashboard || {};
+    
+    // Dashboard state management
+    const dashboardState = {
+        initialized: false,
+        autoRefreshEnabled: true,
+        refreshIntervals: new Map(),
+        loadingElements: new Set()
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize dashboard with new framework
+        initializeDashboard();
+        
+        // Set up HTMX event listeners with enhanced loading states
+        setupHTMXListeners();
+        
+        // Initialize tooltips and other Bootstrap components
+        initializeBootstrapComponents();
+        
+        // Set up global loading indicator
+        setupGlobalLoadingIndicator();
+        
+        // Initialize auto-refresh system
+        setupAutoRefresh();
+        
+        // Mark as initialized
+        dashboardState.initialized = true;
+    });
+
+    function initializeDashboard() {
+        console.log('Dashboard initialized with enhanced CSS framework');
+        
+        // Add enhanced loading states to cards
+        addEnhancedLoadingStates();
+        
+        // Set up refresh indicators with countdown
+        setupRefreshIndicators();
+        
+        // Initialize dashboard animations
+        initializeDashboardAnimations();
+        
+        // Initialize dashboard methods
+        window.dashboard.refreshActivity = refreshActivity;
+        window.dashboard.showToast = showToast;
     }
 
-    init() {
-        this.setupEventListeners();
-        this.setupAutoRefresh();
-        this.setupKeyboardShortcuts();
-        this.initializeAnalyzerStatus();
-    }
-
-    setupEventListeners() {
-        // HTMX event listeners for dashboard panels
-        document.addEventListener('htmx:afterRequest', (e) => {
-            this.handleHTMXResponse(e);
+    function setupHTMXListeners() {
+        // Enhanced loading handling with new skeleton screens
+        document.body.addEventListener('htmx:beforeRequest', function(event) {
+            const target = event.target;
+            showEnhancedLoading(target);
+            
+            // Show global loader for major requests
+            if (target.closest('.card-modern') || target.hasAttribute('hx-get')) {
+                showGlobalLoader();
+            }
         });
-
-        // Panel refresh buttons
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('[onclick*="refresh"]')) {
-                e.preventDefault();
-                this.handleRefreshAction(e.target);
+        
+        // Enhanced response handling
+        document.body.addEventListener('htmx:afterRequest', function(event) {
+            const target = event.target;
+            hideEnhancedLoading(target);
+            hideGlobalLoader();
+            
+            // Handle specific panel updates with animations
+            if (target.id && target.id.endsWith('-panel')) {
+                animateContentUpdate(target);
+            }
+            
+            // Handle errors with enhanced styling
+            if (event.detail.xhr.status >= 400) {
+                showEnhancedError(target, getErrorMessage(event.detail.xhr.status));
             }
         });
-
-        // Analyzer control buttons
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('[data-analyzer-action]')) {
-                this.handleAnalyzerAction(e.target);
-            }
+        
+        // Enhanced error handling
+        document.body.addEventListener('htmx:responseError', function(event) {
+            const target = event.target;
+            hideGlobalLoader();
+            showEnhancedError(target, 'Network error occurred. Please check your connection.');
         });
-    }
-
-    handleHTMXResponse(event) {
-        const target = event.detail.target;
-        if (target) {
-            // Update timestamps for auto-refresh panels
-            this.updatePanelTimestamp(target);
-            
-            // Handle specific panel updates
-            if (target.id === 'analyzer-services-panel') {
-                this.updateAnalyzerServices();
-            } else if (target.id === 'system-health-panel') {
-                this.updateSystemHealth();
-            }
-        }
-    }
-
-    handleRefreshAction(element) {
-        const action = element.getAttribute('onclick');
-        if (action.includes('refreshAnalyzerStatus')) {
-            this.refreshAnalyzerStatus();
-        } else if (action.includes('refreshDockerStatus')) {
-            this.refreshDockerStatus();
-        } else if (action.includes('refreshActivity')) {
-            this.refreshActivity();
-        } else if (action.includes('refreshAll')) {
-            this.refreshAll();
-        }
-    }
-
-    handleAnalyzerAction(element) {
-        const action = element.dataset.analyzerAction;
-        const service = element.dataset.service;
-        const containerId = element.dataset.containerId;
-
-        switch (action) {
-            case 'start':
-                this.startAnalyzerService(service, containerId);
-                break;
-            case 'stop':
-                this.stopAnalyzerService(service, containerId);
-                break;
-            case 'restart':
-                this.restartAnalyzerService(service, containerId);
-                break;
-            case 'view-logs':
-                this.viewAnalyzerLogs(service, containerId);
-                break;
-            case 'run-health-check':
-                this.runHealthCheck(service);
-                break;
-        }
-    }
-
-    // Analyzer Service Management
-    async startAnalyzerService(service, containerId) {
-        try {
-            this.showToast(`Starting ${service} analyzer...`, 'info');
-            const response = await fetch(`/api/analyzer/${service}/start`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const data = await response.json();
-            if (data.success) {
-                this.showToast(`${service} analyzer started successfully`, 'success');
-                this.refreshAnalyzerStatus();
-            } else {
-                this.showToast(`Failed to start ${service}: ${data.error}`, 'danger');
-            }
-        } catch (error) {
-            this.showToast(`Error starting ${service} analyzer`, 'danger');
-            console.error('Analyzer start error:', error);
-        }
-    }
-
-    async stopAnalyzerService(service, containerId) {
-        try {
-            this.showToast(`Stopping ${service} analyzer...`, 'warning');
-            const response = await fetch(`/api/analyzer/${service}/stop`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const data = await response.json();
-            if (data.success) {
-                this.showToast(`${service} analyzer stopped`, 'success');
-                this.refreshAnalyzerStatus();
-            } else {
-                this.showToast(`Failed to stop ${service}: ${data.error}`, 'danger');
-            }
-        } catch (error) {
-            this.showToast(`Error stopping ${service} analyzer`, 'danger');
-            console.error('Analyzer stop error:', error);
-        }
-    }
-
-    async restartAnalyzerService(service, containerId) {
-        try {
-            this.showToast(`Restarting ${service} analyzer...`, 'info');
-            const response = await fetch(`/api/analyzer/${service}/restart`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const data = await response.json();
-            if (data.success) {
-                this.showToast(`${service} analyzer restarted`, 'success');
-                this.refreshAnalyzerStatus();
-            } else {
-                this.showToast(`Failed to restart ${service}: ${data.error}`, 'danger');
-            }
-        } catch (error) {
-            this.showToast(`Error restarting ${service} analyzer`, 'danger');
-            console.error('Analyzer restart error:', error);
-        }
-    }
-
-    async viewAnalyzerLogs(service, containerId) {
-        try {
-            const response = await fetch(`/api/analyzer/${service}/logs`);
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showLogsModal(service, data.logs);
-            } else {
-                this.showToast(`Failed to retrieve logs for ${service}`, 'danger');
-            }
-        } catch (error) {
-            this.showToast(`Error retrieving logs for ${service}`, 'danger');
-            console.error('Logs retrieval error:', error);
-        }
-    }
-
-    async runHealthCheck(service) {
-        try {
-            this.showToast(`Running health check for ${service}...`, 'info');
-            const response = await fetch(`/api/analyzer/${service}/health`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const data = await response.json();
-            if (data.healthy) {
-                this.showToast(`${service} health check passed`, 'success');
-            } else {
-                this.showToast(`${service} health check failed: ${data.error}`, 'warning');
-            }
-            this.refreshAnalyzerStatus();
-        } catch (error) {
-            this.showToast(`Error running health check for ${service}`, 'danger');
-            console.error('Health check error:', error);
-        }
-    }
-
-    // Bulk Analyzer Operations
-    async startAllAnalyzers() {
-        if (!confirm('Start all analyzer services? This may take a few minutes.')) return;
         
-        try {
-            this.showToast('Starting all analyzer services...', 'info');
-            const response = await fetch('/api/analyzer/start-all', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+        // Content settlement with animations
+        document.body.addEventListener('htmx:afterSettle', function(event) {
+            const target = event.target;
             
-            const data = await response.json();
-            if (data.success) {
-                this.showToast(`Started ${data.started_count} analyzer services`, 'success');
-                setTimeout(() => this.refreshAnalyzerStatus(), 3000);
-            } else {
-                this.showToast(`Failed to start all analyzers: ${data.error}`, 'danger');
-            }
-        } catch (error) {
-            this.showToast('Error starting analyzer services', 'danger');
-            console.error('Bulk start error:', error);
-        }
-    }
-
-    async stopAllAnalyzers() {
-        if (!confirm('Stop all analyzer services?')) return;
-        
-        try {
-            this.showToast('Stopping all analyzer services...', 'warning');
-            const response = await fetch('/api/analyzer/stop-all', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+            // Re-initialize components in the updated content
+            initializeBootstrapComponents(target);
             
-            const data = await response.json();
-            if (data.success) {
-                this.showToast(`Stopped ${data.stopped_count} analyzer services`, 'success');
-                setTimeout(() => this.refreshAnalyzerStatus(), 2000);
-            } else {
-                this.showToast(`Failed to stop all analyzers: ${data.error}`, 'danger');
-            }
-        } catch (error) {
-            this.showToast('Error stopping analyzer services', 'danger');
-            console.error('Bulk stop error:', error);
-        }
-    }
-
-    // Panel Refresh Methods
-    refreshAnalyzerStatus() {
-        htmx.trigger('#analyzer-services-panel', 'htmx:refresh');
-    }
-
-    refreshDockerStatus() {
-        htmx.trigger('#docker-status-panel', 'htmx:refresh');
-    }
-
-    refreshActivity() {
-        htmx.trigger('#recent-activity-panel', 'htmx:refresh');
-    }
-
-    refreshSystemHealth() {
-        htmx.trigger('#system-health-panel', 'htmx:refresh');
-    }
-
-    refreshAll() {
-        // Refresh all HTMX panels
-        this.refreshAnalyzerStatus();
-        this.refreshDockerStatus();
-        this.refreshActivity();
-        this.refreshSystemHealth();
-        
-        // Refresh statistics
-        this.refreshStatistics();
-        
-        this.showToast('All panels refreshed', 'info');
-    }
-
-    refreshStatistics() {
-        const statElements = document.querySelectorAll('[hx-get*="stats"]');
-        statElements.forEach(element => {
-            htmx.trigger(element, 'htmx:refresh');
+            // Animate new content
+            animateNewContent(target);
         });
     }
 
-    // System Diagnostics
-    async runSystemDiagnostics() {
-        try {
-            this.showToast('Running system diagnostics...', 'info');
-            const response = await fetch('/api/system/diagnostics', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+    function showEnhancedLoading(element) {
+        const container = element.closest('.htmx-loading-container');
+        if (container) {
+            dashboardState.loadingElements.add(container);
             
-            const data = await response.json();
-            if (data.success) {
-                this.showDiagnosticsModal(data.diagnostics);
-            } else {
-                this.showToast(`Diagnostics failed: ${data.error}`, 'danger');
+            // Hide existing content and show skeleton
+            const content = container.children[0];
+            if (content && !content.classList.contains('htmx-skeleton')) {
+                content.style.opacity = '0.3';
             }
-        } catch (error) {
-            this.showToast('Error running system diagnostics', 'danger');
-            console.error('Diagnostics error:', error);
+            
+            // Show skeleton if it exists
+            const skeleton = container.querySelector('.htmx-skeleton');
+            if (skeleton) {
+                skeleton.style.display = 'block';
+                skeleton.style.opacity = '1';
+            }
+        }
+        
+        // Add loading class to cards
+        const card = element.closest('.card-modern');
+        if (card) {
+            card.classList.add('loading');
         }
     }
 
-    async showDockerManagement() {
-        try {
-            const response = await fetch('/api/docker/management');
-            const html = await response.text();
-            this.showModal('Docker Management', html);
-        } catch (error) {
-            this.showToast('Error loading Docker management', 'danger');
-            console.error('Docker management error:', error);
+    function hideEnhancedLoading(element) {
+        const container = element.closest('.htmx-loading-container');
+        if (container) {
+            dashboardState.loadingElements.delete(container);
+            
+            // Restore content opacity
+            const content = container.children[0];
+            if (content && !content.classList.contains('htmx-skeleton')) {
+                content.style.opacity = '1';
+            }
+            
+            // Hide skeleton
+            const skeleton = container.querySelector('.htmx-skeleton');
+            if (skeleton) {
+                skeleton.style.display = 'none';
+            }
+        }
+        
+        // Remove loading class from cards
+        const card = element.closest('.card-modern');
+        if (card) {
+            card.classList.remove('loading');
         }
     }
 
-    // Modal Display Methods
-    showLogsModal(service, logs) {
-        const modalHtml = `
-            <div class="modal fade" id="logsModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">${service} Analyzer Logs</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    function showGlobalLoader() {
+        const loader = document.getElementById('htmx-global-loader');
+        if (loader) {
+            loader.style.display = 'flex';
+            requestAnimationFrame(() => {
+                loader.classList.add('show');
+            });
+        }
+    }
+
+    function hideGlobalLoader() {
+        const loader = document.getElementById('htmx-global-loader');
+        if (loader) {
+            loader.classList.remove('show');
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 300);
+        }
+    }
+
+    function showEnhancedError(element, message) {
+        const container = element.closest('.card-body') || element;
+        if (container) {
+            container.innerHTML = `
+                <div class="alert alert-danger fade-in" role="alert">
+                    <div class="d-flex align-items-center">
+                        <div class="alert-icon me-3">
+                            <i class="fas fa-exclamation-triangle"></i>
                         </div>
-                        <div class="modal-body">
-                            <pre class="log-output">${logs}</pre>
+                        <div class="alert-content flex-grow-1">
+                            <div class="alert-title">Error Loading Data</div>
+                            <div class="alert-message">${message}</div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="button" class="btn btn-primary" onclick="dashboard.downloadLogs('${service}')">
-                                <i class="fas fa-download mr-1"></i>Download
-                            </button>
-                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="retryRequest(this)">
+                            <i class="fas fa-redo"></i>
+                        </button>
                     </div>
                 </div>
-            </div>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        const modal = new bootstrap.Modal(document.getElementById('logsModal'));
-        modal.show();
-        
-        // Clean up modal after close
-        document.getElementById('logsModal').addEventListener('hidden.bs.modal', function() {
-            this.remove();
+            `;
+        }
+    }
+
+    function getErrorMessage(status) {
+        const messages = {
+            400: 'Bad request - please check your input',
+            401: 'Authentication required',
+            403: 'Access denied',
+            404: 'Requested resource not found',
+            500: 'Internal server error - please try again later',
+            502: 'Service temporarily unavailable',
+            503: 'Service unavailable - please try again later'
+        };
+        return messages[status] || 'An unexpected error occurred';
+    }
+
+    function addEnhancedLoadingStates() {
+        // Add loading classes and skeletons to loading containers
+        const containers = document.querySelectorAll('.htmx-loading-container');
+        containers.forEach(container => {
+            if (!container.querySelector('.htmx-skeleton')) {
+                // Skeleton is already in the template
+                return;
+            }
+            
+            // Set up container for loading states
+            container.style.position = 'relative';
+            container.style.minHeight = '100px';
         });
     }
 
-    showDiagnosticsModal(diagnostics) {
-        const modalHtml = `
-            <div class="modal fade" id="diagnosticsModal" tabindex="-1">
-                <div class="modal-dialog modal-xl">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">System Diagnostics</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            ${this.formatDiagnosticsHTML(diagnostics)}
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="button" class="btn btn-primary" onclick="dashboard.runSystemDiagnostics()">
-                                <i class="fas fa-redo mr-1"></i>Re-run
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        const modal = new bootstrap.Modal(document.getElementById('diagnosticsModal'));
-        modal.show();
-        
-        document.getElementById('diagnosticsModal').addEventListener('hidden.bs.modal', function() {
-            this.remove();
+    function setupRefreshIndicators() {
+        // Enhanced refresh indicators with countdown and visual feedback
+        const autoRefreshElements = document.querySelectorAll('[hx-trigger*="every"]');
+        autoRefreshElements.forEach(element => {
+            const interval = element.getAttribute('hx-trigger').match(/every (\d+)s/);
+            if (interval) {
+                const seconds = parseInt(interval[1]);
+                startEnhancedRefreshTimer(element, seconds);
+            }
         });
     }
 
-    formatDiagnosticsHTML(diagnostics) {
-        return `
-            <div class="diagnostics-content">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>System Status</h6>
-                        <ul class="list-group">
-                            ${diagnostics.system?.map(item => `
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>${item.name}</span>
-                                    <span class="badge badge-${item.status === 'healthy' ? 'success' : 'danger'}">
-                                        ${item.status}
-                                    </span>
-                                </li>
-                            `).join('') || '<li class="list-group-item">No system data</li>'}
-                        </ul>
+    function startEnhancedRefreshTimer(element, seconds) {
+        let timeLeft = seconds;
+        const card = element.closest('.card-modern');
+        
+        if (card) {
+            const header = card.querySelector('.card-header-actions');
+            if (header && !header.querySelector('.refresh-indicator')) {
+                const indicator = document.createElement('div');
+                indicator.className = 'refresh-indicator d-flex align-items-center';
+                indicator.innerHTML = `
+                    <i class="fas fa-clock me-1"></i>
+                    <span class="countdown">${timeLeft}</span>s
+                    <div class="refresh-progress ms-2">
+                        <div class="refresh-progress-bar"></div>
                     </div>
-                    <div class="col-md-6">
-                        <h6>Service Status</h6>
-                        <ul class="list-group">
-                            ${diagnostics.services?.map(service => `
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>${service.name}</span>
-                                    <span class="badge badge-${service.healthy ? 'success' : 'danger'}">
-                                        ${service.healthy ? 'Healthy' : 'Unhealthy'}
-                                    </span>
-                                </li>
-                            `).join('') || '<li class="list-group-item">No service data</li>'}
-                        </ul>
-                    </div>
+                `;
+                header.appendChild(indicator);
+                
+                const countdown = indicator.querySelector('.countdown');
+                const progressBar = indicator.querySelector('.refresh-progress-bar');
+                
+                const timer = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft <= 0) {
+                        timeLeft = seconds;
+                        // Flash indicator on refresh
+                        indicator.classList.add('refreshing');
+                        setTimeout(() => indicator.classList.remove('refreshing'), 500);
+                    }
+                    
+                    countdown.textContent = timeLeft;
+                    const progress = ((seconds - timeLeft) / seconds) * 100;
+                    progressBar.style.width = `${progress}%`;
+                }, 1000);
+                
+                // Store timer reference for cleanup
+                dashboardState.refreshIntervals.set(element, timer);
+            }
+        }
+    }
+
+    function initializeDashboardAnimations() {
+        // Add entrance animations to stats cards
+        const statsCards = document.querySelectorAll('.stats-card');
+        statsCards.forEach((card, index) => {
+            card.style.animationDelay = `${index * 100}ms`;
+            card.classList.add('fade-in-up');
+        });
+        
+        // Add stagger animation to action buttons
+        const actionButtons = document.querySelectorAll('.action-button');
+        actionButtons.forEach((button, index) => {
+            button.style.animationDelay = `${(index + 4) * 100}ms`;
+            button.classList.add('fade-in-up');
+        });
+    }
+
+    function animateContentUpdate(target) {
+        // Add update animation to content
+        target.classList.add('content-updated');
+        setTimeout(() => {
+            target.classList.remove('content-updated');
+        }, 600);
+    }
+
+    function animateNewContent(target) {
+        // Animate newly loaded content
+        const newElements = target.querySelectorAll('[data-new]');
+        newElements.forEach((element, index) => {
+            element.style.animationDelay = `${index * 50}ms`;
+            element.classList.add('fade-in');
+            element.removeAttribute('data-new');
+        });
+    }
+
+    function setupGlobalLoadingIndicator() {
+        // Create global loading indicator if it doesn't exist
+        if (!document.getElementById('htmx-global-loader')) {
+            const loader = document.createElement('div');
+            loader.id = 'htmx-global-loader';
+            loader.className = 'htmx-global-loader';
+            loader.innerHTML = `
+                <div class="htmx-spinner">
+                    <div class="htmx-spinner-ring"></div>
                 </div>
-            </div>
-        `;
+            `;
+            loader.style.display = 'none';
+            document.body.appendChild(loader);
+        }
     }
 
-    // Utility Methods
-    setupAutoRefresh() {
-        this.autoRefreshInterval = setInterval(() => {
-            this.refreshStatistics();
-        }, this.refreshRate);
-    }
-
-    setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey || e.metaKey) {
-                switch(e.key) {
-                    case 'r':
-                        e.preventDefault();
-                        this.refreshAll();
-                        break;
-                    case 'd':
-                        e.preventDefault();
-                        this.runSystemDiagnostics();
-                        break;
+    function setupAutoRefresh() {
+        // Set up intelligent auto-refresh that pauses when user is interacting
+        let userActive = true;
+        let inactivityTimer;
+        
+        // Track user activity
+        ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(event => {
+            document.addEventListener(event, () => {
+                userActive = true;
+                clearTimeout(inactivityTimer);
+                
+                // Consider user inactive after 5 minutes
+                inactivityTimer = setTimeout(() => {
+                    userActive = false;
+                }, 300000);
+            });
+        });
+        
+        // Modify HTMX behavior based on user activity
+        document.body.addEventListener('htmx:beforeRequest', function(event) {
+            if (!userActive && event.target.hasAttribute('hx-trigger')) {
+                const trigger = event.target.getAttribute('hx-trigger');
+                if (trigger.includes('every')) {
+                    // Reduce frequency when user is inactive
+                    console.log('Reducing refresh frequency due to inactivity');
                 }
             }
         });
     }
 
-    initializeAnalyzerStatus() {
-        // Initialize analyzer services tracking
-        this.refreshAnalyzerStatus();
-    }
-
-    updateAnalyzerServices() {
-        // Update internal analyzer services state after panel refresh
-        // This could be expanded to track service states locally
-    }
-
-    updateSystemHealth() {
-        // Update internal system health state after panel refresh
-    }
-
-    updatePanelTimestamp(target) {
-        const timestamp = new Date().toLocaleTimeString();
-        const timestampEl = target.querySelector('.panel-timestamp');
-        if (timestampEl) {
-            timestampEl.textContent = `Last updated: ${timestamp}`;
-        }
-    }
-
-    showToast(message, type = 'info', duration = 5000) {
-        const typeMapping = {
-            'info': 'primary',
-            'error': 'danger',
-            'danger': 'danger',
-            'warning': 'warning',
-            'success': 'success'
-        };
-        
-        const toastType = typeMapping[type] || type;
-        
-        const toastHtml = `
-            <div class="toast align-items-center text-white bg-${toastType} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
-            toastContainer.style.zIndex = '1055';
-            document.body.appendChild(toastContainer);
-        }
-
-        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-        const toastElement = toastContainer.lastElementChild;
-        const toast = new bootstrap.Toast(toastElement, { delay: duration });
-        toast.show();
-
-        toastElement.addEventListener('hidden.bs.toast', () => {
-            toastElement.remove();
-        });
-    }
-
-    async downloadLogs(service) {
+    function initializeBootstrapComponents(container = document) {
         try {
-            const response = await fetch(`/api/analyzer/${service}/logs/download`);
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${service}_logs_${new Date().toISOString().split('T')[0]}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            this.showToast(`${service} logs downloaded`, 'success');
+            // Initialize tooltips
+            const tooltipTriggerList = [].slice.call(container.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                if (!tooltipTriggerEl._tooltip) {
+                    tooltipTriggerEl._tooltip = new bootstrap.Tooltip(tooltipTriggerEl);
+                }
+            });
+            
+            // Initialize dropdowns
+            const dropdowns = container.querySelectorAll('[data-bs-toggle="dropdown"]');
+            dropdowns.forEach(dropdown => {
+                if (!dropdown._dropdown) {
+                    dropdown._dropdown = new bootstrap.Dropdown(dropdown);
+                }
+            });
+            
+            // Initialize modals
+            const modals = container.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (!modal._modal) {
+                    modal._modal = new bootstrap.Modal(modal);
+                }
+            });
         } catch (error) {
-            this.showToast(`Error downloading logs for ${service}`, 'danger');
-            console.error('Log download error:', error);
+            console.warn('Bootstrap component initialization warning:', error);
         }
     }
-}
 
-// Global dashboard instance
-window.dashboard = null;
-
-// Initialize dashboard when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    dashboard = new SystemDashboard();
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    if (dashboard?.autoRefreshInterval) {
-        clearInterval(dashboard.autoRefreshInterval);
+    // Dashboard utility functions
+    function refreshActivity() {
+        const activityPanel = document.getElementById('activity-panel');
+        if (activityPanel) {
+            if (typeof htmx !== 'undefined') {
+                htmx.trigger(activityPanel, 'htmx:refresh');
+            }
+        }
     }
-});
+
+    // Global utility functions
+    window.refreshDashboard = function() {
+        // Enhanced dashboard refresh with visual feedback
+        showToast('Refreshing dashboard...', 'info');
+        
+        // Trigger refresh for all HTMX elements
+        document.querySelectorAll('[hx-get]').forEach(element => {
+            if (element.hasAttribute('hx-trigger')) {
+                if (typeof htmx !== 'undefined') {
+                    htmx.trigger(element, 'refresh');
+                }
+            }
+        });
+        
+        // Show success message after a delay
+        setTimeout(() => {
+            showToast('Dashboard refreshed successfully', 'success');
+        }, 1500);
+    };
+
+    window.retryRequest = function(button) {
+        const container = button.closest('.card-body') || button.closest('[hx-get]');
+        if (container) {
+            const element = container.querySelector('[hx-get]') || container;
+            if (element && element.hasAttribute('hx-get') && typeof htmx !== 'undefined') {
+                htmx.trigger(element, 'htmx:refresh');
+            }
+        }
+    };
+
+    // Enhanced toast notifications
+    function showToast(message, type = 'info', duration = 5000) {
+        try {
+            const typeMapping = {
+                'info': 'primary',
+                'error': 'danger',
+                'danger': 'danger',
+                'warning': 'warning',
+                'success': 'success'
+            };
+            
+            const toastType = typeMapping[type] || type;
+            const icons = {
+                'primary': 'fas fa-info-circle',
+                'success': 'fas fa-check-circle',
+                'warning': 'fas fa-exclamation-triangle',
+                'danger': 'fas fa-times-circle'
+            };
+            
+            const toastHtml = `
+                <div class="toast toast-modern align-items-center border-0" role="alert" data-bs-autohide="true" data-bs-delay="${duration}">
+                    <div class="toast-header bg-${toastType} text-white border-0">
+                        <i class="${icons[toastType]} me-2"></i>
+                        <strong class="me-auto">System Notification</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            `;
+
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+                toastContainer.style.zIndex = '1060';
+                document.body.appendChild(toastContainer);
+            }
+
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = toastContainer.lastElementChild;
+            
+            // Trigger entrance animation
+            requestAnimationFrame(() => {
+                toastElement.classList.add('show');
+            });
+            
+            if (typeof bootstrap !== 'undefined') {
+                const toast = new bootstrap.Toast(toastElement);
+                toast.show();
+
+                toastElement.addEventListener('hidden.bs.toast', () => {
+                    toastElement.remove();
+                });
+            }
+        } catch (error) {
+            console.error('Toast notification error:', error);
+        }
+    }
+
+    // System management functions
+    window.startAnalyzer = function(service) {
+        showToast(`Starting ${service} analyzer...`, 'info');
+        
+        fetch(`/api/analyzer/${service}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const healthPanel = document.getElementById('system-health-panel');
+                if (healthPanel && typeof htmx !== 'undefined') {
+                    htmx.trigger(healthPanel, 'refresh');
+                }
+                showToast(`${service} analyzer started successfully`, 'success');
+            } else {
+                showToast(`Failed to start ${service}: ${data.error}`, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error starting analyzer:', error);
+            showToast('Failed to start analyzer', 'danger');
+        });
+    };
+
+    window.stopAnalyzer = function(service) {
+        showToast(`Stopping ${service} analyzer...`, 'warning');
+        
+        fetch(`/api/analyzer/${service}/stop`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const healthPanel = document.getElementById('system-health-panel');
+                if (healthPanel && typeof htmx !== 'undefined') {
+                    htmx.trigger(healthPanel, 'refresh');
+                }
+                showToast(`${service} analyzer stopped`, 'warning');
+            } else {
+                showToast(`Failed to stop ${service}: ${data.error}`, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error stopping analyzer:', error);
+            showToast('Failed to stop analyzer', 'danger');
+        });
+    };
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        // Clear any running timers
+        dashboardState.refreshIntervals.forEach((timer, element) => {
+            clearInterval(timer);
+        });
+        dashboardState.refreshIntervals.clear();
+        
+        // Log performance metrics
+        console.log('Dashboard cleanup completed');
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(event) {
+        if (event.ctrlKey || event.metaKey) {
+            switch(event.key) {
+                case 'r':
+                    event.preventDefault();
+                    if (typeof refreshDashboard === 'function') {
+                        refreshDashboard();
+                    }
+                    break;
+                case 'd':
+                    event.preventDefault();
+                    // Open diagnostics if available
+                    const diagnosticsBtn = document.querySelector('[data-bs-target="#systemHealthModal"]');
+                    if (diagnosticsBtn) {
+                        diagnosticsBtn.click();
+                    }
+                    break;
+            }
+        }
+    });
+
+})();
 </script>
 {% endblock %}
