@@ -1,0 +1,524 @@
+{% extends "base.html" %}
+
+{% block title %}Application {{ application.app_number }} - {{ application.model_slug }} - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('models.models_overview') }}">Models</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('models.model_applications', model_slug=application.model_slug) }}">{{ application.model_slug }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">App {{ application.app_number }}</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Application {{ application.app_number }}</h1>
+            <p class="text-muted mb-0">{{ application.model_slug }} • {{ application.provider|title }}</p>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="refreshApplication()">
+                <i class="fas fa-sync mr-1"></i>
+                Refresh
+            </button>
+            <button type="button" class="btn btn-outline-success" onclick="startAnalysis()">
+                <i class="fas fa-play mr-1"></i>
+                Start Analysis
+            </button>
+            <button type="button" class="btn btn-outline-info" onclick="viewLogs()">
+                <i class="fas fa-file-alt mr-1"></i>
+                View Logs
+            </button>
+        </div>
+    </div>
+
+    <!-- Application Info Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-info-circle mr-2 text-primary"></i>
+                Application Information
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <dl class="row">
+                        <dt class="col-sm-4">Application ID:</dt>
+                        <dd class="col-sm-8"><code>{{ application.id }}</code></dd>
+                        
+                        <dt class="col-sm-4">App Number:</dt>
+                        <dd class="col-sm-8">{{ application.app_number }}</dd>
+                        
+                        <dt class="col-sm-4">Model:</dt>
+                        <dd class="col-sm-8">{{ application.model_slug }}</dd>
+                        
+                        <dt class="col-sm-4">Provider:</dt>
+                        <dd class="col-sm-8"><span class="badge badge-primary">{{ application.provider|title }}</span></dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row">
+                        <dt class="col-sm-4">Status:</dt>
+                        <dd class="col-sm-8">
+                            {% if application.generation_status %}
+                                <span class="badge badge-{{ 'success' if application.generation_status == 'completed' else 'warning' if application.generation_status == 'pending' else 'danger' }}">
+                                    {{ application.generation_status|title }}
+                                </span>
+                            {% else %}
+                                <span class="badge badge-secondary">Unknown</span>
+                            {% endif %}
+                        </dd>
+                        
+                        <dt class="col-sm-4">Created:</dt>
+                        <dd class="col-sm-8">{{ application.created_at.strftime('%B %d, %Y at %H:%M') if application.created_at else 'N/A' }}</dd>
+                        
+                        <dt class="col-sm-4">Updated:</dt>
+                        <dd class="col-sm-8">{{ application.updated_at.strftime('%B %d, %Y at %H:%M') if application.updated_at else 'N/A' }}</dd>
+                        
+                        {% if application.description %}
+                        <dt class="col-sm-4">Description:</dt>
+                        <dd class="col-sm-8">{{ application.description }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Results -->
+    <div class="row mb-4">
+        <!-- Security Analysis -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-shield-alt mr-2 text-success"></i>
+                        Security Analysis
+                    </h6>
+                    <span class="badge badge-light">{{ security_analyses|length if security_analyses else 0 }} test{{ 's' if security_analyses|length != 1 else '' }}</span>
+                </div>
+                <div class="card-body">
+                    {% if security_analyses %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Status</th>
+                                        <th>Issues</th>
+                                        <th>Started</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for analysis in security_analyses %}
+                                    <tr>
+                                        <td><code>{{ analysis.id }}</code></td>
+                                        <td>
+                                            <span class="badge badge-{{ 'success' if analysis.status.value == 'completed' else 'warning' if analysis.status.value == 'running' else 'danger' }}">
+                                                {{ analysis.status.value|title }}
+                                            </span>
+                                        </td>
+                                        <td>{{ analysis.total_issues or 0 }}</td>
+                                        <td>{{ analysis.started_at.strftime('%m/%d %H:%M') if analysis.started_at else 'N/A' }}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewSecurityReport({{ analysis.id }})">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-shield-alt fa-2x text-muted mb-2"></i>
+                            <p class="text-muted mb-0">No security analyses yet</p>
+                            <button class="btn btn-sm btn-primary mt-2" onclick="startSecurityAnalysis()">
+                                <i class="fas fa-play mr-1"></i>
+                                Run Security Analysis
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Tests -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-tachometer-alt mr-2 text-warning"></i>
+                        Performance Tests
+                    </h6>
+                    <span class="badge badge-light">{{ performance_tests|length if performance_tests else 0 }} test{{ 's' if performance_tests|length != 1 else '' }}</span>
+                </div>
+                <div class="card-body">
+                    {% if performance_tests %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Status</th>
+                                        <th>RPS</th>
+                                        <th>Started</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for test in performance_tests %}
+                                    <tr>
+                                        <td><code>{{ test.id }}</code></td>
+                                        <td>
+                                            <span class="badge badge-{{ 'success' if test.status.value == 'completed' else 'warning' if test.status.value == 'running' else 'danger' }}">
+                                                {{ test.status.value|title }}
+                                            </span>
+                                        </td>
+                                        <td>{{ "%.1f"|format(test.requests_per_second) if test.requests_per_second else 'N/A' }}</td>
+                                        <td>{{ test.started_at.strftime('%m/%d %H:%M') if test.started_at else 'N/A' }}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewPerformanceReport({{ test.id }})">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-tachometer-alt fa-2x text-muted mb-2"></i>
+                            <p class="text-muted mb-0">No performance tests yet</p>
+                            <button class="btn btn-sm btn-primary mt-2" onclick="startPerformanceTest()">
+                                <i class="fas fa-play mr-1"></i>
+                                Run Performance Test
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Analysis Types -->
+    <div class="row">
+        <!-- ZAP Analysis -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bug mr-2 text-danger"></i>
+                        ZAP Vulnerability Scans
+                    </h6>
+                    <span class="badge badge-light">{{ zap_analyses|length if zap_analyses else 0 }} scan{{ 's' if zap_analyses|length != 1 else '' }}</span>
+                </div>
+                <div class="card-body">
+                    {% if zap_analyses %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Status</th>
+                                        <th>Vulnerabilities</th>
+                                        <th>Started</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for analysis in zap_analyses %}
+                                    <tr>
+                                        <td><code>{{ analysis.id }}</code></td>
+                                        <td>
+                                            <span class="badge badge-{{ 'success' if analysis.status.value == 'completed' else 'warning' if analysis.status.value == 'running' else 'danger' }}">
+                                                {{ analysis.status.value|title }}
+                                            </span>
+                                        </td>
+                                        <td>{{ analysis.total_vulnerabilities or 0 }}</td>
+                                        <td>{{ analysis.started_at.strftime('%m/%d %H:%M') if analysis.started_at else 'N/A' }}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewZapReport({{ analysis.id }})">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-bug fa-2x text-muted mb-2"></i>
+                            <p class="text-muted mb-0">No vulnerability scans yet</p>
+                            <button class="btn btn-sm btn-primary mt-2" onclick="startZapScan()">
+                                <i class="fas fa-play mr-1"></i>
+                                Run ZAP Scan
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Analysis -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-brain mr-2 text-info"></i>
+                        AI Code Analysis
+                    </h6>
+                    <span class="badge badge-light">{{ ai_analyses|length if ai_analyses else 0 }} analysis{{ 'es' if ai_analyses|length != 1 else '' }}</span>
+                </div>
+                <div class="card-body">
+                    {% if ai_analyses %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Status</th>
+                                        <th>Score</th>
+                                        <th>Started</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for analysis in ai_analyses %}
+                                    <tr>
+                                        <td><code>{{ analysis.id }}</code></td>
+                                        <td>
+                                            <span class="badge badge-{{ 'success' if analysis.status.value == 'completed' else 'warning' if analysis.status.value == 'running' else 'danger' }}">
+                                                {{ analysis.status.value|title }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if analysis.quality_score %}
+                                                <span class="font-weight-bold text-{{ 'success' if analysis.quality_score >= 80 else 'warning' if analysis.quality_score >= 60 else 'danger' }}">
+                                                    {{ analysis.quality_score }}%
+                                                </span>
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ analysis.started_at.strftime('%m/%d %H:%M') if analysis.started_at else 'N/A' }}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewAiReport({{ analysis.id }})">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-brain fa-2x text-muted mb-2"></i>
+                            <p class="text-muted mb-0">No AI analyses yet</p>
+                            <button class="btn btn-sm btn-primary mt-2" onclick="startAiAnalysis()">
+                                <i class="fas fa-play mr-1"></i>
+                                Run AI Analysis
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card">
+        <div class="card-header">
+            <h6 class="card-title mb-0">
+                <i class="fas fa-tools mr-2 text-secondary"></i>
+                Quick Actions
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-success btn-block" onclick="startSecurityAnalysis()">
+                        <i class="fas fa-shield-alt mr-2"></i>
+                        Security Analysis
+                    </button>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-warning btn-block" onclick="startPerformanceTest()">
+                        <i class="fas fa-tachometer-alt mr-2"></i>
+                        Performance Test
+                    </button>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-danger btn-block" onclick="startZapScan()">
+                        <i class="fas fa-bug mr-2"></i>
+                        ZAP Scan
+                    </button>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-info btn-block" onclick="startAiAnalysis()">
+                        <i class="fas fa-brain mr-2"></i>
+                        AI Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Application Detail JavaScript
+const applicationId = {{ application.id }};
+
+function refreshApplication() {
+    location.reload();
+}
+
+function startAnalysis() {
+    if (confirm('Start comprehensive analysis for this application?')) {
+        fetch(`/api/analysis/start/${applicationId}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Comprehensive analysis started successfully', 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showToast(data.error || 'Failed to start analysis', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Analysis start error:', error);
+            showToast('Failed to start analysis', 'danger');
+        });
+    }
+}
+
+function viewLogs() {
+    window.open(`/api/logs/application/${applicationId}`, '_blank');
+}
+
+function startSecurityAnalysis() {
+    fetch(`/api/analysis/security/${applicationId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Security analysis started successfully', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showToast(data.error || 'Failed to start security analysis', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Security analysis error:', error);
+        showToast('Failed to start security analysis', 'danger');
+    });
+}
+
+function startPerformanceTest() {
+    fetch(`/api/analysis/performance/${applicationId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Performance test started successfully', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showToast(data.error || 'Failed to start performance test', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Performance test error:', error);
+        showToast('Failed to start performance test', 'danger');
+    });
+}
+
+function startZapScan() {
+    fetch(`/api/analysis/zap/${applicationId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('ZAP scan started successfully', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showToast(data.error || 'Failed to start ZAP scan', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('ZAP scan error:', error);
+        showToast('Failed to start ZAP scan', 'danger');
+    });
+}
+
+function startAiAnalysis() {
+    fetch(`/api/analysis/ai/${applicationId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('AI analysis started successfully', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showToast(data.error || 'Failed to start AI analysis', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('AI analysis error:', error);
+        showToast('Failed to start AI analysis', 'danger');
+    });
+}
+
+function viewSecurityReport(analysisId) {
+    window.open(`/api/reports/security/${analysisId}`, '_blank');
+}
+
+function viewPerformanceReport(testId) {
+    window.open(`/api/reports/performance/${testId}`, '_blank');
+}
+
+function viewZapReport(analysisId) {
+    window.open(`/api/reports/zap/${analysisId}`, '_blank');
+}
+
+function viewAiReport(analysisId) {
+    window.open(`/api/reports/ai/${analysisId}`, '_blank');
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    toast.style.cssText = 'top: 70px; right: 20px; z-index: 1050; min-width: 300px;';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

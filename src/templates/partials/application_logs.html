@@ -1,0 +1,76 @@
+<!-- Application Logs Display -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="fas fa-file-alt mr-2"></i>
+            Application Logs - {{ app.model_slug }} App #{{ app.app_number }}
+        </h6>
+        <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-secondary" id="refreshLogs">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="downloadLogs">
+                <i class="fas fa-download"></i> Download
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if logs %}
+        <div class="log-container" style="max-height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.9em;">
+            {% for log in logs %}
+            <div class="log-entry border-bottom px-3 py-2 {% if log.level == 'ERROR' %}bg-danger text-white{% elif log.level == 'WARNING' %}bg-warning{% elif log.level == 'INFO' %}bg-light{% endif %}">
+                <div class="d-flex">
+                    <div class="log-timestamp text-muted mr-3" style="min-width: 150px;">
+                        <small>{{ log.timestamp }}</small>
+                    </div>
+                    <div class="log-level mr-3" style="min-width: 60px;">
+                        <span class="badge {% if log.level == 'ERROR' %}badge-danger{% elif log.level == 'WARNING' %}badge-warning{% elif log.level == 'INFO' %}badge-info{% else %}badge-secondary{% endif %}">
+                            {{ log.level }}
+                        </span>
+                    </div>
+                    <div class="log-message flex-grow-1">
+                        {{ log.message }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+            <p class="text-muted">No logs available for this application</p>
+            <small class="text-muted">Logs will appear here once the application starts generating them.</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.getElementById('refreshLogs').addEventListener('click', function() {
+    // Refresh logs via HTMX
+    htmx.ajax('GET', '/api/logs/application/{{ app.id }}', {
+        target: '#logsContainer',
+        swap: 'innerHTML'
+    });
+});
+
+document.getElementById('downloadLogs').addEventListener('click', function() {
+    // Create downloadable log file
+    const logs = [
+        {% for log in logs %}
+        '{{ log.timestamp }} [{{ log.level }}] {{ log.message }}'{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    const logContent = logs.join('\n');
+    const blob = new Blob([logContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'app_{{ app.id }}_logs.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+});
+</script>

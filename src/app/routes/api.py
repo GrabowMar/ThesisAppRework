@@ -13,6 +13,7 @@ from flask import Blueprint, jsonify, render_template
 from ..models import ModelCapability, GeneratedApplication
 from ..services.task_manager import TaskManager
 from ..services.analyzer_integration import AnalyzerIntegration
+from ..services.background_service import get_background_service
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -1398,3 +1399,219 @@ def api_statistics_overview():
     except Exception as e:
         logger.error(f"Error loading statistics overview: {e}")
         return f'<div class="alert alert-danger">Error loading statistics overview: {str(e)}</div>'
+
+
+# Missing endpoints from logs
+@api_bp.route('/batch/active')
+def api_batch_active():
+    """API endpoint for active batch analyses (HTMX)."""
+    try:
+        from ..models import BatchAnalysis
+        from ..extensions import db
+        from ..constants import JobStatus
+        
+        active_batches = db.session.query(BatchAnalysis).filter(
+            BatchAnalysis.status.in_([JobStatus.RUNNING, JobStatus.PENDING])
+        ).order_by(BatchAnalysis.created_at.desc()).all()
+        
+        return render_template('partials/active_batches.html', active_batches=active_batches)
+    except Exception as e:
+        logger.error(f"Error loading active batches: {e}")
+        return f'<div class="alert alert-danger">Error loading active batches: {str(e)}</div>'
+
+
+@api_bp.route('/logs/application/<int:app_id>')
+def api_application_logs(app_id):
+    """API endpoint for application logs."""
+    try:
+        from ..models import GeneratedApplication
+        from ..extensions import db
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
+        
+        # Mock logs for now - in production, this would read actual log files
+        logs = [
+            {'timestamp': '2025-08-11 03:35:00', 'level': 'INFO', 'message': f'Application {app_id} initialized'},
+            {'timestamp': '2025-08-11 03:35:01', 'level': 'INFO', 'message': f'Model: {app.model_slug}'},
+            {'timestamp': '2025-08-11 03:35:02', 'level': 'INFO', 'message': f'Provider: {app.provider}'},
+            {'timestamp': '2025-08-11 03:35:03', 'level': 'INFO', 'message': 'Application ready for analysis'}
+        ]
+        
+        return render_template('partials/application_logs.html', app=app, logs=logs)
+    except Exception as e:
+        logger.error(f"Error loading application logs: {e}")
+        return f'<div class="alert alert-danger">Error loading logs: {str(e)}</div>', 500
+
+
+@api_bp.route('/analysis/start/<int:app_id>', methods=['POST'])
+def api_analysis_start(app_id):
+    """API endpoint to start comprehensive analysis for an application."""
+    try:
+        from ..models import GeneratedApplication, SecurityAnalysis
+        from ..extensions import db
+        from ..constants import JobStatus
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Start comprehensive analysis (all types)
+        service = get_background_service()
+        if service:
+            task_id = f"comprehensive_analysis_{app_id}"
+            task = service.create_task(
+                task_id=task_id,
+                task_type="comprehensive_analysis",
+                message=f"Starting comprehensive analysis for application {app_id}"
+            )
+            service.start_task(task_id)
+            
+            return jsonify({
+                'success': True,
+                'message': 'Comprehensive analysis started',
+                'task_id': task_id
+            })
+        else:
+            return jsonify({'error': 'Background service not available'}), 503
+            
+    except Exception as e:
+        logger.error(f"Error starting analysis for app {app_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/analysis/security/<int:app_id>', methods=['POST'])
+def api_analysis_security(app_id):
+    """API endpoint to start security analysis for an application."""
+    try:
+        from ..models import GeneratedApplication, SecurityAnalysis
+        from ..extensions import db
+        from ..constants import AnalysisStatus
+        from datetime import datetime, timezone
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Create security analysis record
+        analysis = SecurityAnalysis(
+            application_id=app_id,
+            status=AnalysisStatus.PENDING,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.session.add(analysis)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Security analysis started',
+            'analysis_id': analysis.id
+        })
+            
+    except Exception as e:
+        logger.error(f"Error starting security analysis for app {app_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/analysis/performance/<int:app_id>', methods=['POST'])
+def api_analysis_performance(app_id):
+    """API endpoint to start performance analysis for an application."""
+    try:
+        from ..models import GeneratedApplication, PerformanceTest
+        from ..extensions import db
+        from ..constants import AnalysisStatus
+        from datetime import datetime, timezone
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Create performance test record
+        test = PerformanceTest(
+            application_id=app_id,
+            status=AnalysisStatus.PENDING,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.session.add(test)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Performance test started',
+            'test_id': test.id
+        })
+            
+    except Exception as e:
+        logger.error(f"Error starting performance test for app {app_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/analysis/zap/<int:app_id>', methods=['POST'])
+def api_analysis_zap(app_id):
+    """API endpoint to start ZAP analysis for an application."""
+    try:
+        from ..models import GeneratedApplication, ZAPAnalysis
+        from ..extensions import db
+        from ..constants import AnalysisStatus
+        from datetime import datetime, timezone
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Create ZAP analysis record
+        analysis = ZAPAnalysis(
+            application_id=app_id,
+            status=AnalysisStatus.PENDING,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.session.add(analysis)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'ZAP scan started',
+            'analysis_id': analysis.id
+        })
+            
+    except Exception as e:
+        logger.error(f"Error starting ZAP analysis for app {app_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/analysis/ai/<int:app_id>', methods=['POST'])
+def api_analysis_ai(app_id):
+    """API endpoint to start AI analysis for an application."""
+    try:
+        from ..models import GeneratedApplication, OpenRouterAnalysis
+        from ..extensions import db
+        from ..constants import AnalysisStatus
+        from datetime import datetime, timezone
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Create AI analysis record
+        analysis = OpenRouterAnalysis(
+            application_id=app_id,
+            status=AnalysisStatus.PENDING,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.session.add(analysis)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'AI analysis started',
+            'analysis_id': analysis.id
+        })
+            
+    except Exception as e:
+        logger.error(f"Error starting AI analysis for app {app_id}: {e}")
+        return jsonify({'error': str(e)}), 500

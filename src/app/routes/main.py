@@ -109,17 +109,30 @@ def testing():
     try:
         # Get testing statistics
         stats = {
-            'active_tests': SecurityAnalysis.query.filter_by(status='running').count() +
-                           PerformanceTest.query.filter_by(status='running').count(),
-            'completed_tests': SecurityAnalysis.query.filter_by(status='completed').count() +
-                              PerformanceTest.query.filter_by(status='completed').count(),
-            'queued_tests': SecurityAnalysis.query.filter_by(status='pending').count() +
-                           PerformanceTest.query.filter_by(status='pending').count(),
-            'failed_tests': SecurityAnalysis.query.filter_by(status='failed').count() +
-                           PerformanceTest.query.filter_by(status='failed').count()
+            'active_tests': SecurityAnalysis.query.filter_by(status=JobStatus.RUNNING).count() +
+                           PerformanceTest.query.filter_by(status=JobStatus.RUNNING).count(),
+            'completed_tests': SecurityAnalysis.query.filter_by(status=JobStatus.COMPLETED).count() +
+                              PerformanceTest.query.filter_by(status=JobStatus.COMPLETED).count(),
+            'failed_tests': SecurityAnalysis.query.filter_by(status=JobStatus.FAILED).count() +
+                           PerformanceTest.query.filter_by(status=JobStatus.FAILED).count(),
+            'queue_length': SecurityAnalysis.query.filter_by(status=JobStatus.PENDING).count() +
+                           PerformanceTest.query.filter_by(status=JobStatus.PENDING).count()
         }
         
-        return render_template('pages/testing.html', stats=stats)
+        # Get available models for testing
+        available_models = ModelCapability.query.all()
+        
+        # Get active sessions (mock data for now)
+        active_sessions = []
+        
+        # Get recent results
+        recent_results = []
+        
+        return render_template('pages/testing.html', 
+                             stats=stats, 
+                             available_models=available_models,
+                             active_sessions=active_sessions,
+                             recent_results=recent_results)
     except Exception as e:
         logger.error(f"Error loading testing page: {e}")
         flash('Error loading testing page', 'error')
@@ -149,23 +162,31 @@ def batch_overview():
         completed_batches = BatchAnalysis.query.filter_by(status=JobStatus.COMPLETED).count()
         failed_batches = BatchAnalysis.query.filter_by(status=JobStatus.FAILED).count()
         
-        batch_stats = {
-            'total': total_batches,
-            'running': running_batches,
-            'completed': completed_batches,
-            'failed': failed_batches
+        stats = {
+            'total_batches': total_batches,
+            'running_batches': running_batches,
+            'completed_batches': completed_batches,
+            'failed_batches': failed_batches
         }
         
-        batches = BatchAnalysis.query.order_by(
-            BatchAnalysis.created_at.desc()
-        ).paginate(
-            page=page, per_page=per_page, error_out=False
-        )
+        # Get active and recent batches
+        active_batches = BatchAnalysis.query.filter(
+            BatchAnalysis.status.in_([JobStatus.RUNNING, JobStatus.PENDING])
+        ).order_by(BatchAnalysis.created_at.desc()).all()
+        
+        recent_batches = BatchAnalysis.query.filter(
+            BatchAnalysis.status.in_([JobStatus.COMPLETED, JobStatus.FAILED])
+        ).order_by(BatchAnalysis.created_at.desc()).limit(10).all()
+        
+        # Get available models for new batch creation
+        available_models = ModelCapability.query.all()
         
         return render_template(
             'pages/batch_overview.html',
-            batches=batches,
-            batch_stats=batch_stats
+            stats=stats,
+            active_batches=active_batches,
+            recent_batches=recent_batches,
+            available_models=available_models
         )
     except Exception as e:
         logger.error(f"Error loading batch overview: {e}")
