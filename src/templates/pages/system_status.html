@@ -1,0 +1,761 @@
+{% extends "base.html" %}
+
+{% block title %}System Status - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-server text-primary mr-2"></i>
+                System Status
+            </h1>
+            <p class="page-subtitle">
+                Real-time system health and performance monitoring
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" 
+                    onclick="refreshAllStatus()">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh All
+            </button>
+            <button type="button" class="btn btn-info btn-sm" 
+                    onclick="exportStatusReport()">
+                <i class="fas fa-download mr-1"></i>
+                Export Report
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-primary btn-sm dropdown-toggle" type="button" 
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-cogs mr-1"></i>
+                    Actions
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" onclick="runFullDiagnostics()">
+                        <i class="fas fa-stethoscope mr-2"></i>Run Full Diagnostics
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="clearSystemCache()">
+                        <i class="fas fa-trash mr-2"></i>Clear System Cache
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="restartServices()">
+                        <i class="fas fa-redo mr-2"></i>Restart Services
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="showMaintenanceMode()">
+                        <i class="fas fa-tools mr-2"></i>Maintenance Mode
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overall Health Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center">
+                                <div class="health-indicator mr-3" id="overall-health-indicator">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 class="mb-1" id="overall-health-title">Checking System Health...</h4>
+                                    <p class="text-muted mb-0" id="overall-health-description">
+                                        Please wait while we assess system status
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-md-right">
+                            <div class="system-uptime">
+                                <div class="h5 mb-1" id="system-uptime">--:--:--</div>
+                                <small class="text-muted">System Uptime</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Status Grid -->
+    <div class="row mb-4">
+        <!-- Core Services -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-cogs mr-2"></i>
+                        Core Services
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="core-services-status" 
+                         hx-get="/api/status/core-services" 
+                         hx-trigger="load, every 30s">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <div class="mt-2 text-muted">Loading core services...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Status -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-database mr-2"></i>
+                        Database Status
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="database-status" 
+                         hx-get="/api/status/database" 
+                         hx-trigger="load, every 45s">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-info" role="status"></div>
+                            <div class="mt-2 text-muted">Checking database...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Resources -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-area mr-2"></i>
+                            System Resources
+                        </h5>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="refreshResourceUsage()">
+                            <i class="fas fa-sync mr-1"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="system-resources" 
+                         hx-get="/api/status/resources" 
+                         hx-trigger="load, every 15s">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="progress-circle">
+                                        <div class="spinner-border text-primary" role="status"></div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <div class="h6">CPU</div>
+                                        <small class="text-muted">Loading...</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="progress-circle">
+                                        <div class="spinner-border text-success" role="status"></div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <div class="h6">Memory</div>
+                                        <small class="text-muted">Loading...</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="progress-circle">
+                                        <div class="spinner-border text-warning" role="status"></div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <div class="h6">Disk</div>
+                                        <small class="text-muted">Loading...</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="progress-circle">
+                                        <div class="spinner-border text-info" role="status"></div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <div class="h6">Network</div>
+                                        <small class="text-muted">Loading...</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Docker & Container Status -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fab fa-docker mr-2"></i>
+                        Docker Infrastructure
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="docker-infrastructure" 
+                         hx-get="/api/status/docker" 
+                         hx-trigger="load, every 30s">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <div class="mt-2 text-muted">Checking Docker status...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Logs -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-file-alt mr-2"></i>
+                            Recent Logs
+                        </h5>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="viewFullLogs()">
+                            <i class="fas fa-external-link-alt mr-1"></i> View All
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="recent-logs" 
+                         hx-get="/api/status/logs" 
+                         hx-trigger="load, every 10s"
+                         style="max-height: 400px; overflow-y: auto;">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-secondary" role="status"></div>
+                            <div class="mt-2 text-muted">Loading logs...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network & Security Status -->
+    <div class="row mb-4">
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-network-wired mr-2"></i>
+                        Network Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="network-status" 
+                         hx-get="/api/status/network" 
+                         hx-trigger="load, every 60s">
+                        <div class="text-center py-3">
+                            <div class="spinner-border text-info" role="status"></div>
+                            <div class="mt-2 text-muted">Checking network...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-shield-alt mr-2"></i>
+                        Security Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="security-status" 
+                         hx-get="/api/status/security" 
+                         hx-trigger="load, every 120s">
+                        <div class="text-center py-3">
+                            <div class="spinner-border text-warning" role="status"></div>
+                            <div class="mt-2 text-muted">Checking security...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-tachometer-alt mr-2"></i>
+                        Performance Metrics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="performance-metrics" 
+                         hx-get="/api/status/performance" 
+                         hx-trigger="load, every 30s">
+                        <div class="row">
+                            <div class="col-md-3 text-center">
+                                <div class="metric-card">
+                                    <div class="spinner-border text-primary mb-2" role="status"></div>
+                                    <div class="h6">Response Time</div>
+                                    <small class="text-muted">Loading...</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="metric-card">
+                                    <div class="spinner-border text-success mb-2" role="status"></div>
+                                    <div class="h6">Throughput</div>
+                                    <small class="text-muted">Loading...</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="metric-card">
+                                    <div class="spinner-border text-warning mb-2" role="status"></div>
+                                    <div class="h6">Error Rate</div>
+                                    <small class="text-muted">Loading...</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="metric-card">
+                                    <div class="spinner-border text-info mb-2" role="status"></div>
+                                    <div class="h6">Active Users</div>
+                                    <small class="text-muted">Loading...</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Maintenance Mode Modal -->
+<div class="modal fade" id="maintenanceModeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-tools mr-2"></i>
+                    Maintenance Mode
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <strong>Warning:</strong> Enabling maintenance mode will make the system unavailable to users.
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="maintenanceReason">Reason for maintenance:</label>
+                    <textarea class="form-control" id="maintenanceReason" rows="3" 
+                              placeholder="Describe why maintenance is needed..."></textarea>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="estimatedDuration">Estimated duration (minutes):</label>
+                    <input type="number" class="form-control" id="estimatedDuration" 
+                           value="30" min="5" max="1440">
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="notifyUsers">
+                    <label class="form-check-label" for="notifyUsers">
+                        Notify active users before enabling
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="enableMaintenanceMode()">
+                    <i class="fas fa-tools mr-1"></i>
+                    Enable Maintenance Mode
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Full Diagnostics Modal -->
+<div class="modal fade" id="diagnosticsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-stethoscope mr-2"></i>
+                    Full System Diagnostics
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="diagnostics-content">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="mt-2">Running comprehensive diagnostics...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="runFullDiagnostics()">
+                    <i class="fas fa-redo mr-1"></i>
+                    Re-run Diagnostics
+                </button>
+                <button type="button" class="btn btn-info" onclick="exportDiagnostics()">
+                    <i class="fas fa-download mr-1"></i>
+                    Export Results
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// System Status Page JavaScript
+class SystemStatusPage {
+    constructor() {
+        this.autoRefreshInterval = null;
+        this.refreshRate = 30000; // 30 seconds
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+        this.loadOverallHealth();
+    }
+
+    setupEventListeners() {
+        // HTMX event listeners
+        document.addEventListener('htmx:afterRequest', (e) => {
+            this.handleHTMXResponse(e);
+        });
+    }
+
+    handleHTMXResponse(event) {
+        const target = event.detail.target;
+        if (target && target.id === 'overall-health-indicator') {
+            this.updateOverallHealthDisplay();
+        }
+    }
+
+    async loadOverallHealth() {
+        try {
+            const response = await fetch('/api/status/overall-health');
+            const health = await response.json();
+            this.updateOverallHealthDisplay(health);
+        } catch (error) {
+            console.error('Failed to load overall health:', error);
+            this.updateOverallHealthDisplay(null);
+        }
+    }
+
+    updateOverallHealthDisplay(health = null) {
+        const indicator = document.getElementById('overall-health-indicator');
+        const title = document.getElementById('overall-health-title');
+        const description = document.getElementById('overall-health-description');
+
+        if (!health) {
+            indicator.innerHTML = '<i class="fas fa-exclamation-triangle fa-2x text-danger"></i>';
+            title.textContent = 'System Health Check Failed';
+            description.textContent = 'Unable to retrieve system status information';
+            return;
+        }
+
+        // Update health indicator
+        if (health.status === 'healthy') {
+            indicator.innerHTML = '<i class="fas fa-check-circle fa-2x text-success"></i>';
+            title.textContent = 'All Systems Operational';
+            description.textContent = 'All services are running normally';
+        } else if (health.status === 'warning') {
+            indicator.innerHTML = '<i class="fas fa-exclamation-triangle fa-2x text-warning"></i>';
+            title.textContent = 'System Warning';
+            description.textContent = health.message || 'Some services may be experiencing issues';
+        } else {
+            indicator.innerHTML = '<i class="fas fa-times-circle fa-2x text-danger"></i>';
+            title.textContent = 'System Issues Detected';
+            description.textContent = health.message || 'Critical issues require attention';
+        }
+
+        // Update uptime
+        if (health.uptime) {
+            document.getElementById('system-uptime').textContent = health.uptime;
+        }
+    }
+
+    setupAutoRefresh() {
+        this.autoRefreshInterval = setInterval(() => {
+            this.loadOverallHealth();
+        }, this.refreshRate);
+    }
+
+    refreshAll() {
+        // Refresh all HTMX panels
+        htmx.trigger('#core-services-status', 'htmx:refresh');
+        htmx.trigger('#database-status', 'htmx:refresh');
+        htmx.trigger('#system-resources', 'htmx:refresh');
+        htmx.trigger('#docker-infrastructure', 'htmx:refresh');
+        htmx.trigger('#recent-logs', 'htmx:refresh');
+        htmx.trigger('#network-status', 'htmx:refresh');
+        htmx.trigger('#security-status', 'htmx:refresh');
+        htmx.trigger('#performance-metrics', 'htmx:refresh');
+        
+        this.loadOverallHealth();
+        this.showToast('All status panels refreshed', 'info');
+    }
+
+    showToast(message, type = 'info', duration = 5000) {
+        const typeMapping = {
+            'info': 'primary',
+            'error': 'danger',
+            'danger': 'danger',
+            'warning': 'warning',
+            'success': 'success'
+        };
+        
+        const toastType = typeMapping[type] || type;
+        
+        const toastHtml = `
+            <div class="toast align-items-center text-white bg-${toastType} border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+            toastContainer.style.zIndex = '1055';
+            document.body.appendChild(toastContainer);
+        }
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        const toastElement = toastContainer.lastElementChild;
+        const toast = new bootstrap.Toast(toastElement, { delay: duration });
+        toast.show();
+
+        toastElement.addEventListener('hidden.bs.toast', () => {
+            toastElement.remove();
+        });
+    }
+}
+
+// Global functions
+window.refreshAllStatus = function() {
+    systemStatusPage.refreshAll();
+};
+
+window.refreshResourceUsage = function() {
+    htmx.trigger('#system-resources', 'htmx:refresh');
+};
+
+window.runFullDiagnostics = function() {
+    const modal = new bootstrap.Modal(document.getElementById('diagnosticsModal'));
+    modal.show();
+    
+    fetch('/api/status/full-diagnostics', { method: 'POST' })
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('diagnostics-content').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('diagnostics-content').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Failed to run diagnostics: ${error.message}
+                </div>
+            `;
+        });
+};
+
+window.exportDiagnostics = function() {
+    const link = document.createElement('a');
+    link.href = '/api/status/export-diagnostics';
+    link.download = `system_diagnostics_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    systemStatusPage.showToast('Diagnostics report exported', 'success');
+};
+
+window.exportStatusReport = function() {
+    const link = document.createElement('a');
+    link.href = '/api/status/export-report';
+    link.download = `system_status_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    systemStatusPage.showToast('Status report exported', 'success');
+};
+
+window.clearSystemCache = function() {
+    if (confirm('Are you sure you want to clear the system cache? This may temporarily impact performance.')) {
+        fetch('/api/status/clear-cache', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    systemStatusPage.showToast('System cache cleared successfully', 'success');
+                } else {
+                    systemStatusPage.showToast('Failed to clear cache: ' + data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                systemStatusPage.showToast('Error clearing cache', 'danger');
+            });
+    }
+};
+
+window.restartServices = function() {
+    if (confirm('Are you sure you want to restart all services? This will cause a brief service interruption.')) {
+        fetch('/api/status/restart-services', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    systemStatusPage.showToast('Services restart initiated', 'warning');
+                    setTimeout(() => {
+                        systemStatusPage.refreshAll();
+                    }, 5000);
+                } else {
+                    systemStatusPage.showToast('Failed to restart services: ' + data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                systemStatusPage.showToast('Error restarting services', 'danger');
+            });
+    }
+};
+
+window.showMaintenanceMode = function() {
+    const modal = new bootstrap.Modal(document.getElementById('maintenanceModeModal'));
+    modal.show();
+};
+
+window.enableMaintenanceMode = function() {
+    const reason = document.getElementById('maintenanceReason').value;
+    const duration = document.getElementById('estimatedDuration').value;
+    const notifyUsers = document.getElementById('notifyUsers').checked;
+    
+    if (!reason.trim()) {
+        alert('Please provide a reason for maintenance.');
+        return;
+    }
+    
+    const data = {
+        reason: reason,
+        duration: parseInt(duration),
+        notify_users: notifyUsers
+    };
+    
+    fetch('/api/status/maintenance-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            systemStatusPage.showToast('Maintenance mode enabled', 'warning');
+            bootstrap.Modal.getInstance(document.getElementById('maintenanceModeModal')).hide();
+        } else {
+            systemStatusPage.showToast('Failed to enable maintenance mode: ' + result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        systemStatusPage.showToast('Error enabling maintenance mode', 'danger');
+    });
+};
+
+window.viewFullLogs = function() {
+    window.open('/admin/logs', '_blank');
+};
+
+// Initialize system status page
+let systemStatusPage;
+document.addEventListener('DOMContentLoaded', function() {
+    systemStatusPage = new SystemStatusPage();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (systemStatusPage?.autoRefreshInterval) {
+        clearInterval(systemStatusPage.autoRefreshInterval);
+    }
+});
+</script>
+
+<style>
+.health-indicator {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.progress-circle {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: #f8f9fa;
+    margin: 0 auto;
+}
+
+.metric-card {
+    padding: 1rem;
+}
+
+.metric-card .spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+.log-entry {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f8f9fa;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.system-uptime {
+    text-align: center;
+}
+
+.page-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #dee2e6;
+}
+</style>
+{% endblock %}

@@ -6,14 +6,19 @@ RESTful API endpoints for external integrations.
 """
 
 import logging
+import subprocess
+import socket
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template
 
-from ..models import ModelCapability, GeneratedApplication
+from ..models import ModelCapability, GeneratedApplication, SecurityAnalysis, PerformanceTest
 from ..services.task_manager import TaskManager
 from ..services.analyzer_integration import AnalyzerIntegration
 from ..services.background_service import get_background_service
+from ..extensions import get_components, db
+from sqlalchemy import text
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -81,6 +86,39 @@ def stats_models_trend():
     except Exception as e:
         logger.error(f"Error getting models trend: {e}")
         return "No data"
+
+
+@api_bp.route('/stats_total_apps')
+def stats_total_apps():
+    """HTMX endpoint for total applications count."""
+    try:
+        total_apps = GeneratedApplication.query.count()
+        return str(total_apps)
+    except Exception as e:
+        logger.error(f"Error getting total apps: {e}")
+        return "0"
+
+
+@api_bp.route('/stats_security_tests')
+def stats_security_tests():
+    """HTMX endpoint for security tests count."""
+    try:
+        security_tests = SecurityAnalysis.query.count()
+        return str(security_tests)
+    except Exception as e:
+        logger.error(f"Error getting security tests count: {e}")
+        return "0"
+
+
+@api_bp.route('/stats_performance_tests')
+def stats_performance_tests():
+    """HTMX endpoint for performance tests count."""
+    try:
+        performance_tests = PerformanceTest.query.count()
+        return str(performance_tests)
+    except Exception as e:
+        logger.error(f"Error getting performance tests count: {e}")
+        return "0"
 
 
 @api_bp.route('/quick_search', methods=['POST'])
@@ -1615,3 +1653,458 @@ def api_analysis_ai(app_id):
     except Exception as e:
         logger.error(f"Error starting AI analysis for app {app_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+# =================================================================
+# ENHANCED DASHBOARD ANALYZER STATUS ENDPOINTS
+# =================================================================
+
+@api_bp.route('/analyzer/status')
+def get_analyzer_status():
+    """Get comprehensive analyzer services status."""
+    try:
+        components = get_components()
+        analyzer_integration = components.analyzer_integration if components else None
+        
+        if not analyzer_integration:
+            return jsonify({
+                'status': 'unavailable',
+                'message': 'Analyzer integration not available',
+                'services': {}
+            })
+        
+        # Get analyzer manager status
+        status_info = analyzer_integration.get_services_status()
+        
+        # Try to ping analyzer_manager.py directly
+        analyzer_manager_health = _ping_analyzer_manager()
+        
+        return jsonify({
+            'status': 'available',
+            'analyzer_manager': analyzer_manager_health,
+            'services': status_info.get('services', {}),
+            'last_check': datetime.now(timezone.utc).isoformat(),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting analyzer status: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'services': {}
+        }), 500
+
+@api_bp.route('/analyzer/ping')
+def ping_analyzer_services():
+    """Ping individual analyzer services."""
+    try:
+        import socket
+        services_status = {}
+        
+        # Standard analyzer services from analyzer_manager.py
+        services = {
+            'static-analyzer': 2001,
+            'dynamic-analyzer': 2002, 
+            'performance-tester': 2003,
+            'ai-analyzer': 2004
+        }
+        
+        for service_name, port in services.items():
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(3)
+                result = sock.connect_ex(('localhost', port))
+                sock.close()
+                
+                services_status[service_name] = {
+                    'status': 'reachable' if result == 0 else 'unreachable',
+                    'port': port,
+                    'last_ping': datetime.now().isoformat()
+                }
+            except Exception as e:
+                services_status[service_name] = {
+                    'status': 'error',
+                    'port': port,
+                    'error': str(e),
+                    'last_ping': datetime.now().isoformat()
+                }
+        
+        overall_status = 'healthy' if any(s['status'] == 'reachable' for s in services_status.values()) else 'unhealthy'
+        
+        return jsonify({
+            'overall_status': overall_status,
+            'services': services_status,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error pinging analyzer services: {e}")
+        return jsonify({
+            'overall_status': 'error',
+            'error': str(e),
+            'services': {}
+        }), 500
+
+def _ping_analyzer_manager():
+    """Helper function to ping analyzer_manager.py."""
+    try:
+        from pathlib import Path
+        import subprocess
+        
+        analyzer_manager_path = Path(__file__).parent.parent.parent.parent.parent / "analyzer" / "analyzer_manager.py"
+        
+        if not analyzer_manager_path.exists():
+            return {
+                'status': 'unavailable',
+                'message': 'Analyzer manager script not found'
+            }
+        
+        # Try to run status command with short timeout
+        result = subprocess.run([
+            'python', str(analyzer_manager_path), 'health'
+        ], capture_output=True, text=True, timeout=5, cwd=analyzer_manager_path.parent)
+        
+        if result.returncode == 0:
+            return {
+                'status': 'available',
+                'message': 'Analyzer manager responding',
+                'output': result.stdout[:200]  # Truncate output
+            }
+        else:
+            return {
+                'status': 'error', 
+                'message': f'Analyzer manager error: {result.stderr[:100]}'
+            }
+            
+    except subprocess.TimeoutExpired:
+        return {
+            'status': 'timeout',
+            'message': 'Analyzer manager timed out'
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'message': f'Error pinging analyzer manager: {str(e)}'
+        }
+
+@api_bp.route('/dashboard/system-health')
+def dashboard_system_health():
+    """HTMX endpoint for comprehensive system health status."""
+    from flask import request
+    
+    # Check if this is a compact request (from sidebar)
+    compact_mode = request.args.get('compact', 'false').lower() == 'true'
+    
+    try:
+        from sqlalchemy import text
+        from ..extensions import db
+        
+        health_info = {
+            'timestamp': datetime.now(),
+            'overall_status': 'healthy',
+            'components': {}
+        }
+        
+        # Database health
+        try:
+            db.session.execute(text('SELECT 1'))
+            health_info['components']['database'] = {
+                'status': 'healthy',
+                'message': 'Connected',
+                'icon': 'fas fa-database',
+                'color': 'success'
+            }
+        except Exception as e:
+            health_info['components']['database'] = {
+                'status': 'error',
+                'message': f'Connection failed: {str(e)[:50]}',
+                'icon': 'fas fa-database',
+                'color': 'danger'
+            }
+            health_info['overall_status'] = 'degraded'
+        
+        # Services health
+        try:
+            components = get_components()
+            if components:
+                health_info['components']['services'] = {
+                    'status': 'healthy',
+                    'message': 'Application services running',
+                    'icon': 'fas fa-cogs',
+                    'color': 'success'
+                }
+            else:
+                health_info['components']['services'] = {
+                    'status': 'warning',
+                    'message': 'Some services unavailable',
+                    'icon': 'fas fa-cogs',
+                    'color': 'warning'
+                }
+        except Exception:
+            health_info['components']['services'] = {
+                'status': 'error',
+                'message': 'Service check failed',
+                'icon': 'fas fa-cogs',
+                'color': 'danger'
+            }
+            health_info['overall_status'] = 'degraded'
+        
+        # Analyzer health
+        analyzer_health = _ping_analyzer_manager()
+        if analyzer_health['status'] == 'available':
+            health_info['components']['analyzer'] = {
+                'status': 'healthy',
+                'message': 'Analyzer services available',
+                'icon': 'fas fa-search',
+                'color': 'success'
+            }
+        elif analyzer_health['status'] == 'timeout':
+            health_info['components']['analyzer'] = {
+                'status': 'warning',
+                'message': 'Analyzer services slow',
+                'icon': 'fas fa-search',
+                'color': 'warning'
+            }
+        else:
+            health_info['components']['analyzer'] = {
+                'status': 'error',
+                'message': analyzer_health.get('message', 'Analyzer unavailable'),
+                'icon': 'fas fa-search',
+                'color': 'danger'
+            }
+        
+        # Docker health (basic check)
+        try:
+            import subprocess
+            result = subprocess.run(['docker', 'version'], capture_output=True, timeout=3)
+            if result.returncode == 0:
+                health_info['components']['docker'] = {
+                    'status': 'healthy',
+                    'message': 'Docker daemon running',
+                    'icon': 'fab fa-docker',
+                    'color': 'info'
+                }
+            else:
+                health_info['components']['docker'] = {
+                    'status': 'warning',
+                    'message': 'Docker issues detected',
+                    'icon': 'fab fa-docker',
+                    'color': 'warning'
+                }
+        except Exception:
+            health_info['components']['docker'] = {
+                'status': 'error',
+                'message': 'Docker not available',
+                'icon': 'fab fa-docker',
+                'color': 'danger'
+            }
+        
+        return render_template('partials/dashboard_system_health.html', 
+                                 health_info=health_info, 
+                                 compact_mode=compact_mode)
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard system health: {e}")
+        fallback_health = {
+            'timestamp': datetime.now(),
+            'overall_status': 'error',
+            'components': {
+                'system': {
+                    'status': 'error',
+                    'message': 'Health check failed',
+                    'icon': 'fas fa-exclamation-triangle',
+                    'color': 'danger'
+                }
+            }
+        }
+        return render_template('partials/dashboard_system_health.html', 
+                                 health_info=fallback_health, 
+                                 compact_mode=compact_mode)
+
+@api_bp.route('/dashboard/analyzer-status')
+def dashboard_analyzer_status():
+    """HTMX endpoint for analyzer services status widget."""
+    try:
+        # Get analyzer status
+        analyzer_health = _ping_analyzer_manager()
+        
+        # Ping individual services
+        ping_response = ping_analyzer_services()
+        if isinstance(ping_response, tuple):
+            # Handle error response (response, status_code)
+            ping_data = {}
+        else:
+            ping_data = ping_response.get_json() or {}
+        
+        analyzer_info = {
+            'timestamp': datetime.now(),
+            'analyzer_manager': analyzer_health,
+            'services': ping_data.get('services', {}),
+            'overall_status': ping_data.get('overall_status', 'unknown')
+        }
+        
+        return render_template('partials/dashboard_analyzer_status.html', analyzer_info=analyzer_info)
+        
+    except Exception as e:
+        logger.error(f"Error getting analyzer status: {e}")
+        fallback_info = {
+            'timestamp': datetime.now(),
+            'analyzer_manager': {'status': 'error', 'message': 'Status check failed'},
+            'services': {},
+            'overall_status': 'error'
+        }
+        return render_template('partials/dashboard_analyzer_status.html', analyzer_info=fallback_info)
+
+@api_bp.route('/dashboard/docker-status')
+def dashboard_docker_status():
+    """HTMX endpoint for Docker infrastructure status."""
+    try:
+        import subprocess
+        
+        docker_info = {
+            'timestamp': datetime.now(),
+            'docker_available': False,
+            'compose_available': False,
+            'containers': [],
+            'overall_status': 'unknown'
+        }
+        
+        # Check Docker availability
+        try:
+            result = subprocess.run(['docker', 'version'], capture_output=True, timeout=5)
+            docker_info['docker_available'] = result.returncode == 0
+        except Exception:
+            pass
+        
+        # Check Docker Compose availability
+        try:
+            result = subprocess.run(['docker-compose', '--version'], capture_output=True, timeout=5)
+            docker_info['compose_available'] = result.returncode == 0
+        except Exception:
+            pass
+        
+        # Get running containers info (placeholder data)
+        try:
+            components = get_components()
+            if components:
+                # Basic container stats (could be enhanced with real Docker API calls)
+                docker_info['containers'] = [
+                    {'name': 'app-containers', 'status': 'running', 'count': 5},
+                    {'name': 'analyzer-services', 'status': 'mixed', 'count': 4}
+                ]
+            else:
+                # Default container info when components not available
+                docker_info['containers'] = [
+                    {'name': 'analyzer-services', 'status': 'unknown', 'count': 4}
+                ]
+        except Exception as e:
+            logger.debug(f"Could not get container info: {e}")
+            docker_info['containers'] = []
+        
+        # Determine overall status
+        if docker_info['docker_available'] and docker_info['compose_available']:
+            docker_info['overall_status'] = 'healthy'
+        elif docker_info['docker_available']:
+            docker_info['overall_status'] = 'partial'
+        else:
+            docker_info['overall_status'] = 'unhealthy'
+        
+        return render_template('partials/dashboard_docker_status.html', docker_info=docker_info)
+        
+    except Exception as e:
+        logger.error(f"Error getting Docker status: {e}")
+        fallback_info = {
+            'timestamp': datetime.now(),
+            'docker_available': False,
+            'compose_available': False,
+            'containers': [],
+            'overall_status': 'error'
+        }
+        return render_template('partials/dashboard_docker_status.html', docker_info=fallback_info)
+
+@api_bp.route('/analyzer/start', methods=['POST'])
+def start_analyzer_services():
+    """Start analyzer services via analyzer_manager.py."""
+    try:
+        from pathlib import Path
+        
+        analyzer_manager_path = Path(__file__).parent.parent.parent.parent.parent / "analyzer" / "analyzer_manager.py"
+        
+        if not analyzer_manager_path.exists():
+            return jsonify({
+                'success': False,
+                'error': 'Analyzer manager script not found'
+            }), 404
+        
+        # Run analyzer start command
+        result = subprocess.run([
+            'python', str(analyzer_manager_path), 'start'
+        ], capture_output=True, text=True, timeout=60, cwd=analyzer_manager_path.parent)
+        
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Analyzer services starting',
+                'output': result.stdout[:500]
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to start services: {result.stderr[:200]}'
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Start command timed out'
+        }), 500
+    except Exception as e:
+        logger.error(f"Error starting analyzer services: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/analyzer/stop', methods=['POST'])
+def stop_analyzer_services():
+    """Stop analyzer services via analyzer_manager.py."""
+    try:
+        from pathlib import Path
+        
+        analyzer_manager_path = Path(__file__).parent.parent.parent.parent.parent / "analyzer" / "analyzer_manager.py"
+        
+        if not analyzer_manager_path.exists():
+            return jsonify({
+                'success': False,
+                'error': 'Analyzer manager script not found'
+            }), 404
+        
+        # Run analyzer stop command
+        result = subprocess.run([
+            'python', str(analyzer_manager_path), 'stop'
+        ], capture_output=True, text=True, timeout=30, cwd=analyzer_manager_path.parent)
+        
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Analyzer services stopping',
+                'output': result.stdout[:500]
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to stop services: {result.stderr[:200]}'
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Stop command timed out'
+        }), 500
+    except Exception as e:
+        logger.error(f"Error stopping analyzer services: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

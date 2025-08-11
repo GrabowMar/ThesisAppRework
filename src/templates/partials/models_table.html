@@ -1,0 +1,226 @@
+<!-- Models Table View -->
+<div class="table-responsive">
+    <table class="table table-hover table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>
+                    <input type="checkbox" id="select-all-models" onchange="toggleAllModels(this)">
+                </th>
+                <th>Model</th>
+                <th>Provider</th>
+                <th>Capabilities</th>
+                <th>Context</th>
+                <th>Cost (Input)</th>
+                <th>Cost (Output)</th>
+                <th>Efficiency</th>
+                <th>Safety</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for model in models %}
+            <tr class="model-row" data-model-id="{{ model.id }}">
+                <td>
+                    <input type="checkbox" class="model-select-checkbox" value="{{ model.id }}">
+                </td>
+                <td>
+                    <div class="model-name-cell">
+                        <strong>{{ model.model_name }}</strong>
+                        {% if model.is_free %}
+                        <span class="badge bg-success ms-1">Free</span>
+                        {% endif %}
+                        <br>
+                        <small class="text-muted">{{ model.model_id }}</small>
+                    </div>
+                </td>
+                <td>
+                    <span class="provider-badge provider-{{ model.provider }}">
+                        {{ model.provider.title() }}
+                    </span>
+                </td>
+                <td>
+                    <div class="capabilities-cell">
+                        {% if model.supports_vision %}
+                        <span class="capability-icon" title="Vision Support">
+                            <i class="fas fa-eye text-primary"></i>
+                        </span>
+                        {% endif %}
+                        {% if model.supports_function_calling %}
+                        <span class="capability-icon" title="Function Calling">
+                            <i class="fas fa-cogs text-success"></i>
+                        </span>
+                        {% endif %}
+                        {% if model.supports_streaming %}
+                        <span class="capability-icon" title="Streaming">
+                            <i class="fas fa-stream text-info"></i>
+                        </span>
+                        {% endif %}
+                        {% if model.supports_json_mode %}
+                        <span class="capability-icon" title="JSON Mode">
+                            <i class="fas fa-code text-warning"></i>
+                        </span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    <span class="context-window">
+                        {% if model.context_window > 0 %}
+                        {{ (model.context_window / 1000) | round(0) | int }}K
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="cost-cell">
+                        {% if model.input_price_per_token == 0 %}
+                        <span class="text-success">Free</span>
+                        {% else %}
+                        ${{ "%.4f"|format(model.input_price_per_token) }}
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="cost-cell">
+                        {% if model.output_price_per_token == 0 %}
+                        <span class="text-success">Free</span>
+                        {% else %}
+                        ${{ "%.4f"|format(model.output_price_per_token) }}
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <div class="efficiency-cell">
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-info" 
+                                 style="width: {{ (model.cost_efficiency * 10) }}%"
+                                 title="{{ (model.cost_efficiency * 10) | round(1) }}/10">
+                            </div>
+                        </div>
+                        <small>{{ (model.cost_efficiency * 10) | round(1) }}/10</small>
+                    </div>
+                </td>
+                <td>
+                    <div class="safety-cell">
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-success" 
+                                 style="width: {{ (model.safety_score * 10) }}%"
+                                 title="{{ (model.safety_score * 10) | round(1) }}/10">
+                            </div>
+                        </div>
+                        <small>{{ (model.safety_score * 10) | round(1) }}/10</small>
+                    </div>
+                </td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn btn-sm btn-primary btn-view-model" 
+                                data-model-id="{{ model.id }}" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning btn-compare-model" 
+                                data-model-id="{{ model.id }}" title="Add to Comparison">
+                            <i class="fas fa-balance-scale"></i>
+                        </button>
+                        <button class="btn btn-sm btn-success btn-test-model" 
+                                data-model-id="{{ model.id }}" title="Test Model">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    {% if not models %}
+    <div class="text-center py-5">
+        <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+        <h4>No Models Found</h4>
+        <p class="text-muted">No models match your current filter criteria.</p>
+        <button class="btn btn-primary" onclick="clearAllFilters()">
+            <i class="fas fa-eraser mr-1"></i> Clear Filters
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Results info for JavaScript -->
+<div id="results-info-data" style="display: none;">
+    Showing {{ models|length }} of {{ total }} models
+</div>
+
+<style>
+.provider-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.provider-anthropic { background: #e3f2fd; color: #1565c0; }
+.provider-openai { background: #e8f5e8; color: #2e7d32; }
+.provider-google { background: #fff3e0; color: #ef6c00; }
+.provider-deepseek { background: #f3e5f5; color: #7b1fa2; }
+.provider-mistralai { background: #fce4ec; color: #c2185b; }
+
+.capabilities-cell {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.capability-icon {
+    font-size: 1.1rem;
+}
+
+.model-name-cell strong {
+    color: #2c3e50;
+}
+
+.efficiency-cell,
+.safety-cell {
+    min-width: 80px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.cost-cell {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+}
+
+.context-window {
+    font-weight: 500;
+    color: #495057;
+}
+
+.model-row:hover {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+}
+</style>
+
+<script>
+function toggleAllModels(checkbox) {
+    const modelCheckboxes = document.querySelectorAll('.model-select-checkbox');
+    modelCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+        if (checkbox.checked) {
+            modelsOverview.comparisonModels.add(cb.value);
+        } else {
+            modelsOverview.comparisonModels.delete(cb.value);
+        }
+    });
+    modelsOverview.updateComparisonUI();
+}
+</script>

@@ -1,148 +1,399 @@
 {% extends "base.html" %}
 
 {% block title %}
-{% if error_code %}Error {{ error_code }}{% else %}Error{% endif %} - Research Platform
+{% if error_code %}Error {{ error_code }}{% else %}System Error{% endif %} - Research Platform Debug
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-lg-8 col-xl-6">
-            <!-- Error Card -->
-            <div class="card error-card">
-                <div class="card-body text-center">
-                    <!-- Error Icon -->
-                    <div class="error-icon mb-4">
-                        {% if error_code == 404 %}
-                            <i class="fas fa-search fa-4x text-warning"></i>
-                        {% elif error_code == 403 %}
-                            <i class="fas fa-lock fa-4x text-danger"></i>
-                        {% elif error_code == 500 %}
-                            <i class="fas fa-exclamation-triangle fa-4x text-danger"></i>
-                        {% else %}
-                            <i class="fas fa-question-circle fa-4x text-muted"></i>
-                        {% endif %}
+    <!-- Debug Header -->
+    <div class="debug-header bg-dark text-white p-3 mb-4 rounded">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="h3 mb-1">
+                    <i class="fas fa-bug mr-2"></i>
+                    System Error Debug Console
+                </h1>
+                <p class="mb-0 text-light">
+                    Detailed error information for development and troubleshooting
+                </p>
+            </div>
+            <div class="col-md-4 text-md-right">
+                <span class="badge badge-danger badge-lg">
+                    Error {{ error_code or 'Unknown' }}
+                </span>
+                <div class="small text-muted mt-1">
+                    {{ timestamp or '' }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Error Information -->
+        <div class="col-lg-8">
+            <!-- Error Summary Card -->
+            <div class="card border-danger mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        Error Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-danger">Error Details</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="font-weight-bold">Error Code:</td>
+                                    <td><code class="text-danger">{{ error_code or 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Error Type:</td>
+                                    <td>
+                                        {% if error_code == 404 %}
+                                            <span class="badge badge-warning">Not Found</span>
+                                        {% elif error_code == 500 %}
+                                            <span class="badge badge-danger">Internal Server Error</span>
+                                        {% elif error_code == 403 %}
+                                            <span class="badge badge-warning">Forbidden</span>
+                                        {% elif error_code == 401 %}
+                                            <span class="badge badge-info">Unauthorized</span>
+                                        {% elif error_code == 400 %}
+                                            <span class="badge badge-warning">Bad Request</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">Unknown</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Timestamp:</td>
+                                    <td><code>{{ timestamp or 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Request ID:</td>
+                                    <td><code>{{ request_id or 'N/A' }}</code></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-danger">Request Information</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="font-weight-bold">Method:</td>
+                                    <td><code>{{ request.method if request else 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">URL:</td>
+                                    <td class="text-break"><code>{{ request.url if request else 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Endpoint:</td>
+                                    <td><code>{{ request.endpoint if request else 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">User Agent:</td>
+                                    <td class="small">{{ request.headers.get('User-Agent', 'N/A')[:50] if request and request.headers else 'N/A' }}{% if request and request.headers and request.headers.get('User-Agent', '') and request.headers.get('User-Agent', '')|length > 50 %}...{% endif %}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    {% if error %}
+                    <div class="mt-3">
+                        <h6 class="text-danger">Error Message</h6>
+                        <div class="alert alert-danger">
+                            <pre class="mb-0 text-wrap">{{ error }}</pre>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Stack Trace Card (if available) -->
+            {% if traceback %}
+            <div class="card border-warning mb-4">
+                <div class="card-header bg-warning">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-list-ol mr-2"></i>
+                        Stack Trace
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-dark text-light p-3 rounded small" style="max-height: 400px; overflow-y: auto;"><code>{{ traceback }}</code></pre>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- System Information -->
+            <div class="card border-info mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-server mr-2"></i>
+                        System Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Environment</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="font-weight-bold">Python Version:</td>
+                                    <td><code>{{ python_version or 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Flask Version:</td>
+                                    <td><code>{{ flask_version or 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Debug Mode:</td>
+                                    <td>
+                                        {% if debug_mode %}
+                                            <span class="badge badge-warning">Enabled</span>
+                                        {% else %}
+                                            <span class="badge badge-success">Disabled</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Environment:</td>
+                                    <td><code>{{ environment or 'N/A' }}</code></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Resources</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="font-weight-bold">Memory Usage:</td>
+                                    <td><code>{{ memory_usage or 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">CPU Usage:</td>
+                                    <td><code>{{ cpu_usage or 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Disk Usage:</td>
+                                    <td><code>{{ disk_usage or 'N/A' }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-weight-bold">Uptime:</td>
+                                    <td><code>{{ uptime or 'N/A' }}</code></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Request Details -->
+            {% if request %}
+            <div class="card border-secondary mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-globe mr-2"></i>
+                        Request Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Headers</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    {% for key, value in request.headers %}
+                                    <tr>
+                                        <td class="font-weight-bold">{{ key }}:</td>
+                                        <td class="text-break small">{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Form Data</h6>
+                            {% if request.form %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    {% for key, value in request.form.items() %}
+                                    <tr>
+                                        <td class="font-weight-bold">{{ key }}:</td>
+                                        <td class="text-break small">{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted">No form data</p>
+                            {% endif %}
+
+                            <h6 class="mt-3">Query Parameters</h6>
+                            {% if request.args %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    {% for key, value in request.args.items() %}
+                                    <tr>
+                                        <td class="font-weight-bold">{{ key }}:</td>
+                                        <td class="text-break small">{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted">No query parameters</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar with Actions and Suggestions -->
+        <div class="col-lg-4">
+            <!-- Quick Actions -->
+            <div class="card border-primary mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-tools mr-2"></i>
+                        Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="location.reload()">
+                            <i class="fas fa-redo mr-2"></i>
+                            Retry Request
+                        </button>
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-home mr-2"></i>
+                            Go to Dashboard
+                        </a>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="history.back()">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            Go Back
+                        </button>
+                        <button type="button" class="btn btn-info btn-sm" onclick="showSystemHealth()">
+                            <i class="fas fa-heartbeat mr-2"></i>
+                            Check System Health
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm" onclick="downloadErrorReport()">
+                            <i class="fas fa-download mr-2"></i>
+                            Download Error Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Debug Information -->
+            <div class="card border-warning mb-4">
+                <div class="card-header bg-warning">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-bug mr-2"></i>
+                        Debug Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6>Session Information</h6>
+                    {% if session %}
+                    <pre class="bg-light p-2 rounded small">{{ session | safe }}</pre>
+                    {% else %}
+                    <p class="text-muted small">No session data</p>
+                    {% endif %}
+
+                    <h6 class="mt-3">Configuration</h6>
+                    <div class="small">
+                        <div><strong>Database:</strong> <code>{{ db_status or 'Unknown' }}</code></div>
+                        <div><strong>Redis:</strong> <code>{{ redis_status or 'Unknown' }}</code></div>
+                        <div><strong>Docker:</strong> <code>{{ docker_status or 'Unknown' }}</code></div>
                     </div>
 
-                    <!-- Error Content -->
-                    <div class="error-content">
-                        <h1 class="error-code display-1 font-weight-bold text-primary">
-                            {{ error_code or 'Error' }}
-                        </h1>
-                        
-                        <h3 class="error-title mb-3">
-                            {% if error_title %}
-                                {{ error_title }}
-                            {% elif error_code == 404 %}
-                                Page Not Found
-                            {% elif error_code == 403 %}
-                                Access Forbidden
-                            {% elif error_code == 500 %}
-                                Internal Server Error
-                            {% else %}
-                                An Error Occurred
-                            {% endif %}
-                        </h3>
-
-                        <p class="error-message text-muted mb-4">
-                            {% if error_message %}
-                                {{ error_message }}
-                            {% elif error_code == 404 %}
-                                The page you're looking for doesn't exist or has been moved.
-                            {% elif error_code == 403 %}
-                                You don't have permission to access this resource.
-                            {% elif error_code == 500 %}
-                                Something went wrong on our end. We're working to fix it.
-                            {% else %}
-                                An unexpected error has occurred. Please try again later.
-                            {% endif %}
-                        </p>
-
-                        <!-- Action Buttons -->
-                        <div class="error-actions">
-                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary btn-lg mr-3">
-                                <i class="fas fa-home mr-2"></i>
-                                Go to Dashboard
-                            </a>
-                            
-                            <button class="btn btn-outline-secondary btn-lg" onclick="window.history.back()">
-                                <i class="fas fa-arrow-left mr-2"></i>
-                                Go Back
-                            </button>
+                    <h6 class="mt-3">Recent Logs</h6>
+                    {% if recent_logs %}
+                    <div class="log-container bg-dark text-light p-2 rounded small" style="max-height: 200px; overflow-y: auto;">
+                        {% for log in recent_logs %}
+                        <div class="log-entry">
+                            <span class="text-muted">[{{ log.timestamp }}]</span>
+                            <span class="badge badge-{{ log.level_color }}">{{ log.level }}</span>
+                            {{ log.message }}
                         </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted small">No recent logs available</p>
+                    {% endif %}
+                </div>
+            </div>
 
-                        <!-- Quick Links -->
-                        <div class="quick-links mt-4">
-                            <h6 class="text-muted mb-3">Quick Links</h6>
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <a href="{{ url_for('models.models_overview') }}" class="suggestion-link">
-                                        <i class="fas fa-robot mr-2"></i>
-                                        AI Models
-                                    </a>
-                                </div>
-                                <div class="col-md-4">
-                                    <a href="{{ url_for('main.testing') }}" class="suggestion-link">
-                                        <i class="fas fa-shield-alt mr-2"></i>
-                                        Security Testing
-                                    </a>
-                                </div>
-                                <div class="col-md-4">
-                                    <a href="{{ url_for('main.statistics') }}" class="suggestion-link">
-                                        <i class="fas fa-chart-bar mr-2"></i>
-                                        Statistics
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
+            <!-- Suggested Navigation -->
+            {% if error_code == 404 %}
+            <div class="card border-info mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-compass mr-2"></i>
+                        Suggested Pages
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="{{ url_for('main.dashboard') }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-tachometer-alt mr-2"></i>
+                            Dashboard
+                        </a>
+                        <a href="{{ url_for('models.models_overview') }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-brain mr-2"></i>
+                            AI Models
+                        </a>
+                        <a href="{{ url_for('analysis.analysis_overview') }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chart-bar mr-2"></i>
+                            Analysis Results
+                        </a>
+                        <a href="{{ url_for('main.system_status') }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-server mr-2"></i>
+                            System Status
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
-                        <!-- System Status -->
-                        {% if error_code >= 500 %}
-                        <div class="system-status mt-4">
-                            <h6 class="text-muted mb-3">System Status</h6>
-                            <div id="error-system-status" 
-                                 hx-get="{{ url_for('api.system_status_detailed') }}" 
-                                 hx-trigger="load">
-                                <div class="spinner-border spinner-border-sm" role="status">
-                                    <span class="sr-only">Checking system status...</span>
-                                </div>
-                            </div>
+            <!-- Developer Tools -->
+            <div class="card border-dark">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-code mr-2"></i>
+                        Developer Tools
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="small">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="enableVerboseLogging">
+                            <label class="form-check-label" for="enableVerboseLogging">
+                                Enable verbose logging
+                            </label>
                         </div>
-
-                        <!-- Auto-retry for server errors -->
-                        <div class="alert alert-warning mt-4" role="alert">
-                            <i class="fas fa-clock mr-2"></i>
-                            Automatic retry in <span id="retry-countdown">10</span> seconds...
-                            <button class="btn btn-sm btn-outline-warning ml-2" onclick="cancelAutoRetry()">
-                                Cancel
-                            </button>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showSQLQueries">
+                            <label class="form-check-label" for="showSQLQueries">
+                                Show SQL queries
+                            </label>
                         </div>
-                        {% endif %}
-
-                        <!-- Technical Details (Collapsible) -->
-                        {% if error_details %}
-                        <div class="technical-details mt-4">
-                            <button class="btn btn-link text-muted" type="button" 
-                                    data-toggle="collapse" data-target="#technicalDetails">
-                                <i class="fas fa-code mr-1"></i>
-                                Technical Details
-                            </button>
-                            <div class="collapse mt-2" id="technicalDetails">
-                                <div class="card card-body bg-light text-left">
-                                    <pre class="mb-0"><code>{{ error_details }}</code></pre>
-                                </div>
-                            </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="enableProfiler">
+                            <label class="form-check-label" for="enableProfiler">
+                                Enable request profiler
+                            </label>
                         </div>
-                        {% endif %}
-
-                        <!-- Help Links -->
-                        <div class="help-links mt-4">
-                            <small class="text-muted">
-                                If the problem persists, please check the 
-                                <a href="#" onclick="showSystemHealth()" class="text-primary">system health</a>
-                                or contact support.
-                            </small>
-                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-outline-dark btn-sm btn-block" onclick="openConsole()">
+                            <i class="fas fa-terminal mr-2"></i>
+                            Open Debug Console
+                        </button>
                     </div>
                 </div>
             </div>
@@ -151,21 +402,30 @@
 </div>
 
 <!-- System Health Modal -->
-<div class="modal fade" id="system-health-modal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+<div class="modal fade" id="systemHealthModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">System Health Check</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <h5 class="modal-title">
+                    <i class="fas fa-heartbeat mr-2"></i>
+                    System Health Check
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="system-health-content">
-                <div class="text-center py-4">
-                    <div class="spinner-border" role="status">
-                        <span class="sr-only">Loading...</span>
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
+                    <div class="mt-2">Checking system health...</div>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="refreshSystemHealth()">
+                    <i class="fas fa-sync mr-1"></i>
+                    Refresh
+                </button>
             </div>
         </div>
     </div>
@@ -174,188 +434,141 @@
 
 {% block scripts %}
 <script>
-// Error Page JavaScript
-class ErrorPage {
+// Error Page Debug JavaScript
+class ErrorPageDebug {
     constructor() {
-        this.retryCountdown = null;
-        this.retryTimeout = null;
         this.init();
     }
 
     init() {
         this.setupEventListeners();
-        this.setupAutoRetry();
-        this.setupKeyboardShortcuts();
+        this.loadSystemHealth();
     }
 
     setupEventListeners() {
-        // Suggestion link hover effects
-        document.querySelectorAll('.suggestion-link').forEach(link => {
-            link.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateY(-2px)';
-            });
-            link.addEventListener('mouseleave', function() {
-                this.style.transform = 'translateY(0)';
-            });
-        });
+        // Auto-refresh system health every 30 seconds
+        setInterval(() => {
+            this.loadSystemHealth();
+        }, 30000);
+    }
 
-        // Technical details toggle
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('[data-toggle="collapse"]')) {
-                const icon = e.target.querySelector('i');
-                if (icon) {
-                    setTimeout(() => {
-                        const target = document.querySelector(e.target.getAttribute('data-target'));
-                        if (target && target.classList.contains('show')) {
-                            icon.className = 'fas fa-chevron-up mr-1';
-                        } else {
-                            icon.className = 'fas fa-code mr-1';
-                        }
-                    }, 150);
-                }
+    async loadSystemHealth() {
+        try {
+            const response = await fetch('/api/system/health');
+            if (response.ok) {
+                const health = await response.json();
+                this.updateHealthIndicators(health);
             }
-        });
-    }
-
-    setupAutoRetry() {
-        {% if error_code >= 500 and error_code < 600 %}
-        let countdown = 10;
-        const countdownElement = document.getElementById('retry-countdown');
-        
-        if (countdownElement) {
-            this.retryCountdown = setInterval(() => {
-                countdown--;
-                countdownElement.textContent = countdown;
-                
-                if (countdown <= 0) {
-                    this.executeAutoRetry();
-                }
-            }, 1000);
-        }
-        {% endif %}
-    }
-
-    executeAutoRetry() {
-        if (this.retryCountdown) {
-            clearInterval(this.retryCountdown);
-            this.retryCountdown = null;
-        }
-        
-        // Show loading state
-        const alertDiv = document.querySelector('.alert-warning');
-        if (alertDiv) {
-            alertDiv.innerHTML = `
-                <i class="fas fa-sync fa-spin mr-2"></i>
-                Retrying...
-            `;
-            alertDiv.className = 'alert alert-info mt-4';
-        }
-        
-        // Reload after a short delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
-    }
-
-    cancelAutoRetry() {
-        if (this.retryCountdown) {
-            clearInterval(this.retryCountdown);
-            this.retryCountdown = null;
-            
-            const alertDiv = document.querySelector('.alert-warning');
-            if (alertDiv) {
-                alertDiv.style.display = 'none';
-            }
+        } catch (error) {
+            console.error('Failed to load system health:', error);
         }
     }
 
-    setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            switch(e.key) {
-                case 'h':
-                case 'H':
-                    if (!e.ctrlKey && !e.altKey) {
-                        window.location.href = '{{ url_for("main.dashboard") }}';
-                    }
-                    break;
-                case 'b':
-                case 'B':
-                    if (!e.ctrlKey && !e.altKey) {
-                        window.history.back();
-                    }
-                    break;
-                case 'r':
-                case 'R':
-                    if (e.ctrlKey) {
-                        e.preventDefault();
-                        window.location.reload();
-                    }
-                    break;
-                case 'Escape':
-                    this.cancelAutoRetry();
-                    break;
-            }
-        });
-    }
+    updateHealthIndicators(health) {
+        // Update database status
+        const dbElement = document.querySelector('[data-component="db_status"]');
+        if (dbElement) {
+            dbElement.textContent = health.database ? 'Connected' : 'Disconnected';
+            dbElement.className = health.database ? 'text-success' : 'text-danger';
+        }
 
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        toast.innerHTML = `
-            ${message}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        `;
-        document.body.appendChild(toast);
+        // Update Redis status
+        const redisElement = document.querySelector('[data-component="redis_status"]');
+        if (redisElement) {
+            redisElement.textContent = health.redis ? 'Connected' : 'Disconnected';
+            redisElement.className = health.redis ? 'text-success' : 'text-danger';
+        }
 
-        setTimeout(() => {
-            toast.remove();
-        }, 5000);
+        // Update Docker status
+        const dockerElement = document.querySelector('[data-component="docker_status"]');
+        if (dockerElement) {
+            dockerElement.textContent = health.docker ? 'Running' : 'Not Running';
+            dockerElement.className = health.docker ? 'text-success' : 'text-warning';
+        }
     }
 }
 
 // Global functions
-window.cancelAutoRetry = function() {
-    errorPage.cancelAutoRetry();
-};
-
 window.showSystemHealth = function() {
-    fetch('/api/system-health')
+    const modal = new bootstrap.Modal(document.getElementById('systemHealthModal'));
+    modal.show();
+    
+    fetch('/api/system/health-detailed')
         .then(response => response.text())
         .then(html => {
             document.getElementById('system-health-content').innerHTML = html;
-            $('#system-health-modal').modal('show');
         })
         .catch(error => {
-            errorPage.showToast('Failed to load system health', 'danger');
+            document.getElementById('system-health-content').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Failed to load system health information.
+                </div>
+            `;
         });
 };
 
-// Initialize error page
-let errorPage;
-document.addEventListener('DOMContentLoaded', function() {
-    errorPage = new ErrorPage();
-    
-    // Show helpful keyboard shortcuts tooltip
-    setTimeout(() => {
-        errorPage.showToast(
-            'Keyboard shortcuts: H (Home), B (Back), Ctrl+R (Retry)', 
-            'info'
-        );
-    }, 2000);
-});
+window.refreshSystemHealth = function() {
+    document.getElementById('system-health-content').innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div class="mt-2">Refreshing system health...</div>
+        </div>
+    `;
+    showSystemHealth();
+};
 
-// Page visibility handling - pause countdown when tab is not visible
-document.addEventListener('visibilitychange', function() {
-    if (document.hidden && errorPage.retryCountdown) {
-        // Pause countdown when tab is hidden
-        clearInterval(errorPage.retryCountdown);
-    } else if (!document.hidden && errorPage.retryCountdown) {
-        // Resume countdown when tab becomes visible
-        errorPage.setupAutoRetry();
-    }
+window.downloadErrorReport = function() {
+    const errorData = {
+        error_code: {{ error_code | tojson }},
+        error_message: {{ (error | string) | tojson }},
+        timestamp: {{ (timestamp or '') | tojson }},
+        request_id: {{ (request_id or '') | tojson }},
+        url: {{ request.url | tojson if request else 'null' }},
+        method: {{ request.method | tojson if request else 'null' }},
+        user_agent: {{ request.headers.get('User-Agent') | tojson if request and request.headers else 'null' }},
+        traceback: {{ (traceback or '') | tojson }},
+        system_info: {
+            python_version: {{ python_version | tojson }},
+            flask_version: {{ flask_version | tojson }},
+            debug_mode: {{ debug_mode | tojson }},
+            environment: {{ environment | tojson }}
+        }
+    };
+    
+    const blob = new Blob([JSON.stringify(errorData, null, 2)], {
+        type: 'application/json'
+    });
+    
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `error_report_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+};
+
+window.openConsole = function() {
+    // Open browser console
+    console.log('Error Debug Information:', {
+        error_code: {{ error_code | tojson }},
+        error_message: {{ error | tojson }},
+        timestamp: {{ timestamp | tojson }},
+        request_url: {{ request.url | tojson if request else 'null' }}
+    });
+    
+    // Show user how to open console
+    alert('Debug information has been logged to the browser console. Press F12 or Ctrl+Shift+I to open developer tools.');
+};
+
+// Initialize error page debug
+let errorPageDebug;
+document.addEventListener('DOMContentLoaded', function() {
+    errorPageDebug = new ErrorPageDebug();
 });
 </script>
 {% endblock %}

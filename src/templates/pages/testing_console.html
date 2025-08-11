@@ -1,0 +1,1001 @@
+{% extends "base.html" %}
+
+{% block title %}Testing Console - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-flask text-primary mr-2"></i>
+                Testing Console
+            </h1>
+            <p class="page-subtitle">
+                Interactive testing environment for analyzer services and applications
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <div class="dropdown">
+                <button class="btn btn-success dropdown-toggle" type="button" 
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-play mr-1"></i>
+                    Quick Tests
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" onclick="runQuickTest('health')">
+                        <i class="fas fa-heartbeat mr-2"></i>Health Check
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="runQuickTest('connectivity')">
+                        <i class="fas fa-network-wired mr-2"></i>Connectivity Test
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="runQuickTest('security')">
+                        <i class="fas fa-shield-alt mr-2"></i>Security Scan
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="runQuickTest('performance')">
+                        <i class="fas fa-tachometer-alt mr-2"></i>Performance Test
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="runQuickTest('all')">
+                        <i class="fas fa-check-double mr-2"></i>Full Test Suite
+                    </a>
+                </div>
+            </div>
+            
+            <button type="button" class="btn btn-info" onclick="showTestHistory()">
+                <i class="fas fa-history mr-1"></i>
+                Test History
+            </button>
+            
+            <button type="button" class="btn btn-warning" onclick="stopAllTests()">
+                <i class="fas fa-stop mr-1"></i>
+                Stop All Tests
+            </button>
+            
+            <div class="dropdown">
+                <button class="btn btn-primary dropdown-toggle" type="button" 
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-cogs mr-1"></i>
+                    Console Tools
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" onclick="clearConsole()">
+                        <i class="fas fa-broom mr-2"></i>Clear Console
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="exportResults()">
+                        <i class="fas fa-download mr-2"></i>Export Results
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="showTestSettings()">
+                        <i class="fas fa-sliders-h mr-2"></i>Test Settings
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="showApiDocs()">
+                        <i class="fas fa-book mr-2"></i>API Documentation
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Configuration Panel -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-cog mr-2"></i>
+                        Test Configuration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Test Target -->
+                        <div class="col-md-3">
+                            <label for="testTarget" class="form-label">Test Target</label>
+                            <select class="form-select" id="testTarget" onchange="updateTargetOptions()">
+                                <option value="">Select Target...</option>
+                                <option value="analyzer">Analyzer Services</option>
+                                <option value="application">Generated Applications</option>
+                                <option value="infrastructure">Infrastructure</option>
+                                <option value="api">API Endpoints</option>
+                                <option value="database">Database</option>
+                            </select>
+                        </div>
+
+                        <!-- Specific Target -->
+                        <div class="col-md-3">
+                            <label for="specificTarget" class="form-label">Specific Target</label>
+                            <select class="form-select" id="specificTarget" disabled>
+                                <option value="">Select specific target...</option>
+                            </select>
+                        </div>
+
+                        <!-- Test Type -->
+                        <div class="col-md-3">
+                            <label for="testType" class="form-label">Test Type</label>
+                            <select class="form-select" id="testType">
+                                <option value="">Select Test Type...</option>
+                                <option value="functional">Functional</option>
+                                <option value="integration">Integration</option>
+                                <option value="load">Load Testing</option>
+                                <option value="security">Security</option>
+                                <option value="smoke">Smoke Test</option>
+                                <option value="regression">Regression</option>
+                            </select>
+                        </div>
+
+                        <!-- Test Severity -->
+                        <div class="col-md-3">
+                            <label for="testSeverity" class="form-label">Test Severity</label>
+                            <select class="form-select" id="testSeverity">
+                                <option value="low">Low Priority</option>
+                                <option value="medium" selected>Medium Priority</option>
+                                <option value="high">High Priority</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <!-- Test Parameters -->
+                        <div class="col-md-6">
+                            <label for="testParameters" class="form-label">Test Parameters (JSON)</label>
+                            <textarea class="form-control font-monospace" id="testParameters" rows="4" 
+                                      placeholder='{"timeout": 30, "retries": 3, "verbose": true}'>{
+  "timeout": 30,
+  "retries": 3,
+  "verbose": true,
+  "parallel": false
+}</textarea>
+                        </div>
+
+                        <!-- Test Environment -->
+                        <div class="col-md-3">
+                            <label for="testEnvironment" class="form-label">Environment</label>
+                            <select class="form-select" id="testEnvironment">
+                                <option value="development" selected>Development</option>
+                                <option value="testing">Testing</option>
+                                <option value="staging">Staging</option>
+                                <option value="production">Production</option>
+                            </select>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-success" onclick="runCustomTest()">
+                                    <i class="fas fa-play mr-1"></i>Run Test
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="validateConfig()">
+                                    <i class="fas fa-check mr-1"></i>Validate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Running Tests & Console Output -->
+    <div class="row">
+        <!-- Running Tests Panel -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-running mr-2"></i>
+                        Running Tests
+                        <span class="badge badge-primary ml-2" id="running-tests-count">0</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="running-tests" 
+                         hx-get="/api/tests/running" 
+                         hx-trigger="load, every 2s"
+                         class="running-tests-container">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <div class="text-muted">Loading running tests...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Console Output -->
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-terminal mr-2"></i>
+                            Console Output
+                        </h5>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary" onclick="scrollConsoleToTop()">
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scrollConsoleToBottom()">
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" onclick="toggleConsoleWrap()">
+                                <i class="fas fa-text-width"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" onclick="clearConsole()">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="console-container" id="consoleContainer">
+                        <div id="console-output">
+                            <div class="console-line console-info">
+                                <span class="console-timestamp">[{{ moment().format('HH:mm:ss') }}]</span>
+                                <span class="console-message">Testing Console initialized. Ready for test execution.</span>
+                            </div>
+                            <div class="console-line console-info">
+                                <span class="console-timestamp">[{{ moment().format('HH:mm:ss') }}]</span>
+                                <span class="console-message">Select a test configuration and click 'Run Test' to begin.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Results & Analytics -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" id="results-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="recent-results-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#recent-results" type="button" role="tab">
+                                <i class="fas fa-clock mr-1"></i>Recent Results
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="test-analytics-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#test-analytics" type="button" role="tab">
+                                <i class="fas fa-chart-line mr-1"></i>Analytics
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="test-coverage-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#test-coverage" type="button" role="tab">
+                                <i class="fas fa-shield-alt mr-1"></i>Coverage
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="performance-metrics-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#performance-metrics" type="button" role="tab">
+                                <i class="fas fa-tachometer-alt mr-1"></i>Performance
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content" id="results-tab-content">
+                        <!-- Recent Results Tab -->
+                        <div class="tab-pane fade show active" id="recent-results" role="tabpanel">
+                            <div id="recent-test-results" 
+                                 hx-get="/api/tests/recent-results" 
+                                 hx-trigger="load, testCompleted">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border text-primary mb-2" role="status"></div>
+                                    <div class="text-muted">Loading recent test results...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Analytics Tab -->
+                        <div class="tab-pane fade" id="test-analytics" role="tabpanel">
+                            <div id="test-analytics-content" 
+                                 hx-get="/api/tests/analytics" 
+                                 hx-trigger="revealed">
+                                <div class="text-center py-4">
+                                    <div class="text-muted">Click to load analytics...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Coverage Tab -->
+                        <div class="tab-pane fade" id="test-coverage" role="tabpanel">
+                            <div id="test-coverage-content" 
+                                 hx-get="/api/tests/coverage" 
+                                 hx-trigger="revealed">
+                                <div class="text-center py-4">
+                                    <div class="text-muted">Click to load coverage data...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Performance Metrics Tab -->
+                        <div class="tab-pane fade" id="performance-metrics" role="tabpanel">
+                            <div id="performance-metrics-content" 
+                                 hx-get="/api/tests/performance-metrics" 
+                                 hx-trigger="revealed">
+                                <div class="text-center py-4">
+                                    <div class="text-muted">Click to load performance metrics...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Details Modal -->
+<div class="modal fade" id="testDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Test Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="testDetailsContent">
+                <!-- Test details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="copyTestDetails()">
+                    <i class="fas fa-copy mr-1"></i>Copy Details
+                </button>
+                <button type="button" class="btn btn-success" onclick="rerunTest()">
+                    <i class="fas fa-redo mr-1"></i>Re-run Test
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Settings Modal -->
+<div class="modal fade" id="testSettingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-sliders-h mr-2"></i>
+                    Test Settings
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="testSettingsContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="mt-2">Loading settings...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveTestSettings()">
+                    <i class="fas fa-save mr-1"></i>Save Settings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Testing Console JavaScript
+class TestingConsole {
+    constructor() {
+        this.runningTests = new Map();
+        this.consoleWrap = false;
+        this.autoScroll = true;
+        this.maxConsoleLines = 1000;
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupWebSocket();
+        this.setupKeyboardShortcuts();
+    }
+
+    setupEventListeners() {
+        // Test target change handler
+        document.getElementById('testTarget').addEventListener('change', this.updateTargetOptions.bind(this));
+        
+        // HTMX event listeners
+        document.addEventListener('htmx:afterRequest', (e) => {
+            if (e.detail.target.id === 'running-tests') {
+                this.updateRunningTestsCount();
+            }
+        });
+
+        // Custom event listeners
+        document.addEventListener('testStarted', (e) => {
+            this.handleTestStarted(e.detail);
+        });
+
+        document.addEventListener('testCompleted', (e) => {
+            this.handleTestCompleted(e.detail);
+        });
+    }
+
+    setupWebSocket() {
+        // WebSocket for real-time console output
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/console`;
+        
+        try {
+            this.ws = new WebSocket(wsUrl);
+            
+            this.ws.onopen = () => {
+                this.addConsoleMessage('WebSocket connection established', 'success');
+            };
+            
+            this.ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                this.addConsoleMessage(data.message, data.type, data.timestamp);
+            };
+            
+            this.ws.onclose = () => {
+                this.addConsoleMessage('WebSocket connection closed', 'warning');
+            };
+            
+            this.ws.onerror = (error) => {
+                this.addConsoleMessage('WebSocket error: ' + error, 'error');
+            };
+        } catch (e) {
+            this.addConsoleMessage('WebSocket not available, using polling fallback', 'warning');
+            this.setupPollingFallback();
+        }
+    }
+
+    setupPollingFallback() {
+        // Fallback to polling if WebSocket is not available
+        setInterval(() => {
+            fetch('/api/console/messages')
+                .then(response => response.json())
+                .then(messages => {
+                    messages.forEach(msg => {
+                        this.addConsoleMessage(msg.message, msg.type, msg.timestamp);
+                    });
+                });
+        }, 2000);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'Enter':
+                        e.preventDefault();
+                        this.runCustomTest();
+                        break;
+                    case 'k':
+                        e.preventDefault();
+                        this.clearConsole();
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        this.stopAllTests();
+                        break;
+                }
+            }
+        });
+    }
+
+    updateTargetOptions() {
+        const target = document.getElementById('testTarget').value;
+        const specificTarget = document.getElementById('specificTarget');
+        
+        specificTarget.disabled = !target;
+        specificTarget.innerHTML = '<option value="">Select specific target...</option>';
+        
+        if (!target) return;
+        
+        const options = {
+            'analyzer': [
+                'AI Analyzer',
+                'Static Analyzer', 
+                'Dynamic Analyzer',
+                'Performance Tester',
+                'Security Scanner'
+            ],
+            'application': [
+                'Anthropic Apps',
+                'OpenAI Apps',
+                'Google Apps',
+                'All Applications'
+            ],
+            'infrastructure': [
+                'Docker Containers',
+                'Database',
+                'File System',
+                'Network'
+            ],
+            'api': [
+                'REST Endpoints',
+                'WebSocket Connections',
+                'Authentication',
+                'Rate Limiting'
+            ],
+            'database': [
+                'Connection Pool',
+                'Query Performance',
+                'Data Integrity',
+                'Migrations'
+            ]
+        };
+        
+        if (options[target]) {
+            options[target].forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option.toLowerCase().replace(/\s+/g, '-');
+                optionElement.textContent = option;
+                specificTarget.appendChild(optionElement);
+            });
+        }
+    }
+
+    addConsoleMessage(message, type = 'info', timestamp = null) {
+        const console = document.getElementById('console-output');
+        const now = timestamp || new Date().toLocaleTimeString();
+        
+        const line = document.createElement('div');
+        line.className = `console-line console-${type}`;
+        line.innerHTML = `
+            <span class="console-timestamp">[${now}]</span>
+            <span class="console-message">${this.escapeHtml(message)}</span>
+        `;
+        
+        console.appendChild(line);
+        
+        // Remove old lines if too many
+        const lines = console.children;
+        if (lines.length > this.maxConsoleLines) {
+            console.removeChild(lines[0]);
+        }
+        
+        // Auto-scroll to bottom if enabled
+        if (this.autoScroll) {
+            this.scrollConsoleToBottom();
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    scrollConsoleToTop() {
+        const container = document.getElementById('consoleContainer');
+        container.scrollTop = 0;
+        this.autoScroll = false;
+    }
+
+    scrollConsoleToBottom() {
+        const container = document.getElementById('consoleContainer');
+        container.scrollTop = container.scrollHeight;
+        this.autoScroll = true;
+    }
+
+    toggleConsoleWrap() {
+        this.consoleWrap = !this.consoleWrap;
+        const container = document.getElementById('consoleContainer');
+        
+        if (this.consoleWrap) {
+            container.style.whiteSpace = 'pre-wrap';
+        } else {
+            container.style.whiteSpace = 'pre';
+        }
+    }
+
+    clearConsole() {
+        document.getElementById('console-output').innerHTML = '';
+        this.addConsoleMessage('Console cleared', 'info');
+    }
+
+    updateRunningTestsCount() {
+        const tests = document.querySelectorAll('#running-tests .running-test-item');
+        document.getElementById('running-tests-count').textContent = tests.length;
+    }
+
+    handleTestStarted(testData) {
+        this.runningTests.set(testData.id, testData);
+        this.addConsoleMessage(`Started test: ${testData.name}`, 'info');
+        htmx.trigger('#running-tests', 'htmx:trigger');
+    }
+
+    handleTestCompleted(testData) {
+        this.runningTests.delete(testData.id);
+        const status = testData.success ? 'success' : 'error';
+        this.addConsoleMessage(`Test completed: ${testData.name} - ${testData.success ? 'PASSED' : 'FAILED'}`, status);
+        htmx.trigger('#running-tests', 'htmx:trigger');
+        htmx.trigger('#recent-test-results', 'testCompleted');
+    }
+
+    validateConfig() {
+        try {
+            const params = document.getElementById('testParameters').value;
+            JSON.parse(params);
+            this.showToast('Configuration is valid', 'success');
+        } catch (e) {
+            this.showToast('Invalid JSON in test parameters: ' + e.message, 'error');
+        }
+    }
+
+    runCustomTest() {
+        const target = document.getElementById('testTarget').value;
+        const specificTarget = document.getElementById('specificTarget').value;
+        const testType = document.getElementById('testType').value;
+        const severity = document.getElementById('testSeverity').value;
+        const environment = document.getElementById('testEnvironment').value;
+        
+        if (!target || !testType) {
+            this.showToast('Please select a test target and type', 'warning');
+            return;
+        }
+        
+        let parameters;
+        try {
+            parameters = JSON.parse(document.getElementById('testParameters').value);
+        } catch (e) {
+            this.showToast('Invalid JSON in test parameters', 'error');
+            return;
+        }
+        
+        const testConfig = {
+            target,
+            specificTarget,
+            type: testType,
+            severity,
+            environment,
+            parameters
+        };
+        
+        this.addConsoleMessage(`Submitting test: ${testType} on ${target}`, 'info');
+        
+        fetch('/api/tests/run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(testConfig)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.addConsoleMessage(`Test queued with ID: ${data.testId}`, 'success');
+                this.handleTestStarted(data);
+            } else {
+                this.addConsoleMessage(`Failed to start test: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            this.addConsoleMessage(`Error submitting test: ${error}`, 'error');
+        });
+    }
+
+    runQuickTest(testType) {
+        this.addConsoleMessage(`Running quick test: ${testType}`, 'info');
+        
+        fetch(`/api/tests/quick/${testType}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.addConsoleMessage(`Quick test ${testType} started with ID: ${data.testId}`, 'success');
+                this.handleTestStarted(data);
+            } else {
+                this.addConsoleMessage(`Failed to start quick test: ${data.error}`, 'error');
+            }
+        });
+    }
+
+    stopAllTests() {
+        if (this.runningTests.size === 0) {
+            this.showToast('No tests are currently running', 'info');
+            return;
+        }
+        
+        if (confirm(`Stop all ${this.runningTests.size} running tests?`)) {
+            fetch('/api/tests/stop-all', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.addConsoleMessage(`Stopped ${data.count} tests`, 'warning');
+                    this.runningTests.clear();
+                    htmx.trigger('#running-tests', 'htmx:trigger');
+                } else {
+                    this.addConsoleMessage(`Failed to stop tests: ${data.error}`, 'error');
+                }
+            });
+        }
+    }
+
+    showToast(message, type = 'info', duration = 5000) {
+        const typeMapping = {
+            'info': 'primary',
+            'error': 'danger',
+            'danger': 'danger',
+            'warning': 'warning',
+            'success': 'success'
+        };
+        
+        const toastType = typeMapping[type] || type;
+        
+        const toastHtml = `
+            <div class="toast align-items-center text-white bg-${toastType} border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+            toastContainer.style.zIndex = '1055';
+            document.body.appendChild(toastContainer);
+        }
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        const toastElement = toastContainer.lastElementChild;
+        const toast = new bootstrap.Toast(toastElement, { delay: duration });
+        toast.show();
+
+        toastElement.addEventListener('hidden.bs.toast', () => {
+            toastElement.remove();
+        });
+    }
+}
+
+// Global functions
+window.updateTargetOptions = function() {
+    testingConsole.updateTargetOptions();
+};
+
+window.validateConfig = function() {
+    testingConsole.validateConfig();
+};
+
+window.runCustomTest = function() {
+    testingConsole.runCustomTest();
+};
+
+window.runQuickTest = function(testType) {
+    testingConsole.runQuickTest(testType);
+};
+
+window.stopAllTests = function() {
+    testingConsole.stopAllTests();
+};
+
+window.clearConsole = function() {
+    testingConsole.clearConsole();
+};
+
+window.scrollConsoleToTop = function() {
+    testingConsole.scrollConsoleToTop();
+};
+
+window.scrollConsoleToBottom = function() {
+    testingConsole.scrollConsoleToBottom();
+};
+
+window.toggleConsoleWrap = function() {
+    testingConsole.toggleConsoleWrap();
+};
+
+window.showTestHistory = function() {
+    testingConsole.showToast('Test history viewer not yet implemented', 'info');
+};
+
+window.exportResults = function() {
+    const link = document.createElement('a');
+    link.href = '/api/tests/export-results';
+    link.download = `test_results_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    testingConsole.showToast('Test results exported', 'success');
+};
+
+window.showTestSettings = function() {
+    const modal = new bootstrap.Modal(document.getElementById('testSettingsModal'));
+    modal.show();
+    
+    fetch('/api/tests/settings')
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('testSettingsContent').innerHTML = html;
+        });
+};
+
+window.saveTestSettings = function() {
+    const form = document.getElementById('testSettingsForm');
+    if (form) {
+        const formData = new FormData(form);
+        
+        fetch('/api/tests/settings', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                testingConsole.showToast('Settings saved successfully', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('testSettingsModal')).hide();
+            } else {
+                testingConsole.showToast('Failed to save settings: ' + data.error, 'error');
+            }
+        });
+    }
+};
+
+window.showApiDocs = function() {
+    window.open('/api/docs', '_blank');
+};
+
+window.copyTestDetails = function() {
+    const content = document.getElementById('testDetailsContent').textContent;
+    navigator.clipboard.writeText(content).then(() => {
+        testingConsole.showToast('Test details copied to clipboard', 'success');
+    });
+};
+
+window.rerunTest = function() {
+    const testId = document.getElementById('testDetailsContent').dataset.testId;
+    if (testId) {
+        fetch(`/api/tests/rerun/${testId}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    testingConsole.showToast('Test restarted', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('testDetailsModal')).hide();
+                    testingConsole.handleTestStarted(data);
+                } else {
+                    testingConsole.showToast('Failed to restart test: ' + data.error, 'error');
+                }
+            });
+    }
+};
+
+// Initialize testing console
+let testingConsole;
+document.addEventListener('DOMContentLoaded', function() {
+    testingConsole = new TestingConsole();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (testingConsole?.ws) {
+        testingConsole.ws.close();
+    }
+});
+</script>
+
+<style>
+.console-container {
+    height: 400px;
+    overflow-y: auto;
+    background-color: #0d1117;
+    color: #f0f6fc;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    padding: 1rem;
+    white-space: pre;
+}
+
+.console-line {
+    padding: 0.125rem 0;
+    line-height: 1.4;
+}
+
+.console-timestamp {
+    color: #7d8590;
+    margin-right: 0.5rem;
+}
+
+.console-message {
+    color: #f0f6fc;
+}
+
+.console-info .console-message { color: #58a6ff; }
+.console-success .console-message { color: #3fb950; }
+.console-warning .console-message { color: #d29922; }
+.console-error .console-message { color: #f85149; }
+
+.running-tests-container {
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+}
+
+.running-test-item {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: between;
+    align-items: center;
+}
+
+.running-test-item:last-child {
+    border-bottom: none;
+}
+
+.running-test-item:hover {
+    background-color: #e9ecef;
+    cursor: pointer;
+}
+
+.test-progress {
+    width: 100%;
+    height: 4px;
+    background-color: #e9ecef;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.test-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #007bff, #28a745);
+    animation: progress-animation 2s ease-in-out infinite;
+}
+
+@keyframes progress-animation {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.console-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.console-container::-webkit-scrollbar-track {
+    background: #21262d;
+}
+
+.console-container::-webkit-scrollbar-thumb {
+    background: #484f58;
+    border-radius: 4px;
+}
+
+.console-container::-webkit-scrollbar-thumb:hover {
+    background: #6e7681;
+}
+
+.card-header-tabs .nav-link {
+    color: #495057;
+    border: none;
+    padding: 0.75rem 1rem;
+}
+
+.card-header-tabs .nav-link.active {
+    color: #007bff;
+    background-color: transparent;
+    border-bottom: 2px solid #007bff;
+}
+</style>
+{% endblock %}

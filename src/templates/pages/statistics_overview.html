@@ -1,128 +1,95 @@
 {% extends "base.html" %}
 
-{% block title %}Statistics Overview - Research Platform{% endblock %}
+{% block title %}Statistics Dashboard{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid mt-4">
     <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0">Statistics Overview</h1>
-            <p class="text-muted mb-0">Comprehensive analysis and metrics for AI model research</p>
-        </div>
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-primary" id="refresh-stats">
-                <i class="fas fa-sync-alt mr-1"></i>
-                Refresh
-            </button>
-            <button type="button" class="btn btn-outline-secondary" data-toggle="modal" data-target="#export-modal">
-                <i class="fas fa-download mr-1"></i>
-                Export
-            </button>
-            <button type="button" class="btn btn-outline-info" data-toggle="modal" data-target="#filters-modal">
-                <i class="fas fa-filter mr-1"></i>
-                Filters
-            </button>
-        </div>
-    </div>
-
-    <!-- Time Range Selector -->
-    <div class="card mb-4">
-        <div class="card-body py-2">
-            <div class="row align-items-center">
-                <div class="col-md-6">
-                    <div class="btn-group btn-group-sm" role="group" id="time-range-selector">
-                        <button type="button" class="btn btn-outline-primary active" data-range="24h">Last 24h</button>
-                        <button type="button" class="btn btn-outline-primary" data-range="7d">Last 7 days</button>
-                        <button type="button" class="btn btn-outline-primary" data-range="30d">Last 30 days</button>
-                        <button type="button" class="btn btn-outline-primary" data-range="90d">Last 90 days</button>
-                        <button type="button" class="btn btn-outline-primary" data-range="1y">Last year</button>
-                        <button type="button" class="btn btn-outline-primary" data-range="all">All time</button>
-                    </div>
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">Statistics Dashboard</h1>
+                    <p class="text-muted">Comprehensive insights into AI model generation and analysis</p>
                 </div>
-                <div class="col-md-6 text-right">
-                    <small class="text-muted">
-                        Last updated: <span id="last-updated">{{ last_updated or 'Loading...' }}</span>
-                        <i class="fas fa-clock ml-1"></i>
-                    </small>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshDashboard()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" 
+                                data-bs-toggle="dropdown">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="exportData('json', '30d')">JSON (30 days)</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportData('json', '90d')">JSON (90 days)</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportData('xlsx', '30d')">Excel (30 days)</a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Key Metrics Cards -->
-    <div class="row mb-4" id="metrics-overview">
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card metric-card border-primary">
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="metric-icon text-primary mr-3">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ stats.total_models }}</h4>
+                            <p class="card-text">AI Models</p>
+                        </div>
+                        <div class="align-self-center">
                             <i class="fas fa-robot fa-2x"></i>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title text-muted mb-1">Total Models</h6>
-                            <h3 class="mb-0" id="total-models">{{ total_models or 0 }}</h3>
-                            <small class="text-success">
-                                <i class="fas fa-arrow-up"></i>
-                                {{ models_growth_percent or 0 }}% vs last period
-                            </small>
+                            <h4 class="card-title">{{ stats.total_applications }}</h4>
+                            <p class="card-text">Generated Apps</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-code fa-2x"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card metric-card border-info">
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="metric-icon text-info mr-3">
-                            <i class="fas fa-cog fa-2x"></i>
-                        </div>
+                    <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title text-muted mb-1">Generated Apps</h6>
-                            <h3 class="mb-0" id="total-apps">{{ total_apps or 0 }}</h3>
-                            <small class="text-success">
-                                <i class="fas fa-arrow-up"></i>
-                                {{ apps_growth_percent or 0 }}% vs last period
-                            </small>
+                            <h4 class="card-title">{{ analysis_stats.total_analyses }}</h4>
+                            <p class="card-text">Total Analyses</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-chart-line fa-2x"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card metric-card border-warning">
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="metric-icon text-warning mr-3">
-                            <i class="fas fa-shield-alt fa-2x"></i>
-                        </div>
+                    <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title text-muted mb-1">Security Tests</h6>
-                            <h3 class="mb-0" id="total-tests">{{ total_tests or 0 }}</h3>
-                            <small class="text-success">
-                                <i class="fas fa-arrow-up"></i>
-                                {{ tests_growth_percent or 0 }}% vs last period
-                            </small>
+                            <h4 class="card-title">{{ "%.1f"|format(stats.success_rate) }}%</h4>
+                            <p class="card-text">Success Rate</p>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card metric-card border-success">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="metric-icon text-success mr-3">
-                            <i class="fas fa-tachometer-alt fa-2x"></i>
-                        </div>
-                        <div>
-                            <h6 class="card-title text-muted mb-1">Avg Success Rate</h6>
-                            <h3 class="mb-0" id="success-rate">{{ success_rate or 0 }}%</h3>
-                            <small class="text-success">
-                                <i class="fas fa-arrow-up"></i>
-                                {{ success_rate_change or 0 }}% vs last period
-                            </small>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-2x"></i>
                         </div>
                     </div>
                 </div>
@@ -132,161 +99,238 @@
 
     <!-- Charts Row -->
     <div class="row mb-4">
-        <!-- Activity Timeline Chart -->
-        <div class="col-lg-8 mb-4">
-            <div class="card chart-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">Activity Timeline</h5>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary active" data-chart="activity" data-metric="tests">Tests</button>
-                        <button type="button" class="btn btn-outline-secondary" data-chart="activity" data-metric="apps">Apps</button>
-                        <button type="button" class="btn btn-outline-secondary" data-chart="activity" data-metric="models">Models</button>
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-area me-2"></i>Daily Activity Trends
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary active" 
+                                    onclick="updateTrendChart('30')">30 Days</button>
+                            <button type="button" class="btn btn-outline-secondary" 
+                                    onclick="updateTrendChart('90')">90 Days</button>
+                        </div>
+                    </div>
+                    <canvas id="trendsChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>Provider Distribution
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="providerChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Summary Row -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>Security Analysis Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col">
+                            <h3 class="text-danger">{{ analysis_stats.total_security_analyses }}</h3>
+                            <small class="text-muted">Security Scans</small>
+                        </div>
+                        <div class="col">
+                            <h3 class="text-warning">{{ analysis_stats.total_performance_tests }}</h3>
+                            <small class="text-muted">Performance Tests</small>
+                        </div>
+                        <div class="col">
+                            <h3 class="text-info">{{ analysis_stats.total_zap_analyses }}</h3>
+                            <small class="text-muted">ZAP Scans</small>
+                        </div>
+                        <div class="col">
+                            <h3 class="text-success">{{ analysis_stats.total_ai_analyses }}</h3>
+                            <small class="text-muted">AI Analyses</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="progress mb-2">
+                        <div class="progress-bar bg-danger" style="width: 25%"></div>
+                        <div class="progress-bar bg-warning" style="width: 30%"></div>
+                        <div class="progress-bar bg-info" style="width: 25%"></div>
+                        <div class="progress-bar bg-success" style="width: 20%"></div>
+                    </div>
+                    <small class="text-muted">Analysis type distribution</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-tasks me-2"></i>Batch Job Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col">
+                            <h3 class="text-primary">{{ batch_stats.total_batches }}</h3>
+                            <small class="text-muted">Total Batches</small>
+                        </div>
+                        <div class="col">
+                            <h3 class="text-success">{{ batch_stats.completed_batches }}</h3>
+                            <small class="text-muted">Completed</small>
+                        </div>
+                        <div class="col">
+                            <h3 class="text-danger">{{ batch_stats.failed_batches }}</h3>
+                            <small class="text-muted">Failed</small>
+                        </div>
+                        <div class="col">
+                            <h3 class="text-info">{{ "%.1f"|format(batch_stats.success_rate) }}%</h3>
+                            <small class="text-muted">Success Rate</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Average processing time:</span>
+                        <span class="fw-bold">{{ stats.avg_generation_time }}</span>
                     </div>
                 </div>
-                <div class="card-body">
-                    <canvas id="activity-chart" height="80"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Model Distribution -->
-        <div class="col-lg-4 mb-4">
-            <div class="card chart-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Model Distribution</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="model-distribution-chart"></canvas>
-                </div>
             </div>
         </div>
     </div>
 
-    <!-- Performance Metrics Row -->
+    <!-- Data Tables Row -->
     <div class="row mb-4">
-        <!-- Test Results Distribution -->
-        <div class="col-lg-6 mb-4">
-            <div class="card chart-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Test Results Distribution</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="test-results-chart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Performance Trends -->
-        <div class="col-lg-6 mb-4">
-            <div class="card chart-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Performance Trends</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="performance-chart" height="120"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Detailed Statistics Tables -->
-    <div class="row">
-        <!-- Model Performance Table -->
-        <div class="col-lg-6 mb-4">
+        <div class="col-lg-6">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">Top Performing Models</h5>
-                    <a href="{{ url_for('models.models_overview') }}" class="btn btn-sm btn-outline-primary">
-                        View All <i class="fas fa-arrow-right ml-1"></i>
-                    </a>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-trophy me-2"></i>Top Performing Models
+                    </h5>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="thead-light">
+                        <table class="table table-sm">
+                            <thead>
                                 <tr>
                                     <th>Model</th>
-                                    <th>Apps</th>
+                                    <th>Apps Generated</th>
                                     <th>Success Rate</th>
-                                    <th>Avg Score</th>
                                 </tr>
                             </thead>
-                            <tbody id="top-models-table">
-                                {% if top_models %}
-                                    {% for model in top_models %}
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex align-items-center">
-                                                <div class="provider-badge mr-2">
-                                                    <span class="badge badge-{{ model.provider_color }}">{{ model.provider }}</span>
-                                                </div>
-                                                <div>
-                                                    <strong>{{ model.model_name }}</strong>
-                                                    <br><small class="text-muted">{{ model.version }}</small>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>{{ model.app_count }}</td>
-                                        <td>
-                                            <div class="progress progress-sm">
-                                                <div class="progress-bar bg-success" style="width: {{ model.success_rate }}%"></div>
-                                            </div>
-                                            <small class="text-muted">{{ model.success_rate }}%</small>
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-{{ model.score_color }}">{{ model.avg_score }}</span>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                {% else %}
-                                    <tr>
-                                        <td colspan="4" class="text-center text-muted py-4">
-                                            <i class="fas fa-chart-bar fa-2x mb-2"></i>
-                                            <br>No model performance data available
-                                        </td>
-                                    </tr>
-                                {% endif %}
+                            <tbody>
+                                {% for model in top_models[:5] %}
+                                <tr>
+                                    <td>
+                                        <small class="text-truncate d-block" style="max-width: 150px;">
+                                            {{ model.model_slug }}
+                                        </small>
+                                    </td>
+                                    <td>{{ model.app_count }}</td>
+                                    <td>
+                                        <span class="badge bg-success">{{ "%.1f"|format(model.success_rate) }}%</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
         </div>
-
-        <!-- Recent Activity Table -->
-        <div class="col-lg-6 mb-4">
+        <div class="col-lg-6">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">Recent Activity</h5>
-                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-sm btn-outline-primary">
-                        View Dashboard <i class="fas fa-arrow-right ml-1"></i>
-                    </a>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-clock me-2"></i>Recent Activity
+                    </h5>
                 </div>
-                <div class="card-body p-0">
-                    <div class="activity-feed" id="recent-activity-feed">
-                        {% if recent_activities %}
-                            {% for activity in recent_activities %}
-                            <div class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas {{ activity.icon }} text-{{ activity.color }}"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <div class="activity-text">{{ activity.description }}</div>
-                                    <div class="activity-meta">
-                                        <span class="text-muted">{{ activity.timestamp }}</span>
-                                        {% if activity.model %}
-                                        <span class="badge badge-light ml-2">{{ activity.model }}</span>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th>App #</th>
+                                    <th>Created</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for app in recent_activity %}
+                                <tr>
+                                    <td>
+                                        <small class="text-truncate d-block" style="max-width: 120px;">
+                                            {{ app.model_slug }}
+                                        </small>
+                                    </td>
+                                    <td>{{ app.app_number }}</td>
+                                    <td>
+                                        <small>{{ app.created_at.strftime('%m/%d %H:%M') }}</small>
+                                    </td>
+                                    <td>
+                                        {% if app.generation_status == 'completed' %}
+                                            <span class="badge bg-success">Success</span>
+                                        {% elif app.generation_status == 'failed' %}
+                                            <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">Pending</span>
                                         {% endif %}
-                                    </div>
-                                </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Analysis Row -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Error Analysis
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-danger">{{ error_analysis.failed_generations }}</h4>
+                                <small class="text-muted">Failed Generations</small>
                             </div>
-                            {% endfor %}
-                        {% else %}
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-clock fa-2x mb-2"></i>
-                                <br>No recent activity
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-warning">{{ error_analysis.failed_security_analyses }}</h4>
+                                <small class="text-muted">Failed Security Scans</small>
                             </div>
-                        {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-info">{{ error_analysis.failed_performance_tests }}</h4>
+                                <small class="text-muted">Failed Performance Tests</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-secondary">{{ error_analysis.total_failures }}</h4>
+                                <small class="text-muted">Total Failures</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -294,496 +338,140 @@
     </div>
 </div>
 
-<!-- Export Modal -->
-<div class="modal fade" id="export-modal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Export Statistics</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="export-form">
-                    <div class="form-group">
-                        <label>Export Format</label>
-                        <select class="form-control" name="format">
-                            <option value="csv">CSV</option>
-                            <option value="json">JSON</option>
-                            <option value="pdf">PDF Report</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Data Type</label>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="data_types" value="models" checked>
-                            <label class="form-check-label">Model Performance</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="data_types" value="tests" checked>
-                            <label class="form-check-label">Test Results</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="data_types" value="activity">
-                            <label class="form-check-label">Activity Log</label>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Time Range</label>
-                        <select class="form-control" name="time_range">
-                            <option value="24h">Last 24 hours</option>
-                            <option value="7d">Last 7 days</option>
-                            <option value="30d">Last 30 days</option>
-                            <option value="all">All time</option>
-                        </select>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="export-submit">
-                    <i class="fas fa-download mr-1"></i>
-                    Export
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Filters Modal -->
-<div class="modal fade" id="filters-modal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Advanced Filters</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="filters-form">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Model Provider</label>
-                                <select class="form-control" name="provider" multiple>
-                                    <option value="openai">OpenAI</option>
-                                    <option value="anthropic">Anthropic</option>
-                                    <option value="google">Google</option>
-                                    <option value="microsoft">Microsoft</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Test Type</label>
-                                <select class="form-control" name="test_type" multiple>
-                                    <option value="security">Security</option>
-                                    <option value="performance">Performance</option>
-                                    <option value="zap">ZAP Scan</option>
-                                    <option value="openrouter">OpenRouter</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Success Rate Range</label>
-                                <div class="row">
-                                    <div class="col">
-                                        <input type="number" class="form-control" name="success_min" placeholder="Min %" min="0" max="100">
-                                    </div>
-                                    <div class="col">
-                                        <input type="number" class="form-control" name="success_max" placeholder="Max %" min="0" max="100">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>App Count Range</label>
-                                <div class="row">
-                                    <div class="col">
-                                        <input type="number" class="form-control" name="apps_min" placeholder="Min">
-                                    </div>
-                                    <div class="col">
-                                        <input type="number" class="form-control" name="apps_max" placeholder="Max">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-outline-warning" id="filters-reset">Reset</button>
-                <button type="button" class="btn btn-primary" id="filters-apply">Apply Filters</button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
+<!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Statistics Overview JavaScript
-class StatisticsOverview {
-    constructor() {
-        this.charts = {};
-        this.currentTimeRange = '24h';
-        this.currentFilters = {};
-        this.refreshInterval = null;
-        this.init();
-    }
+let trendsChart = null;
+let providerChart = null;
 
-    init() {
-        this.setupEventListeners();
-        this.loadData();
-        this.initializeCharts();
-        this.setupAutoRefresh();
-    }
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    loadAnalysisData();
+});
 
-    setupEventListeners() {
-        // Time range selector
-        document.getElementById('time-range-selector').addEventListener('click', (e) => {
-            if (e.target.tagName === 'BUTTON') {
-                document.querySelectorAll('#time-range-selector .btn').forEach(btn => 
-                    btn.classList.remove('active'));
-                e.target.classList.add('active');
-                this.currentTimeRange = e.target.getAttribute('data-range');
-                this.loadData();
+function initializeCharts() {
+    // Initialize trends chart
+    const trendsCtx = document.getElementById('trendsChart').getContext('2d');
+    trendsChart = new Chart(trendsCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Generations',
+                data: [],
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                tension: 0.4
+            }, {
+                label: 'Analyses',
+                data: [],
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
             }
-        });
-
-        // Refresh button
-        document.getElementById('refresh-stats').addEventListener('click', () => {
-            this.loadData(true);
-        });
-
-        // Chart metric selectors
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('[data-chart]')) {
-                const chart = e.target.getAttribute('data-chart');
-                const metric = e.target.getAttribute('data-metric');
-                
-                e.target.parentElement.querySelectorAll('.btn').forEach(btn => 
-                    btn.classList.remove('active'));
-                e.target.classList.add('active');
-                
-                this.updateChart(chart, metric);
-            }
-        });
-
-        // Export functionality
-        document.getElementById('export-submit').addEventListener('click', () => {
-            this.exportData();
-        });
-
-        // Filters functionality
-        document.getElementById('filters-apply').addEventListener('click', () => {
-            this.applyFilters();
-        });
-
-        document.getElementById('filters-reset').addEventListener('click', () => {
-            this.resetFilters();
-        });
-    }
-
-    async loadData(force = false) {
-        try {
-            const params = new URLSearchParams({
-                range: this.currentTimeRange,
-                force: force,
-                ...this.currentFilters
-            });
-
-            const response = await fetch(`/api/statistics/overview?${params}`);
-            const data = await response.json();
-
-            this.updateMetrics(data.metrics);
-            this.updateCharts(data.charts);
-            this.updateTables(data.tables);
-            this.updateLastUpdated();
-
-        } catch (error) {
-            console.error('Failed to load statistics:', error);
-            this.showToast('Failed to load statistics data', 'danger');
         }
-    }
+    });
 
-    updateMetrics(metrics) {
-        if (!metrics) return;
+    // Initialize provider chart
+    const providerCtx = document.getElementById('providerChart').getContext('2d');
+    const providerData = {{ provider_stats | tojson }};
+    const labels = Object.keys(providerData);
+    const data = Object.values(providerData);
+    const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
 
-        Object.entries(metrics).forEach(([key, value]) => {
-            const element = document.getElementById(key);
-            if (element) {
-                this.animateValue(element, parseInt(element.textContent) || 0, value, 1000);
-            }
-        });
-    }
-
-    animateValue(element, start, end, duration) {
-        const range = end - start;
-        const increment = range / (duration / 16);
-        let current = start;
-
-        const timer = setInterval(() => {
-            current += increment;
-            if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
-                element.textContent = end;
-                clearInterval(timer);
-            } else {
-                element.textContent = Math.floor(current);
-            }
-        }, 16);
-    }
-
-    initializeCharts() {
-        // Activity Timeline Chart
-        const activityCtx = document.getElementById('activity-chart').getContext('2d');
-        this.charts.activity = new Chart(activityCtx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Tests',
-                    data: [],
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
+    providerChart = new Chart(providerCtx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
                 }
             }
-        });
+        }
+    });
+}
 
-        // Model Distribution Chart
-        const modelCtx = document.getElementById('model-distribution-chart').getContext('2d');
-        this.charts.modelDistribution = new Chart(modelCtx, {
-            type: 'doughnut',
-            data: {
-                labels: [],
-                datasets: [{
-                    data: [],
-                    backgroundColor: [
-                        '#007bff', '#28a745', '#ffc107', '#dc3545', 
-                        '#6f42c1', '#fd7e14', '#20c997'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true
-            }
-        });
+function updateTrendChart(days) {
+    // Update active button
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
 
-        // Test Results Chart
-        const testResultsCtx = document.getElementById('test-results-chart').getContext('2d');
-        this.charts.testResults = new Chart(testResultsCtx, {
-            type: 'bar',
-            data: {
-                labels: ['Passed', 'Failed', 'Warning', 'Pending'],
-                datasets: [{
-                    data: [0, 0, 0, 0],
-                    backgroundColor: ['#28a745', '#dc3545', '#ffc107', '#6c757d']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
+    // Fetch new data
+    fetch(`/statistics/api/generation/trends?days=${days}`)
+        .then(response => response.json())
+        .then(data => {
+            const labels = Object.keys(data).sort();
+            const generations = labels.map(date => data[date].generations || 0);
+            const analyses = labels.map(date => data[date].analyses || 0);
 
-        // Performance Chart
-        const performanceCtx = document.getElementById('performance-chart').getContext('2d');
-        this.charts.performance = new Chart(performanceCtx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Response Time (ms)',
-                    data: [],
-                    borderColor: '#ffc107',
-                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-    }
+            trendsChart.data.labels = labels;
+            trendsChart.data.datasets[0].data = generations;
+            trendsChart.data.datasets[1].data = analyses;
+            trendsChart.update();
+        })
+        .catch(error => console.error('Error updating trends chart:', error));
+}
 
-    updateCharts(chartData) {
-        if (!chartData) return;
+function loadAnalysisData() {
+    // Load initial trends data for 30 days
+    updateTrendChart('30');
+}
 
-        Object.entries(chartData).forEach(([chartName, data]) => {
-            if (this.charts[chartName] && data) {
-                this.charts[chartName].data = data;
-                this.charts[chartName].update();
-            }
-        });
-    }
+function refreshDashboard() {
+    location.reload();
+}
 
-    updateChart(chartName, metric) {
-        // Update specific chart with new metric
-        fetch(`/api/statistics/chart/${chartName}?metric=${metric}&range=${this.currentTimeRange}`)
+function exportData(format, timeRange) {
+    const url = `/statistics/api/export?format=${format}&time_range=${timeRange}`;
+    
+    if (format === 'json') {
+        fetch(url)
             .then(response => response.json())
             .then(data => {
-                if (this.charts[chartName]) {
-                    this.charts[chartName].data = data;
-                    this.charts[chartName].update();
-                }
-            })
-            .catch(error => {
-                console.error('Failed to update chart:', error);
-            });
-    }
-
-    updateTables(tableData) {
-        if (!tableData) return;
-
-        // Update top models table
-        if (tableData.topModels) {
-            const tbody = document.getElementById('top-models-table');
-            tbody.innerHTML = tableData.topModels;
-        }
-
-        // Update recent activity
-        if (tableData.recentActivity) {
-            const feed = document.getElementById('recent-activity-feed');
-            feed.innerHTML = tableData.recentActivity;
-        }
-    }
-
-    updateLastUpdated() {
-        const now = new Date();
-        document.getElementById('last-updated').textContent = now.toLocaleTimeString();
-    }
-
-    setupAutoRefresh() {
-        this.refreshInterval = setInterval(() => {
-            this.loadData();
-        }, 30000); // Refresh every 30 seconds
-    }
-
-    async exportData() {
-        try {
-            const formData = new FormData(document.getElementById('export-form'));
-            const params = new URLSearchParams();
-            
-            for (let [key, value] of formData.entries()) {
-                params.append(key, value);
-            }
-
-            const response = await fetch('/api/statistics/export', {
-                method: 'POST',
-                body: params
-            });
-
-            if (response.ok) {
-                const blob = await response.blob();
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `statistics_${Date.now()}.csv`;
+                a.download = `statistics_${timeRange}.json`;
+                document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
-                
-                $('#export-modal').modal('hide');
-                this.showToast('Export completed successfully', 'success');
-            } else {
-                throw new Error('Export failed');
-            }
-        } catch (error) {
-            console.error('Export error:', error);
-            this.showToast('Export failed', 'danger');
-        }
-    }
-
-    applyFilters() {
-        const formData = new FormData(document.getElementById('filters-form'));
-        this.currentFilters = {};
-        
-        for (let [key, value] of formData.entries()) {
-            if (value) {
-                this.currentFilters[key] = value;
-            }
-        }
-
-        $('#filters-modal').modal('hide');
-        this.loadData();
-        this.showToast('Filters applied', 'success');
-    }
-
-    resetFilters() {
-        this.currentFilters = {};
-        document.getElementById('filters-form').reset();
-        this.loadData();
-        this.showToast('Filters reset', 'info');
-    }
-
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        toast.innerHTML = `
-            ${message}
-            <button type="button" class="close" data-dismiss="alert">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        `;
-        document.body.appendChild(toast);
-
-        setTimeout(() => {
-            toast.remove();
-        }, 5000);
-    }
-
-    destroy() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-        }
-        
-        Object.values(this.charts).forEach(chart => {
-            if (chart) chart.destroy();
-        });
+                document.body.removeChild(a);
+            })
+            .catch(error => {
+                console.error('Export error:', error);
+                alert('Export failed. Please try again.');
+            });
+    } else {
+        // For XLSX, open in new window/tab
+        window.open(url, '_blank');
     }
 }
-
-// Initialize statistics overview
-let statisticsOverview;
-document.addEventListener('DOMContentLoaded', function() {
-    statisticsOverview = new StatisticsOverview();
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    if (statisticsOverview) {
-        statisticsOverview.destroy();
-    }
-});
 </script>
 {% endblock %}

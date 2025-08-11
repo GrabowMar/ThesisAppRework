@@ -85,7 +85,7 @@
                 <i class="fas fa-microscope"></i>
             </div>
             <div class="stats-card-value" 
-                 hx-get="{{ url_for('api.ping_analyzer_services') }}" 
+                 hx-get="{{ url_for('api.stats_analyzer_services') }}" 
                  hx-trigger="load, every 45s">
                 {{ stats.analyzer_services or 0 }}
             </div>
@@ -132,7 +132,7 @@
                 </div>
                 <div class="card-body p-0">
                     <div id="analyzer-services-panel" 
-                         hx-get="{{ url_for('api.ping_analyzer_services') }}" 
+                         hx-get="{{ url_for('api.dashboard_analyzer_services') }}" 
                          hx-trigger="load, every 30s">
                         {% include 'partials/dashboard/analyzer_services.html' %}
                     </div>
@@ -229,7 +229,7 @@
                 </div>
                 <div class="card-body">
                     <div id="recent-activity-panel" 
-                         hx-get="{{ url_for('api.dashboard_activity') }}" 
+                         hx-get="{{ url_for('api.dashboard_recent_activity') }}" 
                          hx-trigger="load, every 30s">
                         {% include 'partials/dashboard/recent_activity.html' %}
                     </div>

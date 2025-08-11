@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 def main():
     """Main application entry point."""
     
-    # Add project root to path
-    project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root))
+    # Add src directory to path (current directory)
+    src_dir = Path(__file__).parent
+    sys.path.insert(0, str(src_dir))
     
     # Import after path setup
     from app.factory import create_app

@@ -62,10 +62,14 @@ def dashboard():
     except Exception as e:
         logger.error(f"Error loading dashboard: {e}")
         flash('Error loading dashboard', 'error')
+        from datetime import datetime
         return render_template('pages/error.html', 
                              error_code=500,
                              error_title='Dashboard Error',
-                             error_message=str(e))
+                             error_message=str(e),
+                             error=str(e),
+                             timestamp=datetime.now().isoformat(),
+                             request_id='dashboard-error')
 
 
 @main_bp.route('/health')

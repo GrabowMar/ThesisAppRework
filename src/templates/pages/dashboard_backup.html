@@ -1,0 +1,908 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-tachometer-alt text-primary mr-2"></i>
+                System Dashboard
+            </h1>
+            <p class="page-subtitle">
+                Real-time monitoring and analysis platform status
+            </p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" 
+                    onclick="dashboard.refreshAll()">
+                <i class="fas fa-sync-alt mr-1"></i>
+                Refresh All
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-primary btn-sm dropdown-toggle" type="button" 
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-cogs mr-1"></i>
+                    Actions
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="{{ url_for('main.testing') }}">
+                        <i class="fas fa-flask mr-2"></i>Testing Console
+                    </a>
+                    <a class="dropdown-item" href="{{ url_for('models.models_overview') }}">
+                        <i class="fas fa-brain mr-2"></i>Models Overview
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="dashboard.startAllAnalyzers()">
+                        <i class="fas fa-play mr-2"></i>Start All Analyzers
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="dashboard.stopAllAnalyzers()">
+                        <i class="fas fa-stop mr-2"></i>Stop All Analyzers
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="dashboard.showSystemDiagnostics()">
+                        <i class="fas fa-stethoscope mr-2"></i>System Diagnostics
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Overview Cards -->
+    <div class="stats-grid">
+        <!-- Total Models -->
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-brain"></i>
+            </div>
+            <div class="stats-card-value" 
+                 hx-get="{{ url_for('api.stats_total_models') }}" 
+                 hx-trigger="load, every 60s">
+                {{ stats.total_models or 0 }}
+            </div>
+            <div class="stats-card-label">AI Models</div>
+        </div>
+        
+        <!-- Active Containers -->
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fab fa-docker"></i>
+            </div>
+            <div class="stats-card-value" 
+                 hx-get="{{ url_for('api.stats_running_containers') }}" 
+                 hx-trigger="load, every 30s">
+                {{ stats.running_containers or 0 }}
+            </div>
+            <div class="stats-card-label">Active Containers</div>
+        </div>
+        
+        <!-- Analyzer Services -->
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-microscope"></i>
+            </div>
+            <div class="stats-card-value" 
+                 hx-get="{{ url_for('api.stats_analyzer_services') }}" 
+                 hx-trigger="load, every 45s">
+                {{ stats.analyzer_services or 0 }}
+            </div>
+            <div class="stats-card-label">Analyzer Services</div>
+        </div>
+        
+        <!-- Completed Analyses -->
+        <div class="stats-card">
+            <div class="stats-card-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="stats-card-value" 
+                 hx-get="{{ url_for('api.stats_completed_analyses') }}" 
+                 hx-trigger="load, every 60s">
+                {{ stats.completed_analyses or 0 }}
+            </div>
+            <div class="stats-card-label">Completed Analyses</div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Content -->
+    <div class="row">
+        <!-- Analyzer Services Status -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-microscope mr-2"></i>
+                            Analyzer Services
+                        </h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-success" onclick="dashboard.startAllAnalyzers()">
+                                <i class="fas fa-play mr-1"></i> Start All
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="dashboard.stopAllAnalyzers()">
+                                <i class="fas fa-stop mr-1"></i> Stop All
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="dashboard.refreshAnalyzerStatus()">
+                                <i class="fas fa-sync mr-1"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="analyzer-services-panel" 
+                         hx-get="{{ url_for('api.dashboard_analyzer_services') }}" 
+                         hx-trigger="load, every 30s">
+                        {% include 'partials/dashboard/analyzer_services.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- System Health & Quick Actions -->
+        <div class="col-lg-4 mb-4">
+            <!-- System Health Card -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-heartbeat mr-2"></i>
+                        System Health
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="system-health-panel" 
+                         hx-get="{{ url_for('api.dashboard_system_health') }}" 
+                         hx-trigger="load, every 60s">
+                        {% include 'partials/dashboard/system_health.html' %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-bolt mr-2"></i>
+                        Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary btn-sm" onclick="window.location.href='{{ url_for('main.testing') }}'">
+                            <i class="fas fa-flask mr-2"></i>Testing Console
+                        </button>
+                        <button class="btn btn-info btn-sm" onclick="window.location.href='{{ url_for('models.models_overview') }}'">
+                            <i class="fas fa-brain mr-2"></i>Models Overview
+                        </button>
+                        <button class="btn btn-success btn-sm" onclick="dashboard.runSystemDiagnostics()">
+                            <i class="fas fa-stethoscope mr-2"></i>System Diagnostics
+                        </button>
+                        <button class="btn btn-warning btn-sm" onclick="dashboard.showDockerManagement()">
+                            <i class="fab fa-docker mr-2"></i>Docker Management
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity & Docker Status -->
+    <div class="row">
+        <!-- Docker Infrastructure Status -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fab fa-docker mr-2"></i>
+                            Docker Infrastructure
+                        </h5>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="dashboard.refreshDockerStatus()">
+                            <i class="fas fa-sync mr-1"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="docker-status-panel" 
+                         hx-get="{{ url_for('api.dashboard_docker_status') }}" 
+                         hx-trigger="load, every 45s">
+                        {% include 'partials/dashboard/docker_status.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-history mr-2"></i>
+                            Recent Activity
+                        </h5>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="dashboard.refreshActivity()">
+                            <i class="fas fa-sync mr-1"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="recent-activity-panel" 
+                         hx-get="{{ url_for('api.dashboard_recent_activity') }}" 
+                         hx-trigger="load, every 30s">
+                        {% include 'partials/dashboard/recent_activity.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Diagnostics Modal -->
+<div class="modal fade" id="systemDiagnosticsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-stethoscope mr-2"></i>System Diagnostics
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="diagnostics-content">
+                <div class="text-center py-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Running diagnostics...</span>
+                    </div>
+                    <div class="mt-2">Running system diagnostics...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="dashboard.runDiagnostics()">
+                    <i class="fas fa-redo mr-1"></i>Re-run Diagnostics
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %>
+<script>
+// Enhanced Dashboard JavaScript
+class SystemDashboard {
+    constructor() {
+        this.autoRefreshInterval = null;
+        this.refreshRate = 30000; // 30 seconds
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRefresh();
+        this.setupKeyboardShortcuts();
+    }
+
+    setupEventListeners() {
+        // Panel refresh buttons
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('[onclick*="refresh"]')) {
+                e.preventDefault();
+                this.handleRefreshAction(e.target);
+            }
+        });
+    }
+
+    handleRefreshAction(element) {
+        const action = element.getAttribute('onclick');
+        if (action.includes('refreshAnalyzerStatus')) {
+            htmx.trigger('#analyzer-status-panel', 'refresh');
+        } else if (action.includes('refreshDockerStatus')) {
+            htmx.trigger('#docker-status-panel', 'refresh');
+        } else if (action.includes('refreshAllPanels')) {
+            this.refreshAllPanels();
+        }
+    }
+
+    refreshAllPanels() {
+        // Refresh all HTMX panels
+        htmx.trigger('#system-health-panel', 'refresh');
+        htmx.trigger('#analyzer-status-panel', 'refresh');
+        htmx.trigger('#docker-status-panel', 'refresh');
+        htmx.trigger('#recent-operations-panel', 'refresh');
+        
+        // Refresh statistics
+        this.refreshStatistics();
+        
+        this.showToast('All panels refreshed', 'info');
+    }
+
+    refreshStatistics() {
+        const statElements = [
+            '#total-models', '#total-apps', '#running-containers', 
+            '#completed-tests', '#system-uptime'
+        ];
+        
+        statElements.forEach(selector => {
+            const element = document.querySelector(selector);
+            if (element) {
+                htmx.trigger(element, 'refresh');
+            }
+        });
+    }
+
+    setupAutoRefresh() {
+        this.autoRefreshInterval = setInterval(() => {
+            this.refreshStatistics();
+        }, this.refreshRate);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'r':
+                        e.preventDefault();
+                        this.refreshAllPanels();
+                        break;
+                    case 'n':
+                        e.preventDefault();
+                        showBatchForm();
+                        break;
+                }
+            }
+        });
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 70px; right: 20px; z-index: 1050; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 5000);
+    }
+}
+
+// Action Functions
+window.refreshAnalyzerStatus = function() {
+    htmx.trigger('#analyzer-status-panel', 'refresh');
+};
+
+window.refreshDockerStatus = function() {
+    htmx.trigger('#docker-status-panel', 'refresh');
+};
+
+window.refreshAllPanels = function() {
+    dashboard.refreshAllPanels();
+};
+
+window.startAnalyzerServices = function() {
+    if (!confirm('Start all analyzer services? This may take a few minutes.')) return;
+    
+    fetch('/api/analyzer/start', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                dashboard.showToast('Analyzer services starting...', 'success');
+                setTimeout(() => htmx.trigger('#analyzer-status-panel', 'refresh'), 3000);
+            } else {
+                dashboard.showToast('Failed to start services: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            dashboard.showToast('Error starting services', 'danger');
+        });
+};
+
+window.stopAnalyzerServices = function() {
+    if (!confirm('Stop all analyzer services?')) return;
+    
+    fetch('/api/analyzer/stop', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                dashboard.showToast('Analyzer services stopping...', 'warning');
+                setTimeout(() => htmx.trigger('#analyzer-status-panel', 'refresh'), 2000);
+            } else {
+                dashboard.showToast('Failed to stop services: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            dashboard.showToast('Error stopping services', 'danger');
+        });
+};
+
+window.showSystemDiagnostics = function() {
+    $('#systemDiagnosticsModal').modal('show');
+    htmx.ajax('GET', '/api/system/diagnostics', {
+        target: '#diagnostics-content'
+    });
+};
+
+window.showDockerOverview = function() {
+    window.location.href = '/docker';
+};
+
+window.startAllAnalyzers = function() {
+    startAnalyzerServices();
+};
+
+window.showBatchForm = function() {
+    window.location.href = '/testing';
+};
+
+window.showSystemSettings = function() {
+    dashboard.showToast('System settings not yet implemented', 'info');
+};
+
+window.refreshOperations = function() {
+    htmx.trigger('#recent-operations-panel', 'refresh');
+};
+
+window.showAllOperations = function() {
+    window.location.href = '/testing';
+};
+
+// Initialize dashboard
+let dashboard;
+document.addEventListener('DOMContentLoaded', function() {
+    dashboard = new SystemDashboard();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (dashboard && dashboard.autoRefreshInterval) {
+        clearInterval(dashboard.autoRefreshInterval);
+    }
+});
+</script>
+
+<style>
+.stat-item {
+    padding: 1rem;
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    color: white;
+    font-size: 1.5rem;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #333;
+    margin: 0.5rem 0;
+}
+
+.stat-label {
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 0.25rem;
+}
+
+.stat-detail {
+    font-size: 0.875rem;
+}
+
+.system-health-panel,
+.analyzer-status-panel,
+.docker-status-panel {
+    padding: 1rem;
+}
+
+.health-component,
+.analyzer-manager,
+.component-item,
+.service-item {
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    background-color: #f8f9fa;
+}
+
+.page-header {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 1rem;
+}
+
+.d-grid.gap-2 > .btn + .btn {
+    margin-top: 0.5rem;
+}
+</style>
+
+    setupEventListeners() {
+        // Filter change events
+        document.addEventListener('change', (e) => {
+            if (e.target.matches('#status-filter, #provider-filter')) {
+                this.applyFilters();
+            }
+        });
+        
+        // Search input with debouncing
+        document.addEventListener('input', (e) => {
+            if (e.target.matches('#search-input')) {
+                this.debounce(this.applyFilters.bind(this), 300)();
+            }
+        });
+    }
+
+    async loadModels() {
+        try {
+            this.showLoadingState();
+            
+            const response = await fetch('/api/models');
+            if (!response.ok) throw new Error('Failed to load models');
+            
+            this.models = await response.json();
+            this.filteredModels = [...this.models];
+            this.renderModels(this.filteredModels);
+            
+        } catch (error) {
+            console.error('Error loading models:', error);
+            this.showEmptyState();
+        }
+    }
+
+    showLoadingState() {
+        const content = document.getElementById('recent-models-section');
+        content.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="mt-2 text-muted">Loading models...</div>
+            </div>
+        `;
+    }
+
+    showEmptyState() {
+        const content = document.getElementById('recent-models-section');
+        content.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <i class="fas fa-robot fa-3x mb-3"></i>
+                <div>No models available</div>
+            </div>
+        `;
+    }
+
+    renderModels(models) {
+        const content = document.getElementById('recent-models-section');
+        
+        if (models.length === 0) {
+            this.showEmptyState();
+            return;
+        }
+
+        content.innerHTML = models.map(model => this.createModelCard(model)).join('');
+    }
+
+    createModelCard(model) {
+        return `
+            <div class="model-card mb-3" data-model="${model.model_slug}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="model-info">
+                        <h6 class="model-name mb-1">${model.model_name}</h6>
+                        <div class="model-details">
+                            <span class="badge badge-primary mr-2">${model.provider}</span>
+                            <span class="text-muted">${model.apps_count || 0} applications</span>
+                        </div>
+                    </div>
+                    <div class="model-actions">
+                        <button class="btn btn-sm btn-outline-primary" 
+                                onclick="dashboard.toggleAppsView('${model.model_slug}')">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="model-apps collapse" id="apps-${model.model_slug}">
+                    <!-- Apps will be loaded here -->
+                </div>
+            </div>
+        `;
+    }
+
+    async toggleAppsView(modelSlug) {
+        const appsContainer = document.getElementById(`apps-${modelSlug}`);
+        const button = document.querySelector(`[onclick="dashboard.toggleAppsView('${modelSlug}')"]`);
+        
+        if (appsContainer.classList.contains('show')) {
+            appsContainer.classList.remove('show');
+            button.innerHTML = '<i class="fas fa-chevron-down"></i>';
+        } else {
+            appsContainer.classList.add('show');
+            button.innerHTML = '<i class="fas fa-chevron-up"></i>';
+            await this.loadAppsForModel(modelSlug);
+        }
+    }
+
+    async loadAppsForModel(modelSlug) {
+        try {
+            const response = await fetch(`/api/models/${modelSlug}/apps`);
+            const apps = await response.json();
+            this.renderAppsTable(modelSlug, apps);
+        } catch (error) {
+            console.error('Error loading apps:', error);
+            this.showAppsError(modelSlug, 'Failed to load applications');
+        }
+    }
+
+    renderAppsTable(modelSlug, apps) {
+        const container = document.getElementById(`apps-${modelSlug}`);
+        
+        if (apps.length === 0) {
+            container.innerHTML = '<div class="text-muted mt-2">No applications found</div>';
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="table-responsive mt-3">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>App #</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${apps.map(app => this.createAppRow(modelSlug, app)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    createAppRow(modelSlug, app) {
+        return `
+            <tr>
+                <td><span class="badge badge-outline-primary">${app.app_number}</span></td>
+                <td>
+                    <span class="badge badge-success">Active</span>
+                </td>
+                <td>
+                    <small class="text-muted">
+                        ${app.created_at ? new Date(app.created_at).toLocaleDateString() : 'Unknown'}
+                    </small>
+                </td>
+                <td>
+                    ${this.createAppActionButtons(modelSlug, app)}
+                </td>
+            </tr>
+        `;
+    }
+
+    createAppActionButtons(modelSlug, app) {
+        return `
+            <div class="btn-group btn-group-sm" role="group">
+                <button class="btn btn-outline-success btn-xs" 
+                        onclick="startContainer('${modelSlug}', ${app.app_number}, this)">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-outline-warning btn-xs" 
+                        onclick="stopContainer('${modelSlug}', ${app.app_number}, this)">
+                    <i class="fas fa-stop"></i>
+                </button>
+                <button class="btn btn-outline-info btn-xs" 
+                        onclick="showContainerLogs('${modelSlug}', ${app.app_number})">
+                    <i class="fas fa-file-alt"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    showAppsError(modelSlug, message) {
+        const container = document.getElementById(`apps-${modelSlug}`);
+        container.innerHTML = `
+            <div class="alert alert-danger mt-2" role="alert">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                ${message}
+            </div>
+        `;
+    }
+
+    updateStats() {
+        // Trigger refresh of all stats elements
+        htmx.trigger('#total-models', 'refresh');
+        htmx.trigger('#running-containers', 'refresh');
+        htmx.trigger('#completed-analyses', 'refresh');
+        htmx.trigger('#system-health-indicator', 'refresh');
+    }
+
+    setupAutoRefresh() {
+        this.autoRefreshInterval = setInterval(() => {
+            this.updateStats();
+        }, this.refreshRate);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                this.refreshDashboard();
+            }
+        });
+    }
+
+    refreshDashboard() {
+        this.updateStats();
+        htmx.trigger('#recent-models-section', 'refresh');
+        htmx.trigger('#system-status-section', 'refresh');
+        htmx.trigger('#activity-feed', 'refresh');
+    }
+
+    applyFilters() {
+        const status = document.getElementById('status-filter')?.value || '';
+        const provider = document.getElementById('provider-filter')?.value || '';
+        const search = document.getElementById('search-input')?.value.toLowerCase() || '';
+
+        this.filteredModels = this.models.filter(model => {
+            const matchesStatus = !status || model.status === status;
+            const matchesProvider = !provider || model.provider === provider;
+            const matchesSearch = !search || 
+                model.model_name.toLowerCase().includes(search) ||
+                model.provider.toLowerCase().includes(search);
+
+            return matchesStatus && matchesProvider && matchesSearch;
+        });
+
+        this.renderModels(this.filteredModels);
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 70px; right: 20px; z-index: 1050; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, 5000);
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+}
+
+// Container logs functionality
+window.showContainerLogs = function(modelSlug, appNum) {
+    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/logs`)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('container-logs-content').innerHTML = html;
+            $('#containerLogsModal').modal('show');
+        })
+        .catch(error => {
+            dashboard.showToast('Failed to load container logs', 'danger');
+        });
+};
+
+window.toggleAdvancedFilters = function() {
+    const filters = document.getElementById('advanced-filters');
+    if (filters) {
+        filters.classList.toggle('d-none');
+    }
+};
+
+window.clearFilters = function() {
+    document.getElementById('status-filter').value = '';
+    document.getElementById('provider-filter').value = '';
+    document.getElementById('search-input').value = '';
+    dashboard.applyFilters();
+};
+
+// Container actions
+window.startContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('start', modelSlug, appNum, button);
+};
+
+window.stopContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('stop', modelSlug, appNum, button);
+};
+
+window.restartContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('restart', modelSlug, appNum, button);
+};
+
+function handleContainerAction(action, modelSlug, appNum, button) {
+    const originalText = button.innerHTML;
+    button.innerHTML = `<div class="spinner-border spinner-border-sm mr-1"></div>${action}ing...`;
+    button.disabled = true;
+
+    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            dashboard.showToast(`Container ${action} successful`, 'success');
+            // Refresh the dashboard to update container status
+            setTimeout(() => dashboard.refreshDashboard(), 1000);
+        } else {
+            dashboard.showToast(`Container ${action} failed: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        dashboard.showToast(`Container ${action} failed`, 'danger');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+// Bulk container actions
+window.startAllContainers = function(modelSlug) {
+    handleBulkContainerAction('start', modelSlug);
+};
+
+window.stopAllContainers = function(modelSlug) {
+    handleBulkContainerAction('stop', modelSlug);
+};
+
+window.restartAllContainers = function(modelSlug) {
+    handleBulkContainerAction('restart', modelSlug);
+};
+
+function handleBulkContainerAction(action, modelSlug) {
+    if (!confirm(`Are you sure you want to ${action} all containers for ${modelSlug}?`)) {
+        return;
+    }
+
+    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/bulk/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            dashboard.showToast(`Bulk ${action} successful`, 'success');
+            setTimeout(() => dashboard.refreshDashboard(), 2000);
+        } else {
+            dashboard.showToast(`Bulk ${action} failed: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        dashboard.showToast(`Bulk ${action} failed`, 'danger');
+    });
+}
+
+// Initialize dashboard
+let dashboard;
+document.addEventListener('DOMContentLoaded', function() {
+    dashboard = new Dashboard();
+});
+</script>
+{% endblock %}

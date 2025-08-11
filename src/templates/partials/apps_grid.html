@@ -1,0 +1,136 @@
+<!-- Apps Grid View -->
+<div class="apps-grid-container">
+    {% for app in apps %}
+    <div class="app-card" data-app-id="{{ app.id }}">
+        <!-- Selection checkbox -->
+        <input type="checkbox" class="app-select-checkbox" value="{{ app.id }}">
+        
+        <!-- Status indicator -->
+        <div class="app-status-indicator {{ app.container_status }}"></div>
+        
+        <div class="app-card-header">
+            <div class="app-provider-badge">{{ app.provider.title() }}</div>
+            <h5 class="app-title">{{ app.model_slug.replace('_', ' ').title() }}</h5>
+            <div class="app-subtitle">Application #{{ app.app_number }}</div>
+        </div>
+        
+        <div class="app-card-body">
+            <div class="app-info">
+                <span class="app-type">{{ app.app_type }}</span>
+                <span class="app-status">{{ app.container_status.title() }}</span>
+            </div>
+            
+            {% if app.ports %}
+            <div class="app-ports">
+                {% if app.ports.frontend %}
+                <span class="port-badge frontend">Frontend: {{ app.ports.frontend }}</span>
+                {% endif %}
+                {% if app.ports.backend %}
+                <span class="port-badge backend">Backend: {{ app.ports.backend }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <div class="app-stats">
+                <div class="app-stat">
+                    <span class="app-stat-value">{{ app.stats.security_analyses or 0 }}</span>
+                    <span class="app-stat-label">Security</span>
+                </div>
+                <div class="app-stat">
+                    <span class="app-stat-value">{{ app.stats.performance_tests or 0 }}</span>
+                    <span class="app-stat-label">Performance</span>
+                </div>
+                <div class="app-stat">
+                    <span class="app-stat-value">{{ app.file_stats.files or 0 }}</span>
+                    <span class="app-stat-label">Files</span>
+                </div>
+                <div class="app-stat">
+                    <span class="app-stat-value">{{ app.file_stats.size_mb or 0 }}MB</span>
+                    <span class="app-stat-label">Size</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="app-card-footer">
+            <div class="app-actions">
+                {% if app.container_status == 'running' %}
+                <button class="btn btn-sm btn-success btn-view" data-app-id="{{ app.id }}" title="Open Application">
+                    <i class="fas fa-external-link-alt"></i>
+                </button>
+                <button class="btn btn-sm btn-warning btn-stop" data-app-id="{{ app.id }}" title="Stop Container">
+                    <i class="fas fa-stop"></i>
+                </button>
+                {% else %}
+                <button class="btn btn-sm btn-primary btn-start" data-app-id="{{ app.id }}" title="Start Container">
+                    <i class="fas fa-play"></i>
+                </button>
+                {% endif %}
+                
+                <button class="btn btn-sm btn-info btn-restart" data-app-id="{{ app.id }}" title="Restart Container">
+                    <i class="fas fa-redo"></i>
+                </button>
+                
+                <button class="btn btn-sm btn-secondary btn-analyze" data-app-id="{{ app.id }}" title="Run Analysis">
+                    <i class="fas fa-search"></i>
+                </button>
+                
+                <button class="btn btn-sm btn-outline-secondary btn-details" data-app-id="{{ app.id }}" title="View Details">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </div>
+            
+            {% if app.last_analyzed %}
+            <div class="app-last-analyzed">
+                <small class="text-muted">
+                    <i class="fas fa-clock"></i>
+                    Last analyzed: {{ app.last_analyzed.strftime('%Y-%m-%d %H:%M') if app.last_analyzed else 'Never' }}
+                </small>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    
+    {% if not apps %}
+    <div class="apps-empty">
+        <i class="fas fa-search"></i>
+        <h4>No Applications Found</h4>
+        <p>No applications match your current filter criteria.</p>
+        <button class="btn btn-primary" onclick="clearAllFilters()">
+            Clear Filters
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.port-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    margin: 0.125rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.port-badge.frontend {
+    background-color: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #90caf9;
+}
+
+.port-badge.backend {
+    background-color: #f3e5f5;
+    color: #7b1fa2;
+    border: 1px solid #ce93d8;
+}
+
+.app-ports {
+    margin: 0.5rem 0;
+}
+
+.app-last-analyzed {
+    margin-top: 0.5rem;
+    text-align: center;
+}
+</style>

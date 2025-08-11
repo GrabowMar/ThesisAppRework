@@ -17,10 +17,6 @@ from sqlalchemy import text
 # Import extensions and configurations
 from config.celery_config import CeleryConfig
 from app.extensions import db, init_extensions, get_components
-from app.routes.main import main_bp
-from app.routes.models import models_bp
-from app.routes.analysis import analysis_bp
-from app.routes.api import api_bp
 from app.services.task_manager import TaskManager
 from app.services.analyzer_integration import get_analyzer_integration as create_analyzer_integration
 
@@ -130,10 +126,8 @@ def create_app(config_name: str = 'default') -> Flask:
             logger.error(f"Failed to initialize database: {e}")
     
     # Register blueprints
-    app.register_blueprint(main_bp)
-    app.register_blueprint(models_bp, url_prefix='/models')
-    app.register_blueprint(analysis_bp, url_prefix='/analysis')
-    app.register_blueprint(api_bp, url_prefix='/api')
+    from app.routes import register_blueprints
+    register_blueprints(app)
     
     # Initialize services
     try:
