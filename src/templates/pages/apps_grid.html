@@ -3,252 +3,193 @@
 {% block title %}Applications Grid - AI Research Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="page-header">
-        <div>
-            <h1 class="page-title">
-                <i class="fas fa-th-large text-primary mr-2"></i>
-                Applications Grid
-            </h1>
-            <p class="page-subtitle">
-                Interactive grid for inspecting, testing, and controlling AI-generated applications
-            </p>
+<!-- Page Header -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-th-large text-primary me-2"></i>
+        Applications Grid
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshAllStatus()">
+                <i class="fas fa-sync-alt me-1"></i>Refresh
+            </button>
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="view-mode" id="grid-view" autocomplete="off" checked>
+                <label class="btn btn-outline-primary btn-sm" for="grid-view" onclick="setViewMode('grid')">
+                    <i class="fas fa-th me-1"></i>Grid
+                </label>
+                
+                <input type="radio" class="btn-check" name="view-mode" id="list-view" autocomplete="off">
+                <label class="btn btn-outline-primary btn-sm" for="list-view" onclick="setViewMode('list')">
+                    <i class="fas fa-list me-1"></i>List
+                </label>
+                
+                <input type="radio" class="btn-check" name="view-mode" id="compact-view" autocomplete="off">
+                <label class="btn btn-outline-primary btn-sm" for="compact-view" onclick="setViewMode('compact')">
+                    <i class="fas fa-th-large me-1"></i>Compact
+                </label>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-success dropdown-toggle" 
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-plus me-1"></i>Actions
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" onclick="bulkStartContainers()">
+                    <i class="fas fa-play me-2"></i>Start Selected
+                </a></li>
+                <li><a class="dropdown-item" href="#" onclick="bulkStopContainers()">
+                    <i class="fas fa-stop me-2"></i>Stop Selected
+                </a></li>
+                <li><a class="dropdown-item" href="#" onclick="bulkRestartContainers()">
+                    <i class="fas fa-redo me-2"></i>Restart Selected
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" onclick="bulkAnalyze()">
+                    <i class="fas fa-chart-line me-2"></i>Analyze Selected
+                </a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Filters and Search -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="search-input" class="form-label">Search Applications</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="search-input" 
+                           placeholder="Search by name, provider, or type..." 
+                           oninput="filterApps()">
+                    <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label for="provider-filter" class="form-label">Provider</label>
+                <select class="form-select" id="provider-filter" onchange="filterApps()">
+                    <option value="">All Providers</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="azure">Azure</option>
+                    <option value="google">Google</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="status-filter" class="form-label">Status</label>
+                <select class="form-select" id="status-filter" onchange="filterApps()">
+                    <option value="">All Statuses</option>
+                    <option value="running">Running</option>
+                    <option value="stopped">Stopped</option>
+                    <option value="error">Error</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="filterApps()">
+                        <i class="fas fa-filter me-1"></i>Filter
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                        <i class="fas fa-times me-1"></i>Clear
+                    </button>
+                </div>
+            </div>
         </div>
         
-        <div class="d-flex gap-2">
-            <div class="dropdown">
-                <button class="btn btn-success dropdown-toggle" type="button" 
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-play mr-1"></i>
-                    Bulk Actions
-                </button>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" onclick="bulkStartContainers()">
-                        <i class="fas fa-play mr-2"></i>Start Selected
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="bulkStopContainers()">
-                        <i class="fas fa-stop mr-2"></i>Stop Selected
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="bulkRestartContainers()">
-                        <i class="fas fa-redo mr-2"></i>Restart Selected
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" onclick="bulkAnalyze()">
-                        <i class="fas fa-search mr-2"></i>Run Analysis
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="bulkPerformanceTest()">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Performance Test
-                    </a>
-                </div>
-            </div>
-            
-            <button type="button" class="btn btn-warning" onclick="refreshAllStatus()">
-                <i class="fas fa-sync-alt mr-1"></i>
-                Refresh Status
-            </button>
-            
-            <div class="dropdown">
-                <button class="btn btn-info dropdown-toggle" type="button" 
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-cogs mr-1"></i>
-                    Tools
-                </button>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" onclick="showPortMapping()">
-                        <i class="fas fa-network-wired mr-2"></i>Port Mapping
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="showDockerStats()">
-                        <i class="fab fa-docker mr-2"></i>Docker Statistics
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="exportAppsData()">
-                        <i class="fas fa-download mr-2"></i>Export Data
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" onclick="cleanupOrphanedContainers()">
-                        <i class="fas fa-trash mr-2"></i>Cleanup Orphaned
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Control Panel -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row align-items-center">
-                <!-- Search and Filters -->
-                <div class="col-md-8">
-                    <div class="row g-3">
-                        <!-- Search -->
-                        <div class="col-md-3">
-                            <div class="input-group input-group-sm">
-                                <input type="text" class="form-control" id="app-search" 
-                                       placeholder="Search applications..." 
-                                       onkeyup="filterApps()">
-                                <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Model Filter -->
-                        <div class="col-md-3">
-                            <select class="form-select form-select-sm" id="model-filter" onchange="filterApps()">
-                                <option value="">All Models</option>
-                                <!-- Dynamically populated via HTMX -->
-                                <option value="anthropic">Anthropic</option>
-                                <option value="openai">OpenAI</option>
-                                <option value="google">Google</option>
-                                <option value="deepseek">DeepSeek</option>
-                                <option value="mistralai">Mistral AI</option>
-                            </select>
-                        </div>
-
-                        <!-- Status Filter -->
-                        <div class="col-md-3">
-                            <select class="form-select form-select-sm" id="status-filter" onchange="filterApps()">
-                                <option value="">All Status</option>
-                                <option value="running">Running</option>
-                                <option value="stopped">Stopped</option>
-                                <option value="building">Building</option>
-                                <option value="error">Error</option>
-                            </select>
-                        </div>
-
-                        <!-- App Type Filter -->
-                        <div class="col-md-3">
-                            <select class="form-select form-select-sm" id="type-filter" onchange="filterApps()">
-                                <option value="">All Types</option>
-                                <option value="chat">Chat App</option>
-                                <option value="dashboard">Dashboard</option>
-                                <option value="api">API Service</option>
-                                <option value="frontend">Frontend Only</option>
-                                <option value="fullstack">Full Stack</option>
-                            </select>
-                        </div>
+        <!-- Quick Selection -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="selectAll()">
+                            <i class="fas fa-check-square me-1"></i>Select All
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="selectNone()">
+                            <i class="fas fa-square me-1"></i>Select None
+                        </button>
+                        <span class="ms-3 text-muted" id="selection-count">0 selected</span>
                     </div>
-                </div>
-
-                <!-- View Controls -->
-                <div class="col-md-4 text-md-end">
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary active" 
-                                id="grid-view-btn" onclick="setViewMode('grid')">
-                            <i class="fas fa-th-large"></i> Grid
-                        </button>
-                        <button type="button" class="btn btn-outline-primary" 
-                                id="list-view-btn" onclick="setViewMode('list')">
-                            <i class="fas fa-list"></i> List
-                        </button>
-                        <button type="button" class="btn btn-outline-primary" 
-                                id="compact-view-btn" onclick="setViewMode('compact')">
-                            <i class="fas fa-th"></i> Compact
+                    <div>
+                        <button class="btn btn-sm btn-outline-info" onclick="exportAppsData()">
+                            <i class="fas fa-download me-1"></i>Export Data
                         </button>
                     </div>
-                    
-                    <div class="btn-group btn-group-sm ms-2" role="group">
-                        <button type="button" class="btn btn-outline-secondary" onclick="selectAll()">
-                            <i class="fas fa-check-square"></i> All
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" onclick="selectNone()">
-                            <i class="fas fa-square"></i> None
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Applications Grid -->
-    <div id="apps-grid-container">
-        <div id="apps-grid" 
-             hx-get="/api/apps/grid" 
-             hx-trigger="load, appsUpdated"
-             hx-vals="js:{search: document.getElementById('app-search')?.value || '', model: document.getElementById('model-filter')?.value || '', status: document.getElementById('status-filter')?.value || '', type: document.getElementById('type-filter')?.value || '', view: localStorage.getItem('appsViewMode') || 'grid'}"
-             class="apps-grid-view">
-            <!-- Loading State -->
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Loading applications...</span>
-                </div>
-                <div class="h5">Loading Applications</div>
-                <div class="text-muted">Gathering application data and container status...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Selected Apps Summary -->
-    <div id="selection-summary" class="fixed-bottom bg-primary text-white p-3 shadow" style="display: none;">
-        <div class="container-fluid">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <span id="selected-count">0</span> applications selected
-                </div>
-                <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-light btn-sm" onclick="bulkStartContainers()">
-                        <i class="fas fa-play mr-1"></i>Start
-                    </button>
-                    <button type="button" class="btn btn-light btn-sm" onclick="bulkStopContainers()">
-                        <i class="fas fa-stop mr-1"></i>Stop
-                    </button>
-                    <button type="button" class="btn btn-light btn-sm" onclick="bulkAnalyze()">
-                        <i class="fas fa-search mr-1"></i>Analyze
-                    </button>
-                    <button type="button" class="btn btn-outline-light btn-sm" onclick="selectNone()">
-                        <i class="fas fa-times mr-1"></i>Clear
-                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Applications Container -->
+<div id="applications-container">
+    <!-- Grid View (Default) -->
+    <div id="grid-view-container" class="apps-grid-container">
+        <!-- Applications will be loaded here dynamically -->
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Loading applications...</p>
+        </div>
+    </div>
+    
+    <!-- List View -->
+    <div id="list-view-container" class="d-none">
+        <div class="list-group">
+            <!-- List items will be loaded here -->
+        </div>
+    </div>
+    
+    <!-- Compact View -->
+    <div id="compact-view-container" class="d-none">
+        <div class="apps-compact-container">
+            <!-- Compact cards will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<!-- Empty State -->
+<div id="empty-state" class="d-none">
+    <div class="text-center py-5">
+        <i class="fas fa-cube fa-4x text-muted mb-3"></i>
+        <h4 class="text-muted">No Applications Found</h4>
+        <p class="text-muted">Try adjusting your search criteria or create a new application.</p>
+        <button class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Create Application
+        </button>
+    </div>
+</div>
+
+<!-- Modals -->
 <!-- App Detail Modal -->
 <div class="modal fade" id="appDetailModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-info-circle mr-2"></i>
-                    Application Details
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="appDetailContent">
-                <!-- Dynamic content loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="openAppInNewTab()">
-                    <i class="fas fa-external-link-alt mr-1"></i>Open App
-                </button>
-                <button type="button" class="btn btn-info" onclick="viewAppFiles()">
-                    <i class="fas fa-folder mr-1"></i>View Files
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Container Actions Modal -->
-<div class="modal fade" id="containerActionsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fab fa-docker mr-2"></i>
-                    Container Management
+                    <i class="fas fa-info-circle me-2"></i>Application Details
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="containerActionsContent">
-                <!-- Dynamic content loaded here -->
+            <div class="modal-body">
+                <!-- Content will be loaded dynamically -->
+                <div class="text-center py-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-success" onclick="executeContainerAction()">
-                    <i class="fas fa-play mr-1"></i>Execute Action
+                <button type="button" class="btn btn-primary" onclick="openAppInNewTab()">
+                    <i class="fas fa-external-link-alt me-1"></i>Open App
                 </button>
             </div>
         </div>
@@ -257,49 +198,47 @@
 
 <!-- Analysis Modal -->
 <div class="modal fade" id="analysisModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-microscope mr-2"></i>
-                    Analysis Configuration
+                    <i class="fas fa-chart-line me-2"></i>Start Analysis
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="analysisContent">
-                <!-- Analysis configuration form will be loaded here -->
+            <div class="modal-body">
+                <form id="analysis-form">
+                    <div class="mb-3">
+                        <label for="analysis-type" class="form-label">Analysis Type</label>
+                        <select class="form-select" id="analysis-type" required>
+                            <option value="">Select analysis type</option>
+                            <option value="security">Security Analysis</option>
+                            <option value="performance">Performance Analysis</option>
+                            <option value="full">Full Analysis</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="analysis-depth" class="form-label">Analysis Depth</label>
+                        <select class="form-select" id="analysis-depth">
+                            <option value="quick">Quick Scan</option>
+                            <option value="standard" selected>Standard</option>
+                            <option value="deep">Deep Analysis</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="save-results" checked>
+                            <label class="form-check-label" for="save-results">
+                                Save results to database
+                            </label>
+                        </div>
+                    </div>
+                </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning" onclick="startAnalysis()">
-                    <i class="fas fa-play mr-1"></i>Start Analysis
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Port Mapping Modal -->
-<div class="modal fade" id="portMappingModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-network-wired mr-2"></i>
-                    Port Mapping Overview
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="portMappingContent">
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <div class="mt-2">Loading port mappings...</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="exportPortMappings()">
-                    <i class="fas fa-download mr-1"></i>Export
+                <button type="button" class="btn btn-primary" onclick="startAnalysis()">
+                    <i class="fas fa-play me-1"></i>Start Analysis
                 </button>
             </div>
         </div>
@@ -309,729 +248,461 @@
 
 {% block scripts %}
 <script>
-// Applications Grid JavaScript
+// Applications Grid Management
 class AppsGrid {
     constructor() {
+        this.currentView = 'grid';
+        this.apps = [];
+        this.filteredApps = [];
         this.selectedApps = new Set();
-        this.viewMode = localStorage.getItem('appsViewMode') || 'grid';
-        this.currentApp = null;
-        this.autoRefresh = false;
-        this.autoRefreshInterval = null;
+        this.filters = {
+            search: '',
+            provider: '',
+            status: ''
+        };
         this.init();
     }
 
     init() {
+        this.loadApplications();
         this.setupEventListeners();
-        this.setupKeyboardShortcuts();
-        this.setViewMode(this.viewMode);
+        this.startAutoRefresh();
     }
 
     setupEventListeners() {
-        // HTMX event listeners
-        document.addEventListener('htmx:afterRequest', (e) => {
-            if (e.detail.target.id === 'apps-grid') {
-                this.updateSelectionUI();
-                this.bindGridEvents();
-            }
+        // Search input with debouncing
+        let searchTimeout;
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                this.filters.search = e.target.value;
+                this.applyFilters();
+            }, 300);
         });
 
-        // Selection change events
-        document.addEventListener('selectionChanged', () => {
-            this.updateSelectionSummary();
+        // Filter selects
+        document.getElementById('provider-filter').addEventListener('change', (e) => {
+            this.filters.provider = e.target.value;
+            this.applyFilters();
         });
 
-        // Auto-refresh checkbox
-        const autoRefreshCheckbox = document.getElementById('auto-refresh');
-        if (autoRefreshCheckbox) {
-            autoRefreshCheckbox.addEventListener('change', (e) => {
-                this.toggleAutoRefresh(e.target.checked);
-            });
-        }
-    }
-
-    setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey || e.metaKey) {
-                switch(e.key) {
-                    case 'a':
-                        e.preventDefault();
-                        this.selectAll();
-                        break;
-                    case 'd':
-                        e.preventDefault();
-                        this.selectNone();
-                        break;
-                    case 'r':
-                        e.preventDefault();
-                        this.refreshAllStatus();
-                        break;
-                    case 'f':
-                        e.preventDefault();
-                        document.getElementById('app-search').focus();
-                        break;
-                }
-            }
-            
-            if (e.key === 'Escape') {
-                this.selectNone();
-            }
+        document.getElementById('status-filter').addEventListener('change', (e) => {
+            this.filters.status = e.target.value;
+            this.applyFilters();
         });
     }
 
-    bindGridEvents() {
-        // Bind events to newly loaded grid items
-        const appCards = document.querySelectorAll('.app-card');
-        appCards.forEach(card => {
-            // Selection checkbox
-            const checkbox = card.querySelector('.app-select-checkbox');
-            if (checkbox) {
-                checkbox.addEventListener('change', (e) => {
-                    this.toggleAppSelection(e.target.value, e.target.checked);
-                });
-            }
-
-            // Quick action buttons
-            const startBtn = card.querySelector('.btn-start');
-            const stopBtn = card.querySelector('.btn-stop');
-            const restartBtn = card.querySelector('.btn-restart');
-            const analyzeBtn = card.querySelector('.btn-analyze');
-            const viewBtn = card.querySelector('.btn-view');
-
-            if (startBtn) startBtn.addEventListener('click', (e) => this.startContainer(e.target.dataset.appId));
-            if (stopBtn) stopBtn.addEventListener('click', (e) => this.stopContainer(e.target.dataset.appId));
-            if (restartBtn) restartBtn.addEventListener('click', (e) => this.restartContainer(e.target.dataset.appId));
-            if (analyzeBtn) analyzeBtn.addEventListener('click', (e) => this.analyzeApp(e.target.dataset.appId));
-            if (viewBtn) viewBtn.addEventListener('click', (e) => this.viewAppDetail(e.target.dataset.appId));
-        });
-    }
-
-    setViewMode(mode) {
-        this.viewMode = mode;
-        localStorage.setItem('appsViewMode', mode);
-        
-        // Update button states
-        document.querySelectorAll('[id$="-view-btn"]').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        document.getElementById(`${mode}-view-btn`).classList.add('active');
-        
-        // Update grid container class
-        const grid = document.getElementById('apps-grid');
-        grid.className = `apps-${mode}-view`;
-        
-        // Trigger refresh with new view mode
-        htmx.trigger('#apps-grid', 'appsUpdated');
-    }
-
-    filterApps() {
-        // Debounce filter requests
-        if (this.filterTimeout) {
-            clearTimeout(this.filterTimeout);
-        }
-        
-        this.filterTimeout = setTimeout(() => {
-            htmx.trigger('#apps-grid', 'appsUpdated');
-        }, 300);
-    }
-
-    clearSearch() {
-        document.getElementById('app-search').value = '';
-        this.filterApps();
-    }
-
-    selectAll() {
-        const checkboxes = document.querySelectorAll('.app-select-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = true;
-            this.selectedApps.add(checkbox.value);
-        });
-        this.updateSelectionSummary();
-    }
-
-    selectNone() {
-        const checkboxes = document.querySelectorAll('.app-select-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = false;
-        });
-        this.selectedApps.clear();
-        this.updateSelectionSummary();
-    }
-
-    toggleAppSelection(appId, selected) {
-        if (selected) {
-            this.selectedApps.add(appId);
-        } else {
-            this.selectedApps.delete(appId);
-        }
-        this.updateSelectionSummary();
-    }
-
-    updateSelectionSummary() {
-        const summary = document.getElementById('selection-summary');
-        const count = document.getElementById('selected-count');
-        
-        if (this.selectedApps.size > 0) {
-            count.textContent = this.selectedApps.size;
-            summary.style.display = 'block';
-        } else {
-            summary.style.display = 'none';
-        }
-    }
-
-    refreshAllStatus() {
-        this.showToast('Refreshing application status...', 'info');
-        htmx.trigger('#apps-grid', 'appsUpdated');
-    }
-
-    // Container Management Methods
-    startContainer(appId) {
-        this.executeContainerAction('start', [appId]);
-    }
-
-    stopContainer(appId) {
-        this.executeContainerAction('stop', [appId]);
-    }
-
-    restartContainer(appId) {
-        this.executeContainerAction('restart', [appId]);
-    }
-
-    executeContainerAction(action, appIds) {
-        const apps = appIds || Array.from(this.selectedApps);
-        if (apps.length === 0) {
-            this.showToast('No applications selected', 'warning');
-            return;
-        }
-
-        const actionText = action.charAt(0).toUpperCase() + action.slice(1);
-        this.showToast(`${actionText}ing ${apps.length} container(s)...`, 'info');
-
-        fetch('/api/containers/bulk-action', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                action: action,
-                app_ids: apps
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                this.showToast(`Successfully ${action}ed ${data.successful} container(s)`, 'success');
-                if (data.failed > 0) {
-                    this.showToast(`Failed to ${action} ${data.failed} container(s)`, 'warning');
-                }
-                // Refresh the grid
-                setTimeout(() => {
-                    htmx.trigger('#apps-grid', 'appsUpdated');
-                }, 2000);
-            } else {
-                this.showToast(`Failed to ${action} containers: ${data.error}`, 'error');
-            }
-        })
-        .catch(error => {
-            this.showToast(`Error ${action}ing containers: ${error.message}`, 'error');
-        });
-    }
-
-    // Analysis Methods
-    analyzeApp(appId) {
-        this.currentApp = appId;
-        this.loadAnalysisModal([appId]);
-    }
-
-    loadAnalysisModal(appIds) {
-        const apps = appIds || Array.from(this.selectedApps);
-        if (apps.length === 0) {
-            this.showToast('No applications selected', 'warning');
-            return;
-        }
-
-        fetch('/api/analysis/configuration', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ app_ids: apps })
-        })
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById('analysisContent').innerHTML = html;
-            const modal = new bootstrap.Modal(document.getElementById('analysisModal'));
-            modal.show();
-        })
-        .catch(error => {
-            this.showToast(`Error loading analysis configuration: ${error.message}`, 'error');
-        });
-    }
-
-    startAnalysis() {
-        const form = document.getElementById('analysisConfigForm');
-        if (!form) {
-            this.showToast('Analysis configuration form not found', 'error');
-            return;
-        }
-
-        const formData = new FormData(form);
-        const config = {};
-        
-        for (let [key, value] of formData.entries()) {
-            config[key] = value;
-        }
-
-        fetch('/api/analysis/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(config)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                this.showToast(`Analysis started for ${data.app_count} application(s)`, 'success');
-                bootstrap.Modal.getInstance(document.getElementById('analysisModal')).hide();
-                // Refresh grid to show analysis status
-                setTimeout(() => {
-                    htmx.trigger('#apps-grid', 'appsUpdated');
-                }, 1000);
-            } else {
-                this.showToast(`Failed to start analysis: ${data.error}`, 'error');
-            }
-        })
-        .catch(error => {
-            this.showToast(`Error starting analysis: ${error.message}`, 'error');
-        });
-    }
-
-    // App Detail Methods
-    viewAppDetail(appId) {
-        this.currentApp = appId;
-        
-        fetch(`/api/apps/${appId}/details`)
-            .then(response => response.text())
-            .then(html => {
-                document.getElementById('appDetailContent').innerHTML = html;
-                const modal = new bootstrap.Modal(document.getElementById('appDetailModal'));
-                modal.show();
-            })
-            .catch(error => {
-                this.showToast(`Error loading app details: ${error.message}`, 'error');
-            });
-    }
-
-    openAppInNewTab() {
-        if (!this.currentApp) return;
-        
-        fetch(`/api/apps/${this.currentApp}/urls`)
+    loadApplications() {
+        // Simulate loading applications - replace with actual API call
+        fetch('/api/applications')
             .then(response => response.json())
             .then(data => {
-                if (data.frontend_url) {
-                    window.open(data.frontend_url, '_blank');
-                } else {
-                    this.showToast('Application is not running', 'warning');
-                }
+                this.apps = data.applications || [];
+                this.applyFilters();
             })
             .catch(error => {
-                this.showToast(`Error getting app URL: ${error.message}`, 'error');
+                console.error('Error loading applications:', error);
+                this.showEmptyState();
             });
     }
 
-    viewAppFiles() {
-        if (!this.currentApp) return;
-        window.open(`/apps/${this.currentApp}/files`, '_blank');
+    applyFilters() {
+        this.filteredApps = this.apps.filter(app => {
+            const matchesSearch = !this.filters.search || 
+                app.name.toLowerCase().includes(this.filters.search.toLowerCase()) ||
+                app.provider.toLowerCase().includes(this.filters.search.toLowerCase()) ||
+                app.type.toLowerCase().includes(this.filters.search.toLowerCase());
+            
+            const matchesProvider = !this.filters.provider || 
+                app.provider === this.filters.provider;
+            
+            const matchesStatus = !this.filters.status || 
+                app.status === this.filters.status;
+
+            return matchesSearch && matchesProvider && matchesStatus;
+        });
+
+        this.renderApplications();
+        this.updateSelectionCount();
     }
 
-    // Utility Methods
-    toggleAutoRefresh(enabled) {
-        this.autoRefresh = enabled;
-        
-        if (enabled) {
-            this.autoRefreshInterval = setInterval(() => {
-                if (document.visibilityState === 'visible') {
-                    htmx.trigger('#apps-grid', 'appsUpdated');
-                }
-            }, 30000); // Refresh every 30 seconds
-            this.showToast('Auto-refresh enabled', 'info');
-        } else {
-            if (this.autoRefreshInterval) {
-                clearInterval(this.autoRefreshInterval);
-                this.autoRefreshInterval = null;
-            }
-            this.showToast('Auto-refresh disabled', 'info');
+    renderApplications() {
+        if (this.filteredApps.length === 0) {
+            this.showEmptyState();
+            return;
+        }
+
+        this.hideEmptyState();
+
+        switch (this.currentView) {
+            case 'grid':
+                this.renderGridView();
+                break;
+            case 'list':
+                this.renderListView();
+                break;
+            case 'compact':
+                this.renderCompactView();
+                break;
         }
     }
 
-    showToast(message, type = 'info', duration = 5000) {
-        const typeMapping = {
-            'info': 'primary',
-            'error': 'danger',
-            'danger': 'danger',
-            'warning': 'warning',
-            'success': 'success'
-        };
-        
-        const toastType = typeMapping[type] || type;
-        
-        const toastHtml = `
-            <div class="toast align-items-center text-white bg-${toastType} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    renderGridView() {
+        const container = document.getElementById('grid-view-container');
+        container.innerHTML = `
+            <div class="row">
+                ${this.filteredApps.map(app => this.createAppCard(app)).join('')}
+            </div>
+        `;
+    }
+
+    renderListView() {
+        const container = document.querySelector('#list-view-container .list-group');
+        container.innerHTML = this.filteredApps.map(app => this.createAppListItem(app)).join('');
+    }
+
+    renderCompactView() {
+        const container = document.querySelector('#compact-view-container .apps-compact-container');
+        container.innerHTML = `
+            <div class="row">
+                ${this.filteredApps.map(app => this.createAppCompactCard(app)).join('')}
+            </div>
+        `;
+    }
+
+    createAppCard(app) {
+        const isSelected = this.selectedApps.has(app.id);
+        return `
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card h-100 ${isSelected ? 'border-primary' : ''}" data-app-id="${app.id}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                   ${isSelected ? 'checked' : ''} 
+                                   onchange="window.appsGrid.toggleSelection('${app.id}')">
+                        </div>
+                        <span class="badge bg-primary">${app.provider || 'Unknown'}</span>
+                        <span class="badge bg-${this.getStatusColor(app.status)}">
+                            ${(app.status || 'stopped').toUpperCase()}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            ${app.name || 'Unnamed Application'}
+                        </h5>
+                        <p class="card-text text-muted">
+                            ${(app.description || 'No description available').substring(0, 100)}...
+                        </p>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">Type:</small>
+                            <span class="badge bg-secondary">${app.type || 'Unknown'}</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">Ports:</small>
+                            ${(app.ports || []).map(port => 
+                                `<span class="badge bg-info me-1">${port}</span>`
+                            ).join('')}
+                        </div>
+                        
+                        <div class="row text-center">
+                            <div class="col">
+                                <div class="h6 mb-0">${app.stats?.uptime || '0h'}</div>
+                                <small class="text-muted">Uptime</small>
+                            </div>
+                            <div class="col">
+                                <div class="h6 mb-0">${app.stats?.requests || '0'}</div>
+                                <small class="text-muted">Requests</small>
+                            </div>
+                            <div class="col">
+                                <div class="h6 mb-0">${app.stats?.errors || '0'}</div>
+                                <small class="text-muted">Errors</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-outline-primary btn-sm" onclick="viewAppDetails('${app.id}')">
+                                <i class="fas fa-info me-1"></i>Details
+                            </button>
+                            <button class="btn btn-outline-${app.status === 'running' ? 'danger' : 'success'} btn-sm" 
+                                    onclick="toggleAppStatus('${app.id}')">
+                                <i class="fas fa-${app.status === 'running' ? 'stop' : 'play'} me-1"></i>
+                                ${app.status === 'running' ? 'Stop' : 'Start'}
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="analyzeApp('${app.id}')">
+                                <i class="fas fa-chart-line me-1"></i>Analyze
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            Last analyzed: ${app.lastAnalyzed || 'Never'}
+                        </small>
+                    </div>
                 </div>
             </div>
         `;
+    }
 
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
-            toastContainer.style.zIndex = '1055';
-            document.body.appendChild(toastContainer);
+    createAppListItem(app) {
+        const isSelected = this.selectedApps.has(app.id);
+        return `
+            <div class="list-group-item ${isSelected ? 'active' : ''}" data-app-id="${app.id}">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <input class="form-check-input me-3" type="checkbox" 
+                               ${isSelected ? 'checked' : ''} 
+                               onchange="window.appsGrid.toggleSelection('${app.id}')">
+                        <div>
+                            <h6 class="mb-1">${app.name || 'Unnamed Application'}</h6>
+                            <p class="mb-1 text-muted">${(app.description || 'No description').substring(0, 80)}...</p>
+                            <small class="text-muted">${app.provider || 'Unknown'} • ${app.type || 'Unknown'}</small>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-${this.getStatusColor(app.status)} mb-2">
+                            ${(app.status || 'stopped').toUpperCase()}
+                        </span>
+                        <div class="btn-group-sm">
+                            <button class="btn btn-outline-primary btn-sm me-1" onclick="viewAppDetails('${app.id}')">
+                                <i class="fas fa-info"></i>
+                            </button>
+                            <button class="btn btn-outline-${app.status === 'running' ? 'danger' : 'success'} btn-sm me-1" 
+                                    onclick="toggleAppStatus('${app.id}')">
+                                <i class="fas fa-${app.status === 'running' ? 'stop' : 'play'}"></i>
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="analyzeApp('${app.id}')">
+                                <i class="fas fa-chart-line"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    createAppCompactCard(app) {
+        const isSelected = this.selectedApps.has(app.id);
+        return `
+            <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
+                <div class="card h-100 ${isSelected ? 'border-primary' : ''}" data-app-id="${app.id}">
+                    <div class="card-body text-center">
+                        <div class="form-check position-absolute top-0 start-0 m-2">
+                            <input class="form-check-input" type="checkbox" 
+                                   ${isSelected ? 'checked' : ''} 
+                                   onchange="window.appsGrid.toggleSelection('${app.id}')">
+                        </div>
+                        <span class="badge bg-${this.getStatusColor(app.status)} position-absolute top-0 end-0 m-2">
+                            ${(app.status || 'stopped').charAt(0).toUpperCase()}
+                        </span>
+                        <h6 class="card-title mt-3">${app.name || 'Unnamed'}</h6>
+                        <p class="card-text text-muted small">
+                            ${(app.description || 'No description').substring(0, 50)}...
+                        </p>
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-outline-primary btn-sm" onclick="viewAppDetails('${app.id}')">
+                                <i class="fas fa-info"></i>
+                            </button>
+                            <button class="btn btn-outline-${app.status === 'running' ? 'danger' : 'success'} btn-sm" 
+                                    onclick="toggleAppStatus('${app.id}')">
+                                <i class="fas fa-${app.status === 'running' ? 'stop' : 'play'}"></i>
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="analyzeApp('${app.id}')">
+                                <i class="fas fa-chart-line"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    getStatusColor(status) {
+        const colors = {
+            'running': 'success',
+            'stopped': 'secondary',
+            'error': 'danger',
+            'building': 'warning'
+        };
+        return colors[status] || 'secondary';
+    }
+
+    setViewMode(mode) {
+        this.currentView = mode;
+        
+        // Hide all view containers
+        document.getElementById('grid-view-container').classList.add('d-none');
+        document.getElementById('list-view-container').classList.add('d-none');
+        document.getElementById('compact-view-container').classList.add('d-none');
+        
+        // Show selected view
+        document.getElementById(`${mode}-view-container`).classList.remove('d-none');
+        
+        // Re-render with current view
+        this.renderApplications();
+    }
+
+    toggleSelection(appId) {
+        if (this.selectedApps.has(appId)) {
+            this.selectedApps.delete(appId);
+        } else {
+            this.selectedApps.add(appId);
         }
+        this.updateSelectionCount();
+        this.updateCardSelection(appId);
+    }
 
-        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-        const toastElement = toastContainer.lastElementChild;
-        const toast = new bootstrap.Toast(toastElement, { delay: duration });
-        toast.show();
+    updateCardSelection(appId) {
+        const card = document.querySelector(`[data-app-id="${appId}"]`);
+        if (card) {
+            if (this.selectedApps.has(appId)) {
+                card.classList.add('border-primary');
+                if (card.classList.contains('list-group-item')) {
+                    card.classList.add('active');
+                }
+            } else {
+                card.classList.remove('border-primary');
+                if (card.classList.contains('list-group-item')) {
+                    card.classList.remove('active');
+                }
+            }
+        }
+    }
 
-        toastElement.addEventListener('hidden.bs.toast', () => {
-            toastElement.remove();
-        });
+    updateSelectionCount() {
+        document.getElementById('selection-count').textContent = 
+            `${this.selectedApps.size} selected`;
+    }
+
+    selectAll() {
+        this.selectedApps = new Set(this.filteredApps.map(app => app.id));
+        this.renderApplications();
+        this.updateSelectionCount();
+    }
+
+    selectNone() {
+        this.selectedApps.clear();
+        this.renderApplications();
+        this.updateSelectionCount();
+    }
+
+    showEmptyState() {
+        document.getElementById('applications-container').classList.add('d-none');
+        document.getElementById('empty-state').classList.remove('d-none');
+    }
+
+    hideEmptyState() {
+        document.getElementById('applications-container').classList.remove('d-none');
+        document.getElementById('empty-state').classList.add('d-none');
+    }
+
+    startAutoRefresh() {
+        setInterval(() => {
+            this.loadApplications();
+        }, 30000); // Refresh every 30 seconds
     }
 }
 
-// Global function wrappers
+// Global function wrappers for backwards compatibility
 window.setViewMode = function(mode) {
-    appsGrid.setViewMode(mode);
+    window.appsGrid.setViewMode(mode);
 };
 
 window.filterApps = function() {
-    appsGrid.filterApps();
+    window.appsGrid.applyFilters();
 };
 
 window.clearSearch = function() {
-    appsGrid.clearSearch();
+    document.getElementById('search-input').value = '';
+    window.appsGrid.filters.search = '';
+    window.appsGrid.applyFilters();
+};
+
+window.clearFilters = function() {
+    document.getElementById('search-input').value = '';
+    document.getElementById('provider-filter').value = '';
+    document.getElementById('status-filter').value = '';
+    window.appsGrid.filters = { search: '', provider: '', status: '' };
+    window.appsGrid.applyFilters();
 };
 
 window.selectAll = function() {
-    appsGrid.selectAll();
+    window.appsGrid.selectAll();
 };
 
 window.selectNone = function() {
-    appsGrid.selectNone();
+    window.appsGrid.selectNone();
 };
 
 window.refreshAllStatus = function() {
-    appsGrid.refreshAllStatus();
+    window.appsGrid.loadApplications();
 };
 
 window.bulkStartContainers = function() {
-    appsGrid.executeContainerAction('start');
+    console.log('Starting selected containers:', Array.from(window.appsGrid.selectedApps));
 };
 
 window.bulkStopContainers = function() {
-    appsGrid.executeContainerAction('stop');
+    console.log('Stopping selected containers:', Array.from(window.appsGrid.selectedApps));
 };
 
 window.bulkRestartContainers = function() {
-    appsGrid.executeContainerAction('restart');
+    console.log('Restarting selected containers:', Array.from(window.appsGrid.selectedApps));
 };
 
 window.bulkAnalyze = function() {
-    appsGrid.loadAnalysisModal();
-};
-
-window.bulkPerformanceTest = function() {
-    appsGrid.showToast('Performance testing feature coming soon', 'info');
-};
-
-window.startAnalysis = function() {
-    appsGrid.startAnalysis();
-};
-
-window.openAppInNewTab = function() {
-    appsGrid.openAppInNewTab();
-};
-
-window.viewAppFiles = function() {
-    appsGrid.viewAppFiles();
-};
-
-window.executeContainerAction = function() {
-    // This is called from the container actions modal
-    const selectedAction = document.querySelector('input[name="containerAction"]:checked')?.value;
-    const targetApps = JSON.parse(document.getElementById('targetApps').value || '[]');
-    
-    if (selectedAction && targetApps.length > 0) {
-        appsGrid.executeContainerAction(selectedAction, targetApps);
-        bootstrap.Modal.getInstance(document.getElementById('containerActionsModal')).hide();
-    }
-};
-
-// Port mapping and Docker stats functions
-window.showPortMapping = function() {
-    fetch('/api/containers/port-mapping')
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById('portMappingContent').innerHTML = html;
-            const modal = new bootstrap.Modal(document.getElementById('portMappingModal'));
-            modal.show();
-        });
-};
-
-window.showDockerStats = function() {
-    appsGrid.showToast('Docker statistics viewer coming soon', 'info');
+    console.log('Analyzing selected apps:', Array.from(window.appsGrid.selectedApps));
 };
 
 window.exportAppsData = function() {
-    const link = document.createElement('a');
-    link.href = '/api/apps/export';
-    link.download = `applications_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    appsGrid.showToast('Exporting applications data...', 'info');
+    const data = {
+        apps: window.appsGrid.filteredApps,
+        timestamp: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json'
+    });
+    
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `applications_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
 };
 
-window.exportPortMappings = function() {
-    const link = document.createElement('a');
-    link.href = '/api/containers/port-mapping/export';
-    link.download = `port_mappings_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
+window.viewAppDetails = function(appId) {
+    const modal = new bootstrap.Modal(document.getElementById('appDetailModal'));
+    modal.show();
 };
 
-window.cleanupOrphanedContainers = function() {
-    if (confirm('This will remove containers that are no longer associated with applications. Continue?')) {
-        fetch('/api/containers/cleanup-orphaned', { method: 'POST' })
-            .then(response => response.json())
-            .then(data => {
-                appsGrid.showToast(`Cleaned up ${data.removed} orphaned containers`, 'success');
-            });
-    }
+window.analyzeApp = function(appId) {
+    const modal = new bootstrap.Modal(document.getElementById('analysisModal'));
+    modal.show();
+};
+
+window.toggleAppStatus = function(appId) {
+    console.log('Toggling status for app:', appId);
+};
+
+window.startAnalysis = function() {
+    console.log('Starting analysis...');
+    const modal = bootstrap.Modal.getInstance(document.getElementById('analysisModal'));
+    modal.hide();
+};
+
+window.openAppInNewTab = function() {
+    console.log('Opening app in new tab...');
 };
 
 // Initialize apps grid
 let appsGrid;
 document.addEventListener('DOMContentLoaded', function() {
     appsGrid = new AppsGrid();
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    if (appsGrid?.autoRefreshInterval) {
-        clearInterval(appsGrid.autoRefreshInterval);
-    }
+    window.appsGrid = appsGrid;
 });
 </script>
-
-<style>
-.apps-grid-view {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 1.5rem;
-    padding: 1rem 0;
-}
-
-.apps-list-view {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    padding: 1rem 0;
-}
-
-.apps-compact-view {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1rem;
-    padding: 1rem 0;
-}
-
-.app-card {
-    background: white;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    overflow: hidden;
-    transition: all 0.2s ease;
-    position: relative;
-}
-
-.app-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    transform: translateY(-2px);
-}
-
-.app-card.selected {
-    border-color: #007bff;
-    box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
-}
-
-.app-card-header {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    padding: 1rem;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.app-card-body {
-    padding: 1rem;
-}
-
-.app-card-footer {
-    background: #f8f9fa;
-    padding: 0.75rem 1rem;
-    border-top: 1px solid #dee2e6;
-}
-
-.app-status-indicator {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
-}
-
-.app-status-indicator.running {
-    background-color: #28a745;
-    animation: pulse 2s infinite;
-}
-
-.app-status-indicator.stopped {
-    background-color: #6c757d;
-}
-
-.app-status-indicator.building {
-    background-color: #ffc107;
-    animation: pulse 1s infinite;
-}
-
-.app-status-indicator.error {
-    background-color: #dc3545;
-}
-
-.app-select-checkbox {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 10;
-}
-
-.app-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.app-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-    font-size: 0.875rem;
-}
-
-.app-stats {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.app-stat {
-    text-align: center;
-    padding: 0.5rem;
-    background: #f8f9fa;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-}
-
-.app-stat-value {
-    font-weight: bold;
-    color: #007bff;
-    display: block;
-}
-
-.app-stat-label {
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #dee2e6;
-}
-
-@keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
-    }
-    70% {
-        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
-    }
-}
-
-/* List view specific styles */
-.apps-list-view .app-card {
-    display: flex;
-    align-items: center;
-    padding: 1rem;
-}
-
-.apps-list-view .app-card-header {
-    background: none;
-    border: none;
-    padding: 0;
-    margin-right: 2rem;
-    min-width: 200px;
-}
-
-.apps-list-view .app-card-body {
-    flex: 1;
-    padding: 0;
-    margin-right: 2rem;
-}
-
-.apps-list-view .app-card-footer {
-    background: none;
-    border: none;
-    padding: 0;
-    min-width: 300px;
-}
-
-/* Compact view specific styles */
-.apps-compact-view .app-card {
-    min-height: 180px;
-}
-
-.apps-compact-view .app-card-header {
-    padding: 0.75rem;
-}
-
-.apps-compact-view .app-card-body {
-    padding: 0.75rem;
-}
-
-.apps-compact-view .app-actions {
-    flex-wrap: wrap;
-    gap: 0.25rem;
-}
-
-.apps-compact-view .app-actions .btn {
-    flex: 1;
-    min-width: 0;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-}
-</style>
 {% endblock %}

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Thesis Research App{% endblock %}</title>
+    <title>{% block title %}AI Research Platform{% endblock %}</title>
     
     <!-- Bootstrap 5.3.0 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
@@ -25,157 +25,118 @@
     <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","requestTimeout":30000,"historyCacheSize":5}'>
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom_new.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_new.css') }}">
     
     {% block head %}{% endblock %}
 </head>
-<body class="bg-light">
-    <!-- Modern Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm fixed-top">
-        <div class="container-fluid">
-            <!-- Mobile sidebar toggle -->
-            <button class="btn btn-outline-light d-lg-none me-2" 
-                    type="button" 
-                    id="sidebarToggle">
-                <i class="fas fa-bars"></i>
-            </button>
-
-            <!-- Brand -->
-            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('main.dashboard') }}">
-                <i class="fas fa-brain me-2"></i>
-                <span class="fw-bold">AI Research Platform</span>
-            </a>
-
-            <!-- Quick actions dropdown -->
-            <div class="dropdown d-none d-lg-block">
-                <button class="btn btn-outline-light btn-sm dropdown-toggle" 
-                        type="button" 
-                        id="quickActionsDropdown" 
-                        data-bs-toggle="dropdown" 
-                        aria-expanded="false">
-                    <i class="fas fa-plus me-1"></i>Quick Actions
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="quickActionsDropdown">
+<body>
+    <!-- Header/Navbar -->
+    <header class="navbar navbar-dark bg-primary flex-md-nowrap p-0 shadow">
+        <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 text-white" href="{{ url_for('main.dashboard') }}">
+            <i class="fas fa-brain me-2"></i>AI Research Platform
+        </a>
+        
+        <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" 
+                data-bs-toggle="collapse" data-bs-target="#sidebarMenu" 
+                aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        
+        <div class="navbar-nav flex-row ms-auto">
+            <!-- Search -->
+            <div class="nav-item text-nowrap me-3">
+                <input class="form-control form-control-sm" type="search" placeholder="Search..." 
+                       aria-label="Search" style="width: 200px;">
+            </div>
+            
+            <!-- Notifications -->
+            <div class="nav-item dropdown me-3">
+                <a class="nav-link dropdown-toggle text-white" href="#" role="button" 
+                   data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-bell"></i>
+                    <span class="badge bg-danger badge-notification" 
+                          hx-get="{{ url_for('api.api_notifications_count') }}" 
+                          hx-trigger="load, every 30s" 
+                          hx-swap="innerHTML"></span>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end" style="min-width: 300px;">
+                    <li><h6 class="dropdown-header">Recent Activity</h6></li>
                     <li>
-                        <a class="dropdown-item" 
-                           href="#" 
-                           hx-get="{{ url_for('batch.batch_form') }}" 
-                           hx-target="#modal-container">
-                            <i class="fas fa-layer-group me-2"></i>New Batch Analysis
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item" href="{{ url_for('main.testing') }}">
-                            <i class="fas fa-shield-alt me-2"></i>Security Test
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item" href="{{ url_for('main.testing') }}">
-                            <i class="fas fa-tachometer-alt me-2"></i>Performance Test
-                        </a>
-                    </li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li>
-                        <a class="dropdown-item" 
-                           href="#" 
-                           hx-get="{{ url_for('api.dashboard_stats') }}" 
-                           hx-target="#dashboard-stats" 
-                           hx-swap="innerHTML">
-                            <i class="fas fa-sync me-2"></i>Refresh Dashboard
-                        </a>
+                        <div class="dropdown-item-text" 
+                             hx-get="{{ url_for('api.api_tasks_active') }}" 
+                             hx-trigger="load, every 15s" 
+                             hx-swap="innerHTML">
+                            <div class="text-muted">Loading...</div>
+                        </div>
                     </li>
                 </ul>
             </div>
-
-            <!-- System status indicator -->
-            <div class="ms-auto me-3" 
+            
+            <!-- System Status -->
+            <div class="nav-item me-3" 
                  hx-get="{{ url_for('api.system_status') }}" 
                  hx-trigger="load, every 30s" 
                  hx-swap="innerHTML">
                 <span class="badge bg-secondary">Checking...</span>
             </div>
-
-            <!-- Notifications -->
-            <div class="position-relative me-2">
-                <button class="btn btn-outline-light btn-sm" type="button" data-bs-toggle="dropdown">
-                    <i class="fas fa-bell"></i>
-                    <span hx-get="{{ url_for('api.api_notifications_count') }}" 
-                          hx-trigger="load, every 30s" 
-                          hx-swap="innerHTML"></span>
-                </button>
-                <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 300px;">
-                    <h6 class="dropdown-header">Recent Activity</h6>
-                    <div hx-get="{{ url_for('api.api_tasks_active') }}" 
-                         hx-trigger="load, every 15s" 
-                         hx-swap="innerHTML">
-                        <div class="text-muted">Loading...</div>
-                    </div>
-                </div>
-            </div>
-
+            
             <!-- Settings -->
-            <button class="btn btn-outline-light btn-sm" 
-                    type="button" 
-                    data-bs-toggle="modal" 
-                    data-bs-target="#settingsModal">
-                <i class="fas fa-cog"></i>
-            </button>
+            <div class="nav-item">
+                <a class="nav-link text-white" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                    <i class="fas fa-cog"></i>
+                </a>
+            </div>
         </div>
-    </nav>
+    </header>
 
-    <!-- Main Layout Container -->
-    <div class="container-fluid" style="margin-top: 70px;">
+    <!-- Main Container -->
+    <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
-            <div class="col-lg-3 col-xl-2 d-lg-block collapse" id="sidebar">
-                <div class="position-sticky pt-3">
-                    <!-- Navigation Menu -->
-                    <div class="bg-white rounded shadow-sm p-3 mb-3">
-                        <h6 class="text-muted mb-3">Navigation</h6>
-                        <nav class="nav flex-column">
-                            <a class="nav-link d-flex align-items-center py-2" 
-                               href="{{ url_for('main.dashboard') }}">
-                                <i class="fas fa-tachometer-alt me-2 text-primary"></i>
-                                Dashboard
+            <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-body-tertiary sidebar collapse">
+                <div class="position-sticky pt-3 sidebar-sticky">
+                    <!-- Navigation -->
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('main.dashboard') }}">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                             </a>
-                            <a class="nav-link d-flex align-items-center py-2" 
-                               href="{{ url_for('advanced.models_overview') }}">
-                                <i class="fas fa-robot me-2 text-info"></i>
-                                Models Overview
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('advanced.models_overview') }}">
+                                <i class="fas fa-robot me-2"></i>Models Overview
                             </a>
-                            <a class="nav-link d-flex align-items-center py-2" 
-                               href="{{ url_for('advanced.apps_grid') }}">
-                                <i class="fas fa-th-large me-2 text-success"></i>
-                                Applications Grid
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('advanced.apps_grid') }}">
+                                <i class="fas fa-th-large me-2"></i>Applications Grid
                             </a>
-                            <a class="nav-link d-flex align-items-center py-2" 
-                               href="{{ url_for('models.models_overview') }}">
-                                <i class="fas fa-list me-2 text-info"></i>
-                                Models (Legacy)
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('main.testing') }}">
+                                <i class="fas fa-shield-alt me-2"></i>Testing
                             </a>
-                            <a class="nav-link d-flex align-items-center py-2" 
-                               href="{{ url_for('main.testing') }}">
-                                <i class="fas fa-shield-alt me-2 text-warning"></i>
-                                Testing
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('batch.batch_overview') }}">
+                                <i class="fas fa-layer-group me-2"></i>Batch Testing
                             </a>
-                            <a class="nav-link d-flex align-items-center py-2" 
-                               href="{{ url_for('batch.batch_overview') }}">
-                                <i class="fas fa-layer-group me-2 text-secondary"></i>
-                                Batch Testing
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}">
+                                <i class="fas fa-chart-bar me-2"></i>Statistics
                             </a>
-                            <a class="nav-link d-flex align-items-center py-2" 
-                               href="{{ url_for('statistics.statistics_overview') }}">
-                                <i class="fas fa-chart-bar me-2 text-success"></i>
-                                Statistics
-                            </a>
-                        </nav>
-                    </div>
+                        </li>
+                    </ul>
 
-                    <!-- System Status Widget -->
-                    <div class="bg-white rounded shadow-sm p-3 mb-3">
-                        <h6 class="text-muted mb-3">System Health</h6>
-                        <div hx-get="{{ url_for('api.dashboard_system_health') }}?compact=true" 
+                    <!-- System Health Widget -->
+                    <div class="mt-4">
+                        <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-body-secondary text-uppercase">
+                            <span>System Health</span>
+                        </h6>
+                        <div class="px-3" 
+                             hx-get="{{ url_for('api.dashboard_system_health') }}?compact=true" 
                              hx-trigger="load, every 30s" 
                              hx-swap="innerHTML">
                             <div class="text-center">
@@ -187,9 +148,12 @@
                     </div>
 
                     <!-- Quick Stats Widget -->
-                    <div class="bg-white rounded shadow-sm p-3 mb-3">
-                        <h6 class="text-muted mb-3">Quick Stats</h6>
-                        <div hx-get="{{ url_for('api.sidebar_stats') }}" 
+                    <div class="mt-4">
+                        <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-body-secondary text-uppercase">
+                            <span>Quick Stats</span>
+                        </h6>
+                        <div class="px-3" 
+                             hx-get="{{ url_for('api.sidebar_stats') }}" 
                              hx-trigger="load, every 60s" 
                              hx-swap="innerHTML">
                             <div class="text-center">
@@ -199,28 +163,13 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- Recent Activity Widget -->
-                    <div class="bg-white rounded shadow-sm p-3">
-                        <h6 class="text-muted mb-3">Recent Activity</h6>
-                        <div hx-get="{{ url_for('api.recent_activity') }}" 
-                             hx-trigger="load, every 45s" 
-                             hx-swap="innerHTML" 
-                             style="max-height: 300px; overflow-y: auto;">
-                            <div class="text-center">
-                                <div class="spinner-border spinner-border-sm" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
-            </div>
+            </nav>
 
             <!-- Main Content Area -->
-            <main class="col-lg-9 col-xl-10">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
                 <!-- Flash Messages -->
-                <div id="flash-messages" class="mb-3">
+                <div id="flash-messages" class="mt-3 mb-3">
                     {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
                             {% for category, message in messages %}
@@ -346,42 +295,43 @@
     <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
     
     <script>
-        // Global application state and functions
-        window.AppState = {
-            settings: {
-                autoRefresh: 30,
-                darkMode: false,
-                compactMode: false
-            },
-            intervals: {},
+        // Dashboard Application State
+        class DashboardApp {
+            constructor() {
+                this.settings = {
+                    autoRefresh: 30,
+                    darkMode: false,
+                    compactMode: false
+                };
+                this.intervals = {};
+                this.init();
+            }
+
             init() {
                 this.loadSettings();
                 this.setupEventListeners();
                 this.startAutoRefresh();
                 this.setActiveNavLink();
-            },
-            
+                this.initializeTooltips();
+            }
+
             loadSettings() {
-                // Load settings from localStorage
-                const saved = localStorage.getItem('appSettings');
+                const saved = localStorage.getItem('dashboardSettings');
                 if (saved) {
                     this.settings = { ...this.settings, ...JSON.parse(saved) };
                 }
                 this.applySettings();
-            },
-            
+            }
+
             saveSettings() {
-                localStorage.setItem('appSettings', JSON.stringify(this.settings));
+                localStorage.setItem('dashboardSettings', JSON.stringify(this.settings));
                 this.applySettings();
                 this.restartAutoRefresh();
                 this.showToast('Settings saved successfully', 'success');
-            },
-            
+            }
+
             applySettings() {
-                // Apply dark mode
                 document.body.classList.toggle('dark-mode', this.settings.darkMode);
-                
-                // Apply compact mode
                 document.body.classList.toggle('compact-mode', this.settings.compactMode);
                 
                 // Update form controls
@@ -392,8 +342,8 @@
                 if (refreshSelect) refreshSelect.value = this.settings.autoRefresh;
                 if (darkModeToggle) darkModeToggle.checked = this.settings.darkMode;
                 if (compactModeToggle) compactModeToggle.checked = this.settings.compactMode;
-            },
-            
+            }
+
             setupEventListeners() {
                 // Settings form handlers
                 const refreshSelect = document.getElementById('autoRefreshInterval');
@@ -418,20 +368,10 @@
                     });
                 }
                 
-                // Global HTMX event handlers
-                document.body.addEventListener('htmx:beforeRequest', (event) => {
-                    this.showLoadingIndicator(event.target);
-                });
-                
-                document.body.addEventListener('htmx:afterRequest', (event) => {
-                    this.hideLoadingIndicator(event.target);
-                    
-                    if (event.detail.xhr.status >= 400) {
-                        this.showToast(`Error: ${event.detail.xhr.status} ${event.detail.xhr.statusText}`, 'danger');
-                    }
-                });
-                
-                document.body.addEventListener('htmx:responseError', (event) => {
+                // HTMX event handlers
+                document.body.addEventListener('htmx:beforeRequest', this.showLoadingState);
+                document.body.addEventListener('htmx:afterRequest', this.hideLoadingState);
+                document.body.addEventListener('htmx:responseError', () => {
                     this.showToast('Network error occurred', 'danger');
                 });
                 
@@ -443,90 +383,55 @@
                                 e.preventDefault();
                                 this.refreshDashboard();
                                 break;
-                            case 'h':
-                                e.preventDefault();
-                                this.showSystemHealth();
-                                break;
                             case ',':
                                 e.preventDefault();
                                 this.showSettings();
                                 break;
                         }
                     }
-                    
-                    if (e.key === 'Escape') {
-                        // Close any open modals
-                        const modals = document.querySelectorAll('.modal.show');
-                        modals.forEach(modal => {
-                            const bsModal = bootstrap.Modal.getInstance(modal);
-                            if (bsModal) bsModal.hide();
-                        });
-                    }
                 });
-            },
-            
+            }
+
             startAutoRefresh() {
                 this.stopAutoRefresh();
-                
                 if (this.settings.autoRefresh > 0) {
                     this.intervals.autoRefresh = setInterval(() => {
                         this.triggerRefresh();
                     }, this.settings.autoRefresh * 1000);
                 }
-            },
-            
+            }
+
             stopAutoRefresh() {
                 if (this.intervals.autoRefresh) {
                     clearInterval(this.intervals.autoRefresh);
                     delete this.intervals.autoRefresh;
                 }
-            },
-            
+            }
+
             restartAutoRefresh() {
                 this.stopAutoRefresh();
                 this.startAutoRefresh();
-            },
-            
+            }
+
             triggerRefresh() {
-                // Trigger refresh for all auto-refreshing elements
                 const elements = document.querySelectorAll('[hx-trigger*="every"]');
                 elements.forEach(element => {
                     if (typeof htmx !== 'undefined') {
                         htmx.trigger(element, 'refresh');
                     }
                 });
-            },
-            
+            }
+
             refreshDashboard() {
                 this.triggerRefresh();
                 this.showToast('Dashboard refreshed', 'info');
-            },
-            
+            }
+
             showSettings() {
                 const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
                 modal.show();
-            },
-            
-            showSystemHealth() {
-                const modal = new bootstrap.Modal(document.getElementById('systemHealthModal'));
-                modal.show();
-            },
-            
-            showLoadingIndicator(element) {
-                if (element.hasAttribute('data-loading')) {
-                    const original = element.innerHTML;
-                    element.dataset.originalContent = original;
-                    element.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Loading...';
-                }
-            },
-            
-            hideLoadingIndicator(element) {
-                if (element.dataset.originalContent) {
-                    element.innerHTML = element.dataset.originalContent;
-                    delete element.dataset.originalContent;
-                }
-            },
-            
+            }
+
             setActiveNavLink() {
                 const currentPath = window.location.pathname;
                 const navLinks = document.querySelectorAll('.nav-link');
@@ -540,26 +445,49 @@
                         link.classList.add('active');
                     }
                 });
-            },
-            
+            }
+
+            initializeTooltips() {
+                const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.map(function(tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
+                });
+            }
+
+            showLoadingState(event) {
+                const target = event.target;
+                if (target.hasAttribute('data-loading')) {
+                    target.classList.add('loading');
+                }
+            }
+
+            hideLoadingState(event) {
+                const target = event.target;
+                target.classList.remove('loading');
+                
+                if (event.detail.xhr.status >= 400) {
+                    window.dashboardApp.showToast(`Error: ${event.detail.xhr.status} ${event.detail.xhr.statusText}`, 'danger');
+                }
+            }
+
             showToast(message, type = 'info') {
+                const toastContainer = document.getElementById('toast-container') || this.createToastContainer();
+                
                 const toast = document.createElement('div');
-                toast.className = `toast align-items-center text-bg-${type} border-0 position-fixed top-0 end-0 m-3`;
-                toast.style.zIndex = '1056';
+                toast.className = `toast align-items-center text-bg-${type} border-0`;
                 toast.setAttribute('role', 'alert');
                 toast.setAttribute('aria-live', 'assertive');
                 toast.setAttribute('aria-atomic', 'true');
                 
                 toast.innerHTML = `
                     <div class="d-flex">
-                        <div class="toast-body">
-                            ${message}
-                        </div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        <div class="toast-body">${message}</div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                                data-bs-dismiss="toast" aria-label="Close"></button>
                     </div>
                 `;
                 
-                document.body.appendChild(toast);
+                toastContainer.appendChild(toast);
                 
                 const bsToast = new bootstrap.Toast(toast, {
                     autohide: true,
@@ -567,84 +495,56 @@
                 });
                 bsToast.show();
                 
-                // Remove element after hiding
                 toast.addEventListener('hidden.bs.toast', () => {
                     toast.remove();
                 });
             }
-        };
+
+            createToastContainer() {
+                const container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'toast-container position-fixed top-0 end-0 p-3';
+                container.style.zIndex = '1080';
+                document.body.appendChild(container);
+                return container;
+            }
+        }
         
         // Global functions for backward compatibility
         window.saveSettings = function() {
-            AppState.saveSettings();
+            window.dashboardApp.saveSettings();
             const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
             if (modal) modal.hide();
         };
         
         window.showSystemHealth = function() {
-            AppState.showSystemHealth();
+            const modal = new bootstrap.Modal(document.getElementById('systemHealthModal'));
+            modal.show();
         };
         
-        window.showLoadingOverlay = function() {
-            document.getElementById('loading-overlay').classList.remove('d-none');
-        };
-        
-        window.hideLoadingOverlay = function() {
-            document.getElementById('loading-overlay').classList.add('d-none');
-        };
-        
-        // Initialize application when DOM is ready
+        // Initialize application
         document.addEventListener('DOMContentLoaded', function() {
-            AppState.init();
-            
-            // Initialize sidebar toggle
-            initializeSidebarToggle();
-            
-            // Initialize Bootstrap tooltips
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(function(tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
+            window.dashboardApp = new DashboardApp();
         });
-        
-        // Sidebar toggle function
-        function initializeSidebarToggle() {
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            const sidebar = document.getElementById('sidebar');
-            
-            if (sidebarToggle && sidebar) {
-                sidebarToggle.addEventListener('click', function() {
-                    sidebar.classList.toggle('show');
-                });
-                
-                // Close sidebar when clicking outside on mobile
-                document.addEventListener('click', function(event) {
-                    if (window.innerWidth < 992) {
-                        if (!sidebar.contains(event.target) && !sidebarToggle.contains(event.target)) {
-                            sidebar.classList.remove('show');
-                        }
-                    }
-                });
-            }
-        }
         
         // Handle page visibility for auto-refresh
         document.addEventListener('visibilitychange', function() {
-            if (document.hidden) {
-                AppState.stopAutoRefresh();
-            } else {
-                AppState.startAutoRefresh();
+            if (window.dashboardApp) {
+                if (document.hidden) {
+                    window.dashboardApp.stopAutoRefresh();
+                } else {
+                    window.dashboardApp.startAutoRefresh();
+                }
             }
         });
         
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
-            AppState.stopAutoRefresh();
+            if (window.dashboardApp) {
+                window.dashboardApp.stopAutoRefresh();
+            }
         });
     </script>
-
-    <!-- Dashboard JavaScript -->
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>
