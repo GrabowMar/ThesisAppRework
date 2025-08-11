@@ -3,364 +3,454 @@
 {% block title %}System Status - AI Research Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="page-header">
-        <div>
-            <h1 class="page-title">
-                <i class="fas fa-server text-primary mr-2"></i>
-                System Status
-            </h1>
-            <p class="page-subtitle">
-                Real-time system health and performance monitoring
-            </p>
-        </div>
-        
-        <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm" 
-                    onclick="refreshAllStatus()">
-                <i class="fas fa-sync-alt mr-1"></i>
-                Refresh All
-            </button>
-            <button type="button" class="btn btn-info btn-sm" 
-                    onclick="exportStatusReport()">
-                <i class="fas fa-download mr-1"></i>
-                Export Report
-            </button>
-            <div class="dropdown">
-                <button class="btn btn-primary btn-sm dropdown-toggle" type="button" 
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-cogs mr-1"></i>
-                    Actions
-                </button>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" onclick="runFullDiagnostics()">
-                        <i class="fas fa-stethoscope mr-2"></i>Run Full Diagnostics
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="clearSystemCache()">
-                        <i class="fas fa-trash mr-2"></i>Clear System Cache
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" onclick="restartServices()">
-                        <i class="fas fa-redo mr-2"></i>Restart Services
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="showMaintenanceMode()">
-                        <i class="fas fa-tools mr-2"></i>Maintenance Mode
-                    </a>
-                </div>
+<!-- Content Header (Page header) -->
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1><i class="fas fa-server mr-2"></i>System Status</h1>
+            </div>
+            <div class="col-sm-6">
+                <ol class="breadcrumb float-sm-right">
+                    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">System Status</li>
+                </ol>
             </div>
         </div>
-    </div>
-
-    <!-- Overall Health Status -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <div class="d-flex align-items-center">
-                                <div class="health-indicator mr-3" id="overall-health-indicator">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <h4 class="mb-1" id="overall-health-title">Checking System Health...</h4>
-                                    <p class="text-muted mb-0" id="overall-health-description">
-                                        Please wait while we assess system status
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 text-md-right">
-                            <div class="system-uptime">
-                                <div class="h5 mb-1" id="system-uptime">--:--:--</div>
-                                <small class="text-muted">System Uptime</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Service Status Grid -->
-    <div class="row mb-4">
-        <!-- Core Services -->
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-cogs mr-2"></i>
-                        Core Services
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <div id="core-services-status" 
-                         hx-get="/api/status/core-services" 
-                         hx-trigger="load, every 30s">
-                        <div class="text-center py-4">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <div class="mt-2 text-muted">Loading core services...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Database Status -->
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-database mr-2"></i>
-                        Database Status
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <div id="database-status" 
-                         hx-get="/api/status/database" 
-                         hx-trigger="load, every 45s">
-                        <div class="text-center py-4">
-                            <div class="spinner-border text-info" role="status"></div>
-                            <div class="mt-2 text-muted">Checking database...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- System Resources -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-chart-area mr-2"></i>
-                            System Resources
-                        </h5>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="refreshResourceUsage()">
-                            <i class="fas fa-sync mr-1"></i> Refresh
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="system-resources" 
-                         hx-get="/api/status/resources" 
-                         hx-trigger="load, every 15s">
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <div class="progress-circle">
-                                        <div class="spinner-border text-primary" role="status"></div>
-                                    </div>
-                                    <div class="mt-2">
-                                        <div class="h6">CPU</div>
-                                        <small class="text-muted">Loading...</small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <div class="progress-circle">
-                                        <div class="spinner-border text-success" role="status"></div>
-                                    </div>
-                                    <div class="mt-2">
-                                        <div class="h6">Memory</div>
-                                        <small class="text-muted">Loading...</small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <div class="progress-circle">
-                                        <div class="spinner-border text-warning" role="status"></div>
-                                    </div>
-                                    <div class="mt-2">
-                                        <div class="h6">Disk</div>
-                                        <small class="text-muted">Loading...</small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <div class="progress-circle">
-                                        <div class="spinner-border text-info" role="status"></div>
-                                    </div>
-                                    <div class="mt-2">
-                                        <div class="h6">Network</div>
-                                        <small class="text-muted">Loading...</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Docker & Container Status -->
-    <div class="row mb-4">
-        <div class="col-lg-8 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fab fa-docker mr-2"></i>
-                        Docker Infrastructure
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <div id="docker-infrastructure" 
-                         hx-get="/api/status/docker" 
-                         hx-trigger="load, every 30s">
-                        <div class="text-center py-4">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <div class="mt-2 text-muted">Checking Docker status...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- System Logs -->
-        <div class="col-lg-4 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-file-alt mr-2"></i>
-                            Recent Logs
-                        </h5>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="viewFullLogs()">
-                            <i class="fas fa-external-link-alt mr-1"></i> View All
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div id="recent-logs" 
-                         hx-get="/api/status/logs" 
-                         hx-trigger="load, every 10s"
-                         style="max-height: 400px; overflow-y: auto;">
-                        <div class="text-center py-4">
-                            <div class="spinner-border text-secondary" role="status"></div>
-                            <div class="mt-2 text-muted">Loading logs...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Network & Security Status -->
-    <div class="row mb-4">
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-network-wired mr-2"></i>
-                        Network Status
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="network-status" 
-                         hx-get="/api/status/network" 
-                         hx-trigger="load, every 60s">
-                        <div class="text-center py-3">
-                            <div class="spinner-border text-info" role="status"></div>
-                            <div class="mt-2 text-muted">Checking network...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-shield-alt mr-2"></i>
-                        Security Status
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="security-status" 
-                         hx-get="/api/status/security" 
-                         hx-trigger="load, every 120s">
-                        <div class="text-center py-3">
-                            <div class="spinner-border text-warning" role="status"></div>
-                            <div class="mt-2 text-muted">Checking security...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Performance Metrics -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-tachometer-alt mr-2"></i>
-                        Performance Metrics
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="performance-metrics" 
-                         hx-get="/api/status/performance" 
-                         hx-trigger="load, every 30s">
-                        <div class="row">
-                            <div class="col-md-3 text-center">
-                                <div class="metric-card">
-                                    <div class="spinner-border text-primary mb-2" role="status"></div>
-                                    <div class="h6">Response Time</div>
-                                    <small class="text-muted">Loading...</small>
-                                </div>
-                            </div>
-                            <div class="col-md-3 text-center">
-                                <div class="metric-card">
-                                    <div class="spinner-border text-success mb-2" role="status"></div>
-                                    <div class="h6">Throughput</div>
-                                    <small class="text-muted">Loading...</small>
-                                </div>
-                            </div>
-                            <div class="col-md-3 text-center">
-                                <div class="metric-card">
-                                    <div class="spinner-border text-warning mb-2" role="status"></div>
-                                    <div class="h6">Error Rate</div>
-                                    <small class="text-muted">Loading...</small>
-                                </div>
-                            </div>
-                            <div class="col-md-3 text-center">
-                                <div class="metric-card">
-                                    <div class="spinner-border text-info mb-2" role="status"></div>
-                                    <div class="h6">Active Users</div>
-                                    <small class="text-muted">Loading...</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="row">
+            <div class="col-sm-12">
+                <p class="text-muted">Real-time system health and performance monitoring</p>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Main content -->
+<section class="content">
+    <div class="container-fluid">
+        <!-- Action Buttons -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-default" onclick="refreshAllStatus()">
+                        <i class="fas fa-sync-alt mr-1"></i> Refresh All
+                    </button>
+                    <button type="button" class="btn btn-info" onclick="exportStatusReport()">
+                        <i class="fas fa-download mr-1"></i> Export Report
+                    </button>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+                            <i class="fas fa-cogs mr-1"></i> Actions
+                        </button>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item" href="#" onclick="runFullDiagnostics()">
+                                <i class="fas fa-stethoscope mr-2"></i>Run Full Diagnostics
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="clearSystemCache()">
+                                <i class="fas fa-trash mr-2"></i>Clear System Cache
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#" onclick="restartServices()">
+                                <i class="fas fa-redo mr-2"></i>Restart Services
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="showMaintenanceMode()">
+                                <i class="fas fa-tools mr-2"></i>Maintenance Mode
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overall Health Status -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card card-primary card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-heartbeat mr-2"></i>Overall System Health
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" onclick="refreshOverallHealth()">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <div class="d-flex align-items-center">
+                                    <div class="health-indicator mr-3" id="overall-health-indicator">
+                                        <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="mb-1" id="overall-health-title">Checking System Health...</h4>
+                                        <p class="text-muted mb-0" id="overall-health-description">
+                                            Please wait while we assess system status
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-right">
+                                <div class="info-box bg-light">
+                                    <span class="info-box-icon bg-info">
+                                        <i class="fas fa-clock"></i>
+                                    </span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">System Uptime</span>
+                                        <span class="info-box-number" id="system-uptime">--:--:--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Status Grid -->
+        <div class="row">
+            <!-- Core Services -->
+            <div class="col-lg-6 mb-4">
+                <div class="card card-success card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-cogs mr-2"></i>Core Services
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="core-services-status" 
+                             hx-get="/api/status/core-services" 
+                             hx-trigger="load, every 30s">
+                            <div class="overlay">
+                                <i class="fas fa-2x fa-sync-alt fa-spin"></i>
+                            </div>
+                            <div class="text-center py-4">
+                                <div class="text-muted">Loading core services...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Status -->
+            <div class="col-lg-6 mb-4">
+                <div class="card card-info card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-database mr-2"></i>Database Status
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="database-status" 
+                             hx-get="/api/status/database" 
+                             hx-trigger="load, every 45s">
+                            <div class="overlay">
+                                <i class="fas fa-2x fa-sync-alt fa-spin"></i>
+                            </div>
+                            <div class="text-center py-4">
+                                <div class="text-muted">Checking database...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Resources -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card card-warning card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-area mr-2"></i>System Resources
+                        </h3>
+                        <div class="card-tools">
+                            <button class="btn btn-tool" onclick="refreshResourceUsage()">
+                                <i class="fas fa-sync mr-1"></i>
+                            </button>
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="system-resources" 
+                             hx-get="/api/status/resources" 
+                             hx-trigger="load, every 15s">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="info-box">
+                                        <span class="info-box-icon bg-primary">
+                                            <i class="fas fa-microchip"></i>
+                                        </span>
+                                        <div class="info-box-content">
+                                            <span class="info-box-text">CPU Usage</span>
+                                            <span class="info-box-number">Loading...</span>
+                                            <div class="progress">
+                                                <div class="progress-bar bg-primary" style="width: 0%"></div>
+                                            </div>
+                                            <span class="progress-description">System Load</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="info-box">
+                                        <span class="info-box-icon bg-success">
+                                            <i class="fas fa-memory"></i>
+                                        </span>
+                                        <div class="info-box-content">
+                                            <span class="info-box-text">Memory</span>
+                                            <span class="info-box-number">Loading...</span>
+                                            <div class="progress">
+                                                <div class="progress-bar bg-success" style="width: 0%"></div>
+                                            </div>
+                                            <span class="progress-description">RAM Usage</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="info-box">
+                                        <span class="info-box-icon bg-warning">
+                                            <i class="fas fa-hdd"></i>
+                                        </span>
+                                        <div class="info-box-content">
+                                            <span class="info-box-text">Disk Space</span>
+                                            <span class="info-box-number">Loading...</span>
+                                            <div class="progress">
+                                                <div class="progress-bar bg-warning" style="width: 0%"></div>
+                                            </div>
+                                            <span class="progress-description">Storage Used</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="info-box">
+                                        <span class="info-box-icon bg-info">
+                                            <i class="fas fa-network-wired"></i>
+                                        </span>
+                                        <div class="info-box-content">
+                                            <span class="info-box-text">Network I/O</span>
+                                            <span class="info-box-number">Loading...</span>
+                                            <div class="progress">
+                                                <div class="progress-bar bg-info" style="width: 0%"></div>
+                                            </div>
+                                            <span class="progress-description">Bandwidth</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Docker & Container Status and Logs -->
+        <div class="row mb-4">
+            <div class="col-lg-8 mb-4">
+                <div class="card card-dark card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fab fa-docker mr-2"></i>Docker Infrastructure
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="docker-infrastructure" 
+                             hx-get="/api/status/docker" 
+                             hx-trigger="load, every 30s">
+                            <div class="overlay">
+                                <i class="fas fa-2x fa-sync-alt fa-spin"></i>
+                            </div>
+                            <div class="text-center py-4">
+                                <div class="text-muted">Checking Docker status...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Logs -->
+            <div class="col-lg-4 mb-4">
+                <div class="card card-secondary card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-file-alt mr-2"></i>Recent Logs
+                        </h3>
+                        <div class="card-tools">
+                            <button class="btn btn-tool" onclick="viewFullLogs()">
+                                <i class="fas fa-external-link-alt mr-1"></i>
+                            </button>
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                        <div id="recent-logs" 
+                             hx-get="/api/status/logs" 
+                             hx-trigger="load, every 10s">
+                            <div class="overlay">
+                                <i class="fas fa-2x fa-sync-alt fa-spin"></i>
+                            </div>
+                            <div class="text-center py-4">
+                                <div class="text-muted">Loading logs...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Network & Security Status -->
+        <div class="row mb-4">
+            <div class="col-lg-6 mb-4">
+                <div class="card card-info card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-network-wired mr-2"></i>Network Status
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="network-status" 
+                             hx-get="/api/status/network" 
+                             hx-trigger="load, every 60s">
+                            <div class="text-center py-3">
+                                <i class="fas fa-spinner fa-spin fa-2x text-info"></i>
+                                <div class="mt-2 text-muted">Checking network...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6 mb-4">
+                <div class="card card-warning card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-shield-alt mr-2"></i>Security Status
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="security-status" 
+                             hx-get="/api/status/security" 
+                             hx-trigger="load, every 120s">
+                            <div class="text-center py-3">
+                                <i class="fas fa-spinner fa-spin fa-2x text-warning"></i>
+                                <div class="mt-2 text-muted">Checking security...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card card-success card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Performance Metrics
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="performance-metrics" 
+                             hx-get="/api/status/performance" 
+                             hx-trigger="load, every 30s">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="small-box bg-primary">
+                                        <div class="inner">
+                                            <h3 id="response-time">--</h3>
+                                            <p>Response Time</p>
+                                        </div>
+                                        <div class="icon">
+                                            <i class="fas fa-clock"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="small-box bg-success">
+                                        <div class="inner">
+                                            <h3 id="throughput">--</h3>
+                                            <p>Throughput</p>
+                                        </div>
+                                        <div class="icon">
+                                            <i class="fas fa-rocket"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="small-box bg-warning">
+                                        <div class="inner">
+                                            <h3 id="error-rate">--</h3>
+                                            <p>Error Rate</p>
+                                        </div>
+                                        <div class="icon">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="small-box bg-info">
+                                        <div class="inner">
+                                            <h3 id="active-users">--</h3>
+                                            <p>Active Users</p>
+                                        </div>
+                                        <div class="icon">
+                                            <i class="fas fa-users"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
 <!-- Maintenance Mode Modal -->
-<div class="modal fade" id="maintenanceModeModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="maintenanceModeModal" tabindex="-1" role="dialog">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-tools mr-2"></i>
-                    Maintenance Mode
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h4 class="modal-title">
+                    <i class="fas fa-tools mr-2"></i>Maintenance Mode
+                </h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-warning">
@@ -388,10 +478,9 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-warning" onclick="enableMaintenanceMode()">
-                    <i class="fas fa-tools mr-1"></i>
-                    Enable Maintenance Mode
+                    <i class="fas fa-tools mr-1"></i>Enable Maintenance Mode
                 </button>
             </div>
         </div>
@@ -399,31 +488,28 @@
 </div>
 
 <!-- Full Diagnostics Modal -->
-<div class="modal fade" id="diagnosticsModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="diagnosticsModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-stethoscope mr-2"></i>
-                    Full System Diagnostics
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h4 class="modal-title">
+                    <i class="fas fa-stethoscope mr-2"></i>Full System Diagnostics
+                </h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body" id="diagnostics-content">
                 <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
+                    <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
                     <div class="mt-2">Running comprehensive diagnostics...</div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-primary" onclick="runFullDiagnostics()">
-                    <i class="fas fa-redo mr-1"></i>
-                    Re-run Diagnostics
+                    <i class="fas fa-redo mr-1"></i>Re-run Diagnostics
                 </button>
                 <button type="button" class="btn btn-info" onclick="exportDiagnostics()">
-                    <i class="fas fa-download mr-1"></i>
-                    Export Results
+                    <i class="fas fa-download mr-1"></i>Export Results
                 </button>
             </div>
         </div>
@@ -432,330 +518,327 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-// System Status Page JavaScript
-class SystemStatusPage {
-    constructor() {
-        this.autoRefreshInterval = null;
-        this.refreshRate = 30000; // 30 seconds
-        this.init();
-    }
-
-    init() {
-        this.setupEventListeners();
-        this.setupAutoRefresh();
-        this.loadOverallHealth();
-    }
-
-    setupEventListeners() {
-        // HTMX event listeners
-        document.addEventListener('htmx:afterRequest', (e) => {
-            this.handleHTMXResponse(e);
-        });
-    }
-
-    handleHTMXResponse(event) {
-        const target = event.detail.target;
-        if (target && target.id === 'overall-health-indicator') {
-            this.updateOverallHealthDisplay();
-        }
-    }
-
-    async loadOverallHealth() {
-        try {
-            const response = await fetch('/api/status/overall-health');
-            const health = await response.json();
-            this.updateOverallHealthDisplay(health);
-        } catch (error) {
-            console.error('Failed to load overall health:', error);
-            this.updateOverallHealthDisplay(null);
-        }
-    }
-
-    updateOverallHealthDisplay(health = null) {
-        const indicator = document.getElementById('overall-health-indicator');
-        const title = document.getElementById('overall-health-title');
-        const description = document.getElementById('overall-health-description');
-
-        if (!health) {
-            indicator.innerHTML = '<i class="fas fa-exclamation-triangle fa-2x text-danger"></i>';
-            title.textContent = 'System Health Check Failed';
-            description.textContent = 'Unable to retrieve system status information';
-            return;
-        }
-
-        // Update health indicator
-        if (health.status === 'healthy') {
-            indicator.innerHTML = '<i class="fas fa-check-circle fa-2x text-success"></i>';
-            title.textContent = 'All Systems Operational';
-            description.textContent = 'All services are running normally';
-        } else if (health.status === 'warning') {
-            indicator.innerHTML = '<i class="fas fa-exclamation-triangle fa-2x text-warning"></i>';
-            title.textContent = 'System Warning';
-            description.textContent = health.message || 'Some services may be experiencing issues';
-        } else {
-            indicator.innerHTML = '<i class="fas fa-times-circle fa-2x text-danger"></i>';
-            title.textContent = 'System Issues Detected';
-            description.textContent = health.message || 'Critical issues require attention';
-        }
-
-        // Update uptime
-        if (health.uptime) {
-            document.getElementById('system-uptime').textContent = health.uptime;
-        }
-    }
-
-    setupAutoRefresh() {
-        this.autoRefreshInterval = setInterval(() => {
-            this.loadOverallHealth();
-        }, this.refreshRate);
-    }
-
-    refreshAll() {
-        // Refresh all HTMX panels
-        htmx.trigger('#core-services-status', 'htmx:refresh');
-        htmx.trigger('#database-status', 'htmx:refresh');
-        htmx.trigger('#system-resources', 'htmx:refresh');
-        htmx.trigger('#docker-infrastructure', 'htmx:refresh');
-        htmx.trigger('#recent-logs', 'htmx:refresh');
-        htmx.trigger('#network-status', 'htmx:refresh');
-        htmx.trigger('#security-status', 'htmx:refresh');
-        htmx.trigger('#performance-metrics', 'htmx:refresh');
+<script type="text/hyperscript">
+    -- System status management with enhanced AdminLTE integration
+    behavior SystemStatusManager
+        init
+            set my autoRefreshInterval to null
+            set my refreshRate to 30000
+            call setupAutoRefresh()
+            call loadOverallHealth()
+        end
         
-        this.loadOverallHealth();
-        this.showToast('All status panels refreshed', 'info');
-    }
-
-    showToast(message, type = 'info', duration = 5000) {
-        const typeMapping = {
-            'info': 'primary',
-            'error': 'danger',
-            'danger': 'danger',
-            'warning': 'warning',
-            'success': 'success'
-        };
+        def setupAutoRefresh()
+            if my autoRefreshInterval
+                js(clearInterval(my autoRefreshInterval))
+            end
+            set my autoRefreshInterval to js(setInterval(() => {
+                this.loadOverallHealth();
+            }, my refreshRate))
+        end
         
-        const toastType = typeMapping[type] || type;
+        def loadOverallHealth()
+            fetch '/api/status/overall-health' then
+                if it.ok
+                    get it.json() then call updateOverallHealthDisplay(it)
+                else
+                    call updateOverallHealthDisplay(null)
+                end
+            end catch error
+                log 'Failed to load overall health:', error
+                call updateOverallHealthDisplay(null)
+            end
+        end
         
-        const toastHtml = `
-            <div class="toast align-items-center text-white bg-${toastType} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
-            toastContainer.style.zIndex = '1055';
-            document.body.appendChild(toastContainer);
-        }
-
-        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-        const toastElement = toastContainer.lastElementChild;
-        const toast = new bootstrap.Toast(toastElement, { delay: duration });
-        toast.show();
-
-        toastElement.addEventListener('hidden.bs.toast', () => {
-            toastElement.remove();
-        });
-    }
-}
-
-// Global functions
-window.refreshAllStatus = function() {
-    systemStatusPage.refreshAll();
-};
-
-window.refreshResourceUsage = function() {
-    htmx.trigger('#system-resources', 'htmx:refresh');
-};
-
-window.runFullDiagnostics = function() {
-    const modal = new bootstrap.Modal(document.getElementById('diagnosticsModal'));
-    modal.show();
+        def updateOverallHealthDisplay(health)
+            get #overall-health-indicator then set indicator to it
+            get #overall-health-title then set title to it
+            get #overall-health-description then set description to it
+            
+            if not health
+                set indicator's innerHTML to '<i class="fas fa-exclamation-triangle fa-2x text-danger"></i>'
+                set title's textContent to 'System Health Check Failed'
+                set description's textContent to 'Unable to retrieve system status information'
+                exit
+            end
+            
+            if health.status is 'healthy'
+                set indicator's innerHTML to '<i class="fas fa-check-circle fa-2x text-success"></i>'
+                set title's textContent to 'All Systems Operational'
+                set description's textContent to 'All services are running normally'
+            else if health.status is 'warning'
+                set indicator's innerHTML to '<i class="fas fa-exclamation-triangle fa-2x text-warning"></i>'
+                set title's textContent to 'System Warning'
+                set description's textContent to (health.message or 'Some services may be experiencing issues')
+            else
+                set indicator's innerHTML to '<i class="fas fa-times-circle fa-2x text-danger"></i>'
+                set title's textContent to 'System Issues Detected'
+                set description's textContent to (health.message or 'Critical issues require attention')
+            end
+            
+            if health.uptime
+                set #system-uptime's textContent to health.uptime
+            end
+        end
+        
+        def refreshAll()
+            trigger htmx:refresh on #core-services-status
+            trigger htmx:refresh on #database-status
+            trigger htmx:refresh on #system-resources
+            trigger htmx:refresh on #docker-infrastructure
+            trigger htmx:refresh on #recent-logs
+            trigger htmx:refresh on #network-status
+            trigger htmx:refresh on #security-status
+            trigger htmx:refresh on #performance-metrics
+            
+            call loadOverallHealth()
+            call showToast('All status panels refreshed', 'info')
+        end
+        
+        def showToast(message, type)
+            js(
+                $(document).Toasts('create', {
+                    class: 'bg-' + type,
+                    title: 'System Status',
+                    body: message,
+                    autohide: true,
+                    delay: 5000
+                })
+            )
+        end
+        
+        on beforeunload from window
+            if my autoRefreshInterval
+                js(clearInterval(my autoRefreshInterval))
+            end
+        end
+    end
     
-    fetch('/api/status/full-diagnostics', { method: 'POST' })
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById('diagnostics-content').innerHTML = html;
-        })
-        .catch(error => {
-            document.getElementById('diagnostics-content').innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle mr-2"></i>
-                    Failed to run diagnostics: ${error.message}
-                </div>
-            `;
-        });
-};
-
-window.exportDiagnostics = function() {
-    const link = document.createElement('a');
-    link.href = '/api/status/export-diagnostics';
-    link.download = `system_diagnostics_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    systemStatusPage.showToast('Diagnostics report exported', 'success');
-};
-
-window.exportStatusReport = function() {
-    const link = document.createElement('a');
-    link.href = '/api/status/export-report';
-    link.download = `system_status_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    systemStatusPage.showToast('Status report exported', 'success');
-};
-
-window.clearSystemCache = function() {
-    if (confirm('Are you sure you want to clear the system cache? This may temporarily impact performance.')) {
-        fetch('/api/status/clear-cache', { method: 'POST' })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    systemStatusPage.showToast('System cache cleared successfully', 'success');
-                } else {
-                    systemStatusPage.showToast('Failed to clear cache: ' + data.error, 'danger');
-                }
+    -- Apply behavior to page
+    on load
+        add @SystemStatusManager to body
+    end
+    
+    -- Global functions for button clicks
+    def refreshAllStatus()
+        trigger refreshAll on body
+    end
+    
+    def refreshOverallHealth()
+        trigger loadOverallHealth on body
+    end
+    
+    def refreshResourceUsage()
+        trigger htmx:refresh on #system-resources
+    end
+    
+    def runFullDiagnostics()
+        js($('#diagnosticsModal').modal('show'))
+        
+        fetch '/api/status/full-diagnostics' {method: 'POST'} then
+            if it.ok
+                get it.text() then set #diagnostics-content's innerHTML to it
+            else
+                set #diagnostics-content's innerHTML to '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle mr-2"></i>Failed to run diagnostics</div>'
+            end
+        end catch error
+            set #diagnostics-content's innerHTML to '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle mr-2"></i>Failed to run diagnostics: ' + error.message + '</div>'
+        end
+    end
+    
+    def exportDiagnostics()
+        js(
+            const link = document.createElement('a');
+            link.href = '/api/status/export-diagnostics';
+            link.download = `system_diagnostics_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+        )
+        call showToast('Diagnostics report exported', 'success')
+    end
+    
+    def exportStatusReport()
+        js(
+            const link = document.createElement('a');
+            link.href = '/api/status/export-report';
+            link.download = `system_status_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+        )
+        call showToast('Status report exported', 'success')
+    end
+    
+    def clearSystemCache()
+        js(
+            if (confirm('Are you sure you want to clear the system cache? This may temporarily impact performance.')) {
+                fetch('/api/status/clear-cache', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            $(document).Toasts('create', {
+                                class: 'bg-success',
+                                title: 'System Status',
+                                body: 'System cache cleared successfully',
+                                autohide: true,
+                                delay: 5000
+                            });
+                        } else {
+                            $(document).Toasts('create', {
+                                class: 'bg-danger',
+                                title: 'System Status',
+                                body: 'Failed to clear cache: ' + data.error,
+                                autohide: true,
+                                delay: 5000
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        $(document).Toasts('create', {
+                            class: 'bg-danger',
+                            title: 'System Status',
+                            body: 'Error clearing cache',
+                            autohide: true,
+                            delay: 5000
+                        });
+                    });
+            }
+        )
+    end
+    
+    def restartServices()
+        js(
+            if (confirm('Are you sure you want to restart all services? This will cause a brief service interruption.')) {
+                fetch('/api/status/restart-services', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            $(document).Toasts('create', {
+                                class: 'bg-warning',
+                                title: 'System Status',
+                                body: 'Services restart initiated',
+                                autohide: true,
+                                delay: 5000
+                            });
+                            setTimeout(() => {
+                                htmx.trigger('#core-services-status', 'htmx:refresh');
+                            }, 5000);
+                        } else {
+                            $(document).Toasts('create', {
+                                class: 'bg-danger',
+                                title: 'System Status',
+                                body: 'Failed to restart services: ' + data.error,
+                                autohide: true,
+                                delay: 5000
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        $(document).Toasts('create', {
+                            class: 'bg-danger',
+                            title: 'System Status',
+                            body: 'Error restarting services',
+                            autohide: true,
+                            delay: 5000
+                        });
+                    });
+            }
+        )
+    end
+    
+    def showMaintenanceMode()
+        js($('#maintenanceModeModal').modal('show'))
+    end
+    
+    def enableMaintenanceMode()
+        get #maintenanceReason's value then set reason to it
+        get #estimatedDuration's value then set duration to it
+        get #notifyUsers's checked then set notifyUsers to it
+        
+        if not reason.trim()
+            js(alert('Please provide a reason for maintenance.'))
+            exit
+        end
+        
+        set data to {
+            reason: reason,
+            duration: parseInt(duration),
+            notify_users: notifyUsers
+        }
+        
+        fetch '/api/status/maintenance-mode' {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        } then
+            get it.json() then set result to it
+            if result.success
+                js($('#maintenanceModeModal').modal('hide'))
+                call showToast('Maintenance mode enabled', 'warning')
+            else
+                call showToast('Failed to enable maintenance mode: ' + result.error, 'danger')
+            end
+        end catch error
+            call showToast('Error enabling maintenance mode', 'danger')
+        end
+    end
+    
+    def viewFullLogs()
+        js(window.open('/admin/logs', '_blank'))
+    end
+    
+    def showToast(message, type)
+        js(
+            $(document).Toasts('create', {
+                class: 'bg-' + type,
+                title: 'System Status',
+                body: message,
+                autohide: true,
+                delay: 5000
             })
-            .catch(error => {
-                systemStatusPage.showToast('Error clearing cache', 'danger');
-            });
-    }
-};
-
-window.restartServices = function() {
-    if (confirm('Are you sure you want to restart all services? This will cause a brief service interruption.')) {
-        fetch('/api/status/restart-services', { method: 'POST' })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    systemStatusPage.showToast('Services restart initiated', 'warning');
-                    setTimeout(() => {
-                        systemStatusPage.refreshAll();
-                    }, 5000);
-                } else {
-                    systemStatusPage.showToast('Failed to restart services: ' + data.error, 'danger');
-                }
-            })
-            .catch(error => {
-                systemStatusPage.showToast('Error restarting services', 'danger');
-            });
-    }
-};
-
-window.showMaintenanceMode = function() {
-    const modal = new bootstrap.Modal(document.getElementById('maintenanceModeModal'));
-    modal.show();
-};
-
-window.enableMaintenanceMode = function() {
-    const reason = document.getElementById('maintenanceReason').value;
-    const duration = document.getElementById('estimatedDuration').value;
-    const notifyUsers = document.getElementById('notifyUsers').checked;
-    
-    if (!reason.trim()) {
-        alert('Please provide a reason for maintenance.');
-        return;
-    }
-    
-    const data = {
-        reason: reason,
-        duration: parseInt(duration),
-        notify_users: notifyUsers
-    };
-    
-    fetch('/api/status/maintenance-mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            systemStatusPage.showToast('Maintenance mode enabled', 'warning');
-            bootstrap.Modal.getInstance(document.getElementById('maintenanceModeModal')).hide();
-        } else {
-            systemStatusPage.showToast('Failed to enable maintenance mode: ' + result.error, 'danger');
-        }
-    })
-    .catch(error => {
-        systemStatusPage.showToast('Error enabling maintenance mode', 'danger');
-    });
-};
-
-window.viewFullLogs = function() {
-    window.open('/admin/logs', '_blank');
-};
-
-// Initialize system status page
-let systemStatusPage;
-document.addEventListener('DOMContentLoaded', function() {
-    systemStatusPage = new SystemStatusPage();
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    if (systemStatusPage?.autoRefreshInterval) {
-        clearInterval(systemStatusPage.autoRefreshInterval);
-    }
-});
+        )
+    end
 </script>
 
-<style>
-.health-indicator {
-    width: 60px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.progress-circle {
-    width: 80px;
-    height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background-color: #f8f9fa;
-    margin: 0 auto;
-}
-
-.metric-card {
-    padding: 1rem;
-}
-
-.metric-card .spinner-border {
-    width: 2rem;
-    height: 2rem;
-}
-
-.log-entry {
-    padding: 0.25rem 0;
-    border-bottom: 1px solid #f8f9fa;
-    font-family: 'Courier New', monospace;
-    font-size: 0.8rem;
-}
-
-.log-entry:last-child {
-    border-bottom: none;
-}
-
-.system-uptime {
-    text-align: center;
-}
-
-.page-header {
-    display: flex;
-    justify-content: between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #dee2e6;
-}
-</style>
+<!-- Additional AdminLTE specific enhancements -->
+<script>
+    $(document).ready(function() {
+        // Initialize AdminLTE card widgets
+        $('[data-card-widget="collapse"]').CardWidget('collapse');
+        
+        // Auto-refresh handling with AdminLTE overlays
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            const target = evt.target;
+            if (target.closest('.card-body')) {
+                const card = target.closest('.card');
+                if (!card.querySelector('.overlay')) {
+                    const overlay = document.createElement('div');
+                    overlay.className = 'overlay';
+                    overlay.innerHTML = '<i class="fas fa-2x fa-sync-alt fa-spin"></i>';
+                    card.appendChild(overlay);
+                }
+            }
+        });
+        
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            const target = evt.target;
+            if (target.closest('.card-body')) {
+                const card = target.closest('.card');
+                const overlay = card.querySelector('.overlay');
+                if (overlay) {
+                    overlay.remove();
+                }
+            }
+        });
+        
+        // Enhanced error handling with AdminLTE toasts
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            console.error('HTMX Error:', evt.detail);
+            $(document).Toasts('create', {
+                class: 'bg-danger',
+                title: 'Connection Error',
+                body: 'Failed to communicate with server. Please check your connection.',
+                autohide: true,
+                delay: 8000
+            });
+        });
+    });
+</script>
 {% endblock %}

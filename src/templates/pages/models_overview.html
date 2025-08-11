@@ -3,102 +3,167 @@
 {% block title %}Models Overview - AI Research Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="page-header">
-        <div>
-            <h1 class="page-title">
-                <i class="fas fa-robot text-primary mr-2"></i>
-                AI Models Overview
-            </h1>
-            <p class="page-subtitle">
-                Comprehensive database of AI models with capabilities, performance metrics, and research insights
-            </p>
+<!-- Content Header (Page header) -->
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1><i class="fas fa-robot mr-2"></i>AI Models Overview</h1>
+            </div>
+            <div class="col-sm-6">
+                <ol class="breadcrumb float-sm-right">
+                    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">Models Overview</li>
+                </ol>
+            </div>
         </div>
-        
-        <div class="d-flex gap-2">
-            <div class="dropdown">
-                <button class="btn btn-primary dropdown-toggle" type="button" 
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-plus mr-1"></i>
-                    Add Model
-                </button>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" onclick="addModelFromAPI()">
-                        <i class="fas fa-cloud-download-alt mr-2"></i>Import from API
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="addModelManually()">
-                        <i class="fas fa-edit mr-2"></i>Add Manually
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" onclick="bulkImportModels()">
-                        <i class="fas fa-file-upload mr-2"></i>Bulk Import
-                    </a>
-                </div>
-            </div>
-            
-            <div class="dropdown">
-                <button class="btn btn-success dropdown-toggle" type="button" 
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-chart-bar mr-1"></i>
-                    Analytics
-                </button>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" onclick="showModelComparison()">
-                        <i class="fas fa-balance-scale mr-2"></i>Model Comparison
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="showPerformanceAnalytics()">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Performance Analytics
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="showCostAnalysis()">
-                        <i class="fas fa-dollar-sign mr-2"></i>Cost Analysis
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" onclick="exportAnalytics()">
-                        <i class="fas fa-download mr-2"></i>Export Report
-                    </a>
-                </div>
-            </div>
-            
-            <button type="button" class="btn btn-info" onclick="refreshModelsData()">
-                <i class="fas fa-sync-alt mr-1"></i>
-                Refresh Data
-            </button>
-            
-            <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-cogs mr-1"></i>
-                    Settings
-                </button>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" onclick="configureAPIKeys()">
-                        <i class="fas fa-key mr-2"></i>API Configuration
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="manageProviders()">
-                        <i class="fas fa-building mr-2"></i>Manage Providers
-                    </a>
-                    <a class="dropdown-item" href="#" onclick="exportModelsData()">
-                        <i class="fas fa-download mr-2"></i>Export Database
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" onclick="resetModelsCache()">
-                        <i class="fas fa-trash mr-2"></i>Reset Cache
-                    </a>
-                </div>
+        <div class="row">
+            <div class="col-sm-12">
+                <p class="text-muted">Comprehensive database of AI models with capabilities, performance metrics, and research insights</p>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Statistics Dashboard -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-robot text-primary"></i>
+<!-- Main content -->
+<section class="content">
+    <div class="container-fluid">
+        <!-- Action Buttons -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="btn-group" role="group">
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-primary dropdown-toggle" type="button" 
+                                data-toggle="dropdown">
+                            <i class="fas fa-plus mr-1"></i> Add Model
+                        </button>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item" href="#" onclick="addModelFromAPI()">
+                                <i class="fas fa-cloud-download-alt mr-2"></i>Import from API
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="addModelManually()">
+                                <i class="fas fa-edit mr-2"></i>Add Manually
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#" onclick="bulkImportModels()">
+                                <i class="fas fa-file-upload mr-2"></i>Bulk Import
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-success dropdown-toggle" type="button" 
+                                data-toggle="dropdown">
+                            <i class="fas fa-chart-bar mr-1"></i> Analytics
+                        </button>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item" href="#" onclick="showModelComparison()">
+                                <i class="fas fa-balance-scale mr-2"></i>Model Comparison
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="showPerformanceAnalytics()">
+                                <i class="fas fa-tachometer-alt mr-2"></i>Performance Analytics
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="showCostAnalysis()">
+                                <i class="fas fa-dollar-sign mr-2"></i>Cost Analysis
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#" onclick="exportAnalytics()">
+                                <i class="fas fa-download mr-2"></i>Export Report
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-info" onclick="refreshModelsData()">
+                        <i class="fas fa-sync-alt mr-1"></i> Refresh Data
+                    </button>
+                    
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-default dropdown-toggle" type="button" 
+                                data-toggle="dropdown">
+                            <i class="fas fa-cogs mr-1"></i> Settings
+                        </button>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item" href="#" onclick="configureAPIKeys()">
+                                <i class="fas fa-key mr-2"></i>API Configuration
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="manageProviders()">
+                                <i class="fas fa-building mr-2"></i>Manage Providers
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="exportModelsData()">
+                                <i class="fas fa-download mr-2"></i>Export Database
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#" onclick="resetModelsCache()">
+                                <i class="fas fa-trash mr-2"></i>Reset Cache
+                            </a>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-content">
-                    <div class="stat-number" id="total-models" 
+            </div>
+        </div>
+
+        <!-- Statistics Dashboard -->
+        <div class="row mb-4">
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-primary">
+                    <div class="inner">
+                        <h3 id="total-models">--</h3>
+                        <p>Total Models</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <a href="#" class="small-box-footer" onclick="filterByAll()">
+                        View All <i class="fas fa-arrow-circle-right"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-success">
+                    <div class="inner">
+                        <h3 id="active-models">--</h3>
+                        <p>Active Models</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <a href="#" class="small-box-footer" onclick="filterByActive()">
+                        View Active <i class="fas fa-arrow-circle-right"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-warning">
+                    <div class="inner">
+                        <h3 id="total-providers">--</h3>
+                        <p>Providers</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <a href="#" class="small-box-footer" onclick="showProvidersView()">
+                        View Providers <i class="fas fa-arrow-circle-right"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-info">
+                    <div class="inner">
+                        <h3 id="avg-performance">--</h3>
+                        <p>Avg Performance</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                    <a href="#" class="small-box-footer" onclick="showPerformanceAnalytics()">
+                        Performance <i class="fas fa-arrow-circle-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div> 
                          hx-get="/api/models/stats/total" 
                          hx-trigger="load, modelsUpdated">
                         Loading...
