@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}{{ model.model_name }} Applications - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('models.models_overview') }}">Models</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ model.model_name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">{{ model.model_name }} Applications</h1>
+            <p class="text-muted mb-0">Generated applications for {{ model.provider|title }} model</p>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="refreshApps()">
+                <i class="fas fa-sync mr-1"></i>
+                Refresh
+            </button>
+            <button type="button" class="btn btn-outline-success" onclick="generateNewApp()">
+                <i class="fas fa-plus mr-1"></i>
+                Generate New
+            </button>
+        </div>
+    </div>
+
+    <!-- Model Info Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-robot mr-2 text-primary"></i>
+                Model Information
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <dl class="row">
+                        <dt class="col-sm-4">Provider:</dt>
+                        <dd class="col-sm-8"><span class="badge badge-primary">{{ model.provider|title }}</span></dd>
+                        
+                        <dt class="col-sm-4">Model Name:</dt>
+                        <dd class="col-sm-8">{{ model.model_name }}</dd>
+                        
+                        <dt class="col-sm-4">Canonical Slug:</dt>
+                        <dd class="col-sm-8"><code>{{ model.canonical_slug }}</code></dd>
+                        
+                        {% if model.context_window %}
+                        <dt class="col-sm-4">Context Window:</dt>
+                        <dd class="col-sm-8">{{ "{:,}".format(model.context_window) }} tokens</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row">
+                        {% if model.max_output_tokens %}
+                        <dt class="col-sm-4">Max Output:</dt>
+                        <dd class="col-sm-8">{{ "{:,}".format(model.max_output_tokens) }} tokens</dd>
+                        {% endif %}
+                        
+                        <dt class="col-sm-4">Applications:</dt>
+                        <dd class="col-sm-8">{{ apps|length }} generated</dd>
+                        
+                        {% if model.is_free %}
+                        <dt class="col-sm-4">Pricing:</dt>
+                        <dd class="col-sm-8"><span class="badge badge-success">Free</span></dd>
+                        {% elif model.input_price_per_token %}
+                        <dt class="col-sm-4">Input Price:</dt>
+                        <dd class="col-sm-8">${{ "%.6f"|format(model.input_price_per_token) }}/token</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Applications Grid -->
+    <div class="applications-grid" id="applications-container">
+        {% if apps %}
+            <div class="row">
+                {% for app in apps %}
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="card app-card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="card-title mb-0">Application {{ app.app_number }}</h6>
+                            <span class="badge badge-{{ 'success' if app.generation_status == 'completed' else 'warning' if app.generation_status == 'pending' else 'danger' }}">
+                                {{ app.generation_status|title }}
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="app-info">
+                                {% if app.description %}
+                                <p class="text-muted small">{{ app.description[:100] }}{% if app.description|length > 100 %}...{% endif %}</p>
+                                {% endif %}
+                                
+                                <div class="app-stats">
+                                    <div class="row text-center">
+                                        <div class="col-4">
+                                            <div class="stat-value">{{ app.security_analyses|length if app.security_analyses else 0 }}</div>
+                                            <div class="stat-label small text-muted">Security</div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="stat-value">{{ app.performance_tests|length if app.performance_tests else 0 }}</div>
+                                            <div class="stat-label small text-muted">Performance</div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="stat-value">{{ app.zap_analyses|length if app.zap_analyses else 0 }}</div>
+                                            <div class="stat-label small text-muted">ZAP Scans</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <a href="{{ url_for('models.application_detail', app_id=app.id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                <button class="btn btn-outline-success" onclick="runAnalysis({{ app.id }})">
+                                    <i class="fas fa-play"></i> Analyze
+                                </button>
+                                <button class="btn btn-outline-info" onclick="viewLogs({{ app.id }})">
+                                    <i class="fas fa-file-alt"></i> Logs
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-cogs fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Applications Generated</h5>
+                <p class="text-muted">No applications have been generated for this model yet.</p>
+                <button class="btn btn-primary" onclick="generateNewApp()">
+                    <i class="fas fa-plus mr-2"></i>
+                    Generate First Application
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Generate App Modal -->
+<div class="modal fade" id="generateAppModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Generate New Application</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="generateAppForm">
+                    <div class="form-group">
+                        <label for="appType">Application Type</label>
+                        <select class="form-control" id="appType" name="app_type">
+                            <option value="web">Web Application</option>
+                            <option value="api">REST API</option>
+                            <option value="cli">CLI Tool</option>
+                            <option value="desktop">Desktop Application</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="appDescription">Description</label>
+                        <textarea class="form-control" id="appDescription" name="description" rows="3" placeholder="Brief description of the application to generate..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitGeneration()">
+                    <i class="fas fa-cogs mr-2"></i>
+                    Generate Application
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Model Apps JavaScript
+function refreshApps() {
+    location.reload();
+}
+
+function generateNewApp() {
+    $('#generateAppModal').modal('show');
+}
+
+function submitGeneration() {
+    const formData = new FormData(document.getElementById('generateAppForm'));
+    
+    // Add model information
+    formData.append('model_slug', '{{ model.canonical_slug }}');
+    
+    // Show loading state
+    const submitBtn = document.querySelector('#generateAppModal .btn-primary');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating...';
+    submitBtn.disabled = true;
+    
+    fetch('/api/generate/application', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            $('#generateAppModal').modal('hide');
+            showToast('Application generation started successfully', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showToast(data.error || 'Failed to start application generation', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Generation error:', error);
+        showToast('Failed to start application generation', 'danger');
+    })
+    .finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+function runAnalysis(appId) {
+    showToast('Starting analysis for application...', 'info');
+    
+    fetch(`/api/analysis/start/${appId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Analysis started successfully', 'success');
+        } else {
+            showToast(data.error || 'Failed to start analysis', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Analysis error:', error);
+        showToast('Failed to start analysis', 'danger');
+    });
+}
+
+function viewLogs(appId) {
+    window.open(`/api/logs/application/${appId}`, '_blank');
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    toast.style.cssText = 'top: 70px; right: 20px; z-index: 1050; min-width: 300px;';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

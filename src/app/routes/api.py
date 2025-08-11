@@ -1328,3 +1328,73 @@ def api_testing_batch_progress():
     except Exception as e:
         logger.error(f"Error loading batch progress: {e}")
         return f'<div class="alert alert-danger">Error loading batch progress: {str(e)}</div>'
+
+
+@api_bp.route('/statistics/overview')
+def api_statistics_overview():
+    """API endpoint for statistics overview data (HTMX)."""
+    try:
+        from ..models import (
+            ModelCapability, GeneratedApplication, SecurityAnalysis, 
+            PerformanceTest, BatchAnalysis, ZAPAnalysis, OpenRouterAnalysis
+        )
+        from ..extensions import db
+        from sqlalchemy import func
+        from datetime import datetime, timedelta
+        
+        # Calculate overview statistics
+        overview_stats = {}
+        
+        # Model statistics
+        overview_stats['total_models'] = db.session.query(ModelCapability).count()
+        overview_stats['total_applications'] = db.session.query(GeneratedApplication).count()
+        
+        # Analysis statistics
+        overview_stats['security_analyses'] = db.session.query(SecurityAnalysis).count()
+        overview_stats['performance_tests'] = db.session.query(PerformanceTest).count()
+        overview_stats['batch_analyses'] = db.session.query(BatchAnalysis).count()
+        overview_stats['zap_scans'] = db.session.query(ZAPAnalysis).count()
+        overview_stats['ai_analyses'] = db.session.query(OpenRouterAnalysis).count()
+        
+        # Recent activity (last 7 days)
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        overview_stats['recent_security'] = db.session.query(SecurityAnalysis).filter(
+            SecurityAnalysis.created_at >= week_ago
+        ).count()
+        overview_stats['recent_performance'] = db.session.query(PerformanceTest).filter(
+            PerformanceTest.created_at >= week_ago
+        ).count()
+        
+        # Provider breakdown
+        provider_stats = db.session.query(
+            ModelCapability.provider,
+            func.count(ModelCapability.id).label('count')
+        ).group_by(ModelCapability.provider).all()
+        
+        overview_stats['providers'] = [
+            {'name': provider, 'count': count} for provider, count in provider_stats
+        ]
+        
+        # Success rates
+        total_security = overview_stats['security_analyses']
+        failed_security = db.session.query(SecurityAnalysis).filter(
+            SecurityAnalysis.status == 'failed'
+        ).count()
+        overview_stats['security_success_rate'] = (
+            ((total_security - failed_security) / total_security * 100) 
+            if total_security > 0 else 0
+        )
+        
+        total_performance = overview_stats['performance_tests']
+        failed_performance = db.session.query(PerformanceTest).filter(
+            PerformanceTest.status == 'failed'
+        ).count()
+        overview_stats['performance_success_rate'] = (
+            ((total_performance - failed_performance) / total_performance * 100) 
+            if total_performance > 0 else 0
+        )
+        
+        return render_template('partials/statistics_overview.html', stats=overview_stats)
+    except Exception as e:
+        logger.error(f"Error loading statistics overview: {e}")
+        return f'<div class="alert alert-danger">Error loading statistics overview: {str(e)}</div>'
