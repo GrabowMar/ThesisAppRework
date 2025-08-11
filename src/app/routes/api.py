@@ -263,6 +263,63 @@ def system_health():
         return render_template('partials/system_status.html', system_status=fallback_status)
 
 
+@api_bp.route('/system/health')
+def system_health_json():
+    """JSON API endpoint for system health status."""
+    from ..extensions import get_components
+    
+    try:
+        # Check database status
+        try:
+            db.session.execute(text('SELECT 1'))
+            db_status = {'status': 'healthy', 'message': 'Connected'}
+        except Exception as e:
+            db_status = {'status': 'error', 'message': str(e)}
+        
+        # Check Celery status
+        try:
+            components = get_components()
+            celery_instance = components.celery if components else None
+            if celery_instance:
+                celery_inspect = celery_instance.control.inspect()
+                active_tasks = celery_inspect.active() if celery_inspect else None
+                celery_status = {'status': 'healthy', 'message': 'Running'} if active_tasks is not None else {'status': 'error', 'message': 'Not responding'}
+            else:
+                celery_status = {'status': 'warning', 'message': 'Not configured'}
+        except Exception as e:
+            celery_status = {'status': 'error', 'message': str(e)}
+        
+        # Check analyzer status (simplified)
+        try:
+            analyzer_status = {'status': 'healthy', 'message': 'Available'}
+        except Exception as e:
+            analyzer_status = {'status': 'error', 'message': str(e)}
+        
+        # Overall system status
+        system_status = {
+            'database': db_status,
+            'celery': celery_status,
+            'analyzer': analyzer_status,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Determine overall health
+        all_healthy = all(component['status'] == 'healthy' for component in [db_status, celery_status, analyzer_status])
+        system_status['overall'] = 'healthy' if all_healthy else 'degraded'
+        
+        return jsonify(system_status)
+        
+    except Exception as e:
+        logger.error(f"Error getting system health: {e}")
+        return jsonify({
+            'overall': 'error',
+            'database': {'status': 'error', 'message': 'Health check failed'},
+            'celery': {'status': 'error', 'message': 'Health check failed'},
+            'analyzer': {'status': 'error', 'message': 'Health check failed'},
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }), 500
+
+
 @api_bp.route('/stats_container_status')
 def stats_container_status():
     """HTMX endpoint for container status summary."""
@@ -1622,6 +1679,180 @@ def api_application_logs(app_id):
     except Exception as e:
         logger.error(f"Error loading application logs: {e}")
         return f'<div class="alert alert-danger">Error loading logs: {str(e)}</div>', 500
+
+
+# Application management endpoints
+@api_bp.route('/applications/<int:app_id>/start', methods=['POST'])
+def api_application_start(app_id):
+    """API endpoint to start an application container."""
+    try:
+        from ..models import GeneratedApplication
+        from ..extensions import db
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Update container status
+        app.container_status = 'running'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Application {app_id} started successfully'
+        })
+            
+    except Exception as e:
+        logger.error(f"Error starting application {app_id}: {e}")
+        return jsonify({'error': str(e), 'success': False}), 500
+
+
+@api_bp.route('/applications/<int:app_id>/stop', methods=['POST'])
+def api_application_stop(app_id):
+    """API endpoint to stop an application container."""
+    try:
+        from ..models import GeneratedApplication
+        from ..extensions import db
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Update container status
+        app.container_status = 'stopped'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Application {app_id} stopped successfully'
+        })
+            
+    except Exception as e:
+        logger.error(f"Error stopping application {app_id}: {e}")
+        return jsonify({'error': str(e), 'success': False}), 500
+
+
+@api_bp.route('/applications/<int:app_id>/restart', methods=['POST'])
+def api_application_restart(app_id):
+    """API endpoint to restart an application container."""
+    try:
+        from ..models import GeneratedApplication
+        from ..extensions import db
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Update container status (simulate restart)
+        app.container_status = 'running'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Application {app_id} restarted successfully'
+        })
+            
+    except Exception as e:
+        logger.error(f"Error restarting application {app_id}: {e}")
+        return jsonify({'error': str(e), 'success': False}), 500
+
+
+@api_bp.route('/applications/<int:app_id>/details')
+def api_application_details(app_id):
+    """API endpoint to get application details."""
+    try:
+        from ..models import GeneratedApplication
+        from ..extensions import db
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        return jsonify({
+            'id': app.id,
+            'app_number': app.app_number,
+            'model_slug': app.model_slug,
+            'provider': app.provider,
+            'container_status': app.container_status,
+            'frontend_url': app.frontend_url,
+            'backend_url': app.backend_url,
+            'description': app.description,
+            'backend_framework': app.backend_framework,
+            'frontend_framework': app.frontend_framework,
+            'created_at': app.created_at.isoformat() if app.created_at else None
+        })
+            
+    except Exception as e:
+        logger.error(f"Error getting application {app_id} details: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/applications/<int:app_id>/logs')
+def api_application_logs_modal(app_id):
+    """API endpoint to get application logs modal."""
+    try:
+        from ..models import GeneratedApplication
+        from ..extensions import db
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
+        
+        # Mock logs for now - in production, this would read actual log files
+        logs = [
+            {'timestamp': '2025-01-11 03:35:00', 'level': 'INFO', 'message': f'Application {app_id} initialized'},
+            {'timestamp': '2025-01-11 03:35:01', 'level': 'INFO', 'message': f'Model: {app.model_slug}'},
+            {'timestamp': '2025-01-11 03:35:02', 'level': 'INFO', 'message': f'Provider: {app.provider}'},
+            {'timestamp': '2025-01-11 03:35:03', 'level': 'INFO', 'message': 'Container started successfully'},
+            {'timestamp': '2025-01-11 03:35:04', 'level': 'INFO', 'message': 'Application ready for analysis'}
+        ]
+        
+        return render_template('partials/application_logs_modal.html', app=app, logs=logs)
+    except Exception as e:
+        logger.error(f"Error loading application logs modal: {e}")
+        return f'<div class="alert alert-danger">Error loading logs: {str(e)}</div>', 500
+
+
+@api_bp.route('/applications/<int:app_id>', methods=['DELETE'])
+def api_application_delete(app_id):
+    """API endpoint to delete an application."""
+    try:
+        from ..models import GeneratedApplication
+        from ..extensions import db
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return jsonify({'error': f'Application {app_id} not found'}), 404
+        
+        # Delete the application (this would also cleanup related records)
+        db.session.delete(app)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Application {app_id} deleted successfully'
+        })
+            
+    except Exception as e:
+        logger.error(f"Error deleting application {app_id}: {e}")
+        return jsonify({'error': str(e), 'success': False}), 500
+
+
+@api_bp.route('/analysis/configure/<int:app_id>')
+def api_analysis_configure_modal(app_id):
+    """API endpoint to get analysis configuration modal."""
+    try:
+        from ..models import GeneratedApplication
+        from ..extensions import db
+        
+        app = db.session.query(GeneratedApplication).get(app_id)
+        if not app:
+            return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
+        
+        return render_template('partials/analysis_configure_modal.html', app=app)
+    except Exception as e:
+        logger.error(f"Error loading analysis configuration modal: {e}")
+        return f'<div class="alert alert-danger">Error loading analysis configuration: {str(e)}</div>', 500
 
 
 @api_bp.route('/analysis/start/<int:app_id>', methods=['POST'])

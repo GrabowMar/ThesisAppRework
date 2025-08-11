@@ -35,7 +35,7 @@
             <div class="info-box-content">
                 <span class="info-box-text">Active Containers</span>
                 <span class="info-box-number" 
-                      hx-get="{{ url_for('api.stats_active_containers') }}" 
+                      hx-get="{{ url_for('api.stats_running_containers') }}" 
                       hx-trigger="load, every 30s"
                       hx-swap="innerHTML">{{ stats.active_containers or 0 }}</span>
             </div>

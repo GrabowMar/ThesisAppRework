@@ -131,6 +131,7 @@ def applications():
         model_filter = request.args.get('model')
         provider_filter = request.args.get('provider')
         status_filter = request.args.get('status')
+        search_filter = request.args.get('search')
         
         # Build query
         query = GeneratedApplication.query
@@ -142,34 +143,103 @@ def applications():
             query = query.filter(GeneratedApplication.provider == provider_filter)
         
         if status_filter:
-            query = query.filter(GeneratedApplication.generation_status == status_filter)
+            query = query.filter(GeneratedApplication.container_status == status_filter)
+            
+        if search_filter:
+            query = query.filter(
+                db.or_(
+                    GeneratedApplication.model_slug.contains(search_filter),
+                    GeneratedApplication.provider.contains(search_filter),
+                    GeneratedApplication.app_type.contains(search_filter)
+                )
+            )
         
         # Paginate results
-        applications = query.order_by(
+        applications_pagination = query.order_by(
             GeneratedApplication.created_at.desc()
         ).paginate(
             page=page, per_page=per_page, error_out=False
         )
         
         # Get filter options
-        providers = db.session.query(GeneratedApplication.provider.distinct()).all()
-        providers = [p[0] for p in providers]
+        providers = db.session.query(GeneratedApplication.provider.distinct()).filter(
+            GeneratedApplication.provider.isnot(None)
+        ).all()
+        providers = [p[0] for p in providers if p[0]]
+        
+        models = db.session.query(GeneratedApplication.model_slug.distinct()).filter(
+            GeneratedApplication.model_slug.isnot(None)
+        ).all()
+        models = [m[0] for m in models if m[0]]
+        
+        # Enhanced app data with statistics
+        enhanced_apps = []
+        for app in applications_pagination.items:
+            # Get security analysis count
+            security_count = SecurityAnalysis.query.filter_by(application_id=app.id).count()
+            
+            # Get performance test count
+            performance_count = PerformanceTest.query.filter_by(application_id=app.id).count()
+            
+            # Get ZAP analysis count
+            zap_count = ZAPAnalysis.query.filter_by(application_id=app.id).count()
+            
+            # Get OpenRouter analysis count
+            openrouter_count = OpenRouterAnalysis.query.filter_by(application_id=app.id).count()
+            
+            # Add computed fields
+            app.security_analyses_count = security_count
+            app.performance_tests_count = performance_count
+            app.zap_analyses_count = zap_count
+            app.openrouter_analyses_count = openrouter_count
+            app.total_analyses = security_count + performance_count + zap_count + openrouter_count
+            
+            # Status badge class
+            status_class = {
+                'running': 'success',
+                'stopped': 'secondary', 
+                'error': 'danger',
+                'pending': 'warning'
+            }.get(app.container_status, 'secondary')
+            app.status_class = status_class
+            
+            # Description from metadata
+            metadata = app.get_metadata()
+            app.description = metadata.get('description', f'{app.app_type} application using {app.model_slug}')
+            
+            enhanced_apps.append(app)
+        
+        # Check if this is an HTMX request
+        if request.headers.get('HX-Request'):
+            return render_template(
+                'partials/applications_content.html',
+                applications=enhanced_apps,
+                pagination=applications_pagination
+            )
         
         return render_template(
             'pages/applications.html',
-            applications=applications,
+            applications=enhanced_apps,
+            pagination=applications_pagination,
             providers=providers,
+            available_models=models,
             current_filters={
                 'model': model_filter,
                 'provider': provider_filter,
-                'status': status_filter
+                'status': status_filter,
+                'search': search_filter
             }
         )
     except Exception as e:
         logger.error(f"Error loading applications: {e}")
-        flash('Error loading applications', 'error')
-        return render_template('partials/common/error.html', 
-                             error=f"Error loading applications: {str(e)}")
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger">Error loading applications: {str(e)}</div>'
+        else:
+            flash('Error loading applications', 'error')
+            return render_template('pages/error.html', 
+                                 error_code=500,
+                                 error_title='Applications Error',
+                                 error_message=str(e))
 
 
 @models_bp.route('/application/<int:app_id>')
@@ -195,13 +265,31 @@ def application_detail(app_id):
             application_id=app_id
         ).order_by(OpenRouterAnalysis.created_at.desc()).all()
         
+        # Calculate statistics
+        stats = {
+            'total_security_analyses': len(security_analyses),
+            'total_performance_tests': len(performance_tests),
+            'total_zap_analyses': len(zap_analyses),
+            'total_ai_analyses': len(openrouter_analyses),
+            'security_issues': sum(a.total_issues or 0 for a in security_analyses),
+            'avg_response_time': (
+                sum(t.average_response_time or 0 for t in performance_tests) / len(performance_tests) 
+                if performance_tests else 0
+            ),
+            'avg_rps': (
+                sum(t.requests_per_second or 0 for t in performance_tests) / len(performance_tests) 
+                if performance_tests else 0
+            )
+        }
+        
         return render_template(
             'pages/application_detail.html',
             app=app,
             security_analyses=security_analyses,
             performance_tests=performance_tests,
             zap_analyses=zap_analyses,
-            openrouter_analyses=openrouter_analyses
+            openrouter_analyses=openrouter_analyses,
+            stats=stats
         )
     except Exception as e:
         logger.error(f"Error loading application {app_id}: {e}")

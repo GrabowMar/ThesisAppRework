@@ -232,6 +232,18 @@ class GeneratedApplication(db.Model):
         """Get port configuration for this application."""
         return {}  # Implement based on port configuration
     
+    @property
+    def status_class(self):
+        """Get Bootstrap class for status badge"""
+        status_classes = {
+            'running': 'success',
+            'stopped': 'secondary',
+            'error': 'danger',
+            'pending': 'warning',
+            'building': 'info'
+        }
+        return status_classes.get(self.container_status, 'secondary')
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {

@@ -187,10 +187,23 @@ def batch_testing():
             BatchAnalysis.status.in_([JobStatus.RUNNING, JobStatus.PENDING])
         ).all()
         
+        # Calculate stats for the template
+        stats = {
+            'total_batches': BatchAnalysis.query.count(),
+            'completed_batches': BatchAnalysis.query.filter(
+                BatchAnalysis.status == JobStatus.COMPLETED
+            ).count(),
+            'failed_batches': BatchAnalysis.query.filter(
+                BatchAnalysis.status == JobStatus.FAILED
+            ).count(),
+            'active_batches': len(active_batches)
+        }
+        
         return render_template(
             'pages/batch_testing.html',
             recent_batches=recent_batches,
-            active_batches=active_batches
+            active_batches=active_batches,
+            stats=stats
         )
     except Exception as e:
         logger.error(f"Error loading batch testing: {e}")

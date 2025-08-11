@@ -8,7 +8,7 @@
     <div class="container-fluid">
         <div class="row mb-2">
             <div class="col-sm-6">
-                <h1><i class="fas fa-robot mr-2"></i>AI Models Overview</h1>
+                <h1><i class="fas fa-robot me-2"></i>AI Models Overview</h1>
             </div>
             <div class="col-sm-6">
                 <ol class="breadcrumb float-sm-right">
@@ -34,67 +34,67 @@
                 <div class="btn-group" role="group">
                     <div class="btn-group" role="group">
                         <button class="btn btn-primary dropdown-toggle" type="button" 
-                                data-toggle="dropdown">
-                            <i class="fas fa-plus mr-1"></i> Add Model
+                                data-bs-toggle="dropdown">
+                            <i class="fas fa-plus me-1"></i> Add Model
                         </button>
                         <div class="dropdown-menu">
                             <a class="dropdown-item" href="#" onclick="addModelFromAPI()">
-                                <i class="fas fa-cloud-download-alt mr-2"></i>Import from API
+                                <i class="fas fa-cloud-download-alt me-2"></i>Import from API
                             </a>
                             <a class="dropdown-item" href="#" onclick="addModelManually()">
-                                <i class="fas fa-edit mr-2"></i>Add Manually
+                                <i class="fas fa-edit me-2"></i>Add Manually
                             </a>
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item" href="#" onclick="bulkImportModels()">
-                                <i class="fas fa-file-upload mr-2"></i>Bulk Import
+                                <i class="fas fa-file-upload me-2"></i>Bulk Import
                             </a>
                         </div>
                     </div>
                     
                     <div class="btn-group" role="group">
                         <button class="btn btn-success dropdown-toggle" type="button" 
-                                data-toggle="dropdown">
-                            <i class="fas fa-chart-bar mr-1"></i> Analytics
+                                data-bs-toggle="dropdown">
+                            <i class="fas fa-chart-bar me-1"></i> Analytics
                         </button>
                         <div class="dropdown-menu">
                             <a class="dropdown-item" href="#" onclick="showModelComparison()">
-                                <i class="fas fa-balance-scale mr-2"></i>Model Comparison
+                                <i class="fas fa-balance-scale me-2"></i>Model Comparison
                             </a>
                             <a class="dropdown-item" href="#" onclick="showPerformanceAnalytics()">
-                                <i class="fas fa-tachometer-alt mr-2"></i>Performance Analytics
+                                <i class="fas fa-tachometer-alt me-2"></i>Performance Analytics
                             </a>
                             <a class="dropdown-item" href="#" onclick="showCostAnalysis()">
-                                <i class="fas fa-dollar-sign mr-2"></i>Cost Analysis
+                                <i class="fas fa-dollar-sign me-2"></i>Cost Analysis
                             </a>
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item" href="#" onclick="exportAnalytics()">
-                                <i class="fas fa-download mr-2"></i>Export Report
+                                <i class="fas fa-download me-2"></i>Export Report
                             </a>
                         </div>
                     </div>
                     
                     <button type="button" class="btn btn-info" onclick="refreshModelsData()">
-                        <i class="fas fa-sync-alt mr-1"></i> Refresh Data
+                        <i class="fas fa-sync-alt me-1"></i> Refresh Data
                     </button>
                     
                     <div class="btn-group" role="group">
-                        <button class="btn btn-default dropdown-toggle" type="button" 
-                                data-toggle="dropdown">
-                            <i class="fas fa-cogs mr-1"></i> Settings
+                        <button class="btn btn-secondary dropdown-toggle" type="button" 
+                                data-bs-toggle="dropdown">
+                            <i class="fas fa-cogs me-1"></i> Settings
                         </button>
                         <div class="dropdown-menu">
                             <a class="dropdown-item" href="#" onclick="configureAPIKeys()">
-                                <i class="fas fa-key mr-2"></i>API Configuration
+                                <i class="fas fa-key me-2"></i>API Configuration
                             </a>
                             <a class="dropdown-item" href="#" onclick="manageProviders()">
-                                <i class="fas fa-building mr-2"></i>Manage Providers
+                                <i class="fas fa-building me-2"></i>Manage Providers
                             </a>
                             <a class="dropdown-item" href="#" onclick="exportModelsData()">
-                                <i class="fas fa-download mr-2"></i>Export Database
+                                <i class="fas fa-download me-2"></i>Export Database
                             </a>
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item" href="#" onclick="resetModelsCache()">
-                                <i class="fas fa-trash mr-2"></i>Reset Cache
+                                <i class="fas fa-trash me-2"></i>Reset Cache
                             </a>
                         </div>
                     </div>
@@ -107,13 +107,15 @@
             <div class="col-lg-3 col-6">
                 <div class="small-box bg-primary">
                     <div class="inner">
-                        <h3 id="total-models">--</h3>
+                        <h3 id="total-models" 
+                            hx-get="/api/models/stats/total" 
+                            hx-trigger="load, modelsUpdated">--</h3>
                         <p>Total Models</p>
                     </div>
                     <div class="icon">
                         <i class="fas fa-robot"></i>
                     </div>
-                    <a href="#" class="small-box-footer" onclick="filterByAll()">
+                    <a href="#" class="small-box-footer" onclick="applyQuickFilter('all')">
                         View All <i class="fas fa-arrow-circle-right"></i>
                     </a>
                 </div>
@@ -122,13 +124,15 @@
             <div class="col-lg-3 col-6">
                 <div class="small-box bg-success">
                     <div class="inner">
-                        <h3 id="active-models">--</h3>
+                        <h3 id="active-models"
+                            hx-get="/api/models/stats/active" 
+                            hx-trigger="load, modelsUpdated">--</h3>
                         <p>Active Models</p>
                     </div>
                     <div class="icon">
                         <i class="fas fa-check-circle"></i>
                     </div>
-                    <a href="#" class="small-box-footer" onclick="filterByActive()">
+                    <a href="#" class="small-box-footer" onclick="applyQuickFilter('active')">
                         View Active <i class="fas fa-arrow-circle-right"></i>
                     </a>
                 </div>
@@ -137,13 +141,15 @@
             <div class="col-lg-3 col-6">
                 <div class="small-box bg-warning">
                     <div class="inner">
-                        <h3 id="total-providers">--</h3>
+                        <h3 id="total-providers"
+                            hx-get="/api/models/stats/providers" 
+                            hx-trigger="load, modelsUpdated">--</h3>
                         <p>Providers</p>
                     </div>
                     <div class="icon">
                         <i class="fas fa-building"></i>
                     </div>
-                    <a href="#" class="small-box-footer" onclick="showProvidersView()">
+                    <a href="#" class="small-box-footer" onclick="manageProviders()">
                         View Providers <i class="fas fa-arrow-circle-right"></i>
                     </a>
                 </div>
@@ -152,7 +158,9 @@
             <div class="col-lg-3 col-6">
                 <div class="small-box bg-info">
                     <div class="inner">
-                        <h3 id="avg-performance">--</h3>
+                        <h3 id="avg-performance"
+                            hx-get="/api/models/stats/performance" 
+                            hx-trigger="load, modelsUpdated">--</h3>
                         <p>Avg Performance</p>
                     </div>
                     <div class="icon">
@@ -163,67 +171,13 @@
                     </a>
                 </div>
             </div>
-        </div> 
-                         hx-get="/api/models/stats/total" 
-                         hx-trigger="load, modelsUpdated">
-                        Loading...
-                    </div>
-                    <div class="stat-label">Total Models</div>
-                </div>
-            </div>
         </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-building text-success"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-number" id="total-providers"
-                         hx-get="/api/models/stats/providers" 
-                         hx-trigger="load, modelsUpdated">
-                        Loading...
-                    </div>
-                    <div class="stat-label">Providers</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-chart-line text-warning"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-number" id="avg-performance"
-                         hx-get="/api/models/stats/performance" 
-                         hx-trigger="load, modelsUpdated">
-                        Loading...
-                    </div>
-                    <div class="stat-label">Avg Performance</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-clock text-info"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-number" id="last-updated"
-                         hx-get="/api/models/stats/last-updated" 
-                         hx-trigger="load, modelsUpdated">
-                        Loading...
-                    </div>
-                    <div class="stat-label">Last Updated</div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Advanced Filters and Search -->
     <div class="card mb-4">
         <div class="card-header">
             <h6 class="card-title mb-0">
-                <i class="fas fa-filter mr-2"></i>
+                <i class="fas fa-filter me-2"></i>
                 Advanced Filters & Search
             </h6>
         </div>
@@ -302,22 +256,22 @@
             <div class="mt-3">
                 <div class="d-flex flex-wrap gap-2">
                     <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('latest')">
-                        <i class="fas fa-clock mr-1"></i>Latest Models
+                        <i class="fas fa-clock me-1"></i>Latest Models
                     </span>
                     <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('top-performers')">
-                        <i class="fas fa-star mr-1"></i>Top Performers
+                        <i class="fas fa-star me-1"></i>Top Performers
                     </span>
                     <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('multimodal')">
-                        <i class="fas fa-eye mr-1"></i>Multimodal
+                        <i class="fas fa-eye me-1"></i>Multimodal
                     </span>
                     <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('code-experts')">
-                        <i class="fas fa-code mr-1"></i>Code Experts
+                        <i class="fas fa-code me-1"></i>Code Experts
                     </span>
                     <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('budget-friendly')">
-                        <i class="fas fa-dollar-sign mr-1"></i>Budget Friendly
+                        <i class="fas fa-dollar-sign me-1"></i>Budget Friendly
                     </span>
                     <span class="badge bg-light text-dark border quick-filter" onclick="clearAllFilters()">
-                        <i class="fas fa-times mr-1"></i>Clear All
+                        <i class="fas fa-times me-1"></i>Clear All
                     </span>
                 </div>
             </div>
@@ -413,7 +367,8 @@
     <div id="models-pagination" class="d-flex justify-content-center mt-4">
         <!-- Pagination will be loaded via HTMX -->
     </div>
-</div>
+    </div>
+</section>
 
 <!-- Model Details Modal -->
 <div class="modal fade" id="modelDetailModal" tabindex="-1" aria-hidden="true">
@@ -421,7 +376,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-robot mr-2"></i>
+                    <i class="fas fa-robot me-2"></i>
                     Model Details
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -432,13 +387,13 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-success" onclick="addToComparison()">
-                    <i class="fas fa-plus mr-1"></i>Add to Comparison
+                    <i class="fas fa-plus me-1"></i>Add to Comparison
                 </button>
                 <button type="button" class="btn btn-warning" onclick="testModel()">
-                    <i class="fas fa-play mr-1"></i>Test Model
+                    <i class="fas fa-play me-1"></i>Test Model
                 </button>
                 <button type="button" class="btn btn-primary" onclick="editModel()">
-                    <i class="fas fa-edit mr-1"></i>Edit Model
+                    <i class="fas fa-edit me-1"></i>Edit Model
                 </button>
             </div>
         </div>
@@ -451,7 +406,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-balance-scale mr-2"></i>
+                    <i class="fas fa-balance-scale me-2"></i>
                     Model Comparison
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -462,10 +417,10 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-success" onclick="exportComparison()">
-                    <i class="fas fa-download mr-1"></i>Export Comparison
+                    <i class="fas fa-download me-1"></i>Export Comparison
                 </button>
                 <button type="button" class="btn btn-warning" onclick="clearComparison()">
-                    <i class="fas fa-trash mr-1"></i>Clear Selection
+                    <i class="fas fa-trash me-1"></i>Clear Selection
                 </button>
             </div>
         </div>
@@ -478,7 +433,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-plus mr-2"></i>
+                    <i class="fas fa-plus me-2"></i>
                     <span id="modal-action-title">Add New Model</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -489,7 +444,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="saveModel()">
-                    <i class="fas fa-save mr-1"></i>Save Model
+                    <i class="fas fa-save me-1"></i>Save Model
                 </button>
             </div>
         </div>
@@ -502,7 +457,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-chart-bar mr-2"></i>
+                    <i class="fas fa-chart-bar me-2"></i>
                     Model Analytics
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -513,7 +468,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-primary" onclick="downloadAnalyticsReport()">
-                    <i class="fas fa-download mr-1"></i>Download Report
+                    <i class="fas fa-download me-1"></i>Download Report
                 </button>
             </div>
         </div>
@@ -704,6 +659,13 @@ class ModelsOverview {
         this.clearAllFilters();
         
         switch(filterType) {
+            case 'all':
+                // Show all models - no additional filters
+                break;
+            case 'active':
+                // Filter for active models
+                document.getElementById('sort-filter').value = 'name';
+                break;
             case 'latest':
                 document.getElementById('sort-filter').value = 'created_at';
                 break;
@@ -1291,77 +1253,37 @@ window.addEventListener('beforeunload', function() {
 </script>
 
 <style>
-/* Statistics Cards */
-.stat-card {
-    background: white;
+/* Fix for AdminLTE and Bootstrap 5 compatibility */
+.btn-group > .btn {
+    margin-right: 0;
+}
+
+.dropdown-toggle::after {
+    margin-left: 0.5em;
+}
+
+/* Statistics Cards - Remove duplicate styles since using AdminLTE small-box */
+.small-box {
     border-radius: 0.375rem;
-    padding: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     transition: all 0.2s ease;
 }
 
-.stat-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+.small-box:hover {
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
-.stat-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,123,255,0.1);
+/* Page Layout */
+.content-header {
+    padding: 0 0 1rem 0;
 }
 
-.stat-icon i {
-    font-size: 24px;
-}
-
-.stat-content {
-    flex: 1;
-}
-
-.stat-number {
+.content-header h1 {
     font-size: 2rem;
-    font-weight: bold;
-    color: #2c3e50;
-    line-height: 1;
-}
-
-.stat-label {
-    color: #6c757d;
-    font-size: 0.875rem;
-    margin-top: 0.25rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Page Header */
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #dee2e6;
-}
-
-.page-title {
-    font-size: 2.5rem;
-    font-weight: 300;
+    font-weight: 600;
     color: #2c3e50;
     margin: 0;
-}
-
-.page-subtitle {
-    color: #6c757d;
-    font-size: 1.1rem;
-    margin: 0.5rem 0 0 0;
 }
 
 /* Filter Section */
@@ -1623,6 +1545,24 @@ window.addEventListener('beforeunload', function() {
     
     .capabilities-filter {
         flex-direction: column;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .btn-group .btn {
+        margin-bottom: 0.5rem;
+        border-radius: 0.375rem !important;
+    }
+    
+    .d-flex.flex-wrap.gap-2 {
+        flex-direction: column;
+    }
+    
+    .small-box {
+        margin-bottom: 1rem;
     }
 }
 
