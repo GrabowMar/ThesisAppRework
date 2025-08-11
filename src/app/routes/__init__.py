@@ -12,6 +12,7 @@ from .api import api_bp
 from .batch import batch_bp
 from .statistics import stats_bp
 from .advanced import advanced
+from .testing import testing_bp
 from .errors import register_error_handlers
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     'batch_bp',
     'stats_bp',
     'advanced',
+    'testing_bp',
     'register_error_handlers'
 ]
 
@@ -36,7 +38,8 @@ def register_blueprints(app):
     
     # Feature routes
     app.register_blueprint(batch_bp, url_prefix='/batch')
-    app.register_blueprint(stats_bp)
+    app.register_blueprint(stats_bp, url_prefix='/statistics')
+    app.register_blueprint(testing_bp, url_prefix='/testing')
     app.register_blueprint(advanced)
     
     # Register error handlers

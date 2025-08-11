@@ -10,7 +10,9 @@
                 <button class="btn btn-outline-secondary btn-sm" 
                         hx-get="{{ url_for('api.api_tasks_active') }}" 
                         hx-target="#active-tasks-panel" 
-                        hx-swap="innerHTML">
+                        hx-swap="innerHTML"
+                        title="Refresh tasks"
+                        data-bs-toggle="tooltip">
                     <i class="fas fa-sync"></i>
                 </button>
             </div>
@@ -18,7 +20,7 @@
         
         <div class="tasks-list">
             {% for task in tasks %}
-            <div class="task-item mb-2 p-2 border rounded" 
+            <div class="task-item mb-2 p-3 border rounded" 
                  id="task-{{ task.id }}">
                 <div class="d-flex align-items-center justify-content-between">
                     <div class="task-info flex-grow-1">
@@ -27,7 +29,7 @@
                         </div>
                         <div class="task-details small text-muted">
                             {% if task.status %}
-                                <span class="badge badge-{{ 
+                                <span class="badge bg-{{ 
                                     'success' if task.status == 'completed' else
                                     'warning' if task.status in ['running', 'pending'] else
                                     'danger' if task.status == 'failed' else
@@ -45,7 +47,7 @@
                         </div>
                         
                         {% if task.progress is defined and task.progress is not none %}
-                        <div class="progress progress-sm mt-1">
+                        <div class="progress progress-sm mt-2">
                             <div class="progress-bar 
                                 {% if task.status == 'failed' %}bg-danger
                                 {% elif task.status == 'completed' %}bg-success
@@ -67,7 +69,9 @@
                                     hx-post="{{ url_for('api.api_tasks_cancel', task_id=task.id) }}" 
                                     hx-target="#task-{{ task.id }}" 
                                     hx-swap="outerHTML"
-                                    hx-confirm="Cancel this task?">
+                                    hx-confirm="Cancel this task?"
+                                    title="Cancel task"
+                                    data-bs-toggle="tooltip">
                                 <i class="fas fa-times"></i>
                             </button>
                         {% endif %}
@@ -75,7 +79,9 @@
                         {% if task.log_url or task.details_url %}
                             <button class="btn btn-outline-info btn-sm" 
                                     hx-get="{{ task.details_url or '#' }}" 
-                                    hx-target="#modal-container">
+                                    hx-target="#modal-container"
+                                    title="View details"
+                                    data-bs-toggle="tooltip">
                                 <i class="fas fa-eye"></i>
                             </button>
                         {% endif %}
@@ -126,55 +132,5 @@
     {% endif %}
 </div>
 
-<style>
-.active-tasks-panel {
-    background: rgba(255, 255, 255, 0.8);
-    border-radius: 0.5rem;
-    padding: 1rem;
-}
-
-.task-item {
-    background: white;
-    transition: all 0.2s ease-in-out;
-}
-
-.task-item:hover {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transform: translateY(-1px);
-}
-
-.task-name {
-    font-size: 0.875rem;
-    color: #2c3e50;
-}
-
-.task-details {
-    font-size: 0.75rem;
-    line-height: 1.3;
-}
-
-.progress-sm {
-    height: 4px;
-}
-
-.task-actions .btn {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-}
-
-.task-error {
-    font-size: 0.75rem;
-    border-width: 1px !important;
-}
-
-.badge {
-    font-size: 0.65rem;
-    padding: 0.25em 0.5em;
-}
-
-.badge-secondary { background-color: #6c757d; }
-.badge-primary { background-color: #0d6efd; }
-.badge-success { background-color: #198754; }
-.badge-warning { background-color: #ffc107; color: #000; }
-.badge-danger { background-color: #dc3545; }
-</style>
+<!-- Modal container for task details -->
+<div id="modal-container"></div>

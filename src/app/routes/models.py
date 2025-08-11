@@ -82,13 +82,13 @@ def models_overview():
             # Return just the partial content for HTMX
             if view_mode == 'list':
                 return render_template(
-                    'partials/models_list.html',
+                    'partials/models/models_list.html',
                     models=models_with_stats,
                     pagination=models_pagination
                 )
             else:
                 return render_template(
-                    'partials/models_grid.html',
+                    'partials/models/models_grid.html',
                     models=models_with_stats,
                     pagination=models_pagination
                 )
@@ -168,10 +168,8 @@ def applications():
     except Exception as e:
         logger.error(f"Error loading applications: {e}")
         flash('Error loading applications', 'error')
-        return render_template('pages/error.html', 
-                             error_code=500,
-                             error_title='Applications Error',
-                             error_message=str(e))
+        return render_template('partials/common/error.html', 
+                             error=f"Error loading applications: {str(e)}")
 
 
 @models_bp.route('/application/<int:app_id>')

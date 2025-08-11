@@ -1,0 +1,58 @@
+<!-- Performance Test Form Partial -->
+<form hx-post="{{ url_for('analysis.start_performance_test') }}" hx-target="#performance-test-result">
+    <div class="mb-3">
+        <label for="perf_model_select" class="form-label">Select Model</label>
+        <select class="form-select" id="perf_model_select" name="model_slug" required
+                hx-get="{{ url_for('analysis.get_model_apps') }}"
+                hx-target="#perf_app_select_container"
+                hx-trigger="change">
+            <option value="">Choose a model...</option>
+            {% for model in models %}
+            <option value="{{ model.model_slug }}">{{ model.model_name }} ({{ model.provider }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="mb-3" id="perf_app_select_container">
+        <label for="perf_app_select" class="form-label">Select Application</label>
+        <select class="form-select" id="perf_app_select" name="app_number" disabled>
+            <option value="">Choose a model first...</option>
+        </select>
+    </div>
+    
+    <div class="mb-3">
+        <label for="test_type" class="form-label">Test Type</label>
+        <select class="form-select" id="test_type" name="test_type">
+            <option value="load" selected>Load Test</option>
+            <option value="stress">Stress Test</option>
+            <option value="spike">Spike Test</option>
+            <option value="volume">Volume Test</option>
+        </select>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label for="users" class="form-label">Number of Users</label>
+                <input type="number" class="form-control" id="users" name="users" value="10" min="1" max="1000">
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label for="spawn_rate" class="form-label">Spawn Rate (users/sec)</label>
+                <input type="number" class="form-control" id="spawn_rate" name="spawn_rate" value="1" min="0.1" max="100" step="0.1">
+            </div>
+        </div>
+    </div>
+    
+    <div class="mb-3">
+        <label for="duration" class="form-label">Duration (seconds)</label>
+        <input type="number" class="form-control" id="duration" name="duration" value="60" min="10" max="3600">
+    </div>
+    
+    <div class="d-grid">
+        <button type="submit" class="btn btn-warning">
+            <i class="fas fa-tachometer-alt"></i> Start Performance Test
+        </button>
+    </div>
+</form>

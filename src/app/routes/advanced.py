@@ -102,15 +102,15 @@ def api_apps_grid():
 
         # Render appropriate view
         if view_mode == 'list':
-            return render_template('partials/apps_list.html', apps=enhanced_apps)
+            return render_template('partials/apps_grid/apps_list.html', apps=enhanced_apps)
         elif view_mode == 'compact':
-            return render_template('partials/apps_compact.html', apps=enhanced_apps)
+            return render_template('partials/apps_grid/apps_compact.html', apps=enhanced_apps)
         else:
-            return render_template('partials/apps_grid.html', apps=enhanced_apps)
+            return render_template('partials/apps_grid/apps_grid.html', apps=enhanced_apps)
 
     except Exception as e:
         logger.error(f"Error in apps grid API: {str(e)}")
-        return render_template('partials/error.html', 
+        return render_template('partials/common/error.html', 
                              error="Failed to load applications"), 500
 
 @advanced.route('/api/apps/<app_id>/details')
@@ -146,11 +146,11 @@ def api_app_details(app_id):
             'docker_info': {}  # get_docker_info(app)
         }
 
-        return render_template('partials/app_details.html', **details)
+        return render_template('partials/apps_grid/app_details.html', **details)
 
     except Exception as e:
         logger.error(f"Error getting app details for {app_id}: {str(e)}")
-        return render_template('partials/error.html', 
+        return render_template('partials/common/error.html', 
                              error="Failed to load application details"), 500
 
 @advanced.route('/api/apps/<app_id>/urls')
@@ -254,7 +254,7 @@ def api_analysis_configuration():
         app_ids = data.get('app_ids', [])
 
         if not app_ids:
-            return render_template('partials/error.html', 
+            return render_template('partials/common/error.html', 
                                  error="No applications selected"), 400
 
         # Get application details for configuration
@@ -271,12 +271,12 @@ def api_analysis_configuration():
                 if app:
                     apps.append(app)
 
-        return render_template('partials/analysis_config.html', 
+        return render_template('partials/apps_grid/analysis_config.html', 
                              apps=apps, app_ids=app_ids)
 
     except Exception as e:
         logger.error(f"Error loading analysis configuration: {str(e)}")
-        return render_template('partials/error.html', 
+        return render_template('partials/common/error.html', 
                              error="Failed to load analysis configuration"), 500
 
 @advanced.route('/api/analysis/start', methods=['POST'])
@@ -452,12 +452,12 @@ def api_models_display():
         # Group models if requested
         if group_by:
             grouped_models = group_models_by(models, group_by)
-            template = f'partials/models_{view_mode}_grouped.html'
+            template = f'partials/models/models_{view_mode}_grouped.html'
             return render_template(template, 
                                  grouped_models=grouped_models, 
                                  total=total)
         else:
-            template = f'partials/models_{view_mode}.html'
+            template = f'partials/models/models_{view_mode}.html'
             return render_template(template, 
                                  models=models, 
                                  total=total,
@@ -466,7 +466,7 @@ def api_models_display():
 
     except Exception as e:
         logger.error(f"Error in models display API: {str(e)}")
-        return render_template('partials/error.html', 
+        return render_template('partials/common/error.html', 
                              error="Failed to load models"), 500
 
 @advanced.route('/api/models/providers')

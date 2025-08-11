@@ -141,10 +141,10 @@ def sidebar_stats():
             'security_tests': db.session.query(SecurityAnalysis).count(),
             'performance_tests': db.session.query(PerformanceTest).count()
         }
-        return render_template('partials/sidebar_stats.html', stats=stats)
+        return render_template('partials/common/sidebar_stats.html', stats=stats)
     except Exception as e:
         logger.error(f"Error getting sidebar stats: {e}")
-        return render_template('partials/sidebar_stats.html', stats={
+        return render_template('partials/common/sidebar_stats.html', stats={
             'total_models': 0, 'total_apps': 0, 'security_tests': 0, 'performance_tests': 0
         })
 
@@ -199,10 +199,10 @@ def recent_activity():
         activities.sort(key=lambda x: x['timestamp'] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
         activities = activities[:10]  # Keep only the 10 most recent
         
-        return render_template('partials/activity_timeline.html', activities=activities)
+        return render_template('partials/common/activity_timeline.html', activities=activities)
     except Exception as e:
         logger.error(f"Error getting recent activity: {e}")
-        return render_template('partials/activity_timeline.html', activities=[])
+        return render_template('partials/common/activity_timeline.html', activities=[])
 
 
 @api_bp.route('/system_health')
@@ -877,7 +877,7 @@ def dashboard_stats():
             )
         }
         
-        return render_template('partials/dashboard_stats.html', stats=stats)
+        return render_template('partials/dashboard/dashboard_stats.html', stats=stats)
     except Exception as e:
         logger.error(f"Error getting dashboard stats: {e}")
         return render_template('partials/dashboard_stats.html', stats={
@@ -907,10 +907,10 @@ def api_tasks_active():
         service = get_background_service()
         active_tasks = service.get_active_tasks()
         
-        return render_template('partials/active_tasks.html', tasks=active_tasks)
+        return render_template('partials/common/active_tasks.html', tasks=active_tasks)
     except Exception as e:
         logger.error(f"Error getting active tasks: {e}")
-        return render_template('partials/active_tasks.html', tasks=[])
+        return render_template('partials/common/active_tasks.html', tasks=[])
 
 
 @api_bp.route('/tasks/<task_id>/status')
@@ -1440,6 +1440,147 @@ def api_statistics_overview():
 
 
 # Missing endpoints from logs
+@api_bp.route('/models/stats/total')
+def api_models_stats_total():
+    """API endpoint for total models count."""
+    try:
+        count = ModelCapability.query.count()
+        return jsonify({'total': count})
+    except Exception as e:
+        logger.error(f"Error getting total models: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/models/stats/providers')
+def api_models_stats_providers():
+    """API endpoint for model providers statistics."""
+    try:
+        from sqlalchemy import func
+        provider_stats = db.session.query(
+            ModelCapability.provider,
+            func.count(ModelCapability.id).label('count')
+        ).group_by(ModelCapability.provider).all()
+        
+        return jsonify({
+            'providers': [{'name': provider, 'count': count} for provider, count in provider_stats]
+        })
+    except Exception as e:
+        logger.error(f"Error getting provider stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/models/stats/performance')
+def api_models_stats_performance():
+    """API endpoint for model performance statistics."""
+    try:
+        from ..models import GeneratedApplication, PerformanceTest
+        from sqlalchemy import func
+        
+        # Get performance stats by model
+        perf_stats = db.session.query(
+            GeneratedApplication.model_slug,
+            func.avg(PerformanceTest.requests_per_second).label('avg_rps'),
+            func.avg(PerformanceTest.average_response_time).label('avg_response_time'),
+            func.count(PerformanceTest.id).label('test_count')
+        ).join(
+            PerformanceTest, GeneratedApplication.id == PerformanceTest.application_id
+        ).group_by(GeneratedApplication.model_slug).all()
+        
+        return jsonify({
+            'performance_stats': [{
+                'model': stat.model_slug,
+                'avg_rps': float(stat.avg_rps) if stat.avg_rps else 0,
+                'avg_response_time': float(stat.avg_response_time) if stat.avg_response_time else 0,
+                'test_count': stat.test_count
+            } for stat in perf_stats]
+        })
+    except Exception as e:
+        logger.error(f"Error getting performance stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/models/stats/last-updated')
+def api_models_stats_last_updated():
+    """API endpoint for last updated model statistics."""
+    try:
+        from sqlalchemy import desc
+        
+        recent_model = ModelCapability.query.order_by(
+            desc(ModelCapability.updated_at)
+        ).first()
+        
+        if recent_model:
+            return jsonify({
+                'last_updated': recent_model.updated_at.isoformat() if recent_model.updated_at else None,
+                'model_name': recent_model.model_name,
+                'provider': recent_model.provider
+            })
+        else:
+            return jsonify({'last_updated': None})
+    except Exception as e:
+        logger.error(f"Error getting last updated: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/models/providers')
+def api_models_providers():
+    """API endpoint for model providers list."""
+    try:
+        providers = db.session.query(ModelCapability.provider.distinct()).all()
+        provider_list = [p[0] for p in providers if p[0]]
+        
+        return jsonify({'providers': provider_list})
+    except Exception as e:
+        logger.error(f"Error getting providers: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/apps/grid')
+def api_apps_grid():
+    """API endpoint for applications grid view."""
+    try:
+        from flask import request
+        
+        # Get query parameters
+        search = request.args.get('search', '')
+        model = request.args.get('model', '')
+        status = request.args.get('status', '')
+        app_type = request.args.get('type', '')
+        view = request.args.get('view', 'grid')
+        page = request.args.get('page', 1, type=int)
+        per_page = 12
+        
+        # Build query
+        query = GeneratedApplication.query
+        
+        if search:
+            query = query.filter(
+                GeneratedApplication.model_slug.contains(search)
+            )
+        
+        if model:
+            query = query.filter(GeneratedApplication.model_slug == model)
+        
+        if status:
+            query = query.filter(GeneratedApplication.generation_status == status)
+        
+        # Paginate
+        apps = query.order_by(
+            GeneratedApplication.created_at.desc()
+        ).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        # Return appropriate template based on view
+        if view == 'list':
+            return render_template('partials/apps_list.html', apps=apps)
+        else:
+            return render_template('partials/apps_grid.html', apps=apps)
+    except Exception as e:
+        logger.error(f"Error getting apps grid: {e}")
+        return f'<div class="alert alert-danger">Error loading applications: {str(e)}</div>'
+
+
 @api_bp.route('/batch/active')
 def api_batch_active():
     """API endpoint for active batch analyses (HTMX)."""

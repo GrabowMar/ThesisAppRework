@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Applications | {{ config.APPLICATION_NAME }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Generated Applications</h1>
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary" data-view="grid">
+                        <i class="fas fa-th"></i> Grid
+                    </button>
+                    <button class="btn btn-outline-secondary active" data-view="list">
+                        <i class="fas fa-list"></i> List
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="model-filter" class="form-label">Filter by Model</label>
+                            <select class="form-select" id="model-filter">
+                                <option value="">All Models</option>
+                                {% for model in available_models %}
+                                <option value="{{ model.model_slug }}">{{ model.model_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="status-filter" class="form-label">Filter by Status</label>
+                            <select class="form-select" id="status-filter">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="stopped">Stopped</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="search-input" class="form-label">Search</label>
+                            <input type="text" class="form-control" id="search-input" placeholder="Search applications...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Applications List -->
+            <div class="row" id="applications-container">
+                {% if applications %}
+                    {% for app in applications %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">App #{{ app.app_number }}</h6>
+                                <span class="badge bg-{{ 'success' if app.status == 'running' else 'secondary' }}">
+                                    {{ app.status.title() }}
+                                </span>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small">{{ app.model_slug }}</p>
+                                {% if app.description %}
+                                <p class="card-text">{{ app.description[:100] }}{% if app.description|length > 100 %}...{% endif %}</p>
+                                {% endif %}
+                                <small class="text-muted">
+                                    Created: {{ app.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                </small>
+                            </div>
+                            <div class="card-footer">
+                                <div class="btn-group w-100">
+                                    <a href="{{ url_for('models.application_detail', app_id=app.id) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-secondary" 
+                                            data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-play"></i> Start</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-stop"></i> Stop</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-trash"></i> Delete</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">No Applications Found</h4>
+                        <p class="text-muted">Generate some applications to see them here.</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Pagination -->
+            {% if pagination %}
+            <nav aria-label="Applications pagination">
+                <ul class="pagination justify-content-center">
+                    {% if pagination.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('models.applications', page=pagination.prev_num) }}">Previous</a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in pagination.iter_pages() %}
+                        {% if page_num %}
+                            {% if page_num != pagination.page %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('models.applications', page=page_num) }}">{{ page_num }}</a>
+                            </li>
+                            {% else %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">…</span>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if pagination.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('models.applications', page=pagination.next_num) }}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const modelFilter = document.getElementById('model-filter');
+    const statusFilter = document.getElementById('status-filter');
+    const searchInput = document.getElementById('search-input');
+    
+    function filterApplications() {
+        // Add filtering logic here
+        console.log('Filtering applications...');
+    }
+    
+    modelFilter.addEventListener('change', filterApplications);
+    statusFilter.addEventListener('change', filterApplications);
+    searchInput.addEventListener('input', filterApplications);
+});
+</script>
+{% endblock %}

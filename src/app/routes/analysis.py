@@ -21,6 +21,59 @@ analysis_bp = Blueprint('analysis', __name__)
 task_manager = TaskManager()
 
 
+@analysis_bp.route('/')
+def analysis_hub():
+    """Analysis hub main page."""
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis
+        from ..extensions import db
+        from sqlalchemy import desc, func
+        
+        # Get analysis statistics
+        stats = {
+            'total_security': SecurityAnalysis.query.count(),
+            'total_performance': PerformanceTest.query.count(),
+            'total_zap': ZAPAnalysis.query.count(),
+            'total_ai': OpenRouterAnalysis.query.count()
+        }
+        
+        # Get recent analyses
+        recent_security = SecurityAnalysis.query.order_by(
+            desc(SecurityAnalysis.created_at)
+        ).limit(5).all()
+        
+        recent_performance = PerformanceTest.query.order_by(
+            desc(PerformanceTest.created_at)
+        ).limit(5).all()
+        
+        # Get analysis trends
+        from datetime import datetime, timedelta
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        
+        trends = {
+            'security_this_week': SecurityAnalysis.query.filter(
+                SecurityAnalysis.created_at >= week_ago
+            ).count(),
+            'performance_this_week': PerformanceTest.query.filter(
+                PerformanceTest.created_at >= week_ago
+            ).count()
+        }
+        
+        return render_template(
+            'pages/analysis_hub.html',
+            stats=stats,
+            recent_security=recent_security,
+            recent_performance=recent_performance,
+            trends=trends
+        )
+    except Exception as e:
+        logger.error(f"Error loading analysis hub: {e}")
+        return render_template('pages/error.html',
+                             error_code=500,
+                             error_title='Analysis Hub Error',
+                             error_message=str(e))
+
+
 @analysis_bp.route('/security/start', methods=['POST'])
 def start_security_analysis():
     """Start security analysis for an application."""
@@ -130,16 +183,17 @@ def security_test_form():
     
     try:
         models = ModelCapability.query.all()
-        return render_template('partials/security_test_form.html', models=models)
+        return render_template('partials/testing/security_test_form.html', models=models)
     except Exception as e:
         logger.error(f"Error loading security test form: {e}")
-        return f'<div class="alert alert-danger">Error loading security test form: {str(e)}</div>'
+        return render_template('partials/common/error.html', 
+                             error=f"Error loading security test form: {str(e)}")
 
 
 @analysis_bp.route('/performance_test_form')
 def performance_test_form():
     """HTMX endpoint for performance test form."""
-    return render_template('partials/performance_test_form.html')
+    return render_template('partials/testing/performance_test_form.html')
 
 
 @analysis_bp.route('/security/run', methods=['POST'])
@@ -161,22 +215,14 @@ def get_model_apps():
     from flask import request
     
     model_slug = request.args.get('model_slug')
-    if not model_slug:
-        return '<select class="form-select" name="app_number" disabled><option value="">Choose a model first...</option></select>'
+    apps = []
     
-    try:
-        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
-        
-        # Generate select options
-        options = ['<select class="form-select" name="app_number" required>']
-        options.append('<option value="">Choose an application...</option>')
-        
-        for app in apps:
-            options.append(f'<option value="{app.app_number}">App {app.app_number}</option>')
-        
-        options.append('</select>')
-        
-        return ''.join(options)
-    except Exception as e:
-        logger.error(f"Error getting apps for model {model_slug}: {e}")
-        return '<select class="form-select" name="app_number" disabled><option value="">Error loading apps</option></select>'
+    if model_slug:
+        try:
+            apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+        except Exception as e:
+            logger.error(f"Error getting apps for model {model_slug}: {e}")
+    
+    return render_template('partials/common/model_apps_select.html', 
+                         apps=apps, 
+                         model_slug=model_slug)

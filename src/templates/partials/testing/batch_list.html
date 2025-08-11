@@ -1,0 +1,28 @@
+<!-- Batch List Partial -->
+<div class="batch-list-container">
+    {% if batches %}
+    <div class="list-group">
+        {% for batch in batches %}
+        <div class="list-group-item">
+            <div class="d-flex w-100 justify-content-between">
+                <h6 class="mb-1">{{ batch.name or 'Batch #' + batch.id|string }}</h6>
+                <small>{{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+            </div>
+            <p class="mb-1">Status: 
+                <span class="badge bg-{{ 'success' if batch.status == 'completed' else 'warning' if batch.status == 'running' else 'secondary' }}">
+                    {{ batch.status.title() }}
+                </span>
+            </p>
+            {% if batch.description %}
+            <small>{{ batch.description }}</small>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">
+        <i class="fas fa-inbox fa-2x mb-2"></i>
+        <p>No batch analyses found</p>
+    </div>
+    {% endif %}
+</div>

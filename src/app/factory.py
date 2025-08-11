@@ -10,7 +10,7 @@ import os
 import logging
 from typing import Optional
 
-from flask import Flask, request
+from flask import Flask
 from celery import Celery
 from sqlalchemy import text
 
@@ -232,98 +232,6 @@ def create_app(config_name: str = 'default') -> Flask:
             },
             'timestamp': timestamp
         }
-    
-    # Task management endpoints
-    @app.route('/api/tasks/status')
-    def get_tasks_status():
-        """Get status of all active tasks."""
-        try:
-            components = get_components()
-            task_manager = components.task_manager if components else None
-            if task_manager and hasattr(task_manager, 'get_task_status'):
-                status = task_manager.get_task_status()
-                return status
-            else:
-                return {'error': 'Task manager not available'}, 503
-        except Exception as e:
-            logger.error(f"Failed to get tasks status: {e}")
-            return {'error': str(e)}, 500
-    
-    @app.route('/api/tasks/history')
-    def get_tasks_history():
-        """Get task execution history."""
-        try:
-            limit = int(request.args.get('limit', 50))
-            components = get_components()
-            task_manager = components.task_manager if components else None
-            if task_manager and hasattr(task_manager, 'get_task_history'):
-                history = task_manager.get_task_history(limit=limit)
-                return {'tasks': history}
-            else:
-                return {'error': 'Task manager not available'}, 503
-        except Exception as e:
-            logger.error(f"Failed to get tasks history: {e}")
-            return {'error': str(e)}, 500
-    
-    @app.route('/api/analyzer/status')
-    def get_analyzer_status():
-        """Get analyzer services status."""
-        try:
-            components = get_components()
-            analyzer_integration = components.analyzer_integration if components else None
-            if analyzer_integration and hasattr(analyzer_integration, 'get_services_status'):
-                status = analyzer_integration.get_services_status()
-                return status
-            else:
-                return {'error': 'Analyzer integration not available'}, 503
-        except Exception as e:
-            logger.error(f"Failed to get analyzer status: {e}")
-            return {'error': str(e)}, 500
-    
-    @app.route('/api/analyzer/start', methods=['POST'])
-    def start_analyzer_services():
-        """Start analyzer services."""
-        try:
-            components = get_components()
-            analyzer_integration = components.analyzer_integration if components else None
-            if analyzer_integration and hasattr(analyzer_integration, 'start_analyzer_services'):
-                success = analyzer_integration.start_analyzer_services()
-                return {'success': success}
-            else:
-                return {'error': 'Analyzer integration not available'}, 503
-        except Exception as e:
-            logger.error(f"Failed to start analyzer services: {e}")
-            return {'error': str(e)}, 500
-    
-    @app.route('/api/analyzer/stop', methods=['POST'])
-    def stop_analyzer_services():
-        """Stop analyzer services."""
-        try:
-            components = get_components()
-            analyzer_integration = components.analyzer_integration if components else None
-            if analyzer_integration and hasattr(analyzer_integration, 'stop_analyzer_services'):
-                success = analyzer_integration.stop_analyzer_services()
-                return {'success': success}
-            else:
-                return {'error': 'Analyzer integration not available'}, 503
-        except Exception as e:
-            logger.error(f"Failed to stop analyzer services: {e}")
-            return {'error': str(e)}, 500
-    
-    @app.route('/api/analyzer/restart', methods=['POST'])
-    def restart_analyzer_services():
-        """Restart analyzer services."""
-        try:
-            components = get_components()
-            analyzer_integration = components.analyzer_integration if components else None
-            if analyzer_integration and hasattr(analyzer_integration, 'restart_analyzer_services'):
-                success = analyzer_integration.restart_analyzer_services()
-                return {'success': success}
-            else:
-                return {'error': 'Analyzer integration not available'}, 503
-        except Exception as e:
-            logger.error(f"Failed to restart analyzer services: {e}")
-            return {'error': str(e)}, 500
     
     logger.info(f"Flask application created successfully with config: {config_name}")
     

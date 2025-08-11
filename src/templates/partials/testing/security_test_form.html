@@ -1,0 +1,68 @@
+<!-- Security Test Form Partial -->
+<form hx-post="{{ url_for('analysis.start_security_analysis') }}" hx-target="#security-test-result">
+    <div class="mb-3">
+        <label for="security_model_select" class="form-label">Select Model</label>
+        <select class="form-select" id="security_model_select" name="model_slug" required
+                hx-get="{{ url_for('analysis.get_model_apps') }}"
+                hx-target="#security_app_select_container"
+                hx-trigger="change">
+            <option value="">Choose a model...</option>
+            {% for model in models %}
+            <option value="{{ model.model_slug }}">{{ model.model_name }} ({{ model.provider }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="mb-3" id="security_app_select_container">
+        <label for="security_app_select" class="form-label">Select Application</label>
+        <select class="form-select" id="security_app_select" name="app_number" disabled>
+            <option value="">Choose a model first...</option>
+        </select>
+    </div>
+    
+    <div class="mb-3">
+        <label class="form-label">Security Tools</label>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="bandit_enabled" name="bandit_enabled" value="true" checked>
+            <label class="form-check-label" for="bandit_enabled">
+                Bandit (Python Security Linter)
+            </label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="safety_enabled" name="safety_enabled" value="true" checked>
+            <label class="form-check-label" for="safety_enabled">
+                Safety (Python Dependencies Scanner)
+            </label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="pylint_enabled" name="pylint_enabled" value="true" checked>
+            <label class="form-check-label" for="pylint_enabled">
+                Pylint (Code Quality)
+            </label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="eslint_enabled" name="eslint_enabled" value="true" checked>
+            <label class="form-check-label" for="eslint_enabled">
+                ESLint (JavaScript Linter)
+            </label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="npm_audit_enabled" name="npm_audit_enabled" value="true" checked>
+            <label class="form-check-label" for="npm_audit_enabled">
+                NPM Audit (Node.js Dependencies)
+            </label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="snyk_enabled" name="snyk_enabled" value="true">
+            <label class="form-check-label" for="snyk_enabled">
+                Snyk (Vulnerability Scanner)
+            </label>
+        </div>
+    </div>
+    
+    <div class="d-grid">
+        <button type="submit" class="btn btn-danger">
+            <i class="fas fa-shield-alt"></i> Start Security Analysis
+        </button>
+    </div>
+</form>

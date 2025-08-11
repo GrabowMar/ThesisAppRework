@@ -1,0 +1,35 @@
+<!-- Active Batches Partial -->
+<div class="batch-list">
+    {% if active_batches %}
+        {% for batch in active_batches %}
+        <div class="card mb-2">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Batch #{{ batch.id }}</h6>
+                        <small class="text-muted">
+                            {{ batch.completed_tasks or 0 }}/{{ batch.total_tasks or 0 }} tasks completed
+                        </small>
+                    </div>
+                    <div>
+                        <span class="badge bg-{{ 'primary' if batch.status.value == 'running' else 'warning' }}">
+                            {{ batch.status.value if batch.status else 'unknown' }}
+                        </span>
+                        {% if batch.status.value == 'running' %}
+                        <div class="progress mt-1" style="width: 100px;">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ ((batch.completed_tasks or 0) / (batch.total_tasks or 1)) * 100 }}%">
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-info-circle"></i> No active batch operations
+        </div>
+    {% endif %}
+</div>

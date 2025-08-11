@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Testing Center{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Testing Center</h1>
+            <p class="text-muted">Comprehensive testing and quality assurance dashboard</p>
+        </div>
+        <div>
+            <div class="btn-group" role="group">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newTestModal">
+                    <i class="fas fa-plus"></i> New Test
+                </button>
+                <button class="btn btn-outline-primary" onclick="refreshDashboard()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Overview -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-0">{{ stats.total_security_tests }}</h4>
+                            <p class="mb-0">Security Tests</p>
+                            <small>Success Rate: {{ success_rates.security|round(1) }}%</small>
+                        </div>
+                        <div class="ms-3">
+                            <i class="fas fa-shield-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-0">{{ stats.total_performance_tests }}</h4>
+                            <p class="mb-0">Performance Tests</p>
+                            <small>Success Rate: {{ success_rates.performance|round(1) }}%</small>
+                        </div>
+                        <div class="ms-3">
+                            <i class="fas fa-tachometer-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-0">{{ stats.total_zap_scans }}</h4>
+                            <p class="mb-0">ZAP Scans</p>
+                            <small>Vulnerability Assessments</small>
+                        </div>
+                        <div class="ms-3">
+                            <i class="fas fa-search fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-0">{{ stats.total_ai_analyses }}</h4>
+                            <p class="mb-0">AI Analyses</p>
+                            <small>Intelligent Code Review</small>
+                        </div>
+                        <div class="ms-3">
+                            <i class="fas fa-brain fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Tests and Weekly Trends -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Active Tests</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 col-md-3">
+                            <div class="mb-3">
+                                <h3 class="text-primary">{{ active_tests.security }}</h3>
+                                <small class="text-muted">Security</small>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="mb-3">
+                                <h3 class="text-info">{{ active_tests.performance }}</h3>
+                                <small class="text-muted">Performance</small>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="mb-3">
+                                <h3 class="text-warning">{{ active_tests.batch }}</h3>
+                                <small class="text-muted">Batch</small>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="mb-3">
+                                <h3 class="text-secondary">{{ active_tests.containers }}</h3>
+                                <small class="text-muted">Containers</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Weekly Activity</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="mb-3">
+                                <h3 class="text-primary">{{ weekly_trends.security_tests }}</h3>
+                                <small class="text-muted">Security Tests</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="mb-3">
+                                <h3 class="text-info">{{ weekly_trends.performance_tests }}</h3>
+                                <small class="text-muted">Performance Tests</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="mb-3">
+                                <h3 class="text-warning">{{ weekly_trends.zap_scans }}</h3>
+                                <small class="text-muted">ZAP Scans</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Access Panels -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Security Testing</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Run comprehensive security analyses including static code analysis, dependency scanning, and vulnerability assessments.</p>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('testing.security_testing') }}" class="btn btn-primary">
+                            <i class="fas fa-shield-alt"></i> Security Testing
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Performance Testing</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Execute load testing, stress testing, and performance profiling to ensure optimal application performance.</p>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('testing.performance_testing') }}" class="btn btn-info">
+                            <i class="fas fa-tachometer-alt"></i> Performance Testing
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Batch Operations</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Manage and monitor large-scale testing operations across multiple applications and models.</p>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('testing.batch_testing') }}" class="btn btn-warning">
+                            <i class="fas fa-layer-group"></i> Batch Testing
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Test Results -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Security Tests</h5>
+                    <a href="{{ url_for('testing.results') }}" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    {% if recent_security %}
+                        <div class="list-group list-group-flush">
+                            {% for test in recent_security %}
+                            <div class="list-group-item px-0">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Security Test #{{ test.id }}</h6>
+                                        <small class="text-muted">
+                                            {{ test.created_at.strftime('%Y-%m-%d %H:%M') if test.created_at else 'Unknown' }}
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-{{ 'success' if test.status.value == 'completed' else 'warning' }}">
+                                        {{ test.status.value if test.status else 'pending' }}
+                                    </span>
+                                </div>
+                                {% if test.total_issues is not none %}
+                                <small class="text-muted">{{ test.total_issues }} issues found</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center py-3">No recent security tests</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Performance Tests</h5>
+                    <a href="{{ url_for('testing.results') }}" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    {% if recent_performance %}
+                        <div class="list-group list-group-flush">
+                            {% for test in recent_performance %}
+                            <div class="list-group-item px-0">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Performance Test #{{ test.id }}</h6>
+                                        <small class="text-muted">
+                                            {{ test.created_at.strftime('%Y-%m-%d %H:%M') if test.created_at else 'Unknown' }}
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-{{ 'success' if test.status.value == 'completed' else 'warning' }}">
+                                        {{ test.status.value if test.status else 'pending' }}
+                                    </span>
+                                </div>
+                                {% if test.requests_per_second %}
+                                <small class="text-muted">{{ test.requests_per_second|round(1) }} RPS</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center py-3">No recent performance tests</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Test Modal -->
+<div class="modal fade" id="newTestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Start New Test</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Choose a test type to get started:</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('testing.security_testing') }}" class="btn btn-primary">
+                        <i class="fas fa-shield-alt"></i> Security Testing
+                    </a>
+                    <a href="{{ url_for('testing.performance_testing') }}" class="btn btn-info">
+                        <i class="fas fa-tachometer-alt"></i> Performance Testing
+                    </a>
+                    <a href="{{ url_for('testing.batch_testing') }}" class="btn btn-warning">
+                        <i class="fas fa-layer-group"></i> Batch Operations
+                    </a>
+                    <a href="{{ url_for('testing.results') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-chart-bar"></i> View Results
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshDashboard() {
+    // Refresh the page for now - in production this could use HTMX
+    window.location.reload();
+}
+</script>
+{% endblock %}

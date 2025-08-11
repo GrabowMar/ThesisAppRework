@@ -26,6 +26,7 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
     
     {% block head %}{% endblock %}
 </head>
@@ -59,7 +60,7 @@
                     <li>
                         <a class="dropdown-item" 
                            href="#" 
-                           hx-get="{{ url_for('main.batch_form') }}" 
+                           hx-get="{{ url_for('batch.batch_form') }}" 
                            hx-target="#modal-container">
                             <i class="fas fa-layer-group me-2"></i>New Batch Analysis
                         </a>
@@ -641,6 +642,9 @@
             AppState.stopAutoRefresh();
         });
     </script>
+
+    <!-- Dashboard JavaScript -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>
