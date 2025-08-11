@@ -1,47 +1,44 @@
-<!-- Testing Service Status Partial -->
-<div class="row">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    {% if status.background_service == 'available' %}
-                        <i class="fas fa-check-circle fa-2x text-success"></i>
-                    {% else %}
-                        <i class="fas fa-times-circle fa-2x text-danger"></i>
-                    {% endif %}
+<div class="service-status-grid">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="service-status-card">
+                <div class="service-header">
+                    <i class="fas fa-tasks mr-2"></i>
+                    <span>Background Service</span>
                 </div>
-                <h6 class="mb-0">Background Service</h6>
-                <small class="text-muted">{{ status.background_service.title() }}</small>
+                <div class="service-status">
+                    <span class="badge badge-{{ 'success' if status.background_service == 'available' else 'warning' }}">
+                        {{ status.background_service|title }}
+                    </span>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    {% if status.task_manager == 'available' %}
-                        <i class="fas fa-check-circle fa-2x text-success"></i>
-                    {% else %}
-                        <i class="fas fa-times-circle fa-2x text-danger"></i>
-                    {% endif %}
+        
+        <div class="col-md-4">
+            <div class="service-status-card">
+                <div class="service-header">
+                    <i class="fas fa-cogs mr-2"></i>
+                    <span>Task Manager</span>
                 </div>
-                <h6 class="mb-0">Task Manager</h6>
-                <small class="text-muted">{{ status.task_manager.title() }}</small>
+                <div class="service-status">
+                    <span class="badge badge-{{ 'success' if status.task_manager == 'available' else 'warning' }}">
+                        {{ status.task_manager|title }}
+                    </span>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body text-center">
-                <div class="mb-2">
-                    {% if status.analyzer == 'available' %}
-                        <i class="fas fa-check-circle fa-2x text-success"></i>
-                    {% else %}
-                        <i class="fas fa-times-circle fa-2x text-danger"></i>
-                    {% endif %}
+        
+        <div class="col-md-4">
+            <div class="service-status-card">
+                <div class="service-header">
+                    <i class="fas fa-search mr-2"></i>
+                    <span>Analyzer</span>
                 </div>
-                <h6 class="mb-0">Analyzer Service</h6>
-                <small class="text-muted">{{ status.analyzer.title() }}</small>
+                <div class="service-status">
+                    <span class="badge badge-{{ 'success' if status.analyzer == 'available' else 'warning' }}">
+                        {{ status.analyzer|title }}
+                    </span>
+                </div>
             </div>
         </div>
     </div>

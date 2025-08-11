@@ -1,4 +1,4 @@
-{% extends "layout/base.html" %}
+{% extends "base.html" %}
 
 {% block title %}
 {% if error_code %}Error {{ error_code }}{% else %}Error{% endif %} - Research Platform
@@ -9,90 +9,164 @@
     <div class="row justify-content-center">
         <div class="col-lg-8 col-xl-6">
             <!-- Error Card -->
-            <div class="card border-0 shadow-lg mt-5">
-                <div class="card-body text-center p-5">
+            <div class="card error-card">
+                <div class="card-body text-center">
                     <!-- Error Icon -->
-                    <div class="mb-4">
+                    <div class="error-icon mb-4">
                         {% if error_code == 404 %}
-                            <i class="fas fa-search fa-4x text-muted"></i>
-                        {% elif error_code >= 500 %}
-                            <i class="fas fa-server fa-4x text-danger"></i>
+                            <i class="fas fa-search fa-4x text-warning"></i>
+                        {% elif error_code == 403 %}
+                            <i class="fas fa-lock fa-4x text-danger"></i>
+                        {% elif error_code == 500 %}
+                            <i class="fas fa-exclamation-triangle fa-4x text-danger"></i>
                         {% else %}
-                            <i class="fas fa-exclamation-triangle fa-4x text-warning"></i>
+                            <i class="fas fa-question-circle fa-4x text-muted"></i>
                         {% endif %}
                     </div>
 
-                    <!-- Error Code -->
-                    {% if error_code %}
-                        <h1 class="display-1 fw-bold text-muted">{{ error_code }}</h1>
-                    {% endif %}
+                    <!-- Error Content -->
+                    <div class="error-content">
+                        <h1 class="error-code display-1 font-weight-bold text-primary">
+                            {{ error_code or 'Error' }}
+                        </h1>
+                        
+                        <h3 class="error-title mb-3">
+                            {% if error_title %}
+                                {{ error_title }}
+                            {% elif error_code == 404 %}
+                                Page Not Found
+                            {% elif error_code == 403 %}
+                                Access Forbidden
+                            {% elif error_code == 500 %}
+                                Internal Server Error
+                            {% else %}
+                                An Error Occurred
+                            {% endif %}
+                        </h3>
 
-                    <!-- Error Title -->
-                    <h2 class="h4 mb-3">
-                        {% if error_code == 404 %}
-                            Page Not Found
-                        {% elif error_code == 403 %}
-                            Access Forbidden
-                        {% elif error_code == 500 %}
-                            Internal Server Error
-                        {% elif error_code == 503 %}
-                            Service Unavailable
-                        {% else %}
-                            {{ error_title|default('An Error Occurred') }}
-                        {% endif %}
-                    </h2>
+                        <p class="error-message text-muted mb-4">
+                            {% if error_message %}
+                                {{ error_message }}
+                            {% elif error_code == 404 %}
+                                The page you're looking for doesn't exist or has been moved.
+                            {% elif error_code == 403 %}
+                                You don't have permission to access this resource.
+                            {% elif error_code == 500 %}
+                                Something went wrong on our end. We're working to fix it.
+                            {% else %}
+                                An unexpected error has occurred. Please try again later.
+                            {% endif %}
+                        </p>
 
-                    <!-- Error Message -->
-                    <p class="text-muted mb-4">
-                        {% if error_message %}
-                            {{ error_message }}
-                        {% elif error_code == 404 %}
-                            The page you're looking for doesn't exist or has been moved.
-                        {% elif error_code == 403 %}
-                            You don't have permission to access this resource.
-                        {% elif error_code == 500 %}
-                            Something went wrong on our end. We're working to fix it.
-                        {% elif error_code == 503 %}
-                            The service is temporarily unavailable. Please try again later.
-                        {% else %}
-                            An unexpected error has occurred. Please try again later.
-                        {% endif %}
-                    </p>
-
-                    <!-- Action Buttons -->
-                    <div class="d-flex flex-column flex-sm-row gap-2 justify-content-center">
-                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
-                            <i class="fas fa-home me-1"></i>Go to Dashboard
-                        </a>
-                        <button class="btn btn-outline-secondary" onclick="history.back()">
-                            <i class="fas fa-arrow-left me-1"></i>Go Back
-                        </button>
-                        {% if error_code >= 500 %}
-                            <button class="btn btn-outline-info" onclick="window.location.reload()">
-                                <i class="fas fa-redo me-1"></i>Try Again
+                        <!-- Action Buttons -->
+                        <div class="error-actions">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary btn-lg mr-3">
+                                <i class="fas fa-home mr-2"></i>
+                                Go to Dashboard
+                            </a>
+                            
+                            <button class="btn btn-outline-secondary btn-lg" onclick="window.history.back()">
+                                <i class="fas fa-arrow-left mr-2"></i>
+                                Go Back
                             </button>
-                        {% endif %}
-                    </div>
+                        </div>
 
-                    <!-- Additional Help -->
-                    <div class="mt-4">
-                        <small class="text-muted">
-                            If you continue to experience issues, please 
-                            <a href="#" class="text-decoration-none" onclick="showSupport()">contact support</a>.
-                        </small>
+                        <!-- Quick Links -->
+                        <div class="quick-links mt-4">
+                            <h6 class="text-muted mb-3">Quick Links</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <a href="{{ url_for('models.models_overview') }}" class="suggestion-link">
+                                        <i class="fas fa-robot mr-2"></i>
+                                        AI Models
+                                    </a>
+                                </div>
+                                <div class="col-md-4">
+                                    <a href="{{ url_for('main.testing') }}" class="suggestion-link">
+                                        <i class="fas fa-shield-alt mr-2"></i>
+                                        Security Testing
+                                    </a>
+                                </div>
+                                <div class="col-md-4">
+                                    <a href="{{ url_for('main.statistics') }}" class="suggestion-link">
+                                        <i class="fas fa-chart-bar mr-2"></i>
+                                        Statistics
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- System Status -->
+                        {% if error_code >= 500 %}
+                        <div class="system-status mt-4">
+                            <h6 class="text-muted mb-3">System Status</h6>
+                            <div id="error-system-status" 
+                                 hx-get="{{ url_for('api.system_status_detailed') }}" 
+                                 hx-trigger="load">
+                                <div class="spinner-border spinner-border-sm" role="status">
+                                    <span class="sr-only">Checking system status...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Auto-retry for server errors -->
+                        <div class="alert alert-warning mt-4" role="alert">
+                            <i class="fas fa-clock mr-2"></i>
+                            Automatic retry in <span id="retry-countdown">10</span> seconds...
+                            <button class="btn btn-sm btn-outline-warning ml-2" onclick="cancelAutoRetry()">
+                                Cancel
+                            </button>
+                        </div>
+                        {% endif %}
+
+                        <!-- Technical Details (Collapsible) -->
+                        {% if error_details %}
+                        <div class="technical-details mt-4">
+                            <button class="btn btn-link text-muted" type="button" 
+                                    data-toggle="collapse" data-target="#technicalDetails">
+                                <i class="fas fa-code mr-1"></i>
+                                Technical Details
+                            </button>
+                            <div class="collapse mt-2" id="technicalDetails">
+                                <div class="card card-body bg-light text-left">
+                                    <pre class="mb-0"><code>{{ error_details }}</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Help Links -->
+                        <div class="help-links mt-4">
+                            <small class="text-muted">
+                                If the problem persists, please check the 
+                                <a href="#" onclick="showSystemHealth()" class="text-primary">system health</a>
+                                or contact support.
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Status Message -->
-            {% if error_code >= 500 and error_code < 600 %}
-                <div class="text-center mt-4">
-                    <div class="alert alert-warning border-0">
-                        <i class="fas fa-info-circle me-2"></i>
-                        Our technical team has been notified and is working to resolve this issue.
+        </div>
+    </div>
+</div>
+
+<!-- System Health Modal -->
+<div class="modal fade" id="system-health-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">System Health Check</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="system-health-content">
+                <div class="text-center py-4">
+                    <div class="spinner-border" role="status">
+                        <span class="sr-only">Loading...</span>
                     </div>
                 </div>
-            {% endif %}
+            </div>
         </div>
     </div>
 </div>
@@ -100,17 +174,187 @@
 
 {% block scripts %}
 <script>
-function showSupport() {
-    // TODO: Implement support contact modal or redirect
-    alert('Support contact functionality - TODO');
+// Error Page JavaScript
+class ErrorPage {
+    constructor() {
+        this.retryCountdown = null;
+        this.retryTimeout = null;
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupAutoRetry();
+        this.setupKeyboardShortcuts();
+    }
+
+    setupEventListeners() {
+        // Suggestion link hover effects
+        document.querySelectorAll('.suggestion-link').forEach(link => {
+            link.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-2px)';
+            });
+            link.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Technical details toggle
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('[data-toggle="collapse"]')) {
+                const icon = e.target.querySelector('i');
+                if (icon) {
+                    setTimeout(() => {
+                        const target = document.querySelector(e.target.getAttribute('data-target'));
+                        if (target && target.classList.contains('show')) {
+                            icon.className = 'fas fa-chevron-up mr-1';
+                        } else {
+                            icon.className = 'fas fa-code mr-1';
+                        }
+                    }, 150);
+                }
+            }
+        });
+    }
+
+    setupAutoRetry() {
+        {% if error_code >= 500 and error_code < 600 %}
+        let countdown = 10;
+        const countdownElement = document.getElementById('retry-countdown');
+        
+        if (countdownElement) {
+            this.retryCountdown = setInterval(() => {
+                countdown--;
+                countdownElement.textContent = countdown;
+                
+                if (countdown <= 0) {
+                    this.executeAutoRetry();
+                }
+            }, 1000);
+        }
+        {% endif %}
+    }
+
+    executeAutoRetry() {
+        if (this.retryCountdown) {
+            clearInterval(this.retryCountdown);
+            this.retryCountdown = null;
+        }
+        
+        // Show loading state
+        const alertDiv = document.querySelector('.alert-warning');
+        if (alertDiv) {
+            alertDiv.innerHTML = `
+                <i class="fas fa-sync fa-spin mr-2"></i>
+                Retrying...
+            `;
+            alertDiv.className = 'alert alert-info mt-4';
+        }
+        
+        // Reload after a short delay
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    }
+
+    cancelAutoRetry() {
+        if (this.retryCountdown) {
+            clearInterval(this.retryCountdown);
+            this.retryCountdown = null;
+            
+            const alertDiv = document.querySelector('.alert-warning');
+            if (alertDiv) {
+                alertDiv.style.display = 'none';
+            }
+        }
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'h':
+                case 'H':
+                    if (!e.ctrlKey && !e.altKey) {
+                        window.location.href = '{{ url_for("main.dashboard") }}';
+                    }
+                    break;
+                case 'b':
+                case 'B':
+                    if (!e.ctrlKey && !e.altKey) {
+                        window.history.back();
+                    }
+                    break;
+                case 'r':
+                case 'R':
+                    if (e.ctrlKey) {
+                        e.preventDefault();
+                        window.location.reload();
+                    }
+                    break;
+                case 'Escape':
+                    this.cancelAutoRetry();
+                    break;
+            }
+        });
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
 }
 
-// Add keyboard shortcuts
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' || e.key === 'Backspace') {
-        history.back();
-    } else if (e.key === 'Home') {
-        window.location.href = "{{ url_for('main.dashboard') }}";
+// Global functions
+window.cancelAutoRetry = function() {
+    errorPage.cancelAutoRetry();
+};
+
+window.showSystemHealth = function() {
+    fetch('/api/system-health')
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('system-health-content').innerHTML = html;
+            $('#system-health-modal').modal('show');
+        })
+        .catch(error => {
+            errorPage.showToast('Failed to load system health', 'danger');
+        });
+};
+
+// Initialize error page
+let errorPage;
+document.addEventListener('DOMContentLoaded', function() {
+    errorPage = new ErrorPage();
+    
+    // Show helpful keyboard shortcuts tooltip
+    setTimeout(() => {
+        errorPage.showToast(
+            'Keyboard shortcuts: H (Home), B (Back), Ctrl+R (Retry)', 
+            'info'
+        );
+    }, 2000);
+});
+
+// Page visibility handling - pause countdown when tab is not visible
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden && errorPage.retryCountdown) {
+        // Pause countdown when tab is hidden
+        clearInterval(errorPage.retryCountdown);
+    } else if (!document.hidden && errorPage.retryCountdown) {
+        // Resume countdown when tab becomes visible
+        errorPage.setupAutoRetry();
     }
 });
 </script>

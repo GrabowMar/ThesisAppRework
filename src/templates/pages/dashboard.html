@@ -1,78 +1,135 @@
-{% extends "layout/base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Dashboard - AI Research Platform{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0">Dashboard</h1>
-            <p class="text-muted">Overview of AI model testing and analysis</p>
-        </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" onclick="refreshDashboard()">
-                <i class="fas fa-sync-alt me-1"></i>Refresh
-            </button>
-            <button class="btn btn-primary" onclick="showQuickActions()">
-                <i class="fas fa-plus me-1"></i>Quick Actions
-            </button>
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h3 mb-0">Research Dashboard</h1>
+                <p class="text-muted">Overview of AI model analysis and testing activities</p>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="refreshDashboard()">
+                    <i class="fas fa-sync mr-1"></i> Refresh
+                </button>
+                <button class="btn btn-primary" onclick="showBatchForm()">
+                    <i class="fas fa-plus mr-1"></i> New Analysis
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Quick Stats -->
-    <div id="dashboard-stats" 
-         hx-get="{{ url_for('api.dashboard_stats') }}" 
-         hx-trigger="load, every 60s">
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card bg-primary text-white">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h4 class="mb-0" id="total-models">-</h4>
-                                <small>Total Models</small>
-                            </div>
-                            <i class="fas fa-robot fa-2x opacity-75"></i>
-                        </div>
+    <div class="stats-grid">
+        <div class="stats-card">
+            <div class="stats-icon bg-primary">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="stats-content">
+                <div class="stats-number" id="total-models" 
+                     hx-get="{{ url_for('api.stats_total_models') }}" 
+                     hx-trigger="load, every 60s">{{ stats.total_models or 0 }}</div>
+                <div class="stats-label">AI Models</div>
+                <div class="stats-trend text-muted" 
+                     hx-get="{{ url_for('api.stats_models_trend') }}" 
+                     hx-trigger="load, every 60s">Loading...</div>
+            </div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-icon bg-success">
+                <i class="fas fa-containers"></i>
+            </div>
+            <div class="stats-content">
+                <div class="stats-number" id="running-containers" 
+                     hx-get="{{ url_for('api.stats_running_containers') }}" 
+                     hx-trigger="load, every 30s">{{ stats.active_containers or 0 }}</div>
+                <div class="stats-label">Active Containers</div>
+                <div class="stats-trend" id="container-status" 
+                     hx-get="{{ url_for('api.stats_container_status') }}" 
+                     hx-trigger="load, every 30s">Loading...</div>
+            </div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-icon bg-info">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="stats-content">
+                <div class="stats-number" id="completed-analyses" 
+                     hx-get="{{ url_for('api.stats_completed_analyses') }}" 
+                     hx-trigger="load, every 60s">{{ stats.completed_tests or 0 }}</div>
+                <div class="stats-label">Completed Analyses</div>
+                <div class="stats-trend text-muted" 
+                     hx-get="{{ url_for('api.stats_analysis_trend') }}" 
+                     hx-trigger="load, every 60s">Loading...</div>
+            </div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-icon bg-warning">
+                <i class="fas fa-heartbeat"></i>
+            </div>
+            <div class="stats-content">
+                <div class="stats-number" id="system-health-indicator" 
+                     hx-get="{{ url_for('api.stats_system_health') }}" 
+                     hx-trigger="load, every 30s">Loading...</div>
+                <div class="stats-label">System Health</div>
+                <div class="stats-trend text-muted" id="system-uptime" 
+                     hx-get="{{ url_for('api.stats_uptime') }}" 
+                     hx-trigger="load, every 300s">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Filters (Initially Hidden) -->
+    <div id="advanced-filters" class="card d-none">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Advanced Filters</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="status-filter">Status</label>
+                        <select class="form-control" id="status-filter" onchange="dashboard.applyFilters()">
+                            <option value="">All Statuses</option>
+                            <option value="running">Running</option>
+                            <option value="stopped">Stopped</option>
+                            <option value="error">Error</option>
+                        </select>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-success text-white">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h4 class="mb-0" id="running-containers">-</h4>
-                                <small>Running Containers</small>
-                            </div>
-                            <i class="fas fa-play fa-2x opacity-75"></i>
-                        </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="provider-filter">Provider</label>
+                        <select class="form-control" id="provider-filter" onchange="dashboard.applyFilters()">
+                            <option value="">All Providers</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="google">Google</option>
+                        </select>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-warning text-white">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h4 class="mb-0" id="pending-tests">-</h4>
-                                <small>Pending Tests</small>
-                            </div>
-                            <i class="fas fa-clock fa-2x opacity-75"></i>
-                        </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="search-input">Search</label>
+                        <input type="text" class="form-control" id="search-input" 
+                               placeholder="Search models or applications..." 
+                               onkeyup="dashboard.applyFilters()">
                     </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-info text-white">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h4 class="mb-0" id="completed-tests">-</h4>
-                                <small>Completed Tests</small>
-                            </div>
-                            <i class="fas fa-check fa-2x opacity-75"></i>
+                <div class="col-md-2">
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <div>
+                            <button class="btn btn-secondary btn-block" onclick="clearFilters()">
+                                Clear Filters
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -80,90 +137,104 @@
         </div>
     </div>
 
-    <!-- Main Content Grid -->
-    <div class="row">
-        <!-- Recent Models -->
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Recent Models</h5>
-                    <a href="{{ url_for('main.models_overview') }}" class="btn btn-sm btn-outline-primary">View All</a>
-                </div>
-                <div class="card-body">
-                    <!-- TODO: Connect to backend for recent models data -->
-                    <div id="recent-models-list" 
+    <!-- Dashboard Content -->
+    <div id="dashboard-content">
+        <div class="row">
+            <!-- Models Overview -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent Models Activity</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAdvancedFilters()">
+                                <i class="fas fa-filter mr-1"></i> Filters
+                            </button>
+                            <a href="{{ url_for('models.models_overview') }}" class="btn btn-sm btn-primary">
+                                View All Models
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body" id="recent-models-section" 
                          hx-get="{{ url_for('api.dashboard_recent_models') }}" 
-                         hx-trigger="load, every 30s">
-                        {% include 'partials/loading_spinner.html' %}
+                         hx-trigger="load, every 120s">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <div class="mt-2 text-muted">Loading recent models...</div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- System Status -->
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">System Status</h5>
-                </div>
-                <div class="card-body">
-                    <!-- TODO: Connect to backend for system status -->
-                    <div id="system-status" 
+            
+            <!-- System Status -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">System Status</h5>
+                    </div>
+                    <div class="card-body" id="system-status-section" 
                          hx-get="{{ url_for('api.dashboard_system_status') }}" 
-                         hx-trigger="load, every 10s">
-                        {% include 'partials/loading_spinner.html' %}
+                         hx-trigger="load, every 60s">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-secondary" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <div class="mt-2 text-muted">Checking system status...</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Activity Feed -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Recent Activity</h5>
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-sm btn-outline-secondary active" onclick="filterActivity('all')">All</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="filterActivity('tests')">Tests</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="filterActivity('containers')">Containers</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="filterActivity('errors')">Errors</button>
+        
+        <!-- Activity Feed -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent Activity</h5>
+                        <button class="btn btn-sm btn-outline-primary" 
+                                onclick="htmx.trigger('#activity-feed', 'refresh')">
+                            <i class="fas fa-sync mr-1"></i> Refresh
+                        </button>
                     </div>
-                </div>
-                <div class="card-body">
-                    <!-- TODO: Connect to backend for activity feed -->
-                    <div id="activity-feed" 
+                    <div class="card-body" id="activity-feed" 
                          hx-get="{{ url_for('api.dashboard_activity') }}" 
-                         hx-trigger="load, every 15s">
-                        {% include 'partials/loading_spinner.html' %}
+                         hx-trigger="load, every 90s">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-info" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <div class="mt-2 text-muted">Loading recent activity...</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Real-time Dashboard Section -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-chart-line me-2"></i>
-                        Real-time Monitoring
-                    </h5>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="realTimeToggle" checked>
-                        <label class="form-check-label" for="realTimeToggle">
-                            Auto-refresh
-                        </label>
+<!-- Container Logs Modal -->
+<div class="modal fade" id="containerLogsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Container Logs</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="container-logs-content">
+                    <div class="text-center py-4">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">Loading logs...</span>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body">
-                    <div id="realtime-dashboard">
-                        {% include 'partials/realtime_dashboard.html' %}
-                    </div>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -176,123 +247,388 @@
 class Dashboard {
     constructor() {
         this.autoRefreshInterval = null;
-        this.currentFilter = 'all';
+        this.refreshRate = 60000; // 1 minute
+        this.models = [];
+        this.filteredModels = [];
         this.init();
     }
 
     init() {
         this.setupEventListeners();
-        this.loadInitialData();
         this.setupAutoRefresh();
+        this.setupKeyboardShortcuts();
     }
 
     setupEventListeners() {
-        // HTMX event listeners
-        document.addEventListener('htmx:afterRequest', (e) => {
-            if (e.detail.target.id === 'recent-models-list') {
-                this.updateStats();
+        // Filter change events
+        document.addEventListener('change', (e) => {
+            if (e.target.matches('#status-filter, #provider-filter')) {
+                this.applyFilters();
+            }
+        });
+        
+        // Search input with debouncing
+        document.addEventListener('input', (e) => {
+            if (e.target.matches('#search-input')) {
+                this.debounce(this.applyFilters.bind(this), 300)();
             }
         });
     }
 
-    loadInitialData() {
-        // TODO: Replace with actual backend calls
-        this.updateMockStats();
-    }
-
-    updateMockStats() {
-        // Mock data - TODO: Replace with backend data
-        document.getElementById('total-models').textContent = '12';
-        document.getElementById('running-containers').textContent = '8';
-        document.getElementById('pending-tests').textContent = '3';
-        document.getElementById('completed-tests').textContent = '45';
-    }
-
-    updateStats() {
-        // TODO: Implement real stats update from backend
-        console.log('Updating dashboard stats...');
-    }
-
-    setupAutoRefresh() {
-        // Auto-refresh stats every 30 seconds
-        this.autoRefreshInterval = setInterval(() => {
-            this.updateStats();
-        }, 30000);
-        
-        // Real-time toggle functionality
-        const realTimeToggle = document.getElementById('realTimeToggle');
-        if (realTimeToggle) {
-            realTimeToggle.addEventListener('change', (e) => {
-                const realtimeDashboard = document.getElementById('realtime-dashboard');
-                if (e.target.checked) {
-                    // Enable auto-refresh for real-time components
-                    realtimeDashboard.querySelectorAll('[hx-trigger]').forEach(el => {
-                        const trigger = el.getAttribute('hx-trigger');
-                        if (!trigger.includes('every')) {
-                            el.setAttribute('hx-trigger', trigger + ', every 10s');
-                        }
-                    });
-                    console.log('Real-time monitoring enabled');
-                } else {
-                    // Disable auto-refresh
-                    realtimeDashboard.querySelectorAll('[hx-trigger]').forEach(el => {
-                        const trigger = el.getAttribute('hx-trigger');
-                        el.setAttribute('hx-trigger', trigger.replace(/, every \d+s/g, ''));
-                    });
-                    console.log('Real-time monitoring disabled');
-                }
-            });
+    async loadModels() {
+        try {
+            this.showLoadingState();
+            
+            const response = await fetch('/api/models');
+            if (!response.ok) throw new Error('Failed to load models');
+            
+            this.models = await response.json();
+            this.filteredModels = [...this.models];
+            this.renderModels(this.filteredModels);
+            
+        } catch (error) {
+            console.error('Error loading models:', error);
+            this.showEmptyState();
         }
     }
 
-    refreshDashboard() {
-        // Trigger HTMX refresh for all components
-        htmx.trigger('#recent-models-list', 'refresh');
-        htmx.trigger('#system-status', 'refresh');
-        htmx.trigger('#activity-feed', 'refresh');
-        this.updateStats();
+    showLoadingState() {
+        const content = document.getElementById('recent-models-section');
+        content.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="mt-2 text-muted">Loading models...</div>
+            </div>
+        `;
+    }
+
+    showEmptyState() {
+        const content = document.getElementById('recent-models-section');
+        content.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <i class="fas fa-robot fa-3x mb-3"></i>
+                <div>No models available</div>
+            </div>
+        `;
+    }
+
+    renderModels(models) {
+        const content = document.getElementById('recent-models-section');
         
-        this.showToast('Dashboard refreshed', 'success');
+        if (models.length === 0) {
+            this.showEmptyState();
+            return;
+        }
+
+        content.innerHTML = models.map(model => this.createModelCard(model)).join('');
+    }
+
+    createModelCard(model) {
+        return `
+            <div class="model-card mb-3" data-model="${model.model_slug}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="model-info">
+                        <h6 class="model-name mb-1">${model.model_name}</h6>
+                        <div class="model-details">
+                            <span class="badge badge-primary mr-2">${model.provider}</span>
+                            <span class="text-muted">${model.apps_count || 0} applications</span>
+                        </div>
+                    </div>
+                    <div class="model-actions">
+                        <button class="btn btn-sm btn-outline-primary" 
+                                onclick="dashboard.toggleAppsView('${model.model_slug}')">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="model-apps collapse" id="apps-${model.model_slug}">
+                    <!-- Apps will be loaded here -->
+                </div>
+            </div>
+        `;
+    }
+
+    async toggleAppsView(modelSlug) {
+        const appsContainer = document.getElementById(`apps-${modelSlug}`);
+        const button = document.querySelector(`[onclick="dashboard.toggleAppsView('${modelSlug}')"]`);
+        
+        if (appsContainer.classList.contains('show')) {
+            appsContainer.classList.remove('show');
+            button.innerHTML = '<i class="fas fa-chevron-down"></i>';
+        } else {
+            appsContainer.classList.add('show');
+            button.innerHTML = '<i class="fas fa-chevron-up"></i>';
+            await this.loadAppsForModel(modelSlug);
+        }
+    }
+
+    async loadAppsForModel(modelSlug) {
+        try {
+            const response = await fetch(`/api/models/${modelSlug}/apps`);
+            const apps = await response.json();
+            this.renderAppsTable(modelSlug, apps);
+        } catch (error) {
+            console.error('Error loading apps:', error);
+            this.showAppsError(modelSlug, 'Failed to load applications');
+        }
+    }
+
+    renderAppsTable(modelSlug, apps) {
+        const container = document.getElementById(`apps-${modelSlug}`);
+        
+        if (apps.length === 0) {
+            container.innerHTML = '<div class="text-muted mt-2">No applications found</div>';
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="table-responsive mt-3">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>App #</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${apps.map(app => this.createAppRow(modelSlug, app)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    createAppRow(modelSlug, app) {
+        return `
+            <tr>
+                <td><span class="badge badge-outline-primary">${app.app_number}</span></td>
+                <td>
+                    <span class="badge badge-success">Active</span>
+                </td>
+                <td>
+                    <small class="text-muted">
+                        ${app.created_at ? new Date(app.created_at).toLocaleDateString() : 'Unknown'}
+                    </small>
+                </td>
+                <td>
+                    ${this.createAppActionButtons(modelSlug, app)}
+                </td>
+            </tr>
+        `;
+    }
+
+    createAppActionButtons(modelSlug, app) {
+        return `
+            <div class="btn-group btn-group-sm" role="group">
+                <button class="btn btn-outline-success btn-xs" 
+                        onclick="startContainer('${modelSlug}', ${app.app_number}, this)">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-outline-warning btn-xs" 
+                        onclick="stopContainer('${modelSlug}', ${app.app_number}, this)">
+                    <i class="fas fa-stop"></i>
+                </button>
+                <button class="btn btn-outline-info btn-xs" 
+                        onclick="showContainerLogs('${modelSlug}', ${app.app_number})">
+                    <i class="fas fa-file-alt"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    showAppsError(modelSlug, message) {
+        const container = document.getElementById(`apps-${modelSlug}`);
+        container.innerHTML = `
+            <div class="alert alert-danger mt-2" role="alert">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                ${message}
+            </div>
+        `;
+    }
+
+    updateStats() {
+        // Trigger refresh of all stats elements
+        htmx.trigger('#total-models', 'refresh');
+        htmx.trigger('#running-containers', 'refresh');
+        htmx.trigger('#completed-analyses', 'refresh');
+        htmx.trigger('#system-health-indicator', 'refresh');
+    }
+
+    setupAutoRefresh() {
+        this.autoRefreshInterval = setInterval(() => {
+            this.updateStats();
+        }, this.refreshRate);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                this.refreshDashboard();
+            }
+        });
+    }
+
+    refreshDashboard() {
+        this.updateStats();
+        htmx.trigger('#recent-models-section', 'refresh');
+        htmx.trigger('#system-status-section', 'refresh');
+        htmx.trigger('#activity-feed', 'refresh');
+    }
+
+    applyFilters() {
+        const status = document.getElementById('status-filter')?.value || '';
+        const provider = document.getElementById('provider-filter')?.value || '';
+        const search = document.getElementById('search-input')?.value.toLowerCase() || '';
+
+        this.filteredModels = this.models.filter(model => {
+            const matchesStatus = !status || model.status === status;
+            const matchesProvider = !provider || model.provider === provider;
+            const matchesSearch = !search || 
+                model.model_name.toLowerCase().includes(search) ||
+                model.provider.toLowerCase().includes(search);
+
+            return matchesStatus && matchesProvider && matchesSearch;
+        });
+
+        this.renderModels(this.filteredModels);
     }
 
     showToast(message, type = 'info') {
         const toast = document.createElement('div');
         toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.style.cssText = 'top: 70px; right: 20px; z-index: 1050; min-width: 300px;';
         toast.innerHTML = `
             ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
         `;
         document.body.appendChild(toast);
 
         setTimeout(() => {
-            toast.remove();
+            if (toast.parentNode) {
+                toast.remove();
+            }
         }, 5000);
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
     }
 }
 
-// Global functions
-window.refreshDashboard = function() {
-    dashboard.refreshDashboard();
+// Container logs functionality
+window.showContainerLogs = function(modelSlug, appNum) {
+    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/logs`)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('container-logs-content').innerHTML = html;
+            $('#containerLogsModal').modal('show');
+        })
+        .catch(error => {
+            dashboard.showToast('Failed to load container logs', 'danger');
+        });
 };
 
-window.showQuickActions = function() {
-    // TODO: Implement quick actions modal
-    console.log('Quick actions modal - TODO');
+window.toggleAdvancedFilters = function() {
+    const filters = document.getElementById('advanced-filters');
+    if (filters) {
+        filters.classList.toggle('d-none');
+    }
 };
 
-window.filterActivity = function(filter) {
-    dashboard.currentFilter = filter;
-    
-    // Update button states
-    document.querySelectorAll('.btn-group .btn').forEach(btn => {
-        btn.classList.remove('active');
+window.clearFilters = function() {
+    document.getElementById('status-filter').value = '';
+    document.getElementById('provider-filter').value = '';
+    document.getElementById('search-input').value = '';
+    dashboard.applyFilters();
+};
+
+// Container actions
+window.startContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('start', modelSlug, appNum, button);
+};
+
+window.stopContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('stop', modelSlug, appNum, button);
+};
+
+window.restartContainer = function(modelSlug, appNum, button) {
+    handleContainerAction('restart', modelSlug, appNum, button);
+};
+
+function handleContainerAction(action, modelSlug, appNum, button) {
+    const originalText = button.innerHTML;
+    button.innerHTML = `<div class="spinner-border spinner-border-sm mr-1"></div>${action}ing...`;
+    button.disabled = true;
+
+    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/${appNum}/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            dashboard.showToast(`Container ${action} successful`, 'success');
+            // Refresh the dashboard to update container status
+            setTimeout(() => dashboard.refreshDashboard(), 1000);
+        } else {
+            dashboard.showToast(`Container ${action} failed: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        dashboard.showToast(`Container ${action} failed`, 'danger');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
     });
-    event.target.classList.add('active');
-    
-    // TODO: Filter activity feed
-    console.log(`Filtering activity by: ${filter}`);
+}
+
+// Bulk container actions
+window.startAllContainers = function(modelSlug) {
+    handleBulkContainerAction('start', modelSlug);
 };
+
+window.stopAllContainers = function(modelSlug) {
+    handleBulkContainerAction('stop', modelSlug);
+};
+
+window.restartAllContainers = function(modelSlug) {
+    handleBulkContainerAction('restart', modelSlug);
+};
+
+function handleBulkContainerAction(action, modelSlug) {
+    if (!confirm(`Are you sure you want to ${action} all containers for ${modelSlug}?`)) {
+        return;
+    }
+
+    fetch(`/api/containers/${encodeURIComponent(modelSlug)}/bulk/${action}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            dashboard.showToast(`Bulk ${action} successful`, 'success');
+            setTimeout(() => dashboard.refreshDashboard(), 2000);
+        } else {
+            dashboard.showToast(`Bulk ${action} failed: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        dashboard.showToast(`Bulk ${action} failed`, 'danger');
+    });
+}
 
 // Initialize dashboard
 let dashboard;

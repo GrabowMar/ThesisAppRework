@@ -93,8 +93,7 @@ def statistics():
             'success_rate': '87.3%',  # TODO: Calculate actual rate
             'active_models': ModelCapability.query.count()
         }
-        
-        return render_template('pages/statistics.html', stats=stats)
+        return render_template('pages/statistics_overview.html', stats=stats)
     except Exception as e:
         logger.error(f"Error loading statistics: {e}")
         flash('Error loading statistics', 'error')

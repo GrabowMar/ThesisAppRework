@@ -1,0 +1,697 @@
+{% extends "base.html" %}
+
+{% block title %}{{ model_slug }} Applications - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('models.models_overview') }}">Models</a></li>
+            <li class="breadcrumb-item active">{{ model_slug }}</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ model_slug }} Applications</h1>
+            <p class="text-muted mb-0">
+                <span class="badge badge-{{ model.provider_color }} mr-2">{{ model.provider }}</span>
+                {{ apps|length }} applications available
+                <span class="mx-2">•</span>
+                {{ running_count }} running
+                <span class="mx-2">•</span>
+                Last updated {{ last_updated.strftime('%Y-%m-%d %H:%M') if last_updated else 'Never' }}
+            </p>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-success" onclick="startAllApps()" 
+                    {% if running_count == apps|length %}disabled{% endif %}>
+                <i class="fas fa-play-circle mr-1"></i>
+                Start All
+            </button>
+            <button type="button" class="btn btn-warning" onclick="stopAllApps()"
+                    {% if running_count == 0 %}disabled{% endif %}>
+                <i class="fas fa-stop-circle mr-1"></i>
+                Stop All
+            </button>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-primary dropdown-toggle" 
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-cog mr-1"></i>
+                    Batch Actions
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" onclick="runBatchTests('security')">
+                        <i class="fas fa-shield-alt mr-2"></i>Security Tests
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="runBatchTests('performance')">
+                        <i class="fas fa-tachometer-alt mr-2"></i>Performance Tests
+                    </a>
+                    <a class="dropdown-item" href="#" onclick="exportAllApps()">
+                        <i class="fas fa-download mr-2"></i>Export All
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="#" onclick="generateReport()">
+                        <i class="fas fa-file-alt mr-2"></i>Generate Report
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Information Card -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h5 class="card-title mb-2">{{ model.model_name or model_slug }}</h5>
+                    <p class="card-text text-muted mb-0">{{ model.description or 'No description available' }}</p>
+                </div>
+                <div class="col-md-4">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="metric">
+                                <h4 class="text-primary mb-0">{{ apps|length }}</h4>
+                                <small class="text-muted">Total Apps</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="metric">
+                                <h4 class="text-success mb-0">{{ running_count }}</h4>
+                                <small class="text-muted">Running</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="metric">
+                                <h4 class="text-info mb-0">{{ tested_count }}</h4>
+                                <small class="text-muted">Tested</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters and Search -->
+    <div class="card mb-4">
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        </div>
+                        <input type="text" class="form-control" id="app-search" 
+                               placeholder="Search applications...">
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="btn-group btn-group-sm mr-2" role="group" id="status-filter">
+                        <button type="button" class="btn btn-outline-secondary active" data-filter="all">All</button>
+                        <button type="button" class="btn btn-outline-success" data-filter="running">Running</button>
+                        <button type="button" class="btn btn-outline-secondary" data-filter="stopped">Stopped</button>
+                        <button type="button" class="btn btn-outline-info" data-filter="tested">Tested</button>
+                        <button type="button" class="btn btn-outline-warning" data-filter="untested">Untested</button>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary" id="grid-view" title="Grid View">
+                            <i class="fas fa-th"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary active" id="list-view" title="List View">
+                            <i class="fas fa-list"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Applications Grid/List -->
+    <div id="apps-container">
+        <div class="row" id="apps-grid">
+            {% for app in apps %}
+            <div class="col-lg-4 col-md-6 mb-4 app-card" 
+                 data-app-number="{{ app.app_number }}" 
+                 data-status="{{ app.container_status or 'stopped' }}"
+                 data-tested="{{ 'true' if app.last_tested else 'false' }}">
+                <div class="card h-100 app-item">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0">Application {{ app.app_number }}</h6>
+                        <div class="status-indicators">
+                            <span class="badge badge-{{ 'success' if app.container_status == 'running' else 'secondary' }}">
+                                {{ app.container_status or 'stopped' }}
+                            </span>
+                            {% if app.last_tested %}
+                            <span class="badge badge-info ml-1" title="Last tested {{ app.last_tested.strftime('%Y-%m-%d') }}">
+                                <i class="fas fa-check"></i>
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text text-muted small mb-3">
+                            {{ app.description[:100] + '...' if app.description and app.description|length > 100 else app.description or 'No description' }}
+                        </p>
+                        
+                        <div class="app-details">
+                            <div class="row text-center mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Frontend</small>
+                                    {% if app.frontend_port %}
+                                        <a href="http://localhost:{{ app.frontend_port }}" target="_blank" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            :{{ app.frontend_port }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Backend</small>
+                                    {% if app.backend_port %}
+                                        <a href="http://localhost:{{ app.backend_port }}" target="_blank" 
+                                           class="btn btn-sm btn-outline-secondary">
+                                            :{{ app.backend_port }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Test Results Summary -->
+                            {% if app.test_results %}
+                            <div class="test-summary mb-3">
+                                <div class="row">
+                                    {% if app.test_results.security_score %}
+                                    <div class="col-4 text-center">
+                                        <small class="text-muted d-block">Security</small>
+                                        <span class="badge badge-{{ 'success' if app.test_results.security_score > 80 else 'warning' if app.test_results.security_score > 60 else 'danger' }}">
+                                            {{ app.test_results.security_score }}%
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    {% if app.test_results.performance_score %}
+                                    <div class="col-4 text-center">
+                                        <small class="text-muted d-block">Performance</small>
+                                        <span class="badge badge-{{ 'success' if app.test_results.performance_score > 80 else 'warning' if app.test_results.performance_score > 60 else 'danger' }}">
+                                            {{ app.test_results.performance_score }}%
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    {% if app.test_results.overall_score %}
+                                    <div class="col-4 text-center">
+                                        <small class="text-muted d-block">Overall</small>
+                                        <span class="badge badge-{{ 'success' if app.test_results.overall_score > 80 else 'warning' if app.test_results.overall_score > 60 else 'danger' }}">
+                                            {{ app.test_results.overall_score }}%
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            <button type="button" class="btn btn-outline-primary" 
+                                    onclick="window.location.href='{{ url_for('main.app_details', model_slug=model_slug, app_number=app.app_number) }}'">
+                                <i class="fas fa-eye mr-1"></i>Details
+                            </button>
+                            <button type="button" class="btn btn-outline-{{ 'warning' if app.container_status == 'running' else 'success' }}" 
+                                    onclick="toggleContainer('{{ app.app_number }}', '{{ app.container_status }}')"
+                                    data-app="{{ app.app_number }}">
+                                <i class="fas fa-{{ 'stop' if app.container_status == 'running' else 'play' }} mr-1"></i>
+                                {{ 'Stop' if app.container_status == 'running' else 'Start' }}
+                            </button>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary dropdown-toggle" 
+                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#" onclick="runTest('{{ app.app_number }}', 'security')">
+                                        <i class="fas fa-shield-alt mr-2"></i>Security Test
+                                    </a>
+                                    <a class="dropdown-item" href="#" onclick="runTest('{{ app.app_number }}', 'performance')">
+                                        <i class="fas fa-tachometer-alt mr-2"></i>Performance Test
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item" href="#" onclick="viewLogs('{{ app.app_number }}')">
+                                        <i class="fas fa-file-alt mr-2"></i>View Logs
+                                    </a>
+                                    <a class="dropdown-item" href="#" onclick="exportApp('{{ app.app_number }}')">
+                                        <i class="fas fa-download mr-2"></i>Export
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- List View (Hidden by default) -->
+        <div class="table-responsive d-none" id="apps-list">
+            <table class="table table-hover">
+                <thead class="thead-light">
+                    <tr>
+                        <th>App #</th>
+                        <th>Status</th>
+                        <th>Ports</th>
+                        <th>Test Results</th>
+                        <th>Last Tested</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for app in apps %}
+                    <tr class="app-row" 
+                        data-app-number="{{ app.app_number }}" 
+                        data-status="{{ app.container_status or 'stopped' }}"
+                        data-tested="{{ 'true' if app.last_tested else 'false' }}">
+                        <td>
+                            <a href="{{ url_for('main.app_details', model_slug=model_slug, app_number=app.app_number) }}" 
+                               class="font-weight-bold">
+                                Application {{ app.app_number }}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ 'success' if app.container_status == 'running' else 'secondary' }}">
+                                {{ app.container_status or 'stopped' }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="port-links">
+                                {% if app.frontend_port %}
+                                <a href="http://localhost:{{ app.frontend_port }}" target="_blank" 
+                                   class="badge badge-primary mr-1" title="Frontend">
+                                    :{{ app.frontend_port }}
+                                </a>
+                                {% endif %}
+                                {% if app.backend_port %}
+                                <a href="http://localhost:{{ app.backend_port }}" target="_blank" 
+                                   class="badge badge-secondary" title="Backend">
+                                    :{{ app.backend_port }}
+                                </a>
+                                {% endif %}
+                                {% if not app.frontend_port and not app.backend_port %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if app.test_results %}
+                            <div class="test-badges">
+                                {% if app.test_results.security_score %}
+                                <span class="badge badge-{{ 'success' if app.test_results.security_score > 80 else 'warning' if app.test_results.security_score > 60 else 'danger' }} mr-1"
+                                      title="Security Score">
+                                    S: {{ app.test_results.security_score }}%
+                                </span>
+                                {% endif %}
+                                {% if app.test_results.performance_score %}
+                                <span class="badge badge-{{ 'success' if app.test_results.performance_score > 80 else 'warning' if app.test_results.performance_score > 60 else 'danger' }}"
+                                      title="Performance Score">
+                                    P: {{ app.test_results.performance_score }}%
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted">Not tested</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if app.last_tested %}
+                            <span title="{{ app.last_tested.strftime('%Y-%m-%d %H:%M:%S') }}">
+                                {{ app.last_tested.strftime('%Y-%m-%d') }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">Never</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-{{ 'warning' if app.container_status == 'running' else 'success' }}" 
+                                        onclick="toggleContainer('{{ app.app_number }}', '{{ app.container_status }}')"
+                                        data-app="{{ app.app_number }}">
+                                    <i class="fas fa-{{ 'stop' if app.container_status == 'running' else 'play' }}"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-info" 
+                                        onclick="runTest('{{ app.app_number }}', 'security')" title="Security Test">
+                                    <i class="fas fa-shield-alt"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-warning" 
+                                        onclick="runTest('{{ app.app_number }}', 'performance')" title="Performance Test">
+                                    <i class="fas fa-tachometer-alt"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    {% if not apps %}
+    <div class="text-center py-5">
+        <i class="fas fa-robot fa-4x text-muted mb-3"></i>
+        <h4 class="text-muted">No Applications Found</h4>
+        <p class="text-muted">No applications have been generated for this model yet.</p>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+            <i class="fas fa-arrow-left mr-1"></i>
+            Back to Dashboard
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Batch Operations Modal -->
+<div class="modal fade" id="batch-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batch-modal-title">Batch Operation</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="batch-modal-content">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="batch-confirm-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// App Overview JavaScript
+class AppOverview {
+    constructor(modelSlug) {
+        this.modelSlug = modelSlug;
+        this.currentFilter = 'all';
+        this.currentView = 'grid';
+        this.searchTerm = '';
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupSearch();
+        this.setupFilters();
+        this.setupViewToggle();
+    }
+
+    setupEventListeners() {
+        // Status filter buttons
+        document.getElementById('status-filter').addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                document.querySelectorAll('#status-filter .btn').forEach(btn => 
+                    btn.classList.remove('active'));
+                e.target.classList.add('active');
+                this.currentFilter = e.target.getAttribute('data-filter');
+                this.applyFilters();
+            }
+        });
+
+        // View toggle buttons
+        document.getElementById('grid-view').addEventListener('click', () => {
+            this.setView('grid');
+        });
+
+        document.getElementById('list-view').addEventListener('click', () => {
+            this.setView('list');
+        });
+    }
+
+    setupSearch() {
+        const searchInput = document.getElementById('app-search');
+        let searchTimeout;
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                this.searchTerm = e.target.value.toLowerCase();
+                this.applyFilters();
+            }, 300);
+        });
+    }
+
+    setupFilters() {
+        this.applyFilters();
+    }
+
+    setupViewToggle() {
+        // Initial view setup
+        this.setView(this.currentView);
+    }
+
+    setView(viewType) {
+        const gridView = document.getElementById('apps-grid');
+        const listView = document.getElementById('apps-list');
+        const gridBtn = document.getElementById('grid-view');
+        const listBtn = document.getElementById('list-view');
+
+        if (viewType === 'grid') {
+            gridView.parentElement.classList.remove('d-none');
+            listView.classList.add('d-none');
+            gridBtn.classList.add('active');
+            listBtn.classList.remove('active');
+        } else {
+            gridView.parentElement.classList.add('d-none');
+            listView.classList.remove('d-none');
+            listBtn.classList.add('active');
+            gridBtn.classList.remove('active');
+        }
+
+        this.currentView = viewType;
+    }
+
+    applyFilters() {
+        const cards = document.querySelectorAll('.app-card');
+        const rows = document.querySelectorAll('.app-row');
+        
+        [...cards, ...rows].forEach(element => {
+            const appNumber = element.getAttribute('data-app-number');
+            const status = element.getAttribute('data-status');
+            const tested = element.getAttribute('data-tested');
+            
+            let visible = true;
+            
+            // Apply status filter
+            if (this.currentFilter !== 'all') {
+                if (this.currentFilter === 'running' && status !== 'running') visible = false;
+                if (this.currentFilter === 'stopped' && status !== 'stopped') visible = false;
+                if (this.currentFilter === 'tested' && tested !== 'true') visible = false;
+                if (this.currentFilter === 'untested' && tested !== 'false') visible = false;
+            }
+            
+            // Apply search filter
+            if (this.searchTerm && !appNumber.includes(this.searchTerm)) {
+                visible = false;
+            }
+            
+            element.style.display = visible ? '' : 'none';
+        });
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        `;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+}
+
+// Global functions for template usage
+window.toggleContainer = async function(appNumber, currentStatus) {
+    const action = currentStatus === 'running' ? 'stop' : 'start';
+    
+    try {
+        const response = await fetch(`/api/apps/{{ model_slug }}/${appNumber}/${action}`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            appOverview.showToast(`Container ${action}ed successfully`, 'success');
+            // Refresh the page or update UI
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error(`Failed to ${action} container`);
+        }
+    } catch (error) {
+        console.error('Error toggling container:', error);
+        appOverview.showToast(`Failed to ${action} container`, 'danger');
+    }
+};
+
+window.runTest = async function(appNumber, testType) {
+    try {
+        const response = await fetch(`/api/apps/{{ model_slug }}/${appNumber}/test/${testType}`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            appOverview.showToast(`${testType} test started`, 'success');
+        } else {
+            throw new Error(`Failed to start ${testType} test`);
+        }
+    } catch (error) {
+        console.error('Error running test:', error);
+        appOverview.showToast(`Failed to start ${testType} test`, 'danger');
+    }
+};
+
+window.viewLogs = function(appNumber) {
+    window.open(`{{ url_for('main.app_details', model_slug=model_slug, app_number='') }}${appNumber}#logs`, '_blank');
+};
+
+window.exportApp = function(appNumber) {
+    const link = document.createElement('a');
+    link.href = `/api/apps/{{ model_slug }}/${appNumber}/export`;
+    link.download = `{{ model_slug }}_app_${appNumber}.zip`;
+    link.click();
+};
+
+window.startAllApps = function() {
+    document.getElementById('batch-modal-title').textContent = 'Start All Applications';
+    document.getElementById('batch-modal-content').innerHTML = `
+        <p>Are you sure you want to start all applications for this model?</p>
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            This will start {{ apps|length }} containers simultaneously.
+        </div>
+    `;
+    
+    document.getElementById('batch-confirm-btn').onclick = async function() {
+        try {
+            const response = await fetch('/api/apps/{{ model_slug }}/batch/start', {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                appOverview.showToast('Starting all applications...', 'info');
+                $('#batch-modal').modal('hide');
+                setTimeout(() => window.location.reload(), 2000);
+            }
+        } catch (error) {
+            appOverview.showToast('Failed to start applications', 'danger');
+        }
+    };
+    
+    $('#batch-modal').modal('show');
+};
+
+window.stopAllApps = function() {
+    document.getElementById('batch-modal-title').textContent = 'Stop All Applications';
+    document.getElementById('batch-modal-content').innerHTML = `
+        <p>Are you sure you want to stop all running applications for this model?</p>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle mr-2"></i>
+            This will stop all {{ running_count }} running containers.
+        </div>
+    `;
+    
+    document.getElementById('batch-confirm-btn').onclick = async function() {
+        try {
+            const response = await fetch('/api/apps/{{ model_slug }}/batch/stop', {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                appOverview.showToast('Stopping all applications...', 'info');
+                $('#batch-modal').modal('hide');
+                setTimeout(() => window.location.reload(), 2000);
+            }
+        } catch (error) {
+            appOverview.showToast('Failed to stop applications', 'danger');
+        }
+    };
+    
+    $('#batch-modal').modal('show');
+};
+
+window.runBatchTests = function(testType) {
+    document.getElementById('batch-modal-title').textContent = `Run Batch ${testType.charAt(0).toUpperCase() + testType.slice(1)} Tests`;
+    document.getElementById('batch-modal-content').innerHTML = `
+        <p>Run ${testType} tests for all applications in this model?</p>
+        <div class="form-group">
+            <label>Test Configuration</label>
+            <select class="form-control" id="batch-test-config">
+                <option value="quick">Quick Test</option>
+                <option value="standard">Standard Test</option>
+                <option value="comprehensive">Comprehensive Test</option>
+            </select>
+        </div>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle mr-2"></i>
+            This will run tests for {{ apps|length }} applications.
+        </div>
+    `;
+    
+    document.getElementById('batch-confirm-btn').onclick = async function() {
+        const config = document.getElementById('batch-test-config').value;
+        
+        try {
+            const response = await fetch(`/api/apps/{{ model_slug }}/batch/test/${testType}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config: config })
+            });
+            
+            if (response.ok) {
+                appOverview.showToast(`Starting batch ${testType} tests...`, 'info');
+                $('#batch-modal').modal('hide');
+            }
+        } catch (error) {
+            appOverview.showToast(`Failed to start batch ${testType} tests`, 'danger');
+        }
+    };
+    
+    $('#batch-modal').modal('show');
+};
+
+window.exportAllApps = function() {
+    const link = document.createElement('a');
+    link.href = `/api/apps/{{ model_slug }}/export-all`;
+    link.download = `{{ model_slug }}_all_apps.zip`;
+    link.click();
+    appOverview.showToast('Exporting all applications...', 'info');
+};
+
+window.generateReport = function() {
+    window.open(`/api/apps/{{ model_slug }}/report`, '_blank');
+};
+
+// Initialize app overview
+let appOverview;
+document.addEventListener('DOMContentLoaded', function() {
+    appOverview = new AppOverview('{{ model_slug }}');
+});
+</script>
+{% endblock %}

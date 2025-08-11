@@ -1,70 +1,47 @@
-<!-- Dashboard Activity Feed Partial -->
-{% if activities %}
-    <div class="activity-feed">
-        {% for activity in activities %}
-            <div class="activity-item d-flex align-items-start py-2 {% if not loop.last %}border-bottom{% endif %}">
-                <div class="activity-icon me-3 mt-1">
+<div class="dashboard-activity-feed">
+    {% if activities %}
+        <div class="activity-list">
+            {% for activity in activities %}
+            <div class="activity-entry">
+                <div class="activity-icon">
                     <i class="{{ activity.icon }} text-{{ activity.color }}"></i>
                 </div>
-                <div class="activity-content flex-grow-1">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h6 class="mb-1">{{ activity.title }}</h6>
-                            <p class="mb-1 text-muted small">{{ activity.description }}</p>
-                            <small class="text-muted">
-                                <i class="fas fa-clock me-1"></i>
-                                {{ activity.timestamp.strftime('%b %d, %H:%M') if activity.timestamp else 'Unknown time' }}
-                            </small>
-                        </div>
-                        <div>
-                            {% if activity.status == 'completed' %}
-                                <span class="badge bg-success">{{ activity.status.title() }}</span>
-                            {% elif activity.status == 'running' %}
-                                <span class="badge bg-primary">{{ activity.status.title() }}</span>
-                            {% elif activity.status == 'failed' %}
-                                <span class="badge bg-danger">{{ activity.status.title() }}</span>
-                            {% elif activity.status == 'pending' %}
-                                <span class="badge bg-warning">{{ activity.status.title() }}</span>
+                <div class="activity-content">
+                    <div class="activity-title">{{ activity.title }}</div>
+                    <div class="activity-description">{{ activity.description }}</div>
+                    <div class="activity-meta">
+                        <span class="activity-time">
+                            {% if activity.timestamp %}
+                                {{ activity.timestamp.strftime('%m/%d %H:%M') if activity.timestamp.strftime else 'Unknown time' }}
                             {% else %}
-                                <span class="badge bg-secondary">{{ activity.status.title() }}</span>
+                                Unknown time
                             {% endif %}
-                        </div>
+                        </span>
+                        <span class="activity-status badge badge-{{ activity.color }}">
+                            {{ activity.status|title }}
+                        </span>
                     </div>
                 </div>
             </div>
-        {% endfor %}
-    </div>
-    
-    <div class="text-center mt-3">
-        <button class="btn btn-sm btn-outline-primary" onclick="loadMoreActivity()">
-            <i class="fas fa-history me-1"></i>View More Activity
-        </button>
-    </div>
-{% else %}
-    <div class="text-center py-4">
-        <i class="fas fa-history fa-2x text-muted mb-2"></i>
-        <p class="text-muted">No recent activity</p>
-        <small class="text-muted">Activity will appear here as you run tests and analyses</small>
-    </div>
-{% endif %}
-
-<style>
-.activity-feed .activity-item:hover {
-    background-color: rgba(0,0,0,0.02);
-    border-radius: 0.25rem;
-    margin: -2px -8px;
-    padding: 4px 8px !important;
-}
-
-.activity-icon {
-    width: 24px;
-    text-align: center;
-}
-</style>
-
-<script>
-function loadMoreActivity() {
-    // TODO: Implement pagination for activity feed
-    console.log('Load more activity - TODO');
-}
-</script>
+            {% endfor %}
+        </div>
+        
+        {% if activities|length >= 10 %}
+        <div class="activity-footer">
+            <a href="{{ url_for('main.testing') }}" class="btn btn-sm btn-outline-primary btn-block">
+                View All Activity
+            </a>
+        </div>
+        {% endif %}
+    {% else %}
+        <div class="text-center py-4">
+            <i class="fas fa-history fa-2x text-muted mb-2"></i>
+            <div class="text-muted">No recent activity</div>
+            <div class="mt-2">
+                <a href="{{ url_for('main.testing') }}" class="btn btn-sm btn-primary">
+                    Start New Test
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>

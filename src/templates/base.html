@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Thesis Research App{% endblock %}</title>
+    
+    <!-- Bootstrap 4.6.2 CSS (Updated for security) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" 
+          integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" 
+          crossorigin="anonymous">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
+    <!-- HTMX for dynamic interactions -->
+    <script src="https://unpkg.com/htmx.org@1.9.12" 
+            integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" 
+            crossorigin="anonymous"></script>
+    
+    <!-- HTMX configuration -->
+    <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML","requestTimeout":30000,"historyCacheSize":5}'>
+    
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Clean Modern Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('main.dashboard') }}">
+                <i class="fas fa-brain text-primary mr-2"></i>
+                <span class="font-weight-bold">AI Research Platform</span>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.dashboard') }}">
+                            <i class="fas fa-tachometer-alt mr-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('models.models_overview') }}">
+                            <i class="fas fa-robot mr-1"></i>Models
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.testing') }}">
+                            <i class="fas fa-shield-alt mr-1"></i>Testing
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.statistics') }}">
+                            <i class="fas fa-chart-bar mr-1"></i>Statistics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.batch_overview') }}">
+                            <i class="fas fa-layer-group mr-1"></i>Batch Jobs
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <!-- Notifications -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link position-relative" href="#" id="notificationsDropdown" role="button" 
+                           data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-bell"></i>
+                            <span id="notification-count" hx-get="{{ url_for('api.api_notifications_count') }}" 
+                                  hx-trigger="load, every 30s"></span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="notificationsDropdown">
+                            <h6 class="dropdown-header">Notifications</h6>
+                            <div id="notifications-list" hx-get="{{ url_for('api.api_tasks_active') }}" 
+                                 hx-trigger="load, every 15s">
+                                <div class="dropdown-item-text">Loading...</div>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <!-- Quick Actions -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link" href="#" id="actionsDropdown" role="button" 
+                           data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-plus-circle"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="actionsDropdown">
+                            <h6 class="dropdown-header">Quick Actions</h6>
+                            <a class="dropdown-item" href="#" onclick="showBatchForm()">
+                                <i class="fas fa-layer-group mr-2"></i>New Batch Analysis
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="showTestForm()">
+                                <i class="fas fa-shield-alt mr-2"></i>Security Test
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="showPerformanceForm()">
+                                <i class="fas fa-tachometer-alt mr-2"></i>Performance Test
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#" onclick="refreshDashboard()">
+                                <i class="fas fa-sync mr-2"></i>Refresh Data
+                            </a>
+                        </div>
+                    </li>
+                    
+                    <!-- Settings -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link" href="#" id="settingsDropdown" role="button" 
+                           data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-cog"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="settingsDropdown">
+                            <h6 class="dropdown-header">Settings</h6>
+                            <a class="dropdown-item" href="#" onclick="showSettingsModal()">
+                                <i class="fas fa-sliders-h mr-2"></i>Preferences
+                            </a>
+                            <a class="dropdown-item" href="#" onclick="showSystemHealth()">
+                                <i class="fas fa-heartbeat mr-2"></i>System Health
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="{{ url_for('main.about') }}">
+                                <i class="fas fa-info-circle mr-2"></i>About
+                            </a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Layout with Sidebar -->
+    <div class="main-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h5 class="sidebar-title">Quick Stats</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleSidebar()">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+            
+            <div class="sidebar-content">
+                <!-- System Status -->
+                <div class="sidebar-section">
+                    <h6 class="sidebar-section-title">System Status</h6>
+                    <div id="system-status" hx-get="{{ url_for('api.system_status') }}" 
+                         hx-trigger="load, every 30s">
+                        <div class="text-muted">Loading...</div>
+                    </div>
+                </div>
+                
+                <!-- Quick Stats -->
+                <div class="sidebar-section">
+                    <h6 class="sidebar-section-title">Statistics</h6>
+                    <div id="sidebar-stats" hx-get="{{ url_for('api.sidebar_stats') }}" 
+                         hx-trigger="load, every 60s">
+                        <div class="text-muted">Loading...</div>
+                    </div>
+                </div>
+                
+                <!-- Recent Activity -->
+                <div class="sidebar-section">
+                    <h6 class="sidebar-section-title">Recent Activity</h6>
+                    <div id="recent-activity" hx-get="{{ url_for('api.recent_activity') }}" 
+                         hx-trigger="load, every 45s">
+                        <div class="text-muted">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
+            <!-- Page Content -->
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modal-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="position-fixed w-100 h-100 d-none" 
+         style="top: 0; left: 0; background: rgba(0, 0, 0, 0.5); z-index: 9999;">
+        <div class="d-flex justify-content-center align-items-center h-100">
+            <div class="text-center text-white">
+                <div class="spinner-border mb-3" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+                <div>Processing...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" role="dialog" aria-labelledby="settingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="settingsModalLabel">Settings</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="autoRefresh">Auto Refresh</label>
+                        <select class="form-control" id="autoRefresh">
+                            <option value="30">30 seconds</option>
+                            <option value="60" selected>1 minute</option>
+                            <option value="300">5 minutes</option>
+                            <option value="0">Disabled</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSettings()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal fade" id="helpModal" tabindex="-1" role="dialog" aria-labelledby="helpModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="helpModalLabel">Help & Documentation</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <h6>Keyboard Shortcuts</h6>
+                    <ul>
+                        <li><kbd>Ctrl</kbd> + <kbd>R</kbd> - Refresh current page</li>
+                        <li><kbd>Ctrl</kbd> + <kbd>N</kbd> - New batch analysis</li>
+                        <li><kbd>Ctrl</kbd> + <kbd>S</kbd> - System health check</li>
+                        <li><kbd>Escape</kbd> - Close modals</li>
+                    </ul>
+                    
+                    <h6 class="mt-4">Navigation</h6>
+                    <p>Use the main navigation bar to access different sections of the application.</p>
+                    
+                    <h6 class="mt-4">Support</h6>
+                    <p>For technical support or questions, please refer to the documentation.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" 
+            integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" 
+            integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct"
+            crossorigin="anonymous"></script>
+
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dynamic-styles.js') }}"></script>
+    
+    <script>
+        // Global application functions
+        function showSettingsModal() {
+            $('#settingsModal').modal('show');
+        }
+        
+        function saveSettings() {
+            const autoRefresh = document.getElementById('autoRefresh').value;
+            localStorage.setItem('autoRefreshInterval', autoRefresh);
+            $('#settingsModal').modal('hide');
+            showToast('Settings saved successfully', 'success');
+        }
+        
+        function showSystemHealth() {
+            fetch('/api/system-health')
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('modal-container').innerHTML = html;
+                })
+                .catch(error => {
+                    showToast('Failed to load system health', 'danger');
+                });
+        }
+        
+        function showBatchForm() {
+            htmx.ajax('GET', '/batch/form', {
+                target: '#modal-container'
+            });
+        }
+        
+        function showTestForm() {
+            // Navigate to testing page
+            window.location.href = '{{ url_for("main.testing") }}';
+        }
+        
+        function showPerformanceForm() {
+            // Navigate to testing page
+            window.location.href = '{{ url_for("main.testing") }}';
+        }
+        
+        function refreshDashboard() {
+            // Trigger refresh of all HTMX elements
+            htmx.trigger(document.body, 'refresh');
+            showToast('Dashboard refreshed', 'info');
+        }
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+        
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            toast.style.cssText = 'top: 70px; right: 20px; z-index: 1050; min-width: 300px; max-width: 500px;';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 5000);
+        }
+        
+        // Global HTMX event handlers
+        document.addEventListener('htmx:beforeRequest', function(event) {
+            // Show loading indicator for longer requests
+            const target = event.target;
+            if (target.hasAttribute('data-loading')) {
+                target.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Loading...';
+            }
+        });
+        
+        document.addEventListener('htmx:afterRequest', function(event) {
+            // Handle errors
+            if (event.detail.xhr.status >= 400) {
+                showToast(`Error: ${event.detail.xhr.status} ${event.detail.xhr.statusText}`, 'danger');
+            }
+        });
+        
+        document.addEventListener('htmx:responseError', function(event) {
+            showToast('Network error occurred', 'danger');
+        });
+        
+        // Auto-refresh management
+        let autoRefreshInterval = null;
+        
+        function startAutoRefresh() {
+            const interval = localStorage.getItem('autoRefreshInterval') || '60';
+            if (interval !== '0') {
+                autoRefreshInterval = setInterval(() => {
+                    // Refresh sidebar stats
+                    htmx.trigger('#sidebar-stats', 'refresh');
+                    htmx.trigger('#recent-activity', 'refresh');
+                    htmx.trigger('#system-status', 'refresh');
+                    htmx.trigger('#notification-count', 'refresh');
+                }, parseInt(interval) * 1000);
+            }
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey) {
+                switch(e.key) {
+                    case 'r':
+                        e.preventDefault();
+                        refreshDashboard();
+                        break;
+                    case 'n':
+                        e.preventDefault();
+                        showBatchForm();
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        showSystemHealth();
+                        break;
+                }
+            } else if (e.key === 'Escape') {
+                // Close any open modals
+                $('.modal').modal('hide');
+            }
+        });
+        
+        // Page visibility handling
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh();
+            }
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            startAutoRefresh();
+            
+            // Load saved settings
+            const autoRefresh = localStorage.getItem('autoRefreshInterval') || '60';
+            const refreshSelect = document.getElementById('autoRefresh');
+            if (refreshSelect) {
+                refreshSelect.value = autoRefresh;
+            }
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            stopAutoRefresh();
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

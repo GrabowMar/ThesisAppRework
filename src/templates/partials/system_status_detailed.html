@@ -1,0 +1,21 @@
+{# System Status Detailed Partial #}
+<div class="system-status-detailed">
+    {% if status_details %}
+        <dl class="row mb-0">
+        {% for key, value in status_details.items() %}
+            <dt class="col-sm-5 text-truncate">{{ key|replace('_',' ')|title }}</dt>
+            <dd class="col-sm-7 mb-1">
+                {% if value is mapping %}
+                    <code class="d-block small">{{ value|tojson }}</code>
+                {% elif value is sequence and value is not string %}
+                    <span class="badge badge-light">{{ value|length }} items</span>
+                {% else %}
+                    <span>{{ value }}</span>
+                {% endif %}
+            </dd>
+        {% endfor %}
+        </dl>
+    {% else %}
+        <div class="text-muted small">No detailed status available</div>
+    {% endif %}
+</div>

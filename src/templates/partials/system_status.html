@@ -1,0 +1,20 @@
+<div class="system-status-panel">
+    {% if system_status %}
+        <div class="status-grid">
+            {% for service, status in system_status.items() %}
+            <div class="status-item">
+                <div class="status-indicator status-{{ status.status }}"></div>
+                <div class="status-details">
+                    <div class="status-name">{{ service|title }}</div>
+                    <div class="status-message">{{ status.message }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-muted text-center">
+            <i class="fas fa-question-circle"></i>
+            <div>Status unavailable</div>
+        </div>
+    {% endif %}
+</div>
