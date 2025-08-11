@@ -323,6 +323,17 @@ def api_models_stats_total():
         logger.error(f"Error getting models count: {str(e)}")
         return "Error"
 
+@advanced.route('/api/models/stats/active')
+def api_models_stats_active():
+    """Get number of active models."""
+    try:
+        # For now, assume all models are active. This could be enhanced with a status field
+        count = ModelCapability.query.count()
+        return f"<span class='counter' data-target='{count}'>{count}</span>"
+    except Exception as e:
+        logger.error(f"Error getting active models count: {str(e)}")
+        return "Error"
+
 @advanced.route('/api/models/stats/providers')
 def api_models_stats_providers():
     """Get number of unique providers."""

@@ -15,289 +15,332 @@ from ..models import (
     BatchAnalysis, ContainerizedTest
 )
 from ..extensions import db
+from ..services.openrouter_service import OpenRouterService
 
 # Set up logger
 logger = logging.getLogger(__name__)
 
 models_bp = Blueprint('models', __name__)
 
+# Initialize OpenRouter service
+openrouter_service = OpenRouterService()
+
+# Provider color mapping for templates
+PROVIDER_COLORS = {
+    'anthropic': '#D97706',
+    'openai': '#14B8A6', 
+    'google': '#3B82F6',
+    'deepseek': '#9333EA',
+    'mistralai': '#8B5CF6',
+    'qwen': '#F43F5E',
+    'minimax': '#7E22CE',
+    'x-ai': '#B91C1C',
+    'moonshotai': '#10B981',
+    'nvidia': '#0D9488',
+    'nousresearch': '#059669'
+}
+
+def get_provider_color(provider):
+    """Get color for a provider."""
+    return PROVIDER_COLORS.get(provider, '#666666')
+
+
+@models_bp.app_template_global('get_provider_color')
+def template_get_provider_color(provider):
+    """Template global function for getting provider colors."""
+    return get_provider_color(provider)
+
 
 @models_bp.route('/')
 def models_overview():
-    """Models overview page showing all available AI models."""
+    """Static models overview page showing table of AI models with OpenRouter data."""
     try:
-        # Get filter parameters
-        provider_filter = request.args.get('provider')
-        search_filter = request.args.get('search')
-        sort_by = request.args.get('sortBy', 'name')
-        view_mode = request.args.get('view_mode', 'grid')
-        page = request.args.get('page', 1, type=int)
-        per_page = 12  # Number of models per page
+        # Get all models from database
+        models = ModelCapability.query.order_by(
+            ModelCapability.provider, 
+            ModelCapability.model_name
+        ).all()
         
-        # Build query
-        query = ModelCapability.query
-        
-        if provider_filter:
-            query = query.filter(ModelCapability.provider == provider_filter)
-        
-        if search_filter:
-            query = query.filter(
-                ModelCapability.model_name.contains(search_filter)
-            )
-        
-        # Apply sorting
-        if sort_by == 'provider':
-            query = query.order_by(ModelCapability.provider, ModelCapability.model_name)
-        elif sort_by == 'name':
-            query = query.order_by(ModelCapability.model_name)
-        elif sort_by == 'last_updated':
-            query = query.order_by(ModelCapability.updated_at.desc())
-        else:
-            query = query.order_by(ModelCapability.model_name)
-        
-        # Paginate
-        models_pagination = query.paginate(
-            page=page, per_page=per_page, error_out=False
-        )
-        
-        # Add additional stats to models
-        models_with_stats = []
-        for model in models_pagination.items:
+        # Enrich models with OpenRouter data
+        enriched_models = []
+        for model in models:
+            enriched_data = openrouter_service.enrich_model_data(model)
+            # Add computed stats
             app_count = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).count()
-            
-            # Add computed fields
-            model.apps_count = app_count
-            model.analyses_count = 0  # This could be computed from related analyses
-            model.success_rate = 85  # Placeholder - could be computed
-            model.status = 'active'  # Placeholder
-            model.capabilities = ['Chat', 'Code Generation', 'Analysis']  # Placeholder
-            model.last_updated = model.updated_at
-            model.model_slug = model.canonical_slug  # Add this for template compatibility
-            models_with_stats.append(model)
+            enriched_data['apps_count'] = app_count
+            enriched_models.append(enriched_data)
         
-        # Check if this is an HTMX request
-        is_htmx = request.headers.get('HX-Request')
+        # Get summary statistics
+        providers = db.session.query(ModelCapability.provider.distinct()).all()
+        providers = [p[0] for p in providers if p[0]]
         
-        if is_htmx:
-            # Return just the partial content for HTMX
-            if view_mode == 'list':
-                return render_template(
-                    'partials/models/models_list.html',
-                    models=models_with_stats,
-                    pagination=models_pagination
-                )
-            else:
-                return render_template(
-                    'partials/models/models_grid.html',
-                    models=models_with_stats,
-                    pagination=models_pagination
-                )
-        else:
-            # Return full page for regular requests
-            # Group by provider for initial load
-            models_by_provider = {}
-            for model in models_with_stats:
-                if model.provider not in models_by_provider:
-                    models_by_provider[model.provider] = []
-                models_by_provider[model.provider].append(model)
-            
-            return render_template(
-                'pages/models_overview.html',
-                models_by_provider=models_by_provider,
-                total_models=models_pagination.total,
-                pagination=models_pagination
-            )
+        total_models = len(models)
+        free_models = sum(1 for m in models if m.is_free)
+        paid_models = total_models - free_models
+        
+        context = {
+            'models': enriched_models,
+            'total_models': total_models,
+            'providers': providers,
+            'providers_count': len(providers),
+            'free_models': free_models,
+            'paid_models': paid_models,
+            'page_title': 'AI Models Overview',
+            'show_openrouter_data': bool(openrouter_service.api_key)
+        }
+        
+        return render_template('pages/models_overview.html', **context)
             
     except Exception as e:
-        logger.error(f"Error loading models: {e}")
-        if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger">Error loading models: {str(e)}</div>'
-        else:
-            flash('Error loading models', 'error')
-            return render_template('pages/error.html', 
-                                 error_code=500,
-                                 error_title='Models Error',
-                                 error_message=str(e))
+        logger.error(f"Error loading models overview: {e}")
+        flash(f"Error loading models: {e}", "error")
+        return render_template('pages/models_overview.html', 
+                             models=[], total_models=0, providers=[], 
+                             providers_count=0, error=str(e))
+
+
+@models_bp.route('/model/<model_slug>/details')
+def model_details(model_slug):
+    """Detailed view of a specific model with comprehensive OpenRouter data."""
+    try:
+        # Get model from database
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
+        
+        # Enrich with OpenRouter data
+        enriched_data = openrouter_service.enrich_model_data(model)
+        
+        # Get related statistics
+        total_apps = GeneratedApplication.query.filter_by(model_slug=model_slug).count()
+        analyses_count = (
+            SecurityAnalysis.query.join(GeneratedApplication)
+            .filter(GeneratedApplication.model_slug == model_slug)
+            .count()
+        )
+        
+        # Additional context
+        enriched_data.update({
+            'total_apps': total_apps,
+            'analyses_count': analyses_count,
+        })
+        
+        return render_template('pages/model_details.html', 
+                             model=enriched_data)
+        
+    except Exception as e:
+        logger.error(f"Error loading model details for {model_slug}: {e}")
+        flash(f"Error loading model details: {e}", "error")
+        return render_template('pages/error.html', 
+                             error_code=404,
+                             error_title='Model Not Found',
+                             error_message=f"Model '{model_slug}' not found")
 
 
 @models_bp.route('/applications')
 def applications():
-    """Applications overview page."""
+    """Applications overview page with grid layout and container management."""
     try:
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        
-        # Filter parameters
+        # Get filter parameters
         model_filter = request.args.get('model')
         provider_filter = request.args.get('provider')
-        status_filter = request.args.get('status')
         search_filter = request.args.get('search')
         
-        # Build query
-        query = GeneratedApplication.query
+        # Get all models to create app grid
+        models_query = ModelCapability.query.order_by(
+            ModelCapability.provider, 
+            ModelCapability.model_name
+        )
+        
+        # Apply filters
+        if provider_filter:
+            models_query = models_query.filter(ModelCapability.provider == provider_filter)
         
         if model_filter:
-            query = query.filter(GeneratedApplication.model_slug.contains(model_filter))
-        
-        if provider_filter:
-            query = query.filter(GeneratedApplication.provider == provider_filter)
-        
-        if status_filter:
-            query = query.filter(GeneratedApplication.container_status == status_filter)
+            models_query = models_query.filter(
+                ModelCapability.canonical_slug.contains(model_filter) |
+                ModelCapability.model_name.contains(model_filter)
+            )
             
         if search_filter:
-            query = query.filter(
-                db.or_(
-                    GeneratedApplication.model_slug.contains(search_filter),
-                    GeneratedApplication.provider.contains(search_filter),
-                    GeneratedApplication.app_type.contains(search_filter)
-                )
+            models_query = models_query.filter(
+                ModelCapability.model_name.contains(search_filter) |
+                ModelCapability.provider.contains(search_filter)
             )
         
-        # Paginate results
-        applications_pagination = query.order_by(
-            GeneratedApplication.created_at.desc()
-        ).paginate(
-            page=page, per_page=per_page, error_out=False
-        )
+        models = models_query.all()
+        
+        # Build application grid data
+        application_grid = []
+        total_apps = 0
+        running_containers = 0
+        stopped_containers = 0
+        
+        for model in models:
+            # Get apps for this model
+            apps = GeneratedApplication.query.filter_by(
+                model_slug=model.canonical_slug
+            ).all()
+            
+            model_apps = []
+            for i in range(1, 31):  # Apps 1-30
+                app = next((a for a in apps if a.app_number == i), None)
+                app_data = {
+                    'app_number': i,
+                    'exists': bool(app),
+                    'status': app.container_status if app else 'not_created',
+                    'app_type': app.app_type if app else 'unknown',
+                    'has_backend': app.has_backend if app else False,
+                    'has_frontend': app.has_frontend if app else False,
+                    'has_docker_compose': app.has_docker_compose if app else False,
+                    'generation_status': app.generation_status if app else 'pending'
+                }
+                model_apps.append(app_data)
+                
+                if app:
+                    total_apps += 1
+                    if app.container_status == 'running':
+                        running_containers += 1
+                    else:
+                        stopped_containers += 1
+            
+            application_grid.append({
+                'model': model,
+                'apps': model_apps,
+                'apps_count': len([a for a in model_apps if a['exists']])
+            })
         
         # Get filter options
-        providers = db.session.query(GeneratedApplication.provider.distinct()).filter(
-            GeneratedApplication.provider.isnot(None)
-        ).all()
+        providers = db.session.query(ModelCapability.provider.distinct()).all()
         providers = [p[0] for p in providers if p[0]]
         
-        models = db.session.query(GeneratedApplication.model_slug.distinct()).filter(
-            GeneratedApplication.model_slug.isnot(None)
-        ).all()
-        models = [m[0] for m in models if m[0]]
-        
-        # Enhanced app data with statistics
-        enhanced_apps = []
-        for app in applications_pagination.items:
-            # Get security analysis count
-            security_count = SecurityAnalysis.query.filter_by(application_id=app.id).count()
-            
-            # Get performance test count
-            performance_count = PerformanceTest.query.filter_by(application_id=app.id).count()
-            
-            # Get ZAP analysis count
-            zap_count = ZAPAnalysis.query.filter_by(application_id=app.id).count()
-            
-            # Get OpenRouter analysis count
-            openrouter_count = OpenRouterAnalysis.query.filter_by(application_id=app.id).count()
-            
-            # Add computed fields
-            app.security_analyses_count = security_count
-            app.performance_tests_count = performance_count
-            app.zap_analyses_count = zap_count
-            app.openrouter_analyses_count = openrouter_count
-            app.total_analyses = security_count + performance_count + zap_count + openrouter_count
-            
-            # Status badge class
-            status_class = {
-                'running': 'success',
-                'stopped': 'secondary', 
-                'error': 'danger',
-                'pending': 'warning'
-            }.get(app.container_status, 'secondary')
-            app.status_class = status_class
-            
-            # Description from metadata
-            metadata = app.get_metadata()
-            app.description = metadata.get('description', f'{app.app_type} application using {app.model_slug}')
-            
-            enhanced_apps.append(app)
-        
-        # Check if this is an HTMX request
-        if request.headers.get('HX-Request'):
-            return render_template(
-                'partials/applications_content.html',
-                applications=enhanced_apps,
-                pagination=applications_pagination
-            )
-        
-        return render_template(
-            'pages/applications.html',
-            applications=enhanced_apps,
-            pagination=applications_pagination,
-            providers=providers,
-            available_models=models,
-            current_filters={
+        context = {
+            'application_grid': application_grid,
+            'total_apps': total_apps,
+            'running_containers': running_containers,
+            'stopped_containers': stopped_containers,
+            'total_models': len(models),
+            'providers': providers,
+            'current_filters': {
                 'model': model_filter,
                 'provider': provider_filter,
-                'status': status_filter,
                 'search': search_filter
             }
-        )
-    except Exception as e:
-        logger.error(f"Error loading applications: {e}")
-        if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger">Error loading applications: {str(e)}</div>'
-        else:
-            flash('Error loading applications', 'error')
-            return render_template('pages/error.html', 
-                                 error_code=500,
-                                 error_title='Applications Error',
-                                 error_message=str(e))
-
-
-@models_bp.route('/application/<int:app_id>')
-def application_detail(app_id):
-    """Application detail page."""
-    try:
-        app = GeneratedApplication.query.get_or_404(app_id)
-        
-        # Get related analyses
-        security_analyses = SecurityAnalysis.query.filter_by(
-            application_id=app_id
-        ).order_by(SecurityAnalysis.created_at.desc()).all()
-        
-        performance_tests = PerformanceTest.query.filter_by(
-            application_id=app_id
-        ).order_by(PerformanceTest.created_at.desc()).all()
-        
-        zap_analyses = ZAPAnalysis.query.filter_by(
-            application_id=app_id
-        ).order_by(ZAPAnalysis.created_at.desc()).all()
-        
-        openrouter_analyses = OpenRouterAnalysis.query.filter_by(
-            application_id=app_id
-        ).order_by(OpenRouterAnalysis.created_at.desc()).all()
-        
-        # Calculate statistics
-        stats = {
-            'total_security_analyses': len(security_analyses),
-            'total_performance_tests': len(performance_tests),
-            'total_zap_analyses': len(zap_analyses),
-            'total_ai_analyses': len(openrouter_analyses),
-            'security_issues': sum(a.total_issues or 0 for a in security_analyses),
-            'avg_response_time': (
-                sum(t.average_response_time or 0 for t in performance_tests) / len(performance_tests) 
-                if performance_tests else 0
-            ),
-            'avg_rps': (
-                sum(t.requests_per_second or 0 for t in performance_tests) / len(performance_tests) 
-                if performance_tests else 0
-            )
         }
         
-        return render_template(
-            'pages/application_detail.html',
-            app=app,
-            security_analyses=security_analyses,
-            performance_tests=performance_tests,
-            zap_analyses=zap_analyses,
-            openrouter_analyses=openrouter_analyses,
-            stats=stats
-        )
+        return render_template('pages/applications.html', **context)
+            
     except Exception as e:
-        logger.error(f"Error loading application {app_id}: {e}")
-        flash('Error loading application', 'error')
+        logger.error(f"Error loading applications: {e}")
+        flash(f"Error loading applications: {e}", "error")
+        return render_template('pages/applications.html', 
+                             application_grid=[], total_apps=0, 
+                             running_containers=0, stopped_containers=0,
+                             current_filters={}, providers=[],
+                             error=str(e))
+
+
+@models_bp.route('/application/<model_slug>/<int:app_number>')
+def application_detail(model_slug, app_number):
+    """Detailed view of a specific application with files, generation info, and container management."""
+    try:
+        # Get the application
+        app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug, 
+            app_number=app_number
+        ).first()
+        
+        # Get the model
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
+        
+        # If app doesn't exist in database, create a placeholder
+        if not app:
+            app_data = {
+                'model_slug': model_slug,
+                'app_number': app_number,
+                'exists_in_db': False,
+                'status': 'not_created',
+                'app_type': 'unknown',
+                'has_backend': False,
+                'has_frontend': False,
+                'has_docker_compose': False,
+                'generation_status': 'pending',
+                'container_status': 'not_created'
+            }
+        else:
+            app_data = {
+                'id': app.id,
+                'model_slug': app.model_slug,
+                'app_number': app.app_number,
+                'exists_in_db': True,
+                'app_type': app.app_type,
+                'provider': app.provider,
+                'generation_status': app.generation_status,
+                'container_status': app.container_status,
+                'has_backend': app.has_backend,
+                'has_frontend': app.has_frontend,
+                'has_docker_compose': app.has_docker_compose,
+                'backend_framework': app.backend_framework,
+                'frontend_framework': app.frontend_framework,
+                'created_at': app.created_at,
+                'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {}
+            }
+        
+        # Remove unused import
+        from pathlib import Path
+        
+        app_path = Path('misc/models') / model_slug / f'app{app_number}'
+        files_info = {
+            'app_exists': app_path.exists(),
+            'docker_compose': (app_path / 'docker-compose.yml').exists(),
+            'backend_files': [],
+            'frontend_files': [],
+            'other_files': []
+        }
+        
+        if app_path.exists():
+            # Scan for files
+            for item in app_path.rglob('*'):
+                if item.is_file():
+                    rel_path = item.relative_to(app_path)
+                    file_info = {
+                        'name': item.name,
+                        'path': str(rel_path),
+                        'size': item.stat().st_size,
+                        'modified': item.stat().st_mtime
+                    }
+                    
+                    if 'backend' in str(rel_path).lower():
+                        files_info['backend_files'].append(file_info)
+                    elif 'frontend' in str(rel_path).lower():
+                        files_info['frontend_files'].append(file_info)
+                    else:
+                        files_info['other_files'].append(file_info)
+        
+        # Get analysis history if app exists in DB
+        analyses = {}
+        if app:
+            analyses = {
+                'security': SecurityAnalysis.query.filter_by(application_id=app.id).order_by(SecurityAnalysis.created_at.desc()).all(),
+                'performance': PerformanceTest.query.filter_by(application_id=app.id).order_by(PerformanceTest.created_at.desc()).all(),
+                'zap': ZAPAnalysis.query.filter_by(application_id=app.id).order_by(ZAPAnalysis.created_at.desc()).all(),
+                'openrouter': OpenRouterAnalysis.query.filter_by(application_id=app.id).order_by(OpenRouterAnalysis.created_at.desc()).all()
+            }
+        
+        context = {
+            'model': model,
+            'app': app_data,
+            'files_info': files_info,
+            'analyses': analyses
+        }
+        
+        return render_template('pages/application_detail.html', **context)
+        
+    except Exception as e:
+        logger.error(f"Error loading application details for {model_slug}/app{app_number}: {e}")
+        flash(f"Error loading application details: {e}", "error")
         return render_template('pages/error.html', 
-                             error_code=500,
-                             error_title='Application Error',
-                             error_message=str(e))
+                             error_code=404,
+                             error_title='Application Not Found',
+                             error_message=f"Application '{model_slug}/app{app_number}' not found")
 
 
 @models_bp.route('/model_actions/<model_slug>')
@@ -354,4 +397,8 @@ def model_apps(model_slug):
         return render_template('pages/error.html', 
                              error_code=500,
                              error_title='Model Applications Error',
-                             error_message=str(e))
+                             error_message=str(e),
+                             python_version='3.11')
+
+
+

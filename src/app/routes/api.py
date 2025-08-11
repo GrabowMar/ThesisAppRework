@@ -2480,3 +2480,231 @@ def stop_analyzer_services():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# Model Container Management API Endpoints
+# ========================================
+
+@api_bp.route('/model/<model_slug>/container-status')
+def api_model_container_status(model_slug):
+    """Get container status for a specific model."""
+    try:
+        import os
+        
+        # Check if model folder exists
+        models_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'misc', 'models', model_slug)
+        if not os.path.exists(models_dir):
+            return '<span class="badge bg-secondary"><i class="fas fa-minus"></i> No Apps</span>'
+        
+        # Count running containers for this model
+        try:
+            result = subprocess.run(
+                ['docker', 'ps', '--filter', f'name={model_slug.replace("-", "_")}', '--format', '{{.Names}}'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                running_containers = len([line for line in result.stdout.strip().split('\n') if line.strip()])
+                
+                if running_containers > 0:
+                    return f'<span class="badge bg-success" title="{running_containers} containers running"><i class="fas fa-play"></i> {running_containers}</span>'
+                else:
+                    return '<span class="badge bg-secondary" title="No containers running"><i class="fas fa-stop"></i> 0</span>'
+            else:
+                return '<span class="badge bg-warning" title="Docker unavailable"><i class="fas fa-exclamation"></i></span>'
+        except Exception:
+            return '<span class="badge bg-secondary" title="Status unknown"><i class="fas fa-question"></i></span>'
+            
+    except Exception as e:
+        logger.error(f"Error getting container status for {model_slug}: {e}")
+        return '<span class="badge bg-danger" title="Error checking status"><i class="fas fa-times"></i></span>'
+
+
+@api_bp.route('/model/<model_slug>/running-count')
+def api_model_running_count(model_slug):
+    """Get count of running containers for a model."""
+    try:
+        result = subprocess.run(
+            ['docker', 'ps', '--filter', f'name={model_slug.replace("-", "_")}', '--format', '{{.Names}}'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if result.returncode == 0:
+            running_containers = len([line for line in result.stdout.strip().split('\n') if line.strip()])
+            return str(running_containers)
+        else:
+            return '0'
+            
+    except Exception as e:
+        logger.error(f"Error getting running count for {model_slug}: {e}")
+        return '0'
+
+
+@api_bp.route('/app/<model_slug>/<int:app_num>/status')
+def api_app_container_status(model_slug, app_num):
+    """Get container status for a specific app."""
+    try:
+        import os
+        
+        # Check if app folder exists
+        app_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'misc', 'models', model_slug, f'app{app_num}')
+        if not os.path.exists(app_dir):
+            return '<span class="badge bg-light text-dark"><i class="fas fa-minus"></i> No App</span>'
+        
+        # Check if docker-compose.yml exists
+        compose_file = os.path.join(app_dir, 'docker-compose.yml')
+        if not os.path.exists(compose_file):
+            return '<span class="badge bg-secondary"><i class="fas fa-file-times"></i> No Compose</span>'
+        
+        # Count running containers for this specific app
+        container_pattern = f'{model_slug.replace("-", "_")}_app{app_num}'
+        
+        try:
+            result = subprocess.run(
+                ['docker', 'ps', '--filter', f'name={container_pattern}', '--format', '{{.Status}}'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                containers = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+                running_count = len(containers)
+                
+                if running_count > 0:
+                    # Check if all containers are healthy
+                    healthy_count = len([c for c in containers if 'Up' in c])
+                    if healthy_count == running_count:
+                        return f'<span class="badge bg-success"><i class="fas fa-play"></i> Running ({running_count})</span>'
+                    else:
+                        return f'<span class="badge bg-warning"><i class="fas fa-exclamation-triangle"></i> Mixed ({healthy_count}/{running_count})</span>'
+                else:
+                    return '<span class="badge bg-secondary"><i class="fas fa-stop"></i> Stopped</span>'
+            else:
+                return '<span class="badge bg-warning"><i class="fas fa-exclamation"></i> Unknown</span>'
+        except Exception:
+            return '<span class="badge bg-secondary"><i class="fas fa-question"></i> Unknown</span>'
+            
+    except Exception as e:
+        logger.error(f"Error getting app container status for {model_slug}/app{app_num}: {e}")
+        return '<span class="badge bg-danger"><i class="fas fa-times"></i> Error</span>'
+
+
+@api_bp.route('/app/<model_slug>/<int:app_num>/logs')
+def api_app_logs(model_slug, app_num):
+    """Get logs modal for a specific app."""
+    try:
+        import os
+        
+        # Check if app exists
+        app_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'misc', 'models', model_slug, f'app{app_num}')
+        if not os.path.exists(app_dir):
+            return '''
+            <div class="modal fade" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">App Logs - Not Found</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning">
+                                App directory not found for {}/{}.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            '''.format(model_slug, app_num)
+        
+        # Get logs from containers
+        container_pattern = f'{model_slug.replace("-", "_")}_app{app_num}'
+        
+        backend_logs = ""
+        frontend_logs = ""
+        
+        try:
+            # Get backend logs
+            backend_result = subprocess.run(
+                ['docker', 'logs', '--tail', '50', f'{container_pattern}_backend'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if backend_result.returncode == 0:
+                backend_logs = backend_result.stdout
+            else:
+                backend_logs = f"No backend container or logs available\n{backend_result.stderr}"
+        except Exception as e:
+            backend_logs = f"Error getting backend logs: {str(e)}"
+        
+        try:
+            # Get frontend logs
+            frontend_result = subprocess.run(
+                ['docker', 'logs', '--tail', '50', f'{container_pattern}_frontend'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if frontend_result.returncode == 0:
+                frontend_logs = frontend_result.stdout
+            else:
+                frontend_logs = f"No frontend container or logs available\n{frontend_result.stderr}"
+        except Exception as e:
+            frontend_logs = f"Error getting frontend logs: {str(e)}"
+        
+        # Return HTML modal with logs
+        return f'''
+        <div class="modal fade" id="logsModal" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Logs for {model_slug} - App {app_num}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Backend Logs</h6>
+                                <pre class="bg-dark text-light p-3 rounded" style="height: 400px; overflow-y: auto;">{backend_logs}</pre>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Frontend Logs</h6>
+                                <pre class="bg-dark text-light p-3 rounded" style="height: 400px; overflow-y: auto;">{frontend_logs}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" onclick="location.reload()">Refresh</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        '''
+            
+    except Exception as e:
+        logger.error(f"Error getting app logs for {model_slug}/app{app_num}: {e}")
+        return f'''
+        <div class="modal fade" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Error</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger">
+                            Error loading logs: {str(e)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        '''

@@ -1,0 +1,145 @@
+<div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="logsModalLabel">
+                    <i class="fas fa-file-alt me-2"></i>Container Logs - {{ model_slug }}/app{{ app_num }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Backend Logs -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-server me-1"></i>Backend Container
+                                    <span class="badge bg-primary ms-2">Port: {{ 6000 + app_num }}</span>
+                                </h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <pre class="logs-container m-0 p-3" id="backend-logs">{{ backend_logs }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Frontend Logs -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-desktop me-1"></i>Frontend Container
+                                    <span class="badge bg-success ms-2">Port: {{ 9000 + app_num }}</span>
+                                </h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <pre class="logs-container m-0 p-3" id="frontend-logs">{{ frontend_logs }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary"
+                            onclick="refreshLogs('{{ model_slug }}', {{ app_num }})">
+                        <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                    <a href="http://localhost:{{ 9000 + app_num }}" 
+                       target="_blank" 
+                       class="btn btn-outline-primary">
+                        <i class="fas fa-external-link-alt me-1"></i>Open Frontend
+                    </a>
+                    <a href="http://localhost:{{ 6000 + app_num }}" 
+                       target="_blank" 
+                       class="btn btn-outline-success">
+                        <i class="fas fa-external-link-alt me-1"></i>Open Backend
+                    </a>
+                </div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Show the modal
+var logsModal = new bootstrap.Modal(document.getElementById('logsModal'));
+logsModal.show();
+
+// Auto-scroll to bottom of logs
+document.querySelectorAll('.logs-container').forEach(function(container) {
+    container.scrollTop = container.scrollHeight;
+});
+
+// Refresh logs function
+function refreshLogs(modelSlug, appNum) {
+    htmx.ajax('GET', `/api/app/${modelSlug}/${appNum}/logs`, {
+        target: '#modal-container',
+        swap: 'innerHTML'
+    });
+}
+
+// Auto-refresh logs every 30 seconds while modal is open
+var logRefreshInterval = setInterval(function() {
+    if (document.getElementById('logsModal')) {
+        refreshLogs('{{ model_slug }}', {{ app_num }});
+    } else {
+        clearInterval(logRefreshInterval);
+    }
+}, 30000);
+
+// Clear interval when modal is closed
+document.getElementById('logsModal').addEventListener('hidden.bs.modal', function() {
+    clearInterval(logRefreshInterval);
+});
+</script>
+
+<style>
+.logs-container {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    max-height: 400px;
+    overflow-y: auto;
+    border: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.logs-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.logs-container::-webkit-scrollbar-track {
+    background: #2d2d2d;
+}
+
+.logs-container::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.logs-container::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+
+.modal-xl {
+    max-width: 95%;
+}
+
+@media (max-width: 768px) {
+    .modal-xl {
+        max-width: 98%;
+        margin: 1rem;
+    }
+    
+    .logs-container {
+        font-size: 0.7rem;
+        max-height: 300px;
+    }
+}
+</style>

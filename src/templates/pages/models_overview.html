@@ -2,1605 +2,224 @@
 
 {% block title %}Models Overview - AI Research Platform{% endblock %}
 
+{% block page_title %}AI Models Overview{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+<li class="breadcrumb-item active">Models Overview</li>
+{% endblock %}
+
 {% block content %}
-<!-- Content Header (Page header) -->
-<div class="content-header">
-    <div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1><i class="fas fa-robot me-2"></i>AI Models Overview</h1>
+<!-- Statistics Dashboard -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-primary">
+            <div class="inner">
+                <h3>{{ total_models or 0 }}</h3>
+                <p>Total Models</p>
             </div>
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-right">
-                    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
-                    <li class="breadcrumb-item active">Models Overview</li>
-                </ol>
+            <div class="icon">
+                <i class="fas fa-robot"></i>
             </div>
         </div>
-        <div class="row">
-            <div class="col-sm-12">
-                <p class="text-muted">Comprehensive database of AI models with capabilities, performance metrics, and research insights</p>
+    </div>
+
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-success">
+            <div class="inner">
+                <h3>{{ free_models or 0 }}</h3>
+                <p>Free Models</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-gift"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-warning">
+            <div class="inner">
+                <h3>{{ paid_models or 0 }}</h3>
+                <p>Paid Models</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-credit-card"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-info">
+            <div class="inner">
+                <h3>{{ providers_count or 0 }}</h3>
+                <p>Providers</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-building"></i>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Main content -->
-<section class="content">
-    <div class="container-fluid">
-        <!-- Action Buttons -->
-        <div class="row mb-3">
-            <div class="col-12">
-                <div class="btn-group" role="group">
-                    <div class="btn-group" role="group">
-                        <button class="btn btn-primary dropdown-toggle" type="button" 
-                                data-bs-toggle="dropdown">
-                            <i class="fas fa-plus me-1"></i> Add Model
-                        </button>
-                        <div class="dropdown-menu">
-                            <a class="dropdown-item" href="#" onclick="addModelFromAPI()">
-                                <i class="fas fa-cloud-download-alt me-2"></i>Import from API
-                            </a>
-                            <a class="dropdown-item" href="#" onclick="addModelManually()">
-                                <i class="fas fa-edit me-2"></i>Add Manually
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#" onclick="bulkImportModels()">
-                                <i class="fas fa-file-upload me-2"></i>Bulk Import
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <div class="btn-group" role="group">
-                        <button class="btn btn-success dropdown-toggle" type="button" 
-                                data-bs-toggle="dropdown">
-                            <i class="fas fa-chart-bar me-1"></i> Analytics
-                        </button>
-                        <div class="dropdown-menu">
-                            <a class="dropdown-item" href="#" onclick="showModelComparison()">
-                                <i class="fas fa-balance-scale me-2"></i>Model Comparison
-                            </a>
-                            <a class="dropdown-item" href="#" onclick="showPerformanceAnalytics()">
-                                <i class="fas fa-tachometer-alt me-2"></i>Performance Analytics
-                            </a>
-                            <a class="dropdown-item" href="#" onclick="showCostAnalysis()">
-                                <i class="fas fa-dollar-sign me-2"></i>Cost Analysis
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#" onclick="exportAnalytics()">
-                                <i class="fas fa-download me-2"></i>Export Report
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <button type="button" class="btn btn-info" onclick="refreshModelsData()">
-                        <i class="fas fa-sync-alt me-1"></i> Refresh Data
-                    </button>
-                    
-                    <div class="btn-group" role="group">
-                        <button class="btn btn-secondary dropdown-toggle" type="button" 
-                                data-bs-toggle="dropdown">
-                            <i class="fas fa-cogs me-1"></i> Settings
-                        </button>
-                        <div class="dropdown-menu">
-                            <a class="dropdown-item" href="#" onclick="configureAPIKeys()">
-                                <i class="fas fa-key me-2"></i>API Configuration
-                            </a>
-                            <a class="dropdown-item" href="#" onclick="manageProviders()">
-                                <i class="fas fa-building me-2"></i>Manage Providers
-                            </a>
-                            <a class="dropdown-item" href="#" onclick="exportModelsData()">
-                                <i class="fas fa-download me-2"></i>Export Database
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#" onclick="resetModelsCache()">
-                                <i class="fas fa-trash me-2"></i>Reset Cache
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Statistics Dashboard -->
-        <div class="row mb-4">
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-primary">
-                    <div class="inner">
-                        <h3 id="total-models" 
-                            hx-get="/api/models/stats/total" 
-                            hx-trigger="load, modelsUpdated">--</h3>
-                        <p>Total Models</p>
-                    </div>
-                    <div class="icon">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <a href="#" class="small-box-footer" onclick="applyQuickFilter('all')">
-                        View All <i class="fas fa-arrow-circle-right"></i>
-                    </a>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-success">
-                    <div class="inner">
-                        <h3 id="active-models"
-                            hx-get="/api/models/stats/active" 
-                            hx-trigger="load, modelsUpdated">--</h3>
-                        <p>Active Models</p>
-                    </div>
-                    <div class="icon">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <a href="#" class="small-box-footer" onclick="applyQuickFilter('active')">
-                        View Active <i class="fas fa-arrow-circle-right"></i>
-                    </a>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-warning">
-                    <div class="inner">
-                        <h3 id="total-providers"
-                            hx-get="/api/models/stats/providers" 
-                            hx-trigger="load, modelsUpdated">--</h3>
-                        <p>Providers</p>
-                    </div>
-                    <div class="icon">
-                        <i class="fas fa-building"></i>
-                    </div>
-                    <a href="#" class="small-box-footer" onclick="manageProviders()">
-                        View Providers <i class="fas fa-arrow-circle-right"></i>
-                    </a>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-info">
-                    <div class="inner">
-                        <h3 id="avg-performance"
-                            hx-get="/api/models/stats/performance" 
-                            hx-trigger="load, modelsUpdated">--</h3>
-                        <p>Avg Performance</p>
-                    </div>
-                    <div class="icon">
-                        <i class="fas fa-tachometer-alt"></i>
-                    </div>
-                    <a href="#" class="small-box-footer" onclick="showPerformanceAnalytics()">
-                        Performance <i class="fas fa-arrow-circle-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-    <!-- Advanced Filters and Search -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h6 class="card-title mb-0">
-                <i class="fas fa-filter me-2"></i>
-                Advanced Filters & Search
-            </h6>
-        </div>
-        <div class="card-body">
-            <div class="row g-3">
-                <!-- Search -->
-                <div class="col-md-4">
-                    <label class="form-label">Search Models</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="models-search" 
-                               placeholder="Search by name, provider, capabilities..." 
-                               onkeyup="debounceFilterModels()">
-                        <button class="btn btn-outline-secondary" type="button" onclick="clearModelsSearch()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Provider Filter -->
-                <div class="col-md-2">
-                    <label class="form-label">Provider</label>
-                    <select class="form-select" id="provider-filter" onchange="filterModels()">
-                        <option value="">All Providers</option>
-                        <!-- Dynamically populated via HTMX -->
-                    </select>
-                </div>
-
-                <!-- Capabilities Filter -->
-                <div class="col-md-3">
-                    <label class="form-label">Capabilities</label>
-                    <div class="capabilities-filter">
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="vision-capability" 
-                                   value="vision" onchange="filterModels()">
-                            <label class="form-check-label" for="vision-capability">Vision</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="function-calling-capability" 
-                                   value="function_calling" onchange="filterModels()">
-                            <label class="form-check-label" for="function-calling-capability">Functions</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="code-capability" 
-                                   value="code" onchange="filterModels()">
-                            <label class="form-check-label" for="code-capability">Code</label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Cost Range -->
-                <div class="col-md-2">
-                    <label class="form-label">Cost Range</label>
-                    <select class="form-select" id="cost-filter" onchange="filterModels()">
-                        <option value="">All Costs</option>
-                        <option value="free">Free</option>
-                        <option value="low">Low ($0-$0.01)</option>
-                        <option value="medium">Medium ($0.01-$0.1)</option>
-                        <option value="high">High ($0.1+)</option>
-                    </select>
-                </div>
-
-                <!-- Sort Options -->
-                <div class="col-md-1">
-                    <label class="form-label">Sort By</label>
-                    <select class="form-select" id="sort-filter" onchange="filterModels()">
-                        <option value="name">Name</option>
-                        <option value="provider">Provider</option>
-                        <option value="created_at">Date Added</option>
-                        <option value="performance">Performance</option>
-                        <option value="cost">Cost</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Quick Filter Tags -->
-            <div class="mt-3">
-                <div class="d-flex flex-wrap gap-2">
-                    <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('latest')">
-                        <i class="fas fa-clock me-1"></i>Latest Models
-                    </span>
-                    <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('top-performers')">
-                        <i class="fas fa-star me-1"></i>Top Performers
-                    </span>
-                    <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('multimodal')">
-                        <i class="fas fa-eye me-1"></i>Multimodal
-                    </span>
-                    <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('code-experts')">
-                        <i class="fas fa-code me-1"></i>Code Experts
-                    </span>
-                    <span class="badge bg-light text-dark border quick-filter" onclick="applyQuickFilter('budget-friendly')">
-                        <i class="fas fa-dollar-sign me-1"></i>Budget Friendly
-                    </span>
-                    <span class="badge bg-light text-dark border quick-filter" onclick="clearAllFilters()">
-                        <i class="fas fa-times me-1"></i>Clear All
-                    </span>
-                </div>
-            </div>
+<!-- Models Table -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-table me-2"></i>Models Database
+        </h3>
+        <div class="card-tools">
+            {% if show_openrouter_data %}
+            <span class="badge bg-success">
+                <i class="fas fa-wifi"></i> OpenRouter Connected
+            </span>
+            {% else %}
+            <span class="badge bg-warning">
+                <i class="fas fa-wifi-slash"></i> OpenRouter Offline
+            </span>
+            {% endif %}
         </div>
     </div>
-
-    <!-- Models Display Controls -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-md-6">
-                    <div class="d-flex align-items-center gap-3">
-                        <!-- View Mode -->
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button type="button" class="btn btn-outline-primary active" 
-                                    id="cards-view-btn" onclick="setModelsViewMode('cards')">
-                                <i class="fas fa-th-large"></i> Cards
-                            </button>
-                            <button type="button" class="btn btn-outline-primary" 
-                                    id="table-view-btn" onclick="setModelsViewMode('table')">
-                                <i class="fas fa-table"></i> Table
-                            </button>
-                            <button type="button" class="btn btn-outline-primary" 
-                                    id="comparison-view-btn" onclick="setModelsViewMode('comparison')">
-                                <i class="fas fa-balance-scale"></i> Compare
-                            </button>
-                        </div>
-
-                        <!-- Group By -->
-                        <div class="form-group mb-0">
-                            <label class="form-label small">Group by:</label>
-                            <select class="form-select form-select-sm" id="group-by" onchange="filterModels()">
-                                <option value="">No Grouping</option>
-                                <option value="provider">Provider</option>
-                                <option value="capabilities">Capabilities</option>
-                                <option value="cost_tier">Cost Tier</option>
-                                <option value="performance_tier">Performance Tier</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-6 text-md-end">
-                    <div class="d-flex align-items-center justify-content-md-end gap-2">
-                        <!-- Results Info -->
-                        <span class="text-muted small" id="results-info">
-                            Loading models...
-                        </span>
-
-                        <!-- Pagination Size -->
-                        <div class="form-group mb-0">
-                            <select class="form-select form-select-sm" id="page-size" onchange="filterModels()">
-                                <option value="12">12 per page</option>
-                                <option value="24" selected>24 per page</option>
-                                <option value="48">48 per page</option>
-                                <option value="all">Show All</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Models Display Area -->
-    <div id="models-container">
-        <div id="models-display" 
-             hx-get="/api/models/display" 
-             hx-trigger="load, modelsUpdated"
-             hx-vals="js:{
-                search: document.getElementById('models-search')?.value || '', 
-                provider: document.getElementById('provider-filter')?.value || '', 
-                capabilities: getSelectedCapabilities(),
-                cost: document.getElementById('cost-filter')?.value || '',
-                sort: document.getElementById('sort-filter')?.value || 'name',
-                groupBy: document.getElementById('group-by')?.value || '',
-                viewMode: localStorage.getItem('modelsViewMode') || 'cards',
-                pageSize: document.getElementById('page-size')?.value || '24'
-             }"
-             class="models-cards-view">
-            <!-- Loading State -->
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
-                    <span class="visually-hidden">Loading models...</span>
-                </div>
-                <div class="h4">Loading AI Models</div>
-                <div class="text-muted">Retrieving comprehensive model data from database...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Pagination -->
-    <div id="models-pagination" class="d-flex justify-content-center mt-4">
-        <!-- Pagination will be loaded via HTMX -->
-    </div>
-    </div>
-</section>
-
-<!-- Model Details Modal -->
-<div class="modal fade" id="modelDetailModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-robot me-2"></i>
-                    Model Details
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="modelDetailContent">
-                <!-- Dynamic content loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-success" onclick="addToComparison()">
-                    <i class="fas fa-plus me-1"></i>Add to Comparison
-                </button>
-                <button type="button" class="btn btn-warning" onclick="testModel()">
-                    <i class="fas fa-play me-1"></i>Test Model
-                </button>
-                <button type="button" class="btn btn-primary" onclick="editModel()">
-                    <i class="fas fa-edit me-1"></i>Edit Model
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Model Comparison Modal -->
-<div class="modal fade" id="modelComparisonModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-balance-scale me-2"></i>
-                    Model Comparison
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="modelComparisonContent">
-                <!-- Comparison table will be loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-success" onclick="exportComparison()">
-                    <i class="fas fa-download me-1"></i>Export Comparison
-                </button>
-                <button type="button" class="btn btn-warning" onclick="clearComparison()">
-                    <i class="fas fa-trash me-1"></i>Clear Selection
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Add/Edit Model Modal -->
-<div class="modal fade" id="addEditModelModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-plus me-2"></i>
-                    <span id="modal-action-title">Add New Model</span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="addEditModelContent">
-                <!-- Form will be loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="saveModel()">
-                    <i class="fas fa-save me-1"></i>Save Model
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Analytics Modal -->
-<div class="modal fade" id="analyticsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-chart-bar me-2"></i>
-                    Model Analytics
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="analyticsContent">
-                <!-- Analytics charts and data will be loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="downloadAnalyticsReport()">
-                    <i class="fas fa-download me-1"></i>Download Report
-                </button>
-            </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table id="modelsTable" class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Provider</th>
+                        <th>Model Name</th>
+                        <th>Type</th>
+                        <th>Context</th>
+                        <th>Pricing</th>
+                        <th>Capabilities</th>
+                        <th>Apps</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr>
+                        <td>
+                            <span class="badge badge-provider" 
+                                  style="background-color: {{ get_provider_color(model.provider) }}">
+                                {{ model.provider }}
+                            </span>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>{{ model.model_name }}</strong>
+                                {% if model.openrouter_data and model.openrouter_data.name %}
+                                <br><small class="text-muted">{{ model.openrouter_data.name }}</small>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if model.openrouter_data and model.openrouter_data.architecture %}
+                            <span class="badge bg-info">{{ model.openrouter_data.architecture.modality or 'Text' }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Unknown</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if model.openrouter_data and model.openrouter_data.context_length %}
+                            <span class="badge bg-primary">{{ "{:,}".format(model.openrouter_data.context_length) }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if model.openrouter_data and model.openrouter_data.pricing %}
+                            <div>
+                                {% if model.openrouter_data.pricing.prompt %}
+                                <small class="text-success">In: ${{ "%.6f"|format(model.openrouter_data.pricing.prompt|float) }}</small><br>
+                                {% endif %}
+                                {% if model.openrouter_data.pricing.completion %}
+                                <small class="text-warning">Out: ${{ "%.6f"|format(model.openrouter_data.pricing.completion|float) }}</small>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% if model.supports_vision %}
+                                <span class="badge bg-purple">Vision</span>
+                                {% endif %}
+                                {% if model.supports_tool_calling %}
+                                <span class="badge bg-green">Tools</span>
+                                {% endif %}
+                                {% if model.supports_json %}
+                                <span class="badge bg-blue">JSON</span>
+                                {% endif %}
+                                {% if model.is_free %}
+                                <span class="badge bg-success">Free</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">{{ model.apps_count or 0 }}</span>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('models.model_details', model_slug=model.canonical_slug) }}" 
+                                   class="btn btn-outline-primary btn-sm" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ url_for('models.applications') }}?model={{ model.canonical_slug }}" 
+                                   class="btn btn-outline-success btn-sm" title="View Applications">
+                                    <i class="fas fa-th"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-// Models Overview JavaScript
-class ModelsOverview {
-    constructor() {
-        this.viewMode = localStorage.getItem('modelsViewMode') || 'cards';
-        this.selectedModels = new Set();
-        this.comparisonModels = new Set();
-        this.currentModel = null;
-        this.filterTimeout = null;
-        this.autoRefresh = false;
-        this.autoRefreshInterval = null;
-        this.init();
-    }
-
-    init() {
-        this.setupEventListeners();
-        this.setupKeyboardShortcuts();
-        this.setViewMode(this.viewMode);
-        this.loadProviderFilters();
-    }
-
-    setupEventListeners() {
-        // HTMX event listeners
-        document.addEventListener('htmx:afterRequest', (e) => {
-            if (e.detail.target.id === 'models-display') {
-                this.updateResultsInfo(e.detail.xhr.response);
-                this.bindModelEvents();
-            }
-        });
-
-        // Provider filter population
-        document.addEventListener('htmx:afterSettle', (e) => {
-            if (e.detail.target.id === 'provider-filter') {
-                this.restoreFilterState();
-            }
-        });
-    }
-
-    setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey || e.metaKey) {
-                switch(e.key) {
-                    case 'f':
-                        e.preventDefault();
-                        document.getElementById('models-search').focus();
-                        break;
-                    case 'r':
-                        e.preventDefault();
-                        this.refreshModelsData();
-                        break;
-                    case '1':
-                        e.preventDefault();
-                        this.setViewMode('cards');
-                        break;
-                    case '2':
-                        e.preventDefault();
-                        this.setViewMode('table');
-                        break;
-                    case '3':
-                        e.preventDefault();
-                        this.setViewMode('comparison');
-                        break;
-                }
-            }
-
-            if (e.key === 'Escape') {
-                this.clearAllFilters();
-            }
-        });
-    }
-
-    bindModelEvents() {
-        // Bind events to newly loaded model items
-        const modelCards = document.querySelectorAll('.model-card');
-        modelCards.forEach(card => {
-            const modelId = card.dataset.modelId;
-            
-            // Click to view details
-            card.addEventListener('click', (e) => {
-                if (!e.target.closest('.model-actions')) {
-                    this.viewModelDetail(modelId);
-                }
-            });
-
-            // Action buttons
-            const viewBtn = card.querySelector('.btn-view-model');
-            const compareBtn = card.querySelector('.btn-compare-model');
-            const testBtn = card.querySelector('.btn-test-model');
-            const editBtn = card.querySelector('.btn-edit-model');
-
-            if (viewBtn) viewBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.viewModelDetail(modelId);
-            });
-
-            if (compareBtn) compareBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleModelComparison(modelId);
-            });
-
-            if (testBtn) testBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.testModel(modelId);
-            });
-
-            if (editBtn) editBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.editModel(modelId);
-            });
-        });
-
-        // Update comparison badges
-        this.updateComparisonUI();
-    }
-
-    setViewMode(mode) {
-        this.viewMode = mode;
-        localStorage.setItem('modelsViewMode', mode);
-        
-        // Update button states
-        document.querySelectorAll('[id$="-view-btn"]').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        document.getElementById(`${mode}-view-btn`)?.classList.add('active');
-        
-        // Update container class
-        const display = document.getElementById('models-display');
-        display.className = `models-${mode}-view`;
-        
-        // Trigger refresh with new view mode
-        htmx.trigger('#models-display', 'modelsUpdated');
-    }
-
-    loadProviderFilters() {
-        fetch('/api/models/providers')
-            .then(response => response.json())
-            .then(providers => {
-                const select = document.getElementById('provider-filter');
-                providers.forEach(provider => {
-                    const option = document.createElement('option');
-                    option.value = provider.value;
-                    option.textContent = provider.label;
-                    select.appendChild(option);
-                });
-            })
-            .catch(error => {
-                console.error('Error loading providers:', error);
-            });
-    }
-
-    debounceFilterModels() {
-        if (this.filterTimeout) {
-            clearTimeout(this.filterTimeout);
-        }
-        
-        this.filterTimeout = setTimeout(() => {
-            this.filterModels();
-        }, 300);
-    }
-
-    filterModels() {
-        htmx.trigger('#models-display', 'modelsUpdated');
-    }
-
-    clearModelsSearch() {
-        document.getElementById('models-search').value = '';
-        this.filterModels();
-    }
-
-    getSelectedCapabilities() {
-        const capabilities = [];
-        document.querySelectorAll('.capabilities-filter input:checked').forEach(checkbox => {
-            capabilities.push(checkbox.value);
-        });
-        return capabilities;
-    }
-
-    applyQuickFilter(filterType) {
-        // Clear existing filters first
-        this.clearAllFilters();
-        
-        switch(filterType) {
-            case 'all':
-                // Show all models - no additional filters
-                break;
-            case 'active':
-                // Filter for active models
-                document.getElementById('sort-filter').value = 'name';
-                break;
-            case 'latest':
-                document.getElementById('sort-filter').value = 'created_at';
-                break;
-            case 'top-performers':
-                document.getElementById('sort-filter').value = 'performance';
-                break;
-            case 'multimodal':
-                document.getElementById('vision-capability').checked = true;
-                break;
-            case 'code-experts':
-                document.getElementById('code-capability').checked = true;
-                break;
-            case 'budget-friendly':
-                document.getElementById('cost-filter').value = 'free';
-                break;
-        }
-        
-        this.filterModels();
-    }
-
-    clearAllFilters() {
-        // Clear all filter inputs
-        document.getElementById('models-search').value = '';
-        document.getElementById('provider-filter').value = '';
-        document.getElementById('cost-filter').value = '';
-        document.getElementById('sort-filter').value = 'name';
-        document.getElementById('group-by').value = '';
-        
-        // Clear capability checkboxes
-        document.querySelectorAll('.capabilities-filter input').forEach(checkbox => {
-            checkbox.checked = false;
-        });
-        
-        this.filterModels();
-    }
-
-    refreshModelsData() {
-        this.showToast('Refreshing models data...', 'info');
-        
-        // Trigger stats refresh
-        htmx.trigger('#total-models', 'modelsUpdated');
-        htmx.trigger('#total-providers', 'modelsUpdated');
-        htmx.trigger('#avg-performance', 'modelsUpdated');
-        htmx.trigger('#last-updated', 'modelsUpdated');
-        
-        // Trigger models display refresh
-        htmx.trigger('#models-display', 'modelsUpdated');
-    }
-
-    // Model Detail Methods
-    viewModelDetail(modelId) {
-        this.currentModel = modelId;
-        
-        fetch(`/api/models/${modelId}/details`)
-            .then(response => response.text())
-            .then(html => {
-                document.getElementById('modelDetailContent').innerHTML = html;
-                const modal = new bootstrap.Modal(document.getElementById('modelDetailModal'));
-                modal.show();
-            })
-            .catch(error => {
-                this.showToast(`Error loading model details: ${error.message}`, 'error');
-            });
-    }
-
-    editModel(modelId = null) {
-        this.currentModel = modelId;
-        const isEdit = modelId !== null;
-        
-        document.getElementById('modal-action-title').textContent = 
-            isEdit ? 'Edit Model' : 'Add New Model';
-        
-        const url = isEdit ? `/api/models/${modelId}/edit-form` : '/api/models/add-form';
-        
-        fetch(url)
-            .then(response => response.text())
-            .then(html => {
-                document.getElementById('addEditModelContent').innerHTML = html;
-                const modal = new bootstrap.Modal(document.getElementById('addEditModelModal'));
-                modal.show();
-            })
-            .catch(error => {
-                this.showToast(`Error loading model form: ${error.message}`, 'error');
-            });
-    }
-
-    saveModel() {
-        const form = document.getElementById('modelForm');
-        if (!form) {
-            this.showToast('Model form not found', 'error');
-            return;
-        }
-
-        const formData = new FormData(form);
-        const isEdit = this.currentModel !== null;
-        const url = isEdit ? `/api/models/${this.currentModel}` : '/api/models';
-        const method = isEdit ? 'PUT' : 'POST';
-
-        fetch(url, {
-            method: method,
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                this.showToast(`Model ${isEdit ? 'updated' : 'created'} successfully`, 'success');
-                bootstrap.Modal.getInstance(document.getElementById('addEditModelModal')).hide();
-                this.refreshModelsData();
-            } else {
-                this.showToast(`Failed to ${isEdit ? 'update' : 'create'} model: ${data.error}`, 'error');
-            }
-        })
-        .catch(error => {
-            this.showToast(`Error saving model: ${error.message}`, 'error');
-        });
-    }
-
-    testModel(modelId = null) {
-        const targetModel = modelId || this.currentModel;
-        if (!targetModel) {
-            this.showToast('No model selected for testing', 'warning');
-            return;
-        }
-
-        this.showToast('Initiating model test...', 'info');
-        
-        fetch(`/api/models/${targetModel}/test`, {
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                this.showToast(`Test initiated for model. Test ID: ${data.test_id}`, 'success');
-                // Optionally open test results in new tab
-                if (data.results_url) {
-                    window.open(data.results_url, '_blank');
-                }
-            } else {
-                this.showToast(`Failed to start model test: ${data.error}`, 'error');
-            }
-        })
-        .catch(error => {
-            this.showToast(`Error testing model: ${error.message}`, 'error');
-        });
-    }
-
-    // Model Comparison Methods
-    toggleModelComparison(modelId) {
-        if (this.comparisonModels.has(modelId)) {
-            this.comparisonModels.delete(modelId);
-        } else {
-            if (this.comparisonModels.size >= 5) {
-                this.showToast('Maximum 5 models can be compared at once', 'warning');
-                return;
-            }
-            this.comparisonModels.add(modelId);
-        }
-        
-        this.updateComparisonUI();
-        
-        if (this.comparisonModels.size > 1) {
-            this.showComparisonBadge();
-        } else {
-            this.hideComparisonBadge();
-        }
-    }
-
-    addToComparison() {
-        if (this.currentModel) {
-            this.toggleModelComparison(this.currentModel);
-        }
-    }
-
-    updateComparisonUI() {
-        // Update comparison buttons
-        document.querySelectorAll('.btn-compare-model').forEach(btn => {
-            const modelId = btn.dataset.modelId;
-            if (this.comparisonModels.has(modelId)) {
-                btn.classList.add('btn-warning');
-                btn.classList.remove('btn-outline-warning');
-                btn.innerHTML = '<i class="fas fa-check mr-1"></i>Added';
-            } else {
-                btn.classList.remove('btn-warning');
-                btn.classList.add('btn-outline-warning');
-                btn.innerHTML = '<i class="fas fa-balance-scale mr-1"></i>Compare';
-            }
-        });
-    }
-
-    showComparisonBadge() {
-        let badge = document.getElementById('comparison-badge');
-        if (!badge) {
-            badge = document.createElement('div');
-            badge.id = 'comparison-badge';
-            badge.className = 'fixed-bottom bg-warning text-dark p-3 shadow';
-            badge.style.zIndex = '1050';
-            badge.innerHTML = `
-                <div class="container-fluid">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span id="comparison-count">${this.comparisonModels.size}</span> models selected for comparison
-                        </div>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button type="button" class="btn btn-dark btn-sm" onclick="modelsOverview.showModelComparison()">
-                                <i class="fas fa-balance-scale mr-1"></i>Compare
-                            </button>
-                            <button type="button" class="btn btn-outline-dark btn-sm" onclick="modelsOverview.clearComparison()">
-                                <i class="fas fa-times mr-1"></i>Clear
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(badge);
-        } else {
-            badge.style.display = 'block';
-            document.getElementById('comparison-count').textContent = this.comparisonModels.size;
-        }
-    }
-
-    hideComparisonBadge() {
-        const badge = document.getElementById('comparison-badge');
-        if (badge) {
-            badge.style.display = 'none';
-        }
-    }
-
-    showModelComparison() {
-        if (this.comparisonModels.size < 2) {
-            this.showToast('Select at least 2 models to compare', 'warning');
-            return;
-        }
-
-        const modelIds = Array.from(this.comparisonModels);
-        
-        fetch('/api/models/comparison', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ model_ids: modelIds })
-        })
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById('modelComparisonContent').innerHTML = html;
-            const modal = new bootstrap.Modal(document.getElementById('modelComparisonModal'));
-            modal.show();
-        })
-        .catch(error => {
-            this.showToast(`Error loading model comparison: ${error.message}`, 'error');
-        });
-    }
-
-    clearComparison() {
-        this.comparisonModels.clear();
-        this.updateComparisonUI();
-        this.hideComparisonBadge();
-        this.showToast('Comparison selection cleared', 'info');
-    }
-
-    exportComparison() {
-        const modelIds = Array.from(this.comparisonModels);
-        const link = document.createElement('a');
-        link.href = `/api/models/comparison/export?models=${modelIds.join(',')}`;
-        link.download = `model_comparison_${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        this.showToast('Exporting model comparison...', 'info');
-    }
-
-    // Analytics Methods
-    showPerformanceAnalytics() {
-        this.loadAnalyticsModal('performance');
-    }
-
-    showCostAnalysis() {
-        this.loadAnalyticsModal('cost');
-    }
-
-    loadAnalyticsModal(type) {
-        fetch(`/api/models/analytics/${type}`)
-            .then(response => response.text())
-            .then(html => {
-                document.getElementById('analyticsContent').innerHTML = html;
-                const modal = new bootstrap.Modal(document.getElementById('analyticsModal'));
-                modal.show();
-            })
-            .catch(error => {
-                this.showToast(`Error loading analytics: ${error.message}`, 'error');
-            });
-    }
-
-    downloadAnalyticsReport() {
-        const link = document.createElement('a');
-        link.href = '/api/models/analytics/report';
-        link.download = `models_analytics_${new Date().toISOString().split('T')[0]}.pdf`;
-        link.click();
-        this.showToast('Generating analytics report...', 'info');
-    }
-
-    // Import/Export Methods
-    addModelFromAPI() {
-        this.showToast('API import feature coming soon', 'info');
-    }
-
-    addModelManually() {
-        this.editModel(null);
-    }
-
-    bulkImportModels() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json,.csv';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                fetch('/api/models/bulk-import', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.showToast(`Successfully imported ${data.imported} models`, 'success');
-                        this.refreshModelsData();
-                    } else {
-                        this.showToast(`Import failed: ${data.error}`, 'error');
-                    }
-                })
-                .catch(error => {
-                    this.showToast(`Error importing models: ${error.message}`, 'error');
-                });
-            }
-        };
-        input.click();
-    }
-
-    exportModelsData() {
-        const link = document.createElement('a');
-        link.href = '/api/models/export';
-        link.download = `models_database_${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        this.showToast('Exporting models database...', 'info');
-    }
-
-    exportAnalytics() {
-        this.downloadAnalyticsReport();
-    }
-
-    // Settings Methods
-    configureAPIKeys() {
-        this.showToast('API configuration feature coming soon', 'info');
-    }
-
-    manageProviders() {
-        this.showToast('Provider management feature coming soon', 'info');
-    }
-
-    resetModelsCache() {
-        if (confirm('This will clear all cached model data. Continue?')) {
-            fetch('/api/models/cache/reset', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.showToast('Models cache reset successfully', 'success');
-                        this.refreshModelsData();
-                    } else {
-                        this.showToast(`Failed to reset cache: ${data.error}`, 'error');
-                    }
-                })
-                .catch(error => {
-                    this.showToast(`Error resetting cache: ${error.message}`, 'error');
-                });
-        }
-    }
-
-    // Utility Methods
-    updateResultsInfo(responseText) {
-        try {
-            // Try to extract results info from response
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(responseText, 'text/html');
-            const resultsInfo = doc.querySelector('#results-info-data');
-            
-            if (resultsInfo) {
-                document.getElementById('results-info').textContent = resultsInfo.textContent;
-            }
-        } catch (error) {
-            console.error('Error updating results info:', error);
-        }
-    }
-
-    restoreFilterState() {
-        // Restore any saved filter state if needed
-        const savedFilters = localStorage.getItem('modelsFilters');
-        if (savedFilters) {
-            try {
-                const filters = JSON.parse(savedFilters);
-                Object.keys(filters).forEach(key => {
-                    const element = document.getElementById(key);
-                    if (element) {
-                        element.value = filters[key];
-                    }
-                });
-            } catch (error) {
-                console.error('Error restoring filter state:', error);
-            }
-        }
-    }
-
-    saveFilterState() {
-        const filters = {
-            'provider-filter': document.getElementById('provider-filter')?.value || '',
-            'cost-filter': document.getElementById('cost-filter')?.value || '',
-            'sort-filter': document.getElementById('sort-filter')?.value || 'name',
-            'group-by': document.getElementById('group-by')?.value || ''
-        };
-        
-        localStorage.setItem('modelsFilters', JSON.stringify(filters));
-    }
-
-    showToast(message, type = 'info', duration = 5000) {
-        const typeMapping = {
-            'info': 'primary',
-            'error': 'danger',
-            'danger': 'danger',
-            'warning': 'warning',
-            'success': 'success'
-        };
-        
-        const toastType = typeMapping[type] || type;
-        
-        const toastHtml = `
-            <div class="toast align-items-center text-white bg-${toastType} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
-            toastContainer.style.zIndex = '1055';
-            document.body.appendChild(toastContainer);
-        }
-
-        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-        const toastElement = toastContainer.lastElementChild;
-        const toast = new bootstrap.Toast(toastElement, { delay: duration });
-        toast.show();
-
-        toastElement.addEventListener('hidden.bs.toast', () => {
-            toastElement.remove();
-        });
-    }
-}
-
-// Global function wrappers
-window.setModelsViewMode = function(mode) {
-    modelsOverview.setViewMode(mode);
-};
-
-window.debounceFilterModels = function() {
-    modelsOverview.debounceFilterModels();
-};
-
-window.filterModels = function() {
-    modelsOverview.filterModels();
-};
-
-window.clearModelsSearch = function() {
-    modelsOverview.clearModelsSearch();
-};
-
-window.applyQuickFilter = function(filterType) {
-    modelsOverview.applyQuickFilter(filterType);
-};
-
-window.clearAllFilters = function() {
-    modelsOverview.clearAllFilters();
-};
-
-window.refreshModelsData = function() {
-    modelsOverview.refreshModelsData();
-};
-
-window.addModelFromAPI = function() {
-    modelsOverview.addModelFromAPI();
-};
-
-window.addModelManually = function() {
-    modelsOverview.addModelManually();
-};
-
-window.bulkImportModels = function() {
-    modelsOverview.bulkImportModels();
-};
-
-window.showModelComparison = function() {
-    modelsOverview.showModelComparison();
-};
-
-window.showPerformanceAnalytics = function() {
-    modelsOverview.showPerformanceAnalytics();
-};
-
-window.showCostAnalysis = function() {
-    modelsOverview.showCostAnalysis();
-};
-
-window.exportAnalytics = function() {
-    modelsOverview.exportAnalytics();
-};
-
-window.configureAPIKeys = function() {
-    modelsOverview.configureAPIKeys();
-};
-
-window.manageProviders = function() {
-    modelsOverview.manageProviders();
-};
-
-window.exportModelsData = function() {
-    modelsOverview.exportModelsData();
-};
-
-window.resetModelsCache = function() {
-    modelsOverview.resetModelsCache();
-};
-
-window.addToComparison = function() {
-    modelsOverview.addToComparison();
-};
-
-window.testModel = function() {
-    modelsOverview.testModel();
-};
-
-window.editModel = function() {
-    modelsOverview.editModel();
-};
-
-window.saveModel = function() {
-    modelsOverview.saveModel();
-};
-
-window.exportComparison = function() {
-    modelsOverview.exportComparison();
-};
-
-window.clearComparison = function() {
-    modelsOverview.clearComparison();
-};
-
-window.downloadAnalyticsReport = function() {
-    modelsOverview.downloadAnalyticsReport();
-};
-
-// Helper function for HTMX vals
-window.getSelectedCapabilities = function() {
-    return modelsOverview.getSelectedCapabilities();
-};
-
-// Initialize models overview
-let modelsOverview;
-document.addEventListener('DOMContentLoaded', function() {
-    modelsOverview = new ModelsOverview();
-});
-
-// Save filter state on page unload
-window.addEventListener('beforeunload', function() {
-    if (modelsOverview) {
-        modelsOverview.saveFilterState();
-        if (modelsOverview.autoRefreshInterval) {
-            clearInterval(modelsOverview.autoRefreshInterval);
-        }
-    }
-});
-</script>
-
+{% block extra_css %}
 <style>
-/* Fix for AdminLTE and Bootstrap 5 compatibility */
-.btn-group > .btn {
-    margin-right: 0;
-}
-
-.dropdown-toggle::after {
-    margin-left: 0.5em;
-}
-
-/* Statistics Cards - Remove duplicate styles since using AdminLTE small-box */
-.small-box {
-    border-radius: 0.375rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: all 0.2s ease;
-}
-
-.small-box:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-/* Page Layout */
-.content-header {
-    padding: 0 0 1rem 0;
-}
-
-.content-header h1 {
-    font-size: 2rem;
-    font-weight: 600;
-    color: #2c3e50;
-    margin: 0;
-}
-
-/* Filter Section */
-.capabilities-filter {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-}
-
-.quick-filter {
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.quick-filter:hover {
-    background-color: #007bff !important;
+.badge-provider {
     color: white !important;
-    transform: translateY(-1px);
-}
-
-/* Models Display Views */
-.models-cards-view {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1.5rem;
-    padding: 1rem 0;
-}
-
-.models-table-view {
-    background: white;
-    border-radius: 0.375rem;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.models-comparison-view {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1rem;
-    padding: 1rem 0;
-}
-
-/* Model Cards */
-.model-card {
-    background: white;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    overflow: hidden;
-    transition: all 0.2s ease;
-    position: relative;
-}
-
-.model-card:hover {
-    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-    transform: translateY(-5px);
-    border-color: #007bff;
-}
-
-.model-card.in-comparison {
-    border-color: #ffc107;
-    box-shadow: 0 0 0 0.2rem rgba(255,193,7,0.25);
-}
-
-.model-card-header {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    padding: 1.25rem;
-    border-bottom: 1px solid #dee2e6;
-    position: relative;
-}
-
-.model-card-body {
-    padding: 1.25rem;
-}
-
-.model-card-footer {
-    background: #f8f9fa;
-    padding: 1rem 1.25rem;
-    border-top: 1px solid #dee2e6;
-}
-
-.model-provider-badge {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: #007bff;
-    color: white;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
     font-weight: 500;
 }
 
-.model-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #2c3e50;
-    margin: 0 0 0.5rem 0;
-    line-height: 1.2;
+.table td {
+    vertical-align: middle;
 }
 
-.model-description {
-    color: #6c757d;
-    font-size: 0.9rem;
-    line-height: 1.4;
-    margin-bottom: 1rem;
+.badge {
+    font-size: 0.75em;
 }
 
-.model-capabilities {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.capability-badge {
-    background: #e9ecef;
-    color: #495057;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    border: 1px solid #dee2e6;
-}
-
-.capability-badge.vision {
-    background: #e3f2fd;
-    color: #1565c0;
-    border-color: #90caf9;
-}
-
-.capability-badge.function-calling {
-    background: #f3e5f5;
-    color: #7b1fa2;
-    border-color: #ce93d8;
-}
-
-.capability-badge.code {
-    background: #e8f5e8;
-    color: #2e7d32;
-    border-color: #a5d6a7;
-}
-
-.model-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.model-stat {
-    text-align: center;
-    padding: 0.75rem;
-    background: #f8f9fa;
-    border-radius: 0.25rem;
-    border: 1px solid #dee2e6;
-}
-
-.model-stat-value {
-    font-weight: bold;
-    color: #007bff;
-    display: block;
-    font-size: 1.1rem;
-}
-
-.model-stat-label {
-    color: #6c757d;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 0.25rem;
-}
-
-.model-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: space-between;
-}
-
-.model-actions .btn {
-    flex: 1;
-    font-size: 0.875rem;
-    padding: 0.5rem 0.75rem;
-}
-
-/* Model Groups */
-.model-group {
-    margin-bottom: 3rem;
-}
-
-.model-group-header {
-    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-    color: white;
-    padding: 1rem 1.5rem;
-    border-radius: 0.375rem 0.375rem 0 0;
-    margin-bottom: 0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.model-group-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 0;
-}
-
-.model-group-count {
-    background: rgba(255,255,255,0.2);
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-    margin-left: 1rem;
-}
-
-.model-group-content {
-    background: white;
-    border: 1px solid #dee2e6;
-    border-top: none;
-    border-radius: 0 0 0.375rem 0.375rem;
-    padding: 1.5rem;
-}
-
-/* Comparison UI */
-#comparison-badge {
-    animation: slideUp 0.3s ease;
-}
-
-@keyframes slideUp {
-    from {
-        transform: translateY(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .models-cards-view {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-    
-    .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
-    
-    .model-stats {
-        grid-template-columns: 1fr;
-        gap: 0.5rem;
-    }
-    
-    .model-actions {
-        flex-direction: column;
-    }
-    
-    .capabilities-filter {
-        flex-direction: column;
-    }
-    
-    .btn-group {
-        flex-direction: column;
-        width: 100%;
-    }
-    
-    .btn-group .btn {
-        margin-bottom: 0.5rem;
-        border-radius: 0.375rem !important;
-    }
-    
-    .d-flex.flex-wrap.gap-2 {
-        flex-direction: column;
-    }
-    
-    .small-box {
-        margin-bottom: 1rem;
-    }
-}
-
-/* Loading States */
-.models-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 300px;
-    color: #6c757d;
-}
-
-.models-loading .spinner-border {
-    width: 3rem;
-    height: 3rem;
-    margin-bottom: 1rem;
-}
-
-/* Empty States */
-.models-empty {
-    text-align: center;
-    padding: 4rem 2rem;
-    color: #6c757d;
-}
-
-.models-empty i {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-    opacity: 0.5;
-}
-
-.models-empty h4 {
-    margin-bottom: 1rem;
-}
-
-.models-empty p {
-    margin-bottom: 2rem;
-}
+.bg-purple { background-color: #6f42c1 !important; }
+.bg-green { background-color: #198754 !important; }
+.bg-blue { background-color: #0d6efd !important; }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    $('#modelsTable').DataTable({
+        responsive: true,
+        pageLength: 25,
+        order: [[0, 'asc'], [1, 'asc']],
+        columnDefs: [
+            { orderable: false, targets: [5, 7] }, // Capabilities and Actions columns
+            { className: 'text-center', targets: [6, 7] }, // Apps and Actions columns
+        ],
+        language: {
+            search: "Filter models:",
+            lengthMenu: "Show _MENU_ models per page",
+            info: "Showing _START_ to _END_ of _TOTAL_ models",
+            emptyTable: "No models available",
+            zeroRecords: "No matching models found"
+        }
+    });
+});
+</script>
 {% endblock %}
