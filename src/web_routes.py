@@ -40,6 +40,8 @@ try:
         handle_errors, handle_database_errors, InputValidator, 
         ValidationError, log_security_event
     )
+    from database_utils import DatabaseManager
+    from api_utils import APIResponse
 except ImportError as e:
     # Fallback for direct script execution
     try:
@@ -73,7 +75,15 @@ except ImportError as e:
             def validate_model_slug(s): return str(s)
             @staticmethod
             def validate_app_number(n): return int(n)
-        def log_security_event(event, details): pass 
+        def log_security_event(event, details): pass
+        class DatabaseManager:
+            @staticmethod
+            def safe_query(model_class, **filters): return []
+        class APIResponse:
+            @staticmethod
+            def success(data=None, message="Success"): return {'success': True, 'data': data}
+            @staticmethod
+            def error(message, status_code=400): return {'success': False, 'error': message}, status_code 
         SeverityLevel = None
         logger = logging.getLogger(__name__)
         logger.warning(f"Some imports failed: {e}")
@@ -836,15 +846,24 @@ def testing_dashboard():
     return redirect(url_for('testing.test_dashboard'))
 
 @testing_bp.route("/create")
+@handle_database_errors
 def test_creation_page():
-    """Full-page test creation interface."""
+    """Full-page test creation interface with database safety."""
     try:
         from models import ModelCapability
         from flask import current_app
         
-        # Get all available models
-        models = ModelCapability.query.all()
-        models_data = [{'slug': m.canonical_slug, 'name': m.model_name} for m in models]
+        # Use safe database query
+        models = DatabaseManager.safe_query(ModelCapability)
+        models_data = []
+        
+        for model in models:
+            # Validate model data before using
+            if model.canonical_slug and model.model_name:
+                models_data.append({
+                    'slug': InputValidator.sanitize_string(model.canonical_slug, 100),
+                    'name': InputValidator.sanitize_string(model.model_name, 200)
+                })
         
         # Get tool configurations
         tools_config = {
@@ -1825,15 +1844,20 @@ def container_start(model_slug: str, app_num: int):
         
         result = DockerOperations.execute_action('start', model_slug, app_num)
         if result['success']:
-            return ResponseHandler.success_response(
+            return APIResponse.success(
                 message=f"Started containers for {model_slug}/app{app_num}",
                 data=result
             )
         else:
-            return ResponseHandler.error_response(result.get('error', 'Start operation failed'))
+            return APIResponse.error(result.get('error', 'Start operation failed'), 500)
+    except ValidationError as e:
+        log_security_event("container_start_validation_error", {
+            "model_slug": model_slug, "app_num": app_num, "error": str(e)
+        })
+        return APIResponse.validation_error(str(e))
     except Exception as e:
         logger.error(f"Container start error: {e}")
-        return ResponseHandler.error_response(str(e))
+        return APIResponse.server_error(f"Failed to start containers: {str(e)}")
 
 @containers_bp.route("/<model_slug>/<int:app_num>/stop", methods=["POST"])
 def container_stop(model_slug: str, app_num: int):

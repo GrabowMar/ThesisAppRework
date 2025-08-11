@@ -49,19 +49,19 @@ class ModelCapability(db.Model):
     model_name = db.Column(db.String(200), nullable=False)
     
     # Capabilities
-    is_free = db.Column(db.Boolean, default=False)
+    is_free = db.Column(db.Boolean, default=False, nullable=False)
     context_window = db.Column(db.Integer, default=0)
     max_output_tokens = db.Column(db.Integer, default=0)
-    supports_function_calling = db.Column(db.Boolean, default=False)
-    supports_vision = db.Column(db.Boolean, default=False)
-    supports_streaming = db.Column(db.Boolean, default=False)
-    supports_json_mode = db.Column(db.Boolean, default=False)
+    supports_function_calling = db.Column(db.Boolean, default=False, nullable=False)
+    supports_vision = db.Column(db.Boolean, default=False, nullable=False)
+    supports_streaming = db.Column(db.Boolean, default=False, nullable=False)
+    supports_json_mode = db.Column(db.Boolean, default=False, nullable=False)
     
-    # Pricing
+    # Pricing - add constraints
     input_price_per_token = db.Column(db.Float, default=0.0)
     output_price_per_token = db.Column(db.Float, default=0.0)
     
-    # Performance metrics
+    # Performance metrics - add constraints
     cost_efficiency = db.Column(db.Float, default=0.0)
     safety_score = db.Column(db.Float, default=0.0)
     
@@ -70,8 +70,20 @@ class ModelCapability(db.Model):
     metadata_json = db.Column(db.Text)      # Additional metadata
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+    
+    # Add table constraints for data integrity
+    __table_args__ = (
+        db.CheckConstraint('context_window >= 0', name='positive_context_window'),
+        db.CheckConstraint('max_output_tokens >= 0', name='positive_max_tokens'),
+        db.CheckConstraint('input_price_per_token >= 0', name='positive_input_price'),
+        db.CheckConstraint('output_price_per_token >= 0', name='positive_output_price'),
+        db.CheckConstraint('cost_efficiency >= 0 AND cost_efficiency <= 10', name='valid_cost_efficiency'),
+        db.CheckConstraint('safety_score >= 0 AND safety_score <= 10', name='valid_safety_score'),
+        db.CheckConstraint('LENGTH(model_id) > 0', name='non_empty_model_id'),
+        db.CheckConstraint('LENGTH(provider) > 0', name='non_empty_provider'),
+    )
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Get capabilities as dictionary."""
@@ -205,8 +217,16 @@ class GeneratedApplication(db.Model):
     zap_analyses = db.relationship('ZAPAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
     openrouter_analyses = db.relationship('OpenRouterAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
     
-    # Unique constraint
-    __table_args__ = (db.UniqueConstraint('model_slug', 'app_number', name='unique_model_app'),)
+    # Enhanced constraints for data integrity
+    __table_args__ = (
+        db.UniqueConstraint('model_slug', 'app_number', name='unique_model_app'),
+        db.CheckConstraint('app_number >= 1 AND app_number <= 30', name='valid_app_number_range'),
+        db.CheckConstraint('LENGTH(model_slug) > 0', name='non_empty_model_slug'),
+        db.CheckConstraint('LENGTH(provider) > 0', name='non_empty_provider'),
+        db.CheckConstraint('LENGTH(app_type) > 0', name='non_empty_app_type'),
+        db.CheckConstraint("container_status IN ('stopped', 'running', 'failed', 'starting', 'stopping')", 
+                          name='valid_container_status'),
+    )
     
     def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
