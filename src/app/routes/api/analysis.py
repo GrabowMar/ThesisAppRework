@@ -671,3 +671,159 @@ def api_analysis_security_results(analysis_id):
     except Exception as e:
         logger.error(f"Error getting security analysis results for {analysis_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/analysis/security/<int:analysis_id>/results/view')
+def security_analysis_results_view(analysis_id):
+    """HTML view for security analysis results."""
+    try:
+        from flask import render_template, flash, redirect, url_for
+        import json
+        
+        analysis = SecurityAnalysis.query.get(analysis_id)
+        if not analysis:
+            flash('Security analysis not found', 'error')
+            return redirect(url_for('analysis.security_analyses'))
+        
+        # Initialize results data
+        bandit_results = None
+        safety_results = None
+        zap_results = None
+        pylint_results = None
+        eslint_results = None
+        
+        # Parse individual tool results from results_json
+        if hasattr(analysis, 'results_json') and analysis.results_json:
+            try:
+                all_results = json.loads(analysis.results_json)
+                bandit_results = all_results.get('bandit')
+                safety_results = all_results.get('safety')
+                zap_results = all_results.get('zap')
+                pylint_results = all_results.get('pylint')
+                eslint_results = all_results.get('eslint')
+            except json.JSONDecodeError:
+                # If parsing fails, set all to None
+                pass
+        
+        # Calculate summary metrics
+        total_vulnerabilities = 0
+        critical_high_count = 0
+        tools_executed = 0
+        
+        # Count Bandit vulnerabilities
+        if bandit_results and 'results' in bandit_results:
+            bandit_count = len(bandit_results['results'])
+            total_vulnerabilities += bandit_count
+            tools_executed += 1
+            # Count high/critical severity in Bandit
+            for result in bandit_results['results']:
+                if result.get('issue_severity', '').lower() in ['high', 'critical']:
+                    critical_high_count += 1
+        
+        # Count Safety vulnerabilities
+        if safety_results and 'vulnerabilities' in safety_results:
+            safety_count = len(safety_results['vulnerabilities'])
+            total_vulnerabilities += safety_count
+            tools_executed += 1
+            # Safety vulnerabilities are typically high severity by nature
+            critical_high_count += safety_count
+        
+        # Count OWASP ZAP vulnerabilities
+        if zap_results and 'site' in zap_results and zap_results['site']:
+            if 'alerts' in zap_results['site'][0]:
+                zap_count = len(zap_results['site'][0]['alerts'])
+                total_vulnerabilities += zap_count
+                tools_executed += 1
+                # Count high risk alerts (riskcode 2-3)
+                for alert in zap_results['site'][0]['alerts']:
+                    if alert.get('riskcode', 0) >= 2:
+                        critical_high_count += 1
+        
+        # Count Pylint issues
+        if pylint_results:
+            pylint_count = len(pylint_results)
+            total_vulnerabilities += pylint_count
+            tools_executed += 1
+            # Count errors as high severity
+            for result in pylint_results:
+                if result.get('type', '') == 'error':
+                    critical_high_count += 1
+        
+        # Count ESLint issues
+        if eslint_results:
+            eslint_count = 0
+            for file_result in eslint_results:
+                if 'messages' in file_result:
+                    eslint_count += len(file_result['messages'])
+                    # Count severity 2 (errors) as high severity
+                    for message in file_result['messages']:
+                        if message.get('severity', 0) == 2:
+                            critical_high_count += 1
+            total_vulnerabilities += eslint_count
+            tools_executed += 1
+        
+        # Calculate scan duration
+        scan_duration = 'N/A'
+        if analysis.started_at and analysis.completed_at:
+            duration = analysis.completed_at - analysis.started_at
+            if duration.total_seconds() < 60:
+                scan_duration = f"{int(duration.total_seconds())}s"
+            else:
+                scan_duration = f"{int(duration.total_seconds() // 60)}m {int(duration.total_seconds() % 60)}s"
+        
+        # Prepare severity distribution for charts
+        severity_distribution = {
+            'Critical': 0,
+            'High': 0,
+            'Medium': 0,
+            'Low': 0,
+            'Info': 0
+        }
+        
+        tool_distribution = {
+            'Bandit': len(bandit_results['results']) if bandit_results and 'results' in bandit_results else 0,
+            'Safety': len(safety_results['vulnerabilities']) if safety_results and 'vulnerabilities' in safety_results else 0,
+            'OWASP ZAP': len(zap_results['site'][0]['alerts']) if zap_results and 'site' in zap_results and zap_results['site'] and 'alerts' in zap_results['site'][0] else 0,
+            'Pylint': len(pylint_results) if pylint_results else 0,
+            'ESLint': sum(len(f.get('messages', [])) for f in eslint_results) if eslint_results else 0
+        }
+        
+        # Count severity levels for Bandit
+        if bandit_results and 'results' in bandit_results:
+            for result in bandit_results['results']:
+                severity = result.get('issue_severity', '').title()
+                if severity in severity_distribution:
+                    severity_distribution[severity] += 1
+        
+        # Count severity levels for ZAP
+        if zap_results and 'site' in zap_results and zap_results['site']:
+            if 'alerts' in zap_results['site'][0]:
+                for alert in zap_results['site'][0]['alerts']:
+                    risk_code = alert.get('riskcode', 0)
+                    if risk_code == 3:
+                        severity_distribution['High'] += 1
+                    elif risk_code == 2:
+                        severity_distribution['Medium'] += 1
+                    elif risk_code == 1:
+                        severity_distribution['Low'] += 1
+                    else:
+                        severity_distribution['Info'] += 1
+        
+        return render_template('pages/security_analysis_results.html',
+                             analysis=analysis,
+                             bandit_results=bandit_results,
+                             safety_results=safety_results,
+                             zap_results=zap_results,
+                             pylint_results=pylint_results,
+                             eslint_results=eslint_results,
+                             total_vulnerabilities=total_vulnerabilities,
+                             critical_high_count=critical_high_count,
+                             tools_executed=tools_executed,
+                             scan_duration=scan_duration,
+                             severity_distribution=severity_distribution,
+                             tool_distribution=tool_distribution)
+        
+    except Exception as e:
+        logger.error(f"Error rendering security analysis results for {analysis_id}: {e}")
+        flash(f'Error loading results: {str(e)}', 'error')
+        return redirect(url_for('analysis.security_analyses'))
