@@ -1,0 +1,351 @@
+/* Security Analysis Page Styles */
+
+/* Compact Layout */
+.security-analysis-container {
+    padding: 0.5rem;
+}
+
+.compact-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.compact-header h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.compact-header p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    display: inline-block;
+}
+
+.status-completed { background-color: #28a745; color: white; }
+.status-running { background-color: #ffc107; color: #212529; }
+.status-pending { background-color: #6c757d; color: white; }
+.status-failed { background-color: #dc3545; color: white; }
+
+/* Severity Badges */
+.severity-badge {
+    border-radius: 3px;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.severity-critical { background-color: #dc3545; color: white; }
+.severity-high { background-color: #fd7e14; color: white; }
+.severity-medium { background-color: #ffc107; color: #212529; }
+.severity-low { background-color: #28a745; color: white; }
+.severity-info { background-color: #17a2b8; color: white; }
+
+/* Confidence Levels */
+.confidence-high { color: #28a745; font-weight: 600; }
+.confidence-medium { color: #ffc107; font-weight: 600; }
+.confidence-low { color: #dc3545; font-weight: 600; }
+
+/* Compact Metrics Cards */
+.metrics-row {
+    margin-bottom: 1rem;
+}
+
+.metric-card {
+    background: white;
+    border-radius: 6px;
+    padding: 0.75rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-left: 3px solid #007bff;
+    transition: all 0.2s ease;
+    margin-bottom: 0.5rem;
+}
+
+.metric-card:hover {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    transform: translateY(-1px);
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #007bff;
+    margin-bottom: 0.25rem;
+    line-height: 1;
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+/* Compact Tabs */
+.compact-tabs .nav-link {
+    padding: 0.5rem 1rem;
+    border-radius: 0;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #495057;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.compact-tabs .nav-link.active {
+    border-bottom-color: #007bff;
+    background: transparent;
+    color: #007bff;
+}
+
+.compact-tabs .nav-link:hover {
+    border-color: transparent;
+    background-color: #f8f9fa;
+}
+
+/* Tool Configuration Cards */
+.tool-config-card {
+    border-left: 3px solid #28a745;
+    margin-bottom: 1rem;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.tool-config-header {
+    background: #f8f9fa;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #dee2e6;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.tool-config-header:hover {
+    background: #e9ecef;
+}
+
+.tool-config-header h6 {
+    margin: 0;
+    color: #495057;
+    font-weight: 600;
+}
+
+.config-collapse {
+    padding: 1rem;
+    background: white;
+}
+
+/* Compact Tables */
+.compact-table {
+    font-size: 0.875rem;
+}
+
+.compact-table th {
+    padding: 0.5rem;
+    font-weight: 600;
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.compact-table td {
+    padding: 0.5rem;
+    vertical-align: middle;
+}
+
+.compact-table .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+/* Vulnerability Details */
+.vulnerability-card {
+    background-color: #f8f9fa;
+    border-left: 3px solid #007bff;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    border-radius: 0 4px 4px 0;
+}
+
+.vulnerability-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.25rem;
+}
+
+.vulnerability-description {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+.vulnerability-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+/* Charts Container */
+.chart-container {
+    position: relative;
+    height: 200px;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+/* Compact Button Groups */
+.compact-btn-group .btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 4px;
+}
+
+.compact-btn-group .btn + .btn {
+    margin-left: 0.25rem;
+}
+
+/* Export Section */
+.export-section {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* JSON Viewer */
+.json-viewer-container {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+/* Performance Metrics */
+.performance-metrics {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .compact-header {
+        padding: 0.75rem;
+    }
+    
+    .compact-header h2 {
+        font-size: 1.25rem;
+    }
+    
+    .metric-card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .metric-value {
+        font-size: 1.25rem;
+    }
+    
+    .compact-tabs .nav-link {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .security-analysis-container {
+        padding: 0.25rem;
+    }
+    
+    .compact-header {
+        padding: 0.5rem;
+    }
+    
+    .metric-card {
+        padding: 0.5rem;
+    }
+    
+    .metric-value {
+        font-size: 1.1rem;
+    }
+    
+    .tool-config-header {
+        padding: 0.5rem 0.75rem;
+    }
+}
+
+/* DataTables Compact Styling */
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate {
+    font-size: 0.875rem;
+}
+
+.dataTables_wrapper .dataTables_length select,
+.dataTables_wrapper .dataTables_filter input {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Tool Status Icons */
+.tool-status-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+.tool-status-success { background-color: #28a745; }
+.tool-status-warning { background-color: #ffc107; }
+.tool-status-error { background-color: #dc3545; }
+.tool-status-info { background-color: #17a2b8; }
+
+/* Compact accordion */
+.compact-accordion .card {
+    border: 1px solid #dee2e6;
+    margin-bottom: 0.5rem;
+}
+
+.compact-accordion .card-header {
+    padding: 0.5rem 0.75rem;
+    background-color: #f8f9fa;
+}
+
+.compact-accordion .card-body {
+    padding: 0.75rem;
+}
+
+/* Compact progress bars */
+.compact-progress {
+    height: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Sticky action buttons */
+.sticky-actions {
+    position: sticky;
+    top: 0;
+    background: white;
+    border-bottom: 1px solid #dee2e6;
+    padding: 0.5rem 0;
+    margin-bottom: 1rem;
+    z-index: 100;
+}

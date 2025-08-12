@@ -1,0 +1,706 @@
+{% extends "base.html" %}
+{% set active_page = "analysis" %}
+
+{% block title %}Security Analysis - {{ analysis.application.model_slug }} App {{ analysis.application.app_number }}{% endblock %}
+
+{% block head %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap4.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap4.min.css">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- JSON Viewer -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.css">
+<script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.js"></script>
+
+<!-- Security Analysis Styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/security-analysis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="security-analysis-container">
+    <!-- Sticky Action Buttons -->
+    <div class="sticky-actions">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="compact-btn-group">
+                <button class="btn btn-outline-secondary btn-sm" onclick="history.back()">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+            <div class="compact-btn-group">
+                <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#exportModal">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button class="btn btn-info btn-sm" onclick="window.location.reload()">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compact Header -->
+    <div class="compact-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2>
+                    <i class="fas fa-shield-alt"></i>
+                    {{ analysis.application.model_slug }} - App {{ analysis.application.app_number }}
+                </h2>
+                <p>{{ analysis.description or 'Security Analysis #' + analysis.id|string }}</p>
+                <span class="status-badge status-{{ analysis.status.value if analysis.status else 'unknown' }}">
+                    {{ analysis.status.value.title() if analysis.status else 'Unknown' }}
+                </span>
+            </div>
+            <div class="col-md-4 text-right">
+                <div class="text-light">
+                    <small>
+                        {% if analysis.completed_at %}
+                        Completed: {{ analysis.completed_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% elif analysis.started_at %}
+                        Started: {{ analysis.started_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                        Created: {{ analysis.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compact Metrics Row -->
+    <div class="row metrics-row">
+        <div class="col-xl-2 col-lg-3 col-md-4 col-6">
+            <div class="metric-card">
+                <div class="metric-value">{{ total_vulnerabilities or 0 }}</div>
+                <div class="metric-label">Total Issues</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-4 col-6">
+            <div class="metric-card">
+                <div class="metric-value">{{ critical_high_count or 0 }}</div>
+                <div class="metric-label">Critical & High</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-4 col-6">
+            <div class="metric-card">
+                <div class="metric-value">{{ tools_executed or 0 }}</div>
+                <div class="metric-label">Tools Run</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-4 col-6">
+            <div class="metric-card">
+                <div class="metric-value">{{ scan_duration or 'N/A' }}</div>
+                <div class="metric-label">Duration</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-4 col-6">
+            <div class="metric-card">
+                <div class="metric-value">
+                    {% set severity_counts = severity_distribution %}
+                    {{ (severity_counts.Critical or 0) + (severity_counts.High or 0) }}
+                </div>
+                <div class="metric-label">High Risk</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-4 col-6">
+            <div class="metric-card">
+                <div class="metric-value">
+                    {% set tool_counts = tool_distribution %}
+                    {{ (tool_counts.Bandit or 0) + (tool_counts.Safety or 0) + (tool_counts['OWASP ZAP'] or 0) + (tool_counts.Pylint or 0) + (tool_counts.ESLint or 0) }}
+                </div>
+                <div class="metric-label">Total Findings</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Severity Distribution</h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="chart-container">
+                        <canvas id="severityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Tool Results</h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="chart-container">
+                        <canvas id="toolChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Tools Results Tabs -->
+    <div class="card">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs compact-tabs" id="toolTabs" role="tablist">
+                {% if bandit_results %}
+                <li class="nav-item">
+                    <a class="nav-link active" id="bandit-tab" data-toggle="tab" href="#bandit" role="tab">
+                        <span class="tool-status-icon tool-status-success"></span>
+                        Bandit ({{ bandit_results.results|length if bandit_results.results else 0 }})
+                    </a>
+                </li>
+                {% endif %}
+                {% if safety_results %}
+                <li class="nav-item">
+                    <a class="nav-link {% if not bandit_results %}active{% endif %}" id="safety-tab" data-toggle="tab" href="#safety" role="tab">
+                        <span class="tool-status-icon tool-status-warning"></span>
+                        Safety ({{ safety_results.vulnerabilities|length if safety_results.vulnerabilities else 0 }})
+                    </a>
+                </li>
+                {% endif %}
+                {% if zap_results %}
+                <li class="nav-item">
+                    <a class="nav-link {% if not bandit_results and not safety_results %}active{% endif %}" id="zap-tab" data-toggle="tab" href="#zap" role="tab">
+                        <span class="tool-status-icon tool-status-info"></span>
+                        OWASP ZAP ({{ zap_results.site[0].alerts|length if zap_results.site and zap_results.site[0].alerts else 0 }})
+                    </a>
+                </li>
+                {% endif %}
+                {% if pylint_results %}
+                <li class="nav-item">
+                    <a class="nav-link {% if not bandit_results and not safety_results and not zap_results %}active{% endif %}" id="pylint-tab" data-toggle="tab" href="#pylint" role="tab">
+                        <span class="tool-status-icon tool-status-success"></span>
+                        Pylint ({{ pylint_results|length if pylint_results else 0 }})
+                    </a>
+                </li>
+                {% endif %}
+                {% if eslint_results %}
+                <li class="nav-item">
+                    <a class="nav-link {% if not bandit_results and not safety_results and not zap_results and not pylint_results %}active{% endif %}" id="eslint-tab" data-toggle="tab" href="#eslint" role="tab">
+                        <span class="tool-status-icon tool-status-success"></span>
+                        ESLint ({{ eslint_results|map(attribute='messages')|map('length')|sum if eslint_results else 0 }})
+                    </a>
+                </li>
+                {% endif %}
+                <li class="nav-item">
+                    <a class="nav-link" id="config-tab" data-toggle="tab" href="#config" role="tab">
+                        <i class="fas fa-cog"></i> Configuration
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body p-0">
+            <div class="tab-content" id="toolTabContent">
+                
+                <!-- Bandit Results -->
+                {% if bandit_results %}
+                <div class="tab-pane fade show active" id="bandit" role="tabpanel">
+                    <div class="p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Bandit Static Analysis Results</h6>
+                            <div class="compact-btn-group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="exportTableData('bandit', 'csv')">
+                                    <i class="fas fa-file-csv"></i> CSV
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="exportTableData('bandit', 'json')">
+                                    <i class="fas fa-file-code"></i> JSON
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table id="bandit-table" class="table table-striped table-sm compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Severity</th>
+                                        <th>Test ID</th>
+                                        <th>File</th>
+                                        <th>Line</th>
+                                        <th>Issue</th>
+                                        <th>Confidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for result in bandit_results.results %}
+                                    <tr>
+                                        <td><span class="severity-badge severity-{{ result.issue_severity.lower() }}">{{ result.issue_severity }}</span></td>
+                                        <td><code>{{ result.test_id }}</code></td>
+                                        <td><small>{{ result.filename.split('/')[-1] }}</small></td>
+                                        <td>{{ result.line_number }}</td>
+                                        <td>
+                                            <div class="vulnerability-card">
+                                                <div class="vulnerability-title">{{ result.issue_text }}</div>
+                                                <div class="vulnerability-meta">
+                                                    <span>Confidence: <span class="confidence-{{ result.issue_confidence.lower() }}">{{ result.issue_confidence }}</span></span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td><span class="confidence-{{ result.issue_confidence.lower() }}">{{ result.issue_confidence }}</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Safety Results -->
+                {% if safety_results %}
+                <div class="tab-pane fade {% if not bandit_results %}show active{% endif %}" id="safety" role="tabpanel">
+                    <div class="p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Safety Vulnerability Scan Results</h6>
+                            <div class="compact-btn-group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="exportTableData('safety', 'csv')">
+                                    <i class="fas fa-file-csv"></i> CSV
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="exportTableData('safety', 'json')">
+                                    <i class="fas fa-file-code"></i> JSON
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table id="safety-table" class="table table-striped table-sm compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Package</th>
+                                        <th>Version</th>
+                                        <th>Vulnerability ID</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for vuln in safety_results.vulnerabilities %}
+                                    <tr>
+                                        <td><strong>{{ vuln.package_name }}</strong></td>
+                                        <td><code>{{ vuln.analyzed_version }}</code></td>
+                                        <td><span class="severity-badge severity-high">{{ vuln.vulnerability_id }}</span></td>
+                                        <td>
+                                            <div class="vulnerability-card">
+                                                <div class="vulnerability-description">{{ vuln.advisory }}</div>
+                                                {% if vuln.more_info_url %}
+                                                <div class="vulnerability-meta">
+                                                    <a href="{{ vuln.more_info_url }}" target="_blank" class="btn btn-outline-info btn-xs">
+                                                        <i class="fas fa-external-link-alt"></i> More Info
+                                                    </a>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- OWASP ZAP Results -->
+                {% if zap_results %}
+                <div class="tab-pane fade {% if not bandit_results and not safety_results %}show active{% endif %}" id="zap" role="tabpanel">
+                    <div class="p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">OWASP ZAP Security Scan Results</h6>
+                            <div class="compact-btn-group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="exportTableData('zap', 'csv')">
+                                    <i class="fas fa-file-csv"></i> CSV
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="exportTableData('zap', 'json')">
+                                    <i class="fas fa-file-code"></i> JSON
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table id="zap-table" class="table table-striped table-sm compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Risk</th>
+                                        <th>Alert</th>
+                                        <th>URL</th>
+                                        <th>Description</th>
+                                        <th>Solution</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for alert in zap_results.site[0].alerts %}
+                                    <tr>
+                                        <td>
+                                            {% if alert.riskcode == 3 %}
+                                            <span class="severity-badge severity-high">High</span>
+                                            {% elif alert.riskcode == 2 %}
+                                            <span class="severity-badge severity-medium">Medium</span>
+                                            {% elif alert.riskcode == 1 %}
+                                            <span class="severity-badge severity-low">Low</span>
+                                            {% else %}
+                                            <span class="severity-badge severity-info">Info</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><strong>{{ alert.name }}</strong></td>
+                                        <td><small>{{ alert.instances[0].uri if alert.instances else 'N/A' }}</small></td>
+                                        <td>
+                                            <div class="vulnerability-card">
+                                                <div class="vulnerability-description">{{ alert.desc|truncate(200) }}</div>
+                                            </div>
+                                        </td>
+                                        <td><small>{{ alert.solution|truncate(100) if alert.solution else 'N/A' }}</small></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Pylint Results -->
+                {% if pylint_results %}
+                <div class="tab-pane fade {% if not bandit_results and not safety_results and not zap_results %}show active{% endif %}" id="pylint" role="tabpanel">
+                    <div class="p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Pylint Code Analysis Results</h6>
+                            <div class="compact-btn-group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="exportTableData('pylint', 'csv')">
+                                    <i class="fas fa-file-csv"></i> CSV
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="exportTableData('pylint', 'json')">
+                                    <i class="fas fa-file-code"></i> JSON
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table id="pylint-table" class="table table-striped table-sm compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>File</th>
+                                        <th>Line</th>
+                                        <th>Message</th>
+                                        <th>Symbol</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for issue in pylint_results %}
+                                    <tr>
+                                        <td>
+                                            {% if issue.type == 'error' %}
+                                            <span class="severity-badge severity-critical">Error</span>
+                                            {% elif issue.type == 'warning' %}
+                                            <span class="severity-badge severity-medium">Warning</span>
+                                            {% elif issue.type == 'convention' %}
+                                            <span class="severity-badge severity-low">Convention</span>
+                                            {% else %}
+                                            <span class="severity-badge severity-info">{{ issue.type|title }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><small>{{ issue.path.split('/')[-1] if issue.path else 'N/A' }}</small></td>
+                                        <td>{{ issue.line or 'N/A' }}</td>
+                                        <td>
+                                            <div class="vulnerability-card">
+                                                <div class="vulnerability-description">{{ issue.message }}</div>
+                                            </div>
+                                        </td>
+                                        <td><code>{{ issue.symbol or 'N/A' }}</code></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- ESLint Results -->
+                {% if eslint_results %}
+                <div class="tab-pane fade {% if not bandit_results and not safety_results and not zap_results and not pylint_results %}show active{% endif %}" id="eslint" role="tabpanel">
+                    <div class="p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">ESLint JavaScript Analysis Results</h6>
+                            <div class="compact-btn-group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="exportTableData('eslint', 'csv')">
+                                    <i class="fas fa-file-csv"></i> CSV
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="exportTableData('eslint', 'json')">
+                                    <i class="fas fa-file-code"></i> JSON
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table id="eslint-table" class="table table-striped table-sm compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Severity</th>
+                                        <th>File</th>
+                                        <th>Line</th>
+                                        <th>Message</th>
+                                        <th>Rule</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for file_result in eslint_results %}
+                                    {% for message in file_result.messages %}
+                                    <tr>
+                                        <td>
+                                            {% if message.severity == 2 %}
+                                            <span class="severity-badge severity-high">Error</span>
+                                            {% else %}
+                                            <span class="severity-badge severity-medium">Warning</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><small>{{ file_result.filePath.split('/')[-1] }}</small></td>
+                                        <td>{{ message.line }}</td>
+                                        <td>
+                                            <div class="vulnerability-card">
+                                                <div class="vulnerability-description">{{ message.message }}</div>
+                                            </div>
+                                        </td>
+                                        <td><code>{{ message.ruleId or 'N/A' }}</code></td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Configuration Tab -->
+                <div class="tab-pane fade" id="config" role="tabpanel">
+                    <div class="p-3">
+                        <h6 class="mb-3">Tool Configurations</h6>
+                        
+                        <div class="compact-accordion" id="configAccordion">
+                            {% if bandit_config %}
+                            <div class="card">
+                                <div class="card-header" id="banditConfigHeader">
+                                    <button class="btn btn-link btn-sm" data-toggle="collapse" data-target="#banditConfig">
+                                        <i class="fas fa-cog"></i> Bandit Configuration
+                                    </button>
+                                </div>
+                                <div id="banditConfig" class="collapse" data-parent="#configAccordion">
+                                    <div class="card-body">
+                                        <pre><code>{{ bandit_config | tojson(indent=2) }}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if safety_config %}
+                            <div class="card">
+                                <div class="card-header" id="safetyConfigHeader">
+                                    <button class="btn btn-link btn-sm" data-toggle="collapse" data-target="#safetyConfig">
+                                        <i class="fas fa-cog"></i> Safety Configuration
+                                    </button>
+                                </div>
+                                <div id="safetyConfig" class="collapse" data-parent="#configAccordion">
+                                    <div class="card-body">
+                                        <pre><code>{{ safety_config | tojson(indent=2) }}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if zap_config %}
+                            <div class="card">
+                                <div class="card-header" id="zapConfigHeader">
+                                    <button class="btn btn-link btn-sm" data-toggle="collapse" data-target="#zapConfig">
+                                        <i class="fas fa-cog"></i> OWASP ZAP Configuration
+                                    </button>
+                                </div>
+                                <div id="zapConfig" class="collapse" data-parent="#configAccordion">
+                                    <div class="card-body">
+                                        <pre><code>{{ zap_config | tojson(indent=2) }}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if pylint_config %}
+                            <div class="card">
+                                <div class="card-header" id="pylintConfigHeader">
+                                    <button class="btn btn-link btn-sm" data-toggle="collapse" data-target="#pylintConfig">
+                                        <i class="fas fa-cog"></i> Pylint Configuration
+                                    </button>
+                                </div>
+                                <div id="pylintConfig" class="collapse" data-parent="#configAccordion">
+                                    <div class="card-body">
+                                        <pre><code>{{ pylint_config | tojson(indent=2) }}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if eslint_config %}
+                            <div class="card">
+                                <div class="card-header" id="eslintConfigHeader">
+                                    <button class="btn btn-link btn-sm" data-toggle="collapse" data-target="#eslintConfig">
+                                        <i class="fas fa-cog"></i> ESLint Configuration
+                                    </button>
+                                </div>
+                                <div id="eslintConfig" class="collapse" data-parent="#configAccordion">
+                                    <div class="card-body">
+                                        <pre><code>{{ eslint_config | tojson(indent=2) }}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Export Analysis Results</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Choose export format:</p>
+                <div class="btn-group-vertical w-100" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="exportData('json')">
+                        <i class="fas fa-file-code"></i> JSON Format
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="exportData('csv')">
+                        <i class="fas fa-file-csv"></i> CSV Format
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="exportData('pdf')">
+                        <i class="fas fa-file-pdf"></i> PDF Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- DataTables JS -->
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap4.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap4.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap4.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Compact DataTable configuration
+    const tableConfig = {
+        pageLength: 25,
+        responsive: true,
+        dom: 'Bfrtip',
+        buttons: ['copy', 'csv', 'excel'],
+        language: {
+            emptyTable: "No data available"
+        },
+        columnDefs: [
+            { targets: '_all', className: 'text-center' }
+        ]
+    };
+
+    // Initialize tables
+    {% if bandit_results %}
+    $('#bandit-table').DataTable(tableConfig);
+    {% endif %}
+    
+    {% if safety_results %}
+    $('#safety-table').DataTable(tableConfig);
+    {% endif %}
+    
+    {% if zap_results %}
+    $('#zap-table').DataTable(tableConfig);
+    {% endif %}
+    
+    {% if pylint_results %}
+    $('#pylint-table').DataTable(tableConfig);
+    {% endif %}
+    
+    {% if eslint_results %}
+    $('#eslint-table').DataTable(tableConfig);
+    {% endif %}
+
+    // Charts
+    const severityData = {{ severity_distribution | tojson }};
+    const toolData = {{ tool_distribution | tojson }};
+
+    // Severity Chart
+    new Chart(document.getElementById('severityChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(severityData),
+            datasets: [{
+                data: Object.values(severityData),
+                backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745', '#17a2b8']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { fontSize: 10 }
+                }
+            }
+        }
+    });
+
+    // Tool Chart
+    new Chart(document.getElementById('toolChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: Object.keys(toolData),
+            datasets: [{
+                data: Object.values(toolData),
+                backgroundColor: '#007bff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+});
+
+// Export functions
+function exportData(format) {
+    console.log('Exporting in format:', format);
+    $('#exportModal').modal('hide');
+}
+
+function exportTableData(tool, format) {
+    console.log('Exporting', tool, 'data in', format, 'format');
+}
+</script>
+{% endblock %}
