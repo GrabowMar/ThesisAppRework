@@ -125,7 +125,7 @@ def security_testing():
         return render_template(
             'pages/security_testing.html',
             applications=applications,
-            recent_analyses=recent_analyses
+            security_analyses=recent_analyses
         )
     except Exception as e:
         logger.error(f"Error loading security testing: {e}")

@@ -9,6 +9,7 @@ import logging
 import os
 import psutil
 import subprocess
+import time
 from datetime import datetime
 from flask import jsonify, render_template
 
@@ -370,6 +371,149 @@ def stats_analyzer_services():
         return jsonify({'count': 0})
 
 
+@api_bp.route('/analyzer-services-count')
+def analyzer_services_count():
+    """Get analyzer services count as plain text for dashboard."""
+    try:
+        from ...extensions import get_components
+        
+        components = get_components()
+        analyzer_integration = components.analyzer_integration if components else None
+        
+        if not analyzer_integration:
+            return '0'
+        
+        # Get services status and count running services
+        status_info = analyzer_integration.get_services_status()
+        services = status_info.get('services', {})
+        
+        # Count running services
+        running_count = sum(1 for service_status in services.values() 
+                           if service_status.get('status') == 'running')
+        
+        return str(running_count)
+        
+    except Exception as e:
+        logger.error(f"Error getting analyzer count: {e}")
+        return '0'
+
+
+@api_bp.route('/server-uptime')
+def server_uptime():
+    """Get server uptime as simple text."""
+    try:
+        import psutil
+        boot_time = psutil.boot_time()
+        current_time = time.time()
+        uptime_seconds = current_time - boot_time
+        
+        # Convert to hours
+        uptime_hours = int(uptime_seconds // 3600)
+        if uptime_hours < 24:
+            return f"{uptime_hours}h"
+        else:
+            uptime_days = uptime_hours // 24
+            remaining_hours = uptime_hours % 24
+            return f"{uptime_days}d {remaining_hours}h"
+            
+    except Exception as e:
+        logger.error(f"Error getting uptime: {e}")
+        return "Unknown"
+
+
+@api_bp.route('/cpu-usage-simple')
+def cpu_usage_simple():
+    """Get CPU usage as simple percentage text."""
+    try:
+        cpu_percent = psutil.cpu_percent(interval=1)
+        return f"{cpu_percent:.1f}%"
+    except Exception as e:
+        logger.error(f"Error getting CPU usage: {e}")
+        return "N/A"
+
+
+@api_bp.route('/analyzer/start-all', methods=['POST'])
+def start_all_analyzer_services():
+    """Start all analyzer services."""
+    try:
+        from ...extensions import get_components
+        
+        components = get_components()
+        analyzer_integration = components.analyzer_integration if components else None
+        
+        if not analyzer_integration:
+            return jsonify({'success': False, 'message': 'Analyzer integration not available'}), 500
+        
+        # Start analyzer services
+        result = analyzer_integration.start_all_services()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Starting all analyzer services...',
+            'result': result
+        })
+        
+    except Exception as e:
+        logger.error(f"Error starting analyzer services: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/analyzer/stop-all', methods=['POST'])
+def stop_all_analyzer_services():
+    """Stop all analyzer services."""
+    try:
+        from ...extensions import get_components
+        
+        components = get_components()
+        analyzer_integration = components.analyzer_integration if components else None
+        
+        if not analyzer_integration:
+            return jsonify({'success': False, 'message': 'Analyzer integration not available'}), 500
+        
+        # Stop analyzer services
+        result = analyzer_integration.stop_all_services()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Stopping all analyzer services...',
+            'result': result
+        })
+        
+    except Exception as e:
+        logger.error(f"Error stopping analyzer services: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/analyzer/restart-all', methods=['POST'])
+def restart_all_analyzer_services():
+    """Restart all analyzer services."""
+    try:
+        from ...extensions import get_components
+        
+        components = get_components()
+        analyzer_integration = components.analyzer_integration if components else None
+        
+        if not analyzer_integration:
+            return jsonify({'success': False, 'message': 'Analyzer integration not available'}), 500
+        
+        # Restart analyzer services (stop then start)
+        stop_result = analyzer_integration.stop_all_services()
+        import time
+        time.sleep(2)  # Brief pause
+        start_result = analyzer_integration.start_all_services()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Restarting all analyzer services...',
+            'stop_result': stop_result,
+            'start_result': start_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Error restarting analyzer services: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @api_bp.route('/analyzer/status')
 def get_analyzer_status():
     """Get comprehensive analyzer services status."""
@@ -551,6 +695,241 @@ def stop_analyzer_services():
         }), 500
 
 
+# =================================================================
+# MEMORY MONITORING ENDPOINTS FOR DASHBOARD
+# =================================================================
+
+@api_bp.route('/memory_usage')
+def memory_usage():
+    """API endpoint: Get current memory usage information."""
+    try:
+        memory = psutil.virtual_memory()
+        process = psutil.Process()
+        
+        return jsonify({
+            'system': {
+                'total': memory.total,
+                'used': memory.used,
+                'available': memory.available,
+                'percent': memory.percent
+            },
+            'process': {
+                'rss': process.memory_info().rss,
+                'vms': process.memory_info().vms,
+                'percent': process.memory_percent()
+            },
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting memory usage: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/memory_usage_percent')
+def memory_usage_percent():
+    """API endpoint: Get memory usage percentage as plain text."""
+    try:
+        memory = psutil.virtual_memory()
+        return f"{memory.percent:.1f}%", 200, {'Content-Type': 'text/plain'}
+        
+    except Exception as e:
+        logger.error(f"Error getting memory usage percent: {e}")
+        return "Error", 500
+
+
+@api_bp.route('/memory_usage_bar')
+def memory_usage_bar():
+    """API endpoint: Get memory usage as a progress bar HTML."""
+    try:
+        memory = psutil.virtual_memory()
+        percent = memory.percent
+        
+        # Determine color based on usage
+        if percent > 90:
+            color_class = "bg-danger"
+        elif percent > 70:
+            color_class = "bg-warning"
+        else:
+            color_class = "bg-success"
+        
+        html = f'''
+        <div class="progress" style="height: 8px;">
+            <div class="progress-bar {color_class}" role="progressbar" 
+                 style="width: {percent}%" aria-valuenow="{percent}" 
+                 aria-valuemin="0" aria-valuemax="100">
+            </div>
+        </div>
+        <small class="text-muted">{percent:.1f}% of {memory.total // (1024**3)} GB</small>
+        '''
+        
+        return html, 200, {'Content-Type': 'text/html'}
+        
+    except Exception as e:
+        logger.error(f"Error getting memory usage bar: {e}")
+        return '<div class="text-danger">Memory data unavailable</div>', 500
+
+
+# =================================================================
+# CPU MONITORING ENDPOINTS FOR DASHBOARD
+# =================================================================
+
+@api_bp.route('/cpu_usage')
+def cpu_usage():
+    """API endpoint: Get current CPU usage information."""
+    try:
+        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_freq = psutil.cpu_freq()
+        
+        return jsonify({
+            'overall_percent': cpu_percent,
+            'per_cpu': psutil.cpu_percent(percpu=True, interval=0.1),
+            'logical_count': psutil.cpu_count(logical=True),
+            'physical_count': psutil.cpu_count(logical=False),
+            'frequency': {
+                'current': cpu_freq.current if cpu_freq else None,
+                'min': cpu_freq.min if cpu_freq else None,
+                'max': cpu_freq.max if cpu_freq else None
+            },
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting CPU usage: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/cpu_usage_bar')
+def cpu_usage_bar():
+    """API endpoint: Get CPU usage as a progress bar HTML."""
+    try:
+        cpu_percent = psutil.cpu_percent(interval=1)
+        
+        # Determine color based on usage
+        if cpu_percent > 90:
+            color_class = "bg-danger"
+        elif cpu_percent > 70:
+            color_class = "bg-warning"
+        else:
+            color_class = "bg-success"
+        
+        html = f'''
+        <div class="progress" style="height: 8px;">
+            <div class="progress-bar {color_class}" role="progressbar" 
+                 style="width: {cpu_percent}%" aria-valuenow="{cpu_percent}" 
+                 aria-valuemin="0" aria-valuemax="100">
+            </div>
+        </div>
+        <small class="text-muted">{cpu_percent:.1f}% of {psutil.cpu_count()} cores</small>
+        '''
+        
+        return html, 200, {'Content-Type': 'text/html'}
+        
+    except Exception as e:
+        logger.error(f"Error getting CPU usage bar: {e}")
+        return '<div class="text-danger">CPU data unavailable</div>', 500
+
+
+# =================================================================
+# DISK MONITORING ENDPOINTS FOR DASHBOARD
+# =================================================================
+
+@api_bp.route('/disk_usage_percent')
+def disk_usage_percent():
+    """API endpoint: Get disk usage percentage as plain text."""
+    try:
+        disk = psutil.disk_usage('/')
+        return f"{disk.percent:.1f}%", 200, {'Content-Type': 'text/plain'}
+        
+    except Exception as e:
+        logger.error(f"Error getting disk usage percent: {e}")
+        return "Error", 500
+
+
+@api_bp.route('/disk_usage_bar')
+def disk_usage_bar():
+    """API endpoint: Get disk usage as a progress bar HTML."""
+    try:
+        disk = psutil.disk_usage('/')
+        percent = disk.percent
+        
+        # Determine color based on usage
+        if percent > 90:
+            color_class = "bg-danger"
+        elif percent > 80:
+            color_class = "bg-warning"
+        else:
+            color_class = "bg-success"
+        
+        html = f'''
+        <div class="progress" style="height: 8px;">
+            <div class="progress-bar {color_class}" role="progressbar" 
+                 style="width: {percent}%" aria-valuenow="{percent}" 
+                 aria-valuemin="0" aria-valuemax="100">
+            </div>
+        </div>
+        <small class="text-muted">{percent:.1f}% of {disk.total // (1024**3)} GB</small>
+        '''
+        
+        return html, 200, {'Content-Type': 'text/html'}
+        
+    except Exception as e:
+        logger.error(f"Error getting disk usage bar: {e}")
+        return '<div class="text-danger">Disk data unavailable</div>', 500
+
+
+# =================================================================
+# NETWORK MONITORING ENDPOINTS FOR DASHBOARD
+# =================================================================
+
+@api_bp.route('/network_activity_percent')
+def network_activity_percent():
+    """API endpoint: Get network activity percentage as plain text."""
+    try:
+        # For network activity, we'll show a simple metric based on connections
+        connections = len(psutil.net_connections())
+        # Rough estimate: normalize to 100 (assuming 100 connections = 100%)
+        percent = min(connections, 100)
+        return f"{percent}%", 200, {'Content-Type': 'text/plain'}
+        
+    except Exception as e:
+        logger.error(f"Error getting network activity percent: {e}")
+        return "0%", 500
+
+
+@api_bp.route('/network_activity_bar')
+def network_activity_bar():
+    """API endpoint: Get network activity as a progress bar HTML."""
+    try:
+        connections = len(psutil.net_connections())
+        # Rough estimate: normalize to 100 (assuming 100 connections = 100%)
+        percent = min(connections, 100)
+        
+        # Determine color based on activity
+        if percent > 80:
+            color_class = "bg-warning"
+        elif percent > 60:
+            color_class = "bg-info"
+        else:
+            color_class = "bg-success"
+        
+        html = f'''
+        <div class="progress" style="height: 8px;">
+            <div class="progress-bar {color_class}" role="progressbar" 
+                 style="width: {percent}%" aria-valuenow="{percent}" 
+                 aria-valuemin="0" aria-valuemax="100">
+            </div>
+        </div>
+        <small class="text-muted">{connections} connections</small>
+        '''
+        
+        return html, 200, {'Content-Type': 'text/html'}
+        
+    except Exception as e:
+        logger.error(f"Error getting network activity bar: {e}")
+        return '<div class="text-danger">Network data unavailable</div>', 500
+
+
 def _ping_analyzer_manager():
     """Helper function to ping analyzer_manager.py."""
     try:
@@ -592,3 +971,12 @@ def _ping_analyzer_manager():
             'status': 'error',
             'message': f'Error pinging analyzer manager: {str(e)}'
         }
+
+
+@api_bp.route('/test-toast')
+def test_toast():
+    """Test endpoint for toast notifications."""
+    return jsonify({
+        'success': True, 
+        'message': 'Test toast notification working!'
+    })

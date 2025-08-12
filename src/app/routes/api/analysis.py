@@ -248,6 +248,251 @@ def api_analysis_security(app_id):
         return jsonify({'error': str(e)}), 500
 
 
+@api_bp.route('/analysis/security/start', methods=['POST']) 
+def api_analysis_security_start():
+    """API endpoint to start comprehensive security analysis."""
+    try:
+        data = request.get_json()
+        app_id = data.get('application_id')
+        
+        if not app_id:
+            return jsonify({'error': 'Application ID required'}), 400
+            
+        # Check if application exists
+        app = GeneratedApplication.query.get(app_id)
+        if not app:
+            return jsonify({'error': 'Application not found'}), 404
+            
+        # Create new security analysis with comprehensive configuration
+        analysis = SecurityAnalysis()
+        analysis.application_id = app_id
+        analysis.analysis_name = data.get('analysis_name', 'Comprehensive Security Analysis')
+        analysis.description = data.get('description', '')
+        
+        # Tool configurations
+        analysis.bandit_enabled = data.get('bandit_enabled', True)
+        if 'bandit_config' in data:
+            analysis.set_bandit_config(data['bandit_config'])
+            
+        analysis.safety_enabled = data.get('safety_enabled', True)
+        if 'safety_config' in data:
+            analysis.set_safety_config(data['safety_config'])
+            
+        analysis.pylint_enabled = data.get('pylint_enabled', True)
+        if 'pylint_config' in data:
+            analysis.set_pylint_config(data['pylint_config'])
+            
+        analysis.eslint_enabled = data.get('eslint_enabled', True)
+        if 'eslint_config' in data:
+            analysis.set_eslint_config(data['eslint_config'])
+            
+        analysis.npm_audit_enabled = data.get('npm_audit_enabled', True)
+        analysis.snyk_enabled = data.get('snyk_enabled', False)
+        analysis.zap_enabled = data.get('zap_enabled', False)
+        
+        if 'zap_config' in data:
+            analysis.set_zap_config(data['zap_config'])
+            
+        analysis.semgrep_enabled = data.get('semgrep_enabled', False)
+        
+        # Global settings
+        analysis.severity_threshold = data.get('severity_threshold', 'low')
+        analysis.max_issues_per_tool = data.get('max_issues_per_tool', 1000)
+        analysis.timeout_minutes = data.get('timeout_minutes', 30)
+        
+        if 'exclude_patterns' in data:
+            analysis.set_exclude_patterns(data['exclude_patterns'])
+            
+        if 'include_patterns' in data:
+            analysis.set_include_patterns(data['include_patterns'])
+            
+        if 'global_config' in data:
+            analysis.set_global_config(data['global_config'])
+        
+        db.session.add(analysis)
+        db.session.commit()
+        
+        # Import Celery task here to avoid circular imports
+        try:
+            from ...tasks import security_analysis_task
+            
+            # Prepare task configuration
+            tools = []
+            if analysis.bandit_enabled:
+                tools.append('bandit')
+            if analysis.safety_enabled:
+                tools.append('safety')
+            if analysis.pylint_enabled:
+                tools.append('pylint')
+            if analysis.eslint_enabled:
+                tools.append('eslint')
+            if analysis.npm_audit_enabled:
+                tools.append('npm_audit')
+            if analysis.snyk_enabled:
+                tools.append('snyk')
+            if analysis.zap_enabled:
+                tools.append('zap')
+            if analysis.semgrep_enabled:
+                tools.append('semgrep')
+            
+            # Prepare analysis options
+            analysis_options = {
+                'analysis_id': analysis.id,
+                'severity_threshold': analysis.severity_threshold,
+                'max_issues_per_tool': analysis.max_issues_per_tool,
+                'timeout_minutes': analysis.timeout_minutes,
+                'exclude_patterns': analysis.get_exclude_patterns(),
+                'include_patterns': analysis.get_include_patterns(),
+                'global_config': analysis.get_global_config(),
+                'tool_configs': {
+                    'bandit': analysis.get_bandit_config() if analysis.bandit_enabled else None,
+                    'safety': analysis.get_safety_config() if analysis.safety_enabled else None,
+                    'pylint': analysis.get_pylint_config() if analysis.pylint_enabled else None,
+                    'eslint': analysis.get_eslint_config() if analysis.eslint_enabled else None,
+                    'zap': analysis.get_zap_config() if analysis.zap_enabled else None
+                }
+            }
+            
+            # Start Celery task
+            task = security_analysis_task.delay(
+                model_slug=app.model_slug,
+                app_number=app.app_number,
+                tools=tools,
+                options=analysis_options
+            )
+            
+            # Update analysis with task info
+            from ...constants import AnalysisStatus
+            from datetime import datetime, timezone
+            
+            analysis.set_metadata({
+                'task_id': task.id,
+                'tools_requested': tools,
+                'started_by_api': True
+            })
+            analysis.status = AnalysisStatus.RUNNING
+            analysis.started_at = datetime.now(timezone.utc)
+            
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Security analysis started',
+                'analysis_id': analysis.id,
+                'task_id': task.id,
+                'tools': tools,
+                'estimated_duration': f"{analysis.timeout_minutes} minutes (max)"
+            }), 201
+            
+        except ImportError:
+            logger.error("Could not import Celery tasks")
+            return jsonify({
+                'error': 'Task system not available',
+                'details': 'Celery tasks could not be imported'
+            }), 503
+            
+    except Exception as e:
+        logger.error(f"Error starting security analysis: {e}")
+        return jsonify({
+            'error': 'Failed to start security analysis',
+            'details': str(e)
+        }), 500
+
+
+@api_bp.route('/analysis/security/configure', methods=['POST'])
+def api_analysis_security_configure():
+    """API endpoint to save security analysis configuration."""
+    try:
+        data = request.get_json()
+        app_id = data.get('application_id')
+        
+        if not app_id:
+            return jsonify({'error': 'Application ID required'}), 400
+            
+        # Check if application exists
+        app = GeneratedApplication.query.get(app_id)
+        if not app:
+            return jsonify({'error': 'Application not found'}), 404
+            
+        # Find existing analysis or create new one
+        from ...constants import AnalysisStatus
+        analysis = SecurityAnalysis.query.filter_by(
+            application_id=app_id,
+            status=AnalysisStatus.PENDING
+        ).first()
+        
+        if not analysis:
+            analysis = SecurityAnalysis()
+            analysis.application_id = app_id
+            db.session.add(analysis)
+        
+        # Update configuration without starting analysis
+        analysis.analysis_name = data.get('analysis_name', analysis.analysis_name or 'Security Analysis')
+        analysis.description = data.get('description', analysis.description or '')
+        
+        # Tool configurations
+        if 'bandit_enabled' in data:
+            analysis.bandit_enabled = data['bandit_enabled']
+        if 'bandit_config' in data:
+            analysis.set_bandit_config(data['bandit_config'])
+            
+        if 'safety_enabled' in data:
+            analysis.safety_enabled = data['safety_enabled']
+        if 'safety_config' in data:
+            analysis.set_safety_config(data['safety_config'])
+            
+        if 'pylint_enabled' in data:
+            analysis.pylint_enabled = data['pylint_enabled']
+        if 'pylint_config' in data:
+            analysis.set_pylint_config(data['pylint_config'])
+            
+        if 'eslint_enabled' in data:
+            analysis.eslint_enabled = data['eslint_enabled']
+        if 'eslint_config' in data:
+            analysis.set_eslint_config(data['eslint_config'])
+            
+        if 'npm_audit_enabled' in data:
+            analysis.npm_audit_enabled = data['npm_audit_enabled']
+        if 'snyk_enabled' in data:
+            analysis.snyk_enabled = data['snyk_enabled']
+        if 'zap_enabled' in data:
+            analysis.zap_enabled = data['zap_enabled']
+        if 'zap_config' in data:
+            analysis.set_zap_config(data['zap_config'])
+        if 'semgrep_enabled' in data:
+            analysis.semgrep_enabled = data['semgrep_enabled']
+        
+        # Global settings
+        if 'severity_threshold' in data:
+            analysis.severity_threshold = data['severity_threshold']
+        if 'max_issues_per_tool' in data:
+            analysis.max_issues_per_tool = data['max_issues_per_tool']
+        if 'timeout_minutes' in data:
+            analysis.timeout_minutes = data['timeout_minutes']
+        if 'exclude_patterns' in data:
+            analysis.set_exclude_patterns(data['exclude_patterns'])
+        if 'include_patterns' in data:
+            analysis.set_include_patterns(data['include_patterns'])
+        if 'global_config' in data:
+            analysis.set_global_config(data['global_config'])
+        
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Security analysis configuration saved',
+            'analysis_id': analysis.id,
+            'configuration': analysis.to_dict()
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error saving security analysis configuration: {e}")
+        return jsonify({
+            'error': 'Failed to save configuration',
+            'details': str(e)
+        }), 500
+
+
 @api_bp.route('/analysis/performance/<int:app_id>', methods=['POST'])
 def api_analysis_performance(app_id):
     """API endpoint to start performance analysis for an application."""

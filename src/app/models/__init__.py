@@ -243,7 +243,7 @@ class GeneratedApplication(db.Model):
 
 
 class SecurityAnalysis(db.Model):
-    """Model for storing security analysis results."""
+    """Model for storing security analysis results with comprehensive tool configurations."""
     __tablename__ = 'security_analyses'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -251,14 +251,40 @@ class SecurityAnalysis(db.Model):
     
     # Analysis status and configuration
     status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
+    analysis_name = db.Column(db.String(200), default='Security Analysis')
+    description = db.Column(db.Text)
     
-    # Tool enablement
+    # Tool enablement with detailed configuration
     bandit_enabled = db.Column(db.Boolean, default=True)
+    bandit_config_json = db.Column(db.Text)  # Bandit-specific configuration
+    
     safety_enabled = db.Column(db.Boolean, default=True)
+    safety_config_json = db.Column(db.Text)  # Safety-specific configuration
+    
     pylint_enabled = db.Column(db.Boolean, default=True)
+    pylint_config_json = db.Column(db.Text)  # PyLint-specific configuration
+    
     eslint_enabled = db.Column(db.Boolean, default=True)
+    eslint_config_json = db.Column(db.Text)  # ESLint-specific configuration
+    
     npm_audit_enabled = db.Column(db.Boolean, default=True)
+    npm_audit_config_json = db.Column(db.Text)  # npm audit configuration
+    
     snyk_enabled = db.Column(db.Boolean, default=False)
+    snyk_config_json = db.Column(db.Text)  # Snyk-specific configuration
+    
+    zap_enabled = db.Column(db.Boolean, default=False)
+    zap_config_json = db.Column(db.Text)  # OWASP ZAP configuration
+    
+    semgrep_enabled = db.Column(db.Boolean, default=False)
+    semgrep_config_json = db.Column(db.Text)  # Semgrep configuration
+    
+    # Global analysis settings
+    severity_threshold = db.Column(db.String(20), default='low')  # critical, high, medium, low
+    max_issues_per_tool = db.Column(db.Integer, default=1000)
+    timeout_minutes = db.Column(db.Integer, default=30)
+    exclude_patterns = db.Column(db.Text)  # JSON array of file/directory patterns to exclude
+    include_patterns = db.Column(db.Text)  # JSON array of file/directory patterns to include
     
     # Results summary
     total_issues = db.Column(db.Integer, default=0)
@@ -266,13 +292,16 @@ class SecurityAnalysis(db.Model):
     high_severity_count = db.Column(db.Integer, default=0)
     medium_severity_count = db.Column(db.Integer, default=0)
     low_severity_count = db.Column(db.Integer, default=0)
+    tools_run_count = db.Column(db.Integer, default=0)
+    tools_failed_count = db.Column(db.Integer, default=0)
     
     # Performance metrics
     analysis_duration = db.Column(db.Float)  # Duration in seconds
     
-    # JSON field for detailed results
+    # JSON fields for detailed results and configuration
     results_json = db.Column(db.Text)       # Detailed analysis results
     metadata_json = db.Column(db.Text)      # Analysis metadata
+    global_config_json = db.Column(db.Text) # Global analysis configuration
     
     # Timestamps
     started_at = db.Column(db.DateTime)
@@ -306,26 +335,302 @@ class SecurityAnalysis(db.Model):
         """Set metadata from dictionary."""
         self.metadata_json = json.dumps(metadata_dict)
     
+    def get_bandit_config(self) -> Dict[str, Any]:
+        """Get Bandit configuration as dictionary."""
+        if self.bandit_config_json:
+            try:
+                return json.loads(self.bandit_config_json)
+            except json.JSONDecodeError:
+                return {}
+        return self._get_default_bandit_config()
+    
+    def set_bandit_config(self, config_dict: Dict[str, Any]) -> None:
+        """Set Bandit configuration from dictionary."""
+        self.bandit_config_json = json.dumps(config_dict)
+    
+    def _get_default_bandit_config(self) -> Dict[str, Any]:
+        """Get default Bandit configuration."""
+        return {
+            "tests": [],  # Empty = run all tests
+            "skips": ["B101"],  # Skip assert_used by default
+            "exclude_dirs": ["tests", "test", "__pycache__", ".git"],
+            "confidence": "low",  # low, medium, high
+            "severity": "low",  # low, medium, high  
+            "format": "json",
+            "recursive": True,
+            "aggregate": "file",
+            "context_lines": 3,
+            "msg_template": "{abspath}:{line}: {test_id}[bandit]: {severity}: {msg}",
+            "baseline": None,  # Path to baseline file
+            "ini_path": None   # Path to custom .bandit file
+        }
+    
+    def get_safety_config(self) -> Dict[str, Any]:
+        """Get Safety configuration as dictionary."""
+        if self.safety_config_json:
+            try:
+                return json.loads(self.safety_config_json)
+            except json.JSONDecodeError:
+                return {}
+        return self._get_default_safety_config()
+    
+    def set_safety_config(self, config_dict: Dict[str, Any]) -> None:
+        """Set Safety configuration from dictionary."""
+        self.safety_config_json = json.dumps(config_dict)
+    
+    def _get_default_safety_config(self) -> Dict[str, Any]:
+        """Get default Safety configuration."""
+        return {
+            "api_key": None,  # PyUp API key for commercial use
+            "db": None,  # Custom vulnerability database path
+            "ignore": [],  # List of vulnerability IDs to ignore
+            "severity": ["critical", "high", "medium", "low"],  # Severity levels to report
+            "output": "json",  # json, text, bare
+            "full_report": True,
+            "stdin": False,
+            "files": [],  # Specific files to check
+            "continue_on_error": True,
+            "policy_file": None,  # Path to Safety policy file
+            "audit_and_monitor": False,  # Enable audit mode
+            "proxy_host": None,
+            "proxy_port": None,
+            "timeout": 60
+        }
+    
+    def get_eslint_config(self) -> Dict[str, Any]:
+        """Get ESLint configuration as dictionary."""
+        if self.eslint_config_json:
+            try:
+                return json.loads(self.eslint_config_json)
+            except json.JSONDecodeError:
+                return {}
+        return self._get_default_eslint_config()
+    
+    def set_eslint_config(self, config_dict: Dict[str, Any]) -> None:
+        """Set ESLint configuration from dictionary."""
+        self.eslint_config_json = json.dumps(config_dict)
+    
+    def _get_default_eslint_config(self) -> Dict[str, Any]:
+        """Get default ESLint configuration."""
+        return {
+            "extends": ["eslint:recommended", "plugin:security/recommended"],
+            "plugins": ["security"],
+            "parserOptions": {
+                "ecmaVersion": 2020,
+                "sourceType": "module"
+            },
+            "env": {
+                "browser": True,
+                "node": True,
+                "es6": True
+            },
+            "rules": {
+                "no-eval": "error",
+                "no-implied-eval": "error", 
+                "no-new-func": "error",
+                "no-script-url": "error",
+                "security/detect-eval-with-expression": "error",
+                "security/detect-non-literal-regexp": "warn",
+                "security/detect-non-literal-require": "warn",
+                "security/detect-object-injection": "warn",
+                "security/detect-possible-timing-attacks": "warn",
+                "security/detect-pseudoRandomBytes": "warn",
+                "security/detect-unsafe-regex": "error",
+                "no-console": "warn",
+                "no-debugger": "error",
+                "no-alert": "warn"
+            },
+            "format": "json",
+            "max_warnings": 50,
+            "cache": True,
+            "cache_location": ".eslintcache",
+            "ignore_pattern": ["node_modules/**", "dist/**", "build/**"]
+        }
+    
+    def get_pylint_config(self) -> Dict[str, Any]:
+        """Get PyLint configuration as dictionary."""
+        if self.pylint_config_json:
+            try:
+                return json.loads(self.pylint_config_json)
+            except json.JSONDecodeError:
+                return {}
+        return self._get_default_pylint_config()
+    
+    def set_pylint_config(self, config_dict: Dict[str, Any]) -> None:
+        """Set PyLint configuration from dictionary."""
+        self.pylint_config_json = json.dumps(config_dict)
+    
+    def _get_default_pylint_config(self) -> Dict[str, Any]:
+        """Get default PyLint configuration."""
+        return {
+            "disable": ["R0903", "R0913", "C0103"],  # too-few-public-methods, too-many-arguments, invalid-name
+            "enable": [],  # Additional checks to enable
+            "rcfile": None,  # Path to custom .pylintrc file
+            "output_format": "json",
+            "reports": False,
+            "score": True,
+            "confidence": ["HIGH", "CONTROL_FLOW", "INFERENCE", "INFERENCE_FAILURE", "UNDEFINED"],
+            "load_plugins": [],  # Additional pylint plugins
+            "fail_under": 5.0,  # Minimum score to pass
+            "good_names": ["i", "j", "k", "ex", "Run", "_"],
+            "bad_names": ["foo", "bar", "baz", "toto", "tutu", "tata"],
+            "include_naming_hint": True,
+            "max_line_length": 100,
+            "max_module_lines": 1000,
+            "max_args": 5,
+            "max_locals": 15,
+            "max_returns": 6,
+            "max_branches": 12,
+            "max_statements": 50,
+            "max_parents": 7,
+            "max_attributes": 7,
+            "min_public_methods": 2,
+            "max_public_methods": 20,
+            "max_bool_expr": 5
+        }
+    
+    def get_zap_config(self) -> Dict[str, Any]:
+        """Get OWASP ZAP configuration as dictionary."""
+        if self.zap_config_json:
+            try:
+                return json.loads(self.zap_config_json)
+            except json.JSONDecodeError:
+                return {}
+        return self._get_default_zap_config()
+    
+    def set_zap_config(self, config_dict: Dict[str, Any]) -> None:
+        """Set OWASP ZAP configuration from dictionary."""
+        self.zap_config_json = json.dumps(config_dict)
+    
+    def _get_default_zap_config(self) -> Dict[str, Any]:
+        """Get default OWASP ZAP configuration."""
+        return {
+            "target_url": "",  # Target URL for scanning
+            "scan_type": "active",  # active, passive, spider, ajax_spider
+            "scan_policy": "Default Policy",
+            "context_name": "Default Context",
+            "authentication": {
+                "enabled": False,
+                "method": "form",  # form, script, http
+                "username": "",
+                "password": "",
+                "login_url": "",
+                "username_field": "",
+                "password_field": "",
+                "submit_field": ""
+            },
+            "spider_config": {
+                "max_depth": 5,
+                "max_duration": 10,  # minutes
+                "max_children": 0,  # 0 = unlimited
+                "recurse": True,
+                "subtree_only": True,
+                "thread_count": 2
+            },
+            "active_scan_config": {
+                "concurrent_hosts": 1,
+                "threads_per_host": 2,
+                "max_rule_duration": 5,  # minutes
+                "max_scan_duration": 30,  # minutes
+                "delay_between_requests": 0,  # milliseconds
+                "handle_anti_csrf": True,
+                "inject_plugin_id": False,
+                "strength": "medium",  # low, medium, high, insane
+                "threshold": "medium"  # off, low, medium, high
+            },
+            "reporting": {
+                "include_false_positives": False,
+                "include_confidence_1": True,  # False positive
+                "include_confidence_2": True,  # Low
+                "include_confidence_3": True,  # Medium
+                "include_confidence_4": True,  # High
+                "include_confidence_5": True   # Confirmed
+            }
+        }
+    
+    def get_exclude_patterns(self) -> List[str]:
+        """Get exclude patterns as list."""
+        if self.exclude_patterns:
+            try:
+                return json.loads(self.exclude_patterns)
+            except json.JSONDecodeError:
+                return []
+        return ["tests/**", "test/**", "**/test_*", "**/*_test.py", "__pycache__/**", ".git/**", "node_modules/**"]
+    
+    def set_exclude_patterns(self, patterns_list: List[str]) -> None:
+        """Set exclude patterns from list."""
+        self.exclude_patterns = json.dumps(patterns_list)
+    
+    def get_include_patterns(self) -> List[str]:
+        """Get include patterns as list."""
+        if self.include_patterns:
+            try:
+                return json.loads(self.include_patterns)
+            except json.JSONDecodeError:
+                return []
+        return ["**/*.py", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.vue"]
+    
+    def set_include_patterns(self, patterns_list: List[str]) -> None:
+        """Set include patterns from list."""
+        self.include_patterns = json.dumps(patterns_list)
+    
+    def get_global_config(self) -> Dict[str, Any]:
+        """Get global analysis configuration."""
+        if self.global_config_json:
+            try:
+                return json.loads(self.global_config_json)
+            except json.JSONDecodeError:
+                return {}
+        return {
+            "parallel_execution": True,
+            "fail_on_first_error": False,
+            "generate_reports": True,
+            "report_formats": ["json", "html"],
+            "save_intermediate_results": True,
+            "cleanup_temp_files": True
+        }
+    
+    def set_global_config(self, config_dict: Dict[str, Any]) -> None:
+        """Set global configuration from dictionary."""
+        self.global_config_json = json.dumps(config_dict)
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
         return {
             'id': self.id,
             'application_id': self.application_id,
             'status': self.status.value if self.status else None,
+            'analysis_name': self.analysis_name,
+            'description': self.description,
             'bandit_enabled': self.bandit_enabled,
+            'bandit_config': self.get_bandit_config(),
             'safety_enabled': self.safety_enabled,
+            'safety_config': self.get_safety_config(),
             'pylint_enabled': self.pylint_enabled,
+            'pylint_config': self.get_pylint_config(),
             'eslint_enabled': self.eslint_enabled,
+            'eslint_config': self.get_eslint_config(),
             'npm_audit_enabled': self.npm_audit_enabled,
             'snyk_enabled': self.snyk_enabled,
+            'zap_enabled': self.zap_enabled,
+            'zap_config': self.get_zap_config(),
+            'semgrep_enabled': self.semgrep_enabled,
+            'severity_threshold': self.severity_threshold,
+            'max_issues_per_tool': self.max_issues_per_tool,
+            'timeout_minutes': self.timeout_minutes,
+            'exclude_patterns': self.get_exclude_patterns(),
+            'include_patterns': self.get_include_patterns(),
             'total_issues': self.total_issues,
             'critical_severity_count': self.critical_severity_count,
             'high_severity_count': self.high_severity_count,
             'medium_severity_count': self.medium_severity_count,
             'low_severity_count': self.low_severity_count,
+            'tools_run_count': self.tools_run_count,
+            'tools_failed_count': self.tools_failed_count,
             'analysis_duration': self.analysis_duration,
             'results': self.get_results(),
             'metadata': self.get_metadata(),
+            'global_config': self.get_global_config(),
             'started_at': self.started_at,
             'completed_at': self.completed_at,
             'created_at': self.created_at,

@@ -164,7 +164,7 @@
     {% if docker_status.last_check %}
     <div class="mt-3 pt-2 border-top text-center">
         <small class="text-muted">
-            Last checked: {{ docker_status.last_check.strftime('%H:%M:%S') }}
+            Last checked: {{ docker_status.last_check }}
         </small>
     </div>
     {% endif %}
@@ -241,8 +241,150 @@
 </style>
 
 <script>
+// Docker management functions
+window.dashboard = window.dashboard || {};
+
+dashboard.showDockerManagement = function() {
+    // For now, show a simple modal with Docker management options
+    if (typeof showToast === 'function') {
+        showToast('Opening Docker management...', 'info');
+    }
+    
+    // Create a simple management modal
+    const modalHtml = `
+        <div class="modal fade" id="dockerManagementModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Docker Management</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <button class="btn btn-success btn-block" onclick="dashboard.startAnalyzerServices()">
+                                    <i class="fas fa-play mr-1"></i>Start Services
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button class="btn btn-danger btn-block" onclick="dashboard.stopAnalyzerServices()">
+                                    <i class="fas fa-stop mr-1"></i>Stop Services
+                                </button>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            <div class="col-12">
+                                <button class="btn btn-warning btn-block" onclick="dashboard.restartDockerServices()">
+                                    <i class="fas fa-redo mr-1"></i>Restart All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('dockerManagementModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal (using jQuery for AdminLTE compatibility)
+    if (typeof $ !== 'undefined') {
+        $('#dockerManagementModal').modal('show');
+    } else {
+        console.error('jQuery not available for modal');
+    }
+};
+
+dashboard.refreshDockerStatus = function() {
+    // Refresh the Docker status content
+    const dockerContent = document.getElementById('docker-status-content');
+    if (dockerContent && typeof htmx !== 'undefined') {
+        htmx.trigger(dockerContent, 'refreshDockerStatus');
+        
+        if (typeof showToast === 'function') {
+            showToast('Refreshing Docker status...', 'info');
+        }
+    }
+};
+
+dashboard.startAnalyzerServices = function() {
+    fetch('/api/analyzer/start-all', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (typeof showToast === 'function') {
+                showToast('Starting analyzer services...', 'success');
+            }
+            dashboard.refreshDockerStatus();
+        })
+        .catch(error => {
+            if (typeof showToast === 'function') {
+                showToast('Error starting services', 'error');
+            }
+        });
+};
+
+dashboard.stopAnalyzerServices = function() {
+    fetch('/api/analyzer/stop-all', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (typeof showToast === 'function') {
+                showToast('Stopping analyzer services...', 'warning');
+            }
+            dashboard.refreshDockerStatus();
+        })
+        .catch(error => {
+            if (typeof showToast === 'function') {
+                showToast('Error stopping services', 'error');
+            }
+        });
+};
+
+dashboard.restartDockerServices = function() {
+    fetch('/api/analyzer/restart-all', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (typeof showToast === 'function') {
+                showToast('Restarting Docker services...', 'info');
+            }
+            dashboard.refreshDockerStatus();
+        })
+        .catch(error => {
+            if (typeof showToast === 'function') {
+                showToast('Error restarting services', 'error');
+            }
+        });
+};
+
 function viewDockerLogs() {
-    dashboard.showToast('Docker logs viewer not yet implemented', 'info');
-    // TODO: Implement Docker logs viewer
+    // For now, show a simple logs viewer or open external terminal
+    if (typeof showToast === 'function') {
+        showToast('Docker logs viewer - feature coming soon!', 'info');
+    }
+    
+    // In the future, this could open a modal with live Docker logs
+    console.log('Docker logs viewer requested');
 }
+
+// Add refresh trigger support to HTMX
+document.addEventListener('DOMContentLoaded', function() {
+    const dockerContent = document.getElementById('docker-status-content');
+    if (dockerContent && typeof htmx !== 'undefined') {
+        dockerContent.addEventListener('refreshDockerStatus', function() {
+            htmx.trigger(dockerContent, 'htmx:refreshRequest');
+        });
+    }
+});
 </script>

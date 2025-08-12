@@ -146,6 +146,68 @@ def api_dashboard_activity():
         return jsonify({'error': str(e)}), 500
 
 
+@api_bp.route('/dashboard/activity-timeline')
+def dashboard_activity_timeline():
+    """Render activity timeline HTML for dashboard."""
+    try:
+        from flask import render_template
+        
+        # Get recent activities
+        activities = []
+        
+        # Recent applications (last 10)
+        recent_apps = (
+            GeneratedApplication.query
+            .order_by(desc(GeneratedApplication.created_at))
+            .limit(5)
+            .all()
+        )
+        
+        for app in recent_apps:
+            activities.append({
+                'type': 'success',
+                'title': 'New App Generated',
+                'description': f'{app.model_slug} - App #{app.app_number}',
+                'created_at': app.created_at,
+                'source': 'Generator',
+                'status': 'completed'
+            })
+        
+        # Recent security analyses
+        recent_security = (
+            SecurityAnalysis.query
+            .join(GeneratedApplication)
+            .order_by(desc(SecurityAnalysis.created_at))
+            .limit(3)
+            .all()
+        )
+        
+        for analysis in recent_security:
+            try:
+                activities.append({
+                    'type': 'info',
+                    'title': 'Security Analysis',
+                    'description': f'{analysis.application.model_slug} - App #{analysis.application.app_number}',
+                    'created_at': analysis.created_at,
+                    'source': 'Security',
+                    'status': analysis.status.value if hasattr(analysis.status, 'value') else str(analysis.status)
+                })
+            except AttributeError as e:
+                # Handle case where application relationship might be missing
+                logger.warning(f"Skipping security analysis due to missing application: {e}")
+                continue
+        
+        # Sort activities by date
+        activities.sort(key=lambda x: x['created_at'], reverse=True)
+        activities = activities[:8]  # Limit to 8 items
+        
+        return render_template('partials/common/activity_timeline.html', activities=activities)
+        
+    except Exception as e:
+        logger.error(f"Error rendering activity timeline: {e}")
+        return '<div class="text-center py-3"><p class="text-muted">Unable to load activity</p></div>'
+
+
 @api_bp.route('/dashboard/charts')
 def api_dashboard_charts():
     """API endpoint: Get chart data for dashboard."""
