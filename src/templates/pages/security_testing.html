@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+
+{% block title %}Security Testing - Research Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-shield-alt text-danger mr-2"></i>
+                Security Testing Center
+            </h1>
+            <p class="text-muted mb-0">
+                Comprehensive security analysis and vulnerability testing for AI-generated applications
+            </p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newSecurityTestModal">
+                <i class="fas fa-plus mr-2"></i>
+                New Security Test
+            </button>
+        </div>
+    </div>
+
+    <!-- Testing Options Row -->
+    <div class="row mb-4">
+        <div class="col-lg-4">
+            <div class="card border-left-danger">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fas fa-search fa-2x text-danger"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Static Analysis</h5>
+                            <p class="card-text small text-muted">
+                                Code-level vulnerability detection and security pattern analysis
+                            </p>
+                            <button class="btn btn-outline-danger btn-sm" onclick="startStaticAnalysis()">
+                                <i class="fas fa-play mr-1"></i>
+                                Start Scan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-left-warning">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fas fa-globe fa-2x text-warning"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Dynamic Testing</h5>
+                            <p class="card-text small text-muted">
+                                Runtime vulnerability assessment and penetration testing
+                            </p>
+                            <button class="btn btn-outline-warning btn-sm" onclick="startDynamicAnalysis()">
+                                <i class="fas fa-play mr-1"></i>
+                                Start Test
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-left-info">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fas fa-robot fa-2x text-info"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">AI Analysis</h5>
+                            <p class="card-text small text-muted">
+                                AI-powered security assessment and threat modeling
+                            </p>
+                            <button class="btn btn-outline-info btn-sm" onclick="startAIAnalysis()">
+                                <i class="fas fa-play mr-1"></i>
+                                Analyze
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Selection -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-list mr-2"></i>
+                        Available Applications
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if applications %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th>App #</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for app in applications %}
+                                <tr>
+                                    <td>
+                                        <span class="badge badge-primary">{{ app.model_slug.replace('_', ' ').title() }}</span>
+                                    </td>
+                                    <td>{{ app.app_number }}</td>
+                                    <td>{{ app.app_type or 'Web App' }}</td>
+                                    <td>
+                                        {% if app.is_generated %}
+                                            <span class="badge badge-success">Generated</span>
+                                        {% else %}
+                                            <span class="badge badge-warning">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ app.created_at.strftime('%Y-%m-%d %H:%M') if app.created_at else 'N/A' }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                    onclick="testApplication('{{ app.model_slug }}', {{ app.app_number }})">
+                                                <i class="fas fa-shield-alt mr-1"></i>
+                                                Test
+                                            </button>
+                                            <button type="button" class="btn btn-outline-info btn-sm" 
+                                                    onclick="viewApplication('{{ app.model_slug }}', {{ app.app_number }})">
+                                                <i class="fas fa-eye mr-1"></i>
+                                                View
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Applications Available</h5>
+                        <p class="text-muted">Generate some applications first to perform security testing.</p>
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+                            <i class="fas fa-plus mr-2"></i>
+                            Generate Applications
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history mr-2"></i>
+                        Recent Security Tests
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_analyses %}
+                    {% for analysis in recent_analyses %}
+                    <div class="border-bottom pb-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ analysis.application.model_slug.replace('_', ' ').title() }} App {{ analysis.application.app_number }}</h6>
+                                <small class="text-muted">{{ analysis.created_at.strftime('%Y-%m-%d %H:%M') if analysis.created_at else 'N/A' }}</small>
+                            </div>
+                            <div>
+                                {% if analysis.status == 'completed' %}
+                                    <span class="badge badge-success">Completed</span>
+                                {% elif analysis.status == 'running' %}
+                                    <span class="badge badge-info">Running</span>
+                                {% elif analysis.status == 'failed' %}
+                                    <span class="badge badge-danger">Failed</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">{{ analysis.status }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if analysis.total_issues %}
+                        <div class="small text-warning mt-1">
+                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                            {{ analysis.total_issues }} issues found
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-clock text-muted mb-2"></i>
+                        <p class="text-muted mb-0">No recent tests</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Security Test Modal -->
+<div class="modal fade" id="newSecurityTestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-shield-alt mr-2"></i>
+                    Configure Security Test
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="securityTestForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Target Application</label>
+                                <select class="form-select" id="targetApplication" required>
+                                    <option value="">Select application...</option>
+                                    {% for app in applications %}
+                                    <option value="{{ app.model_slug }}-{{ app.app_number }}">
+                                        {{ app.model_slug.replace('_', ' ').title() }} App {{ app.app_number }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Test Type</label>
+                                <select class="form-select" id="testType" required>
+                                    <option value="">Select test type...</option>
+                                    <option value="static">Static Analysis</option>
+                                    <option value="dynamic">Dynamic Testing</option>
+                                    <option value="ai">AI-Powered Analysis</option>
+                                    <option value="comprehensive">Comprehensive Scan</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Test Configuration</label>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkSQL" checked>
+                                    <label class="form-check-label" for="checkSQL">
+                                        SQL Injection
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkXSS" checked>
+                                    <label class="form-check-label" for="checkXSS">
+                                        XSS Vulnerabilities
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkCSRF" checked>
+                                    <label class="form-check-label" for="checkCSRF">
+                                        CSRF Protection
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkAuth" checked>
+                                    <label class="form-check-label" for="checkAuth">
+                                        Authentication
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkSensData" checked>
+                                    <label class="form-check-label" for="checkSensData">
+                                        Sensitive Data
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="checkConfig" checked>
+                                    <label class="form-check-label" for="checkConfig">
+                                        Configuration
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Priority Level</label>
+                        <select class="form-select" id="priorityLevel">
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="startSecurityTest()">
+                    <i class="fas fa-play mr-2"></i>
+                    Start Security Test
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Security Testing JavaScript Functions
+function startStaticAnalysis() {
+    alert('Static analysis functionality will be implemented soon.');
+}
+
+function startDynamicAnalysis() {
+    alert('Dynamic testing functionality will be implemented soon.');
+}
+
+function startAIAnalysis() {
+    alert('AI analysis functionality will be implemented soon.');
+}
+
+function testApplication(modelSlug, appNumber) {
+    // Pre-fill modal with selected application
+    const select = document.getElementById('targetApplication');
+    select.value = modelSlug + '-' + appNumber;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('newSecurityTestModal'));
+    modal.show();
+}
+
+function viewApplication(modelSlug, appNumber) {
+    window.open(`/applications/${modelSlug}/${appNumber}`, '_blank');
+}
+
+function startSecurityTest() {
+    const form = document.getElementById('securityTestForm');
+    const formData = new FormData(form);
+    
+    // Get form values
+    const targetApp = document.getElementById('targetApplication').value;
+    const testType = document.getElementById('testType').value;
+    
+    if (!targetApp || !testType) {
+        alert('Please select both target application and test type.');
+        return;
+    }
+    
+    // Parse target application
+    const [modelSlug, appNumber] = targetApp.split('-');
+    
+    // Start the security test
+    fetch('/api/analysis/security/start', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model_slug: modelSlug,
+            app_number: parseInt(appNumber),
+            test_type: testType,
+            configuration: {
+                sql_injection: document.getElementById('checkSQL').checked,
+                xss: document.getElementById('checkXSS').checked,
+                csrf: document.getElementById('checkCSRF').checked,
+                authentication: document.getElementById('checkAuth').checked,
+                sensitive_data: document.getElementById('checkSensData').checked,
+                configuration: document.getElementById('checkConfig').checked
+            },
+            priority: document.getElementById('priorityLevel').value
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Security test started successfully!');
+            bootstrap.Modal.getInstance(document.getElementById('newSecurityTestModal')).hide();
+            location.reload(); // Refresh to show new test
+        } else {
+            alert('Failed to start security test: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error starting security test: ' + error.message);
+    });
+}
+</script>
+{% endblock %}

@@ -133,7 +133,11 @@ def security_testing():
         return render_template('pages/error.html',
                              error_code=500,
                              error_title='Security Testing Error',
-                             error_message=str(e))
+                             error_message=str(e),
+                             python_version='N/A',
+                             flask_version='N/A',
+                             debug_mode=False,
+                             environment='N/A')
 
 
 @testing_bp.route('/performance')
@@ -165,7 +169,11 @@ def performance_testing():
         return render_template('pages/error.html',
                              error_code=500,
                              error_title='Performance Testing Error',
-                             error_message=str(e))
+                             error_message=str(e),
+                             python_version='N/A',
+                             flask_version='N/A',
+                             debug_mode=False,
+                             environment='N/A')
 
 
 @testing_bp.route('/batch')

@@ -343,6 +343,33 @@ def system_health():
 # ANALYZER SERVICE MANAGEMENT
 # =================================================================
 
+@api_bp.route('/analyzer/stats', methods=['GET'])
+def stats_analyzer_services():
+    """Get analyzer services statistics for dashboard."""
+    try:
+        from ...extensions import get_components
+        
+        components = get_components()
+        analyzer_integration = components.analyzer_integration if components else None
+        
+        if not analyzer_integration:
+            return jsonify({'count': 0})
+        
+        # Get services status and count running services
+        status_info = analyzer_integration.get_services_status()
+        services = status_info.get('services', {})
+        
+        # Count running services
+        running_count = sum(1 for service_status in services.values() 
+                           if service_status.get('status') == 'running')
+        
+        return jsonify({'count': running_count})
+        
+    except Exception as e:
+        logger.error(f"Error getting analyzer stats: {e}")
+        return jsonify({'count': 0})
+
+
 @api_bp.route('/analyzer/status')
 def get_analyzer_status():
     """Get comprehensive analyzer services status."""

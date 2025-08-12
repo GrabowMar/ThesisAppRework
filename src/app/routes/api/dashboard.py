@@ -559,3 +559,100 @@ def realtime_dashboard():
             'system_health': 'unknown',
             'timestamp': datetime.now(timezone.utc).isoformat()
         })
+
+
+@api_bp.route('/dashboard/docker-status')
+def dashboard_docker_status():
+    """HTMX endpoint for Docker infrastructure status."""
+    try:
+        import subprocess
+        
+        docker_info = {
+            'timestamp': datetime.now(),
+            'docker_available': False,
+            'compose_available': False,
+            'engine_running': False,
+            'version': 'N/A',
+            'total_containers': 0,
+            'total_images': 0,
+            'running_containers': 0,
+            'stopped_containers': 0,
+            'error_containers': 0,
+            'created_containers': 0,
+            'resource_usage': {},
+            'recent_containers': [],
+            'last_check': datetime.now().isoformat()
+        }
+        
+        try:
+            # Check if Docker is available
+            result = subprocess.run(['docker', '--version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                docker_info['docker_available'] = True
+                docker_info['version'] = result.stdout.strip()
+                
+                # Check if Docker engine is running
+                result = subprocess.run(['docker', 'info'], 
+                                      capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    docker_info['engine_running'] = True
+                    
+                    # Get container counts
+                    try:
+                        result = subprocess.run(['docker', 'ps', '-a', '--format', '{{.Status}}'], 
+                                              capture_output=True, text=True, timeout=10)
+                        if result.returncode == 0:
+                            statuses = result.stdout.strip().split('\n') if result.stdout.strip() else []
+                            docker_info['total_containers'] = len(statuses)
+                            
+                            for status in statuses:
+                                if status.startswith('Up'):
+                                    docker_info['running_containers'] += 1
+                                elif status.startswith('Exited'):
+                                    docker_info['stopped_containers'] += 1
+                                elif 'error' in status.lower() or 'failed' in status.lower():
+                                    docker_info['error_containers'] += 1
+                                elif status.startswith('Created'):
+                                    docker_info['created_containers'] += 1
+                    except Exception:
+                        pass
+                    
+                    # Get image count
+                    try:
+                        result = subprocess.run(['docker', 'images', '-q'], 
+                                              capture_output=True, text=True, timeout=10)
+                        if result.returncode == 0:
+                            images = result.stdout.strip().split('\n') if result.stdout.strip() else []
+                            docker_info['total_images'] = len(images)
+                    except Exception:
+                        pass
+                        
+        except subprocess.TimeoutExpired:
+            docker_info['docker_available'] = False
+        except FileNotFoundError:
+            docker_info['docker_available'] = False
+        except Exception as e:
+            logger.error(f"Docker status check error: {e}")
+            docker_info['docker_available'] = False
+        
+        return render_template('partials/dashboard/docker_status.html', docker_status=docker_info)
+    except Exception as e:
+        logger.error(f"Error getting Docker status: {e}")
+        fallback_info = {
+            'timestamp': datetime.now(),
+            'docker_available': False,
+            'engine_running': False,
+            'version': 'Error',
+            'total_containers': 0,
+            'total_images': 0,
+            'running_containers': 0,
+            'stopped_containers': 0,
+            'error_containers': 0,
+            'created_containers': 0,
+            'resource_usage': {},
+            'recent_containers': [],
+            'last_check': datetime.now().isoformat(),
+            'error': str(e)
+        }
+        return render_template('partials/dashboard/docker_status.html', docker_status=fallback_info)

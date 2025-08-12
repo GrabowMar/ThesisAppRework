@@ -86,7 +86,7 @@
                 </h3>
                 <div class="card-tools">
                     <button type="button" class="btn btn-tool" 
-                            hx-get="{{ url_for('api.dashboard_system_health') }}" 
+                            hx-get="{{ url_for('api.stats_system_health') }}" 
                             hx-target="#system-health-content"
                             hx-swap="innerHTML">
                         <i class="fas fa-sync"></i>
@@ -100,7 +100,7 @@
                 </div>
             </div>
             <div class="card-body" id="system-health-content"
-                 hx-get="{{ url_for('api.dashboard_system_health') }}"
+                 hx-get="{{ url_for('api.stats_system_health') }}"
                  hx-trigger="load, every 30s"
                  hx-swap="innerHTML">
                 <div class="text-center py-4">
@@ -122,7 +122,7 @@
                 </h3>
                 <div class="card-tools">
                     <button type="button" class="btn btn-tool" 
-                            hx-get="{{ url_for('api.docker_status') }}"
+                            hx-get="{{ url_for('api.dashboard_docker_status') }}"
                             hx-target="#docker-status-content"
                             hx-swap="innerHTML">
                         <i class="fas fa-sync"></i>
@@ -133,7 +133,7 @@
                 </div>
             </div>
             <div class="card-body" id="docker-status-content"
-                 hx-get="{{ url_for('api.docker_status') }}"
+                 hx-get="{{ url_for('api.dashboard_docker_status') }}"
                  hx-trigger="load, every 45s"
                  hx-swap="innerHTML">
                 <div class="text-center py-3">
@@ -256,7 +256,7 @@
             <div class="info-box-content">
                 <span class="info-box-text">Server Status</span>
                 <span class="info-box-number" 
-                      hx-get="{{ url_for('api.server_uptime') }}" 
+                      hx-get="{{ url_for('api.stats_uptime') }}" 
                       hx-trigger="load, every 60s"
                       hx-swap="innerHTML">Online</span>
             </div>
@@ -443,7 +443,7 @@
                     </h5>
                     <div class="card-header-actions">
                         <button class="btn btn-ghost btn-sm" 
-                                hx-get="{{ url_for('api.dashboard_system_health') }}"
+                                hx-get="{{ url_for('api.stats_system_health') }}"
                                 hx-target="#system-health-panel"
                                 hx-swap="innerHTML">
                             <i class="fas fa-sync"></i>
@@ -453,7 +453,7 @@
             </div>
             <div class="card-body">
                 <div id="system-health-panel" 
-                     hx-get="{{ url_for('api.dashboard_system_health') }}" 
+                     hx-get="{{ url_for('api.stats_system_health') }}" 
                      hx-trigger="load, every 45s"
                      hx-swap="innerHTML"
                      class="htmx-loading-container">

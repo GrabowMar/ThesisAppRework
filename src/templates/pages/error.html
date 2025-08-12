@@ -531,10 +531,10 @@ window.downloadErrorReport = function() {
         user_agent: {{ request.headers.get('User-Agent') | tojson if request and request.headers else 'null' }},
         traceback: {{ (traceback or '') | tojson }},
         system_info: {
-            python_version: {{ python_version | tojson }},
-            flask_version: {{ flask_version | tojson }},
-            debug_mode: {{ debug_mode | tojson }},
-            environment: {{ environment | tojson }}
+            python_version: {{ (python_version or 'N/A') | tojson }},
+            flask_version: {{ (flask_version or 'N/A') | tojson }},
+            debug_mode: {{ (debug_mode or false) | tojson }},
+            environment: {{ (environment or 'N/A') | tojson }}
         }
     };
     
@@ -555,9 +555,9 @@ window.downloadErrorReport = function() {
 window.openConsole = function() {
     // Open browser console
     console.log('Error Debug Information:', {
-        error_code: {{ error_code | tojson }},
-        error_message: {{ error | tojson }},
-        timestamp: {{ timestamp | tojson }},
+        error_code: {{ (error_code or 'N/A') | tojson }},
+        error_message: {{ (error or 'N/A') | tojson }},
+        timestamp: {{ (timestamp or 'N/A') | tojson }},
         request_url: {{ request.url | tojson if request else 'null' }}
     });
     
