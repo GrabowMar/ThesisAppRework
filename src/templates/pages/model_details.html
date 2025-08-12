@@ -71,29 +71,29 @@
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" id="modelTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" 
-                        data-bs-target="#overview" type="button" role="tab">
+                <a class="nav-link active" id="overview-tab" data-toggle="tab" 
+                   href="#overview" role="tab" aria-controls="overview" aria-selected="true">
                     <i class="fas fa-info-circle"></i> Overview
-                </button>
+                </a>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="capabilities-tab" data-bs-toggle="tab" 
-                        data-bs-target="#capabilities" type="button" role="tab">
+                <a class="nav-link" id="capabilities-tab" data-toggle="tab" 
+                   href="#capabilities" role="tab" aria-controls="capabilities" aria-selected="false">
                     <i class="fas fa-cogs"></i> Capabilities
-                </button>
+                </a>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="pricing-tab" data-bs-toggle="tab" 
-                        data-bs-target="#pricing" type="button" role="tab">
+                <a class="nav-link" id="pricing-tab" data-toggle="tab" 
+                   href="#pricing" role="tab" aria-controls="pricing" aria-selected="false">
                     <i class="fas fa-dollar-sign"></i> Pricing
-                </button>
+                </a>
             </li>
             {% if model.openrouter_description %}
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="openrouter-tab" data-bs-toggle="tab" 
-                        data-bs-target="#openrouter" type="button" role="tab">
+                <a class="nav-link" id="openrouter-tab" data-toggle="tab" 
+                   href="#openrouter" role="tab" aria-controls="openrouter" aria-selected="false">
                     <i class="fas fa-cloud"></i> OpenRouter Data
-                </button>
+                </a>
             </li>
             {% endif %}
         </ul>
@@ -394,6 +394,24 @@ function getProviderColor(provider) {
     };
     return colors[provider] || '#6B7280';
 }
+
+$(document).ready(function() {
+    // Initialize Bootstrap tabs
+    $('#modelTabs a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+        console.log('Tab switched to:', e.target);
+    });
+    
+    // Handle direct tab links
+    if (window.location.hash) {
+        var hash = window.location.hash;
+        $('#modelTabs a[href="' + hash + '"]').tab('show');
+    }
+    
+    // Update URL hash on tab change
+    $('#modelTabs a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+        history.pushState(null, null, e.target.hash);
+    });
+});
 </script>
 
 <style>

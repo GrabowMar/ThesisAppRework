@@ -446,3 +446,156 @@ def api_application_logs(app_id):
     except Exception as e:
         logger.error(f"Error loading application logs: {e}")
         return f'<div class="alert alert-danger">Error loading logs: {str(e)}</div>', 500
+
+
+# =================================================================
+# MODEL-BASED APPLICATION ACTIONS (for frontend compatibility)
+# =================================================================
+
+@api_bp.route('/app/<model_slug>/<int:app_num>/start', methods=['POST'])
+def start_app_by_model(model_slug, app_num):
+    """Start application by model slug and app number."""
+    try:
+        app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug, 
+            app_number=app_num
+        ).first()
+        
+        if not app:
+            return jsonify({
+                'success': False, 
+                'message': f'Application {model_slug}/{app_num} not found'
+            }), 404
+        
+        # Mock container start - in production this would use Docker API
+        app.container_status = 'running'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Started {model_slug} app {app_num}',
+            'new_status': 'running'
+        })
+    except Exception as e:
+        logger.error(f"Error starting app {model_slug}/{app_num}: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/app/<model_slug>/<int:app_num>/stop', methods=['POST'])
+def stop_app_by_model(model_slug, app_num):
+    """Stop application by model slug and app number."""
+    try:
+        app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug, 
+            app_number=app_num
+        ).first()
+        
+        if not app:
+            return jsonify({
+                'success': False, 
+                'message': f'Application {model_slug}/{app_num} not found'
+            }), 404
+        
+        # Mock container stop - in production this would use Docker API
+        app.container_status = 'stopped'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Stopped {model_slug} app {app_num}',
+            'new_status': 'stopped'
+        })
+    except Exception as e:
+        logger.error(f"Error stopping app {model_slug}/{app_num}: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/app/<model_slug>/<int:app_num>/restart', methods=['POST'])
+def restart_app_by_model(model_slug, app_num):
+    """Restart application by model slug and app number."""
+    try:
+        app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug, 
+            app_number=app_num
+        ).first()
+        
+        if not app:
+            return jsonify({
+                'success': False, 
+                'message': f'Application {model_slug}/{app_num} not found'
+            }), 404
+        
+        # Mock container restart - in production this would use Docker API
+        app.container_status = 'running'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Restarted {model_slug} app {app_num}',
+            'new_status': 'running'
+        })
+    except Exception as e:
+        logger.error(f"Error restarting app {model_slug}/{app_num}: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/model/<model_slug>/containers/start', methods=['POST'])
+def start_model_containers(model_slug):
+    """Start all containers for a model."""
+    try:
+        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+        
+        if not apps:
+            return jsonify({
+                'success': False,
+                'message': f'No applications found for model {model_slug}'
+            }), 404
+        
+        # Mock starting all containers
+        started_count = 0
+        for app in apps:
+            if app.container_status != 'running':
+                app.container_status = 'running'
+                started_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Started {started_count} containers for {model_slug}',
+            'started_count': started_count
+        })
+    except Exception as e:
+        logger.error(f"Error starting containers for model {model_slug}: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/model/<model_slug>/containers/stop', methods=['POST'])
+def stop_model_containers(model_slug):
+    """Stop all containers for a model."""
+    try:
+        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+        
+        if not apps:
+            return jsonify({
+                'success': False,
+                'message': f'No applications found for model {model_slug}'
+            }), 404
+        
+        # Mock stopping all containers
+        stopped_count = 0
+        for app in apps:
+            if app.container_status == 'running':
+                app.container_status = 'stopped'
+                stopped_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Stopped {stopped_count} containers for {model_slug}',
+            'stopped_count': stopped_count
+        })
+    except Exception as e:
+        logger.error(f"Error stopping containers for model {model_slug}: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
