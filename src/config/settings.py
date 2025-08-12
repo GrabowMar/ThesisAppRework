@@ -276,17 +276,17 @@ class DevelopmentConfig(Config):
     DEBUG = True
     TESTING = False
     
-    # Development-specific Redis fallback
-    # Try Redis first, fall back to memory broker if Redis unavailable
-    CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'memory://')
-    CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'cache+memory://')
+    # Use existing analyzer Redis container
+    # Redis is running in analyzer-redis-1 container on localhost:6379
+    CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
     
-    # Use eager execution for Celery in development when Redis is not available
-    CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_ALWAYS_EAGER', 'True').lower() == 'true'
+    # Disable eager execution to use actual Redis
+    CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_ALWAYS_EAGER', 'False').lower() == 'true'
     
     # Additional development settings
     CELERY_TASK_EAGER_PROPAGATES = True
-    CELERY_CACHE_BACKEND = 'memory'
+    CELERY_CACHE_BACKEND = 'redis'
     
     # Development logging
     LOG_LEVEL = 'DEBUG'
