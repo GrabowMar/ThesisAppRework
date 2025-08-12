@@ -4,6 +4,12 @@
 
 {% block head %}
 <style>
+    .border-left-primary { border-left: 0.25rem solid #007bff!important; }
+    .border-left-success { border-left: 0.25rem solid #28a745!important; }
+    .border-left-warning { border-left: 0.25rem solid #ffc107!important; }
+    .border-left-danger { border-left: 0.25rem solid #dc3545!important; }
+    .border-left-info { border-left: 0.25rem solid #17a2b8!important; }
+    
     .tool-config-section {
         border: 1px solid #dee2e6;
         border-radius: 8px;
@@ -23,7 +29,7 @@
     }
     
     .tool-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #007bff 0%, #6f42c1 100%);
         color: white;
         padding: 1rem;
         margin: -1px -1px 0 -1px;
@@ -33,7 +39,7 @@
     }
     
     .tool-header:hover {
-        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+        background: linear-gradient(135deg, #0056b3 0%, #5a2d91 100%);
     }
     
     .tool-body {
@@ -52,6 +58,20 @@
         margin-top: 1rem;
     }
     
+    .config-card {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    .tool-description {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+        line-height: 1.5;
+    }
+    
     .severity-badge {
         display: inline-block;
         padding: 0.25rem 0.5rem;
@@ -65,38 +85,50 @@
     .severity-medium { background-color: #ffc107; color: black; }
     .severity-low { background-color: #28a745; color: white; }
     
-    .analysis-summary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 10px;
-        padding: 2rem;
-        margin-bottom: 2rem;
-    }
-    
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
+    .progress-container {
+        display: none;
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1.5rem;
         margin-top: 1rem;
     }
     
-    .stat-card {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        padding: 1rem;
-        text-align: center;
-        backdrop-filter: blur(10px);
+    .progress-container.active {
+        display: block;
     }
     
-    .stat-number {
-        font-size: 2rem;
-        font-weight: bold;
+    .tool-progress {
+        margin-bottom: 1rem;
+    }
+    
+    .tool-progress .progress {
+        height: 25px;
+        border-radius: 12px;
+    }
+    
+    .tool-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
         margin-bottom: 0.5rem;
     }
     
-    .stat-label {
-        font-size: 0.9rem;
-        opacity: 0.9;
+    .status-icon {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+    }
+    
+    .status-pending { background-color: #ffc107; }
+    .status-running { background-color: #007bff; animation: pulse 2s infinite; }
+    .status-completed { background-color: #28a745; }
+    .status-failed { background-color: #dc3545; }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
     }
     
     .advanced-options {
@@ -111,22 +143,13 @@
         font-size: 0.9rem;
     }
     
-    .tool-description {
-        font-style: italic;
-        color: #6c757d;
-        margin-bottom: 1rem;
-        padding: 0.75rem;
-        background-color: #f8f9fa;
-        border-left: 4px solid #007bff;
-        border-radius: 0 4px 4px 0;
-    }
-    
     .progress-container {
-        background-color: #f8f9fa;
+        display: none;
+        background: #fff;
+        border: 1px solid #dee2e6;
         border-radius: 8px;
         padding: 1.5rem;
-        margin: 1rem 0;
-        display: none;
+        margin-top: 1rem;
     }
     
     .progress-container.active {
@@ -169,59 +192,162 @@
 {% endblock %}
 
 {% block content %}
-<!-- Security Testing Header -->
-<div class="analysis-summary">
-    <div class="row align-items-center">
-        <div class="col-md-8">
-            <h1 class="mb-0">
-                <i class="fas fa-shield-alt me-3"></i>
-                Security Testing & Analysis
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-shield-alt text-primary mr-2"></i>
+                Security Testing Center
             </h1>
-            <p class="mb-0 mt-2">Comprehensive security analysis for AI-generated applications using industry-standard tools</p>
+            <p class="text-muted mb-0">
+                Comprehensive security analysis for AI-generated applications using industry-standard tools
+            </p>
         </div>
-        <div class="col-md-4 text-end">
-            <button class="btn btn-light btn-lg" onclick="startQuickScan()">
-                <i class="fas fa-play me-2"></i>Quick Scan
+        <div>
+            <button type="button" class="btn btn-primary" onclick="startQuickScan()">
+                <i class="fas fa-play mr-2"></i>
+                Quick Security Scan
             </button>
         </div>
     </div>
-</div>
 
-<!-- Statistics Overview -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card bg-primary text-white">
-            <div class="card-body text-center">
-                <h3 class="card-title">{{ security_analyses|length if security_analyses else 0 }}</h3>
-                <p class="card-text">Total Analyses</p>
+    <!-- Statistics Overview -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-0">{{ security_analyses|length if security_analyses else 0 }}</h4>
+                            <p class="mb-0">Total Analyses</p>
+                            <small>All security tests</small>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-list-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-0">{{ (security_analyses|selectattr('status', 'equalto', 'completed')|list|length) if security_analyses else 0 }}</h4>
+                            <p class="mb-0">Completed</p>
+                            <small>Successfully finished</small>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-0">{{ (security_analyses|selectattr('status', 'equalto', 'running')|list|length) if security_analyses else 0 }}</h4>
+                            <p class="mb-0">Running</p>
+                            <small>Currently active</small>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-spinner fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-0">{{ (security_analyses|map(attribute='total_issues')|sum) if security_analyses else 0 }}</h4>
+                            <p class="mb-0">Total Issues</p>
+                            <small>Vulnerabilities found</small>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-bug fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
-            <div class="card-body text-center">
-                <h3 class="card-title">{{ (security_analyses|selectattr('status', 'equalto', 'completed')|list|length) if security_analyses else 0 }}</h3>
-                <p class="card-text">Completed</p>
+
+    <!-- Security Tools Overview -->
+    <div class="row mb-4">
+        <div class="col-lg-4 mb-3">
+            <div class="card border-left-primary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fab fa-python fa-2x text-primary"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Python Security</h5>
+                            <p class="card-text small text-muted">
+                                Bandit & Safety for Python vulnerability detection
+                            </p>
+                            <button class="btn btn-outline-primary btn-sm" onclick="startPythonScan()">
+                                <i class="fas fa-play mr-1"></i>
+                                Start Python Scan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 mb-3">
+            <div class="card border-left-warning">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fab fa-js-square fa-2x text-warning"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">JavaScript Security</h5>
+                            <p class="card-text small text-muted">
+                                ESLint security rules & npm audit for dependencies
+                            </p>
+                            <button class="btn btn-outline-warning btn-sm" onclick="startJavaScriptScan()">
+                                <i class="fas fa-play mr-1"></i>
+                                Start JS Scan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 mb-3">
+            <div class="card border-left-danger">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fas fa-globe fa-2x text-danger"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Web Application</h5>
+                            <p class="card-text small text-muted">
+                                OWASP ZAP for comprehensive web security testing
+                            </p>
+                            <button class="btn btn-outline-danger btn-sm" onclick="startWebAppScan()">
+                                <i class="fas fa-play mr-1"></i>
+                                Start Web Scan
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-warning text-white">
-            <div class="card-body text-center">
-                <h3 class="card-title">{{ (security_analyses|selectattr('status', 'equalto', 'running')|list|length) if security_analyses else 0 }}</h3>
-                <p class="card-text">Running</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body text-center">
-                <h3 class="card-title">{{ (security_analyses|map(attribute='total_issues')|sum) if security_analyses else 0 }}</h3>
-                <p class="card-text">Total Issues</p>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Main Content Tabs -->
 <ul class="nav nav-tabs mb-4" id="securityTabs" role="tablist">
@@ -1459,4 +1585,5 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
 {% endblock %}

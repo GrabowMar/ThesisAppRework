@@ -11,6 +11,8 @@ Models include:
 - SecurityAnalysis: Security analysis results
 - PerformanceTest: Performance testing results
 - BatchAnalysis: Batch processing records
+- AnalysisConfig: Analyzer configuration settings
+- ConfigPreset: Predefined configuration presets
 """
 
 import json
@@ -19,6 +21,10 @@ from typing import Dict, Any, List
 
 # Import centralized constants and enums
 from ..constants import AnalysisStatus, JobStatus, ContainerState
+from ..extensions import db
+
+# Import analysis configuration models
+from .analysis import AnalysisConfig, ConfigPreset
 from ..extensions import db
 
 def utc_now() -> datetime:
@@ -1218,5 +1224,7 @@ __all__ = [
     'OpenRouterAnalysis',
     'OpenRouterModelCache',
     'ContainerizedTest',
-    'BatchAnalysis'
+    'BatchAnalysis',
+    'AnalysisConfig',
+    'ConfigPreset'
 ]
