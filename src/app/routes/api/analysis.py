@@ -609,3 +609,65 @@ def api_batch_start(batch_id):
     except Exception as e:
         logger.error(f"Error starting batch {batch_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/analysis/security/<int:analysis_id>/results')
+def api_analysis_security_results(analysis_id):
+    """API endpoint to get security analysis results."""
+    try:
+        analysis = SecurityAnalysis.query.get(analysis_id)
+        if not analysis:
+            return jsonify({'error': 'Security analysis not found'}), 404
+        
+        # Basic analysis info
+        result = {
+            'analysis_id': analysis.id,
+            'status': analysis.status.value if analysis.status else 'unknown',
+            'created_at': analysis.created_at.isoformat() if analysis.created_at else None,
+            'started_at': analysis.started_at.isoformat() if analysis.started_at else None,
+            'completed_at': analysis.completed_at.isoformat() if analysis.completed_at else None,
+            'application': {
+                'id': analysis.application.id,
+                'model_slug': analysis.application.model_slug,
+                'app_number': analysis.application.app_number
+            } if analysis.application else None,
+            'tools_enabled': {
+                'bandit': analysis.bandit_enabled,
+                'safety': analysis.safety_enabled,
+                'pylint': analysis.pylint_enabled,
+                'eslint': analysis.eslint_enabled,
+                'npm_audit': analysis.npm_audit_enabled,
+                'snyk': analysis.snyk_enabled,
+                'zap': analysis.zap_enabled,
+                'semgrep': analysis.semgrep_enabled
+            },
+            'metadata': analysis.get_metadata() if hasattr(analysis, 'get_metadata') else {},
+            'results': {}
+        }
+        
+        # Include detailed results if available
+        if hasattr(analysis, 'results_json') and analysis.results_json:
+            try:
+                import json
+                result['results'] = json.loads(analysis.results_json)
+            except json.JSONDecodeError:
+                result['results'] = {'error': 'Results data is corrupted'}
+        
+        # Include individual tool results if they exist
+        if hasattr(analysis, 'bandit_results') and analysis.bandit_results:
+            try:
+                result['results']['bandit'] = json.loads(analysis.bandit_results)
+            except json.JSONDecodeError:
+                result['results']['bandit'] = {'error': 'Bandit results corrupted'}
+                
+        if hasattr(analysis, 'safety_results') and analysis.safety_results:
+            try:
+                result['results']['safety'] = json.loads(analysis.safety_results)
+            except json.JSONDecodeError:
+                result['results']['safety'] = {'error': 'Safety results corrupted'}
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error getting security analysis results for {analysis_id}: {e}")
+        return jsonify({'error': str(e)}), 500

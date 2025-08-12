@@ -57,6 +57,10 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 50
 CELERY_WORKER_DISABLE_RATE_LIMITS = False
 
+# Windows-specific configuration to fix permission errors
+CELERY_WORKER_POOL = 'solo'  # Use solo pool on Windows to avoid multiprocessing issues
+CELERY_WORKER_CONCURRENCY = 1  # Single worker process
+
 # Task execution configuration
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 3600  # 1 hour max per task

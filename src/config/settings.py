@@ -59,6 +59,15 @@ class Config:
         'fanout_patterns': True
     }
     
+    # Windows-specific Celery configuration
+    CELERY_WORKER_POOL = 'solo'  # Use solo pool on Windows to avoid permission errors
+    CELERY_WORKER_CONCURRENCY = 1  # Single worker process
+    CELERY_TASK_SERIALIZER = 'json'
+    CELERY_RESULT_SERIALIZER = 'json'
+    CELERY_ACCEPT_CONTENT = ['json']
+    CELERY_TIMEZONE = 'UTC'
+    CELERY_ENABLE_UTC = True
+    
     # Security Analysis Tool Configurations
     SECURITY_ANALYZER_CONFIG = {
         'bandit': {
