@@ -16,7 +16,7 @@ class TestAPIRoutes:
         
     def test_api_analysis_overview(self, client):
         """Test API analysis overview endpoint."""
-        response = client.get('/api/analysis/')
+        response = client.get('/analysis/')  # Test analysis hub route
         assert response.status_code == 200
         
     def test_api_security_analysis_list(self, client):

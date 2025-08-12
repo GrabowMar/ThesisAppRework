@@ -317,6 +317,13 @@ def application_detail(model_slug, app_number):
         
         # Get analysis history if app exists in DB
         analyses = {}
+        stats = {
+            'total_security_analyses': 0,
+            'total_performance_tests': 0,
+            'total_zap_analyses': 0,
+            'total_openrouter_analyses': 0
+        }
+        
         if app:
             analyses = {
                 'security': SecurityAnalysis.query.filter_by(application_id=app.id).order_by(SecurityAnalysis.created_at.desc()).all(),
@@ -324,12 +331,21 @@ def application_detail(model_slug, app_number):
                 'zap': ZAPAnalysis.query.filter_by(application_id=app.id).order_by(ZAPAnalysis.created_at.desc()).all(),
                 'openrouter': OpenRouterAnalysis.query.filter_by(application_id=app.id).order_by(OpenRouterAnalysis.created_at.desc()).all()
             }
+            
+            # Calculate statistics
+            stats = {
+                'total_security_analyses': len(analyses['security']),
+                'total_performance_tests': len(analyses['performance']),
+                'total_zap_analyses': len(analyses['zap']),
+                'total_openrouter_analyses': len(analyses['openrouter'])
+            }
         
         context = {
             'model': model,
             'app': app_data,
             'files_info': files_info,
-            'analyses': analyses
+            'analyses': analyses,
+            'stats': stats
         }
         
         return render_template('pages/application_detail.html', **context)
