@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 # Create blueprint
 stats_bp = Blueprint('statistics', __name__, url_prefix='/statistics')
 
-
 @stats_bp.route('/')
 def statistics_overview():
     """Main statistics dashboard."""
@@ -134,120 +133,6 @@ def statistics_overview():
         logger.error(f"Error loading statistics overview: {e}")
         return render_template('pages/error.html', error=str(e))
 
-
-@stats_bp.route('/api/models/distribution')
-def api_models_distribution():
-    """API endpoint for model distribution statistics."""
-    try:
-        # Provider distribution
-        provider_dist = db.session.query(
-            ModelCapability.provider,
-            func.count(ModelCapability.id).label('count')
-        ).group_by(ModelCapability.provider).all()
-        
-        # Capability distribution
-        capability_stats = {
-            'function_calling': db.session.query(ModelCapability).filter(
-                ModelCapability.supports_function_calling
-            ).count(),
-            'vision': db.session.query(ModelCapability).filter(
-                ModelCapability.supports_vision
-            ).count(),
-            'streaming': db.session.query(ModelCapability).filter(
-                ModelCapability.supports_streaming
-            ).count(),
-            'json_mode': db.session.query(ModelCapability).filter(
-                ModelCapability.supports_json_mode
-            ).count()
-        }
-        
-        # Cost distribution
-        cost_ranges = {
-            'free': db.session.query(ModelCapability).filter(
-                ModelCapability.is_free
-            ).count(),
-            'low_cost': db.session.query(ModelCapability).filter(
-                ModelCapability.input_price_per_token <= 0.001
-            ).count(),
-            'medium_cost': db.session.query(ModelCapability).filter(
-                ModelCapability.input_price_per_token.between(0.001, 0.01)
-            ).count(),
-            'high_cost': db.session.query(ModelCapability).filter(
-                ModelCapability.input_price_per_token > 0.01
-            ).count()
-        }
-        
-        return jsonify({
-            'provider_distribution': dict(provider_dist),
-            'capability_distribution': capability_stats,
-            'cost_distribution': cost_ranges
-        })
-    
-    except Exception as e:
-        logger.error(f"Error getting model distribution: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@stats_bp.route('/api/generation/trends')
-def api_generation_trends():
-    """API endpoint for generation trend statistics with external data."""
-    try:
-        days = int(request.args.get('days', 30))
-        start_date = datetime.utcnow() - timedelta(days=days)
-        
-        # Get database data
-        daily_counts = db.session.query(
-            func.date(GeneratedApplication.created_at).label('date'),
-            func.count(GeneratedApplication.id).label('count')
-        ).filter(
-            GeneratedApplication.created_at >= start_date
-        ).group_by(
-            func.date(GeneratedApplication.created_at)
-        ).order_by('date').all()
-        
-        daily_analyses = db.session.query(
-            func.date(SecurityAnalysis.created_at).label('date'),
-            func.count(SecurityAnalysis.id).label('security_count')
-        ).filter(
-            SecurityAnalysis.created_at >= start_date
-        ).group_by(
-            func.date(SecurityAnalysis.created_at)
-        ).order_by('date').all()
-        
-        # Load external data from misc folder
-        external_data = _load_external_generation_data()
-        
-        # Combine database data
-        trend_data = {}
-        for date, count in daily_counts:
-            trend_data[str(date)] = {'generations': count, 'analyses': 0}
-        
-        for date, count in daily_analyses:
-            if str(date) in trend_data:
-                trend_data[str(date)]['analyses'] = count
-            else:
-                trend_data[str(date)] = {'generations': 0, 'analyses': count}
-        
-        # If no recent data, provide sample data based on external files
-        if not trend_data and external_data:
-            # Generate sample daily data for the requested period
-            for i in range(days):
-                sample_date = (datetime.utcnow() - timedelta(days=days-i)).date()
-                sample_generations = max(0, int(external_data.get('total_apps', 750) / days) + 
-                                      (i % 7) * 2 - 1)  # Vary by day
-                sample_analyses = max(0, sample_generations // 3 + (i % 5))
-                trend_data[str(sample_date)] = {
-                    'generations': sample_generations,
-                    'analyses': sample_analyses
-                }
-        
-        return jsonify(trend_data)
-    
-    except Exception as e:
-        logger.error(f"Error getting generation trends: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
 def _load_external_generation_data() -> Dict[str, Any]:
     """Load generation data from misc folder files."""
     try:
@@ -299,209 +184,6 @@ def _load_external_generation_data() -> Dict[str, Any]:
         logger.error(f"Error loading external generation data: {e}")
         return {}
 
-
-@stats_bp.route('/api/external/statistics')
-def api_external_statistics():
-    """API endpoint for external generation statistics from misc folder."""
-    try:
-        import json
-        from pathlib import Path
-        
-        project_root = Path(__file__).parent.parent.parent.parent
-        misc_path = project_root / "misc"
-        
-        result = {
-            'models_summary': {},
-            'generation_stats': {},
-            'filesystem_stats': {},
-            'conversation_stats': {}
-        }
-        
-        # Load models summary
-        models_summary_path = misc_path / "models_summary.json"
-        if models_summary_path.exists():
-            with open(models_summary_path, 'r') as f:
-                summary_data = json.load(f)
-                result['models_summary'] = {
-                    'total_models': summary_data.get('total_models', 0),
-                    'apps_per_model': summary_data.get('apps_per_model', 0),
-                    'extraction_timestamp': summary_data.get('extraction_timestamp', ''),
-                    'providers': list(set(model.get('provider', 'unknown') 
-                                        for model in summary_data.get('models', [])))
-                }
-        
-        # Count filesystem stats
-        models_path = misc_path / "models"
-        if models_path.exists():
-            actual_models = 0
-            actual_apps = 0
-            provider_breakdown = {}
-            
-            for model_dir in models_path.iterdir():
-                if model_dir.is_dir() and not model_dir.name.startswith('_'):
-                    actual_models += 1
-                    provider = model_dir.name.split('_')[0] if '_' in model_dir.name else 'unknown'
-                    provider_breakdown[provider] = provider_breakdown.get(provider, 0) + 1
-                    
-                    # Count apps in this model
-                    model_apps = 0
-                    for app_dir in model_dir.iterdir():
-                        if app_dir.is_dir() and app_dir.name.startswith('app'):
-                            model_apps += 1
-                            actual_apps += 1
-                    
-            result['filesystem_stats'] = {
-                'actual_models': actual_models,
-                'actual_apps': actual_apps,
-                'avg_apps_per_model': round(actual_apps / actual_models, 2) if actual_models > 0 else 0,
-                'provider_breakdown': provider_breakdown
-            }
-        
-        # Conversation files stats
-        conversations_path = misc_path / "generated_conversations"
-        if conversations_path.exists():
-            conversation_files = list(conversations_path.glob("*.json"))
-            result['conversation_stats'] = {
-                'total_conversation_files': len(conversation_files),
-                'conversation_folders': len([d for d in conversations_path.iterdir() if d.is_dir()])
-            }
-        
-        # Calculate generation efficiency
-        if result['models_summary'] and result['filesystem_stats']:
-            expected_apps = (result['models_summary'].get('total_models', 0) * 
-                           result['models_summary'].get('apps_per_model', 0))
-            actual_apps = result['filesystem_stats'].get('actual_apps', 0)
-            
-            result['generation_stats'] = {
-                'expected_total_apps': expected_apps,
-                'actual_total_apps': actual_apps,
-                'completion_rate': round((actual_apps / expected_apps) * 100, 2) if expected_apps > 0 else 0,
-                'missing_apps': max(0, expected_apps - actual_apps)
-            }
-        
-        return jsonify(result)
-    
-    except Exception as e:
-        logger.error(f"Error getting external statistics: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@stats_bp.route('/api/analysis/summary')
-def api_analysis_summary():
-    """API endpoint for analysis summary statistics."""
-    try:
-        # Security analysis summary
-        security_summary = db.session.query(
-            func.avg(SecurityAnalysis.total_issues).label('avg_issues'),
-            func.sum(SecurityAnalysis.critical_severity_count).label('total_critical'),
-            func.sum(SecurityAnalysis.high_severity_count).label('total_high'),
-            func.sum(SecurityAnalysis.medium_severity_count).label('total_medium'),
-            func.sum(SecurityAnalysis.low_severity_count).label('total_low')
-        ).filter(
-            SecurityAnalysis.status == AnalysisStatus.COMPLETED
-        ).first()
-        
-        # Performance test summary
-        performance_summary = db.session.query(
-            func.avg(PerformanceTest.requests_per_second).label('avg_rps'),
-            func.avg(PerformanceTest.average_response_time).label('avg_response_time'),
-            func.avg(PerformanceTest.error_rate).label('avg_error_rate')
-        ).filter(
-            PerformanceTest.status == AnalysisStatus.COMPLETED
-        ).first()
-        
-        # ZAP analysis summary
-        zap_summary = db.session.query(
-            func.avg(ZAPAnalysis.high_risk_alerts).label('avg_high_risk'),
-            func.avg(ZAPAnalysis.medium_risk_alerts).label('avg_medium_risk'),
-            func.avg(ZAPAnalysis.low_risk_alerts).label('avg_low_risk')
-        ).filter(
-            ZAPAnalysis.status == AnalysisStatus.COMPLETED
-        ).first()
-        
-        # AI analysis summary
-        ai_summary = db.session.query(
-            func.avg(OpenRouterAnalysis.overall_score).label('avg_overall_score'),
-            func.avg(OpenRouterAnalysis.security_score).label('avg_security_score'),
-            func.avg(OpenRouterAnalysis.code_quality_score).label('avg_quality_score'),
-            func.sum(OpenRouterAnalysis.cost_usd).label('total_cost')
-        ).filter(
-            OpenRouterAnalysis.status == AnalysisStatus.COMPLETED
-        ).first()
-        
-        return jsonify({
-            'security': {
-                'avg_issues': float(getattr(security_summary, 'avg_issues', 0) or 0),
-                'total_critical': int(getattr(security_summary, 'total_critical', 0) or 0),
-                'total_high': int(getattr(security_summary, 'total_high', 0) or 0),
-                'total_medium': int(getattr(security_summary, 'total_medium', 0) or 0),
-                'total_low': int(getattr(security_summary, 'total_low', 0) or 0)
-            },
-            'performance': {
-                'avg_rps': float(getattr(performance_summary, 'avg_rps', 0) or 0),
-                'avg_response_time': float(getattr(performance_summary, 'avg_response_time', 0) or 0),
-                'avg_error_rate': float(getattr(performance_summary, 'avg_error_rate', 0) or 0)
-            },
-            'zap': {
-                'avg_high_risk': float(getattr(zap_summary, 'avg_high_risk', 0) or 0),
-                'avg_medium_risk': float(getattr(zap_summary, 'avg_medium_risk', 0) or 0),
-                'avg_low_risk': float(getattr(zap_summary, 'avg_low_risk', 0) or 0)
-            },
-            'ai_analysis': {
-                'avg_overall_score': float(getattr(ai_summary, 'avg_overall_score', 0) or 0),
-                'avg_security_score': float(getattr(ai_summary, 'avg_security_score', 0) or 0),
-                'avg_quality_score': float(getattr(ai_summary, 'avg_quality_score', 0) or 0),
-                'total_cost': float(getattr(ai_summary, 'total_cost', 0) or 0)
-            }
-        })
-    
-    except Exception as e:
-        logger.error(f"Error getting analysis summary: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@stats_bp.route('/api/export')
-def api_export_statistics():
-    """API endpoint to export statistics data."""
-    try:
-        format_type = request.args.get('format', 'json')
-        time_range = request.args.get('time_range', '30d')
-        
-        # Calculate date range
-        if time_range == '7d':
-            start_date = datetime.utcnow() - timedelta(days=7)
-        elif time_range == '30d':
-            start_date = datetime.utcnow() - timedelta(days=30)
-        elif time_range == '90d':
-            start_date = datetime.utcnow() - timedelta(days=90)
-        else:
-            start_date = datetime.utcnow() - timedelta(days=30)
-        
-        # Gather export data
-        export_data = {
-            'metadata': {
-                'exported_at': datetime.utcnow().isoformat(),
-                'time_range': time_range,
-                'start_date': start_date.isoformat()
-            },
-            'models': _get_model_export_data(),
-            'applications': _get_application_export_data(start_date),
-            'analyses': _get_analysis_export_data(start_date),
-            'batches': _get_batch_export_data(start_date)
-        }
-        
-        if format_type == 'xlsx':
-            # For now, return JSON even for XLSX requests
-            # TODO: Implement actual XLSX export
-            return jsonify(export_data)
-        else:
-            return jsonify(export_data)
-    
-    except Exception as e:
-        logger.error(f"Error exporting statistics: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
 def _calculate_success_rate() -> float:
     """Calculate overall generation success rate."""
     try:
@@ -517,7 +199,6 @@ def _calculate_success_rate() -> float:
     except Exception:
         return 0.0
 
-
 def _calculate_avg_generation_time() -> str:
     """Calculate average generation time."""
     try:
@@ -525,7 +206,6 @@ def _calculate_avg_generation_time() -> str:
         return "2.5m"
     except Exception:
         return "N/A"
-
 
 def _count_successful_generations() -> int:
     """Count successful generations."""
@@ -535,7 +215,6 @@ def _count_successful_generations() -> int:
         ).count()
     except Exception:
         return 0
-
 
 def _get_batch_statistics() -> Dict[str, Any]:
     """Get batch job statistics."""
@@ -556,7 +235,6 @@ def _get_batch_statistics() -> Dict[str, Any]:
         }
     except Exception:
         return {'total_batches': 0, 'completed_batches': 0, 'failed_batches': 0, 'success_rate': 0}
-
 
 def _get_top_performing_models() -> List[Dict[str, Any]]:
     """Get top performing models by generation count."""
@@ -581,7 +259,6 @@ def _get_top_performing_models() -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error getting top models: {e}")
         return []
-
 
 def _get_daily_statistics(start_date: datetime) -> List[Dict[str, Any]]:
     """Get daily statistics for charts."""
@@ -617,7 +294,6 @@ def _get_daily_statistics(start_date: datetime) -> List[Dict[str, Any]]:
         logger.error(f"Error getting daily statistics: {e}")
         return []
 
-
 def _get_error_analysis() -> Dict[str, Any]:
     """Get error analysis data."""
     try:
@@ -645,7 +321,6 @@ def _get_error_analysis() -> Dict[str, Any]:
         logger.error(f"Error getting error analysis: {e}")
         return {'failed_generations': 0, 'failed_security_analyses': 0, 'failed_performance_tests': 0, 'total_failures': 0}
 
-
 def _get_model_export_data() -> List[Dict[str, Any]]:
     """Get model data for export."""
     try:
@@ -653,7 +328,6 @@ def _get_model_export_data() -> List[Dict[str, Any]]:
         return [model.to_dict() for model in models]
     except Exception:
         return []
-
 
 def _get_application_export_data(start_date: datetime) -> List[Dict[str, Any]]:
     """Get application data for export."""
@@ -664,7 +338,6 @@ def _get_application_export_data(start_date: datetime) -> List[Dict[str, Any]]:
         return [app.to_dict() for app in apps]
     except Exception:
         return []
-
 
 def _get_analysis_export_data(start_date: datetime) -> Dict[str, List[Dict[str, Any]]]:
     """Get analysis data for export."""
@@ -684,7 +357,6 @@ def _get_analysis_export_data(start_date: datetime) -> Dict[str, List[Dict[str, 
     except Exception:
         return {'security': [], 'performance': []}
 
-
 def _get_batch_export_data(start_date: datetime) -> List[Dict[str, Any]]:
     """Get batch job data for export."""
     try:
@@ -694,7 +366,6 @@ def _get_batch_export_data(start_date: datetime) -> List[Dict[str, Any]]:
         return [batch.to_dict() for batch in batches]
     except Exception:
         return []
-
 
 def _get_comprehensive_model_stats() -> Dict[str, Any]:
     """Get comprehensive model statistics."""
@@ -745,7 +416,6 @@ def _get_comprehensive_model_stats() -> Dict[str, Any]:
             'json_mode_models': 0, 'free_models': 0, 'avg_context_window': 0, 'max_context_window': 0
         }
 
-
 def _count_recent_generations(start_date: datetime) -> int:
     """Count generations since start_date."""
     try:
@@ -754,7 +424,6 @@ def _count_recent_generations(start_date: datetime) -> int:
         ).count()
     except Exception:
         return 0
-
 
 def _get_avg_security_issues() -> float:
     """Get average security issues per analysis."""
@@ -768,7 +437,6 @@ def _get_avg_security_issues() -> float:
     except Exception:
         return 0.0
 
-
 def _get_avg_performance_score() -> float:
     """Get average performance score."""
     try:
@@ -781,7 +449,6 @@ def _get_avg_performance_score() -> float:
     except Exception:
         return 0.0
 
-
 def _get_critical_vulnerabilities_count() -> int:
     """Get total critical vulnerabilities found."""
     try:
@@ -792,7 +459,6 @@ def _get_critical_vulnerabilities_count() -> int:
     except Exception:
         return 0
 
-
 def _get_high_performance_apps_count() -> int:
     """Get count of high-performance applications (>100 RPS)."""
     try:
@@ -801,7 +467,6 @@ def _get_high_performance_apps_count() -> int:
         ).count()
     except Exception:
         return 0
-
 
 def _get_capability_distribution() -> Dict[str, Any]:
     """Get distribution of model capabilities."""
@@ -863,7 +528,6 @@ def _get_capability_distribution() -> Dict[str, Any]:
             'json_mode_percentage': 0
         }
 
-
 def _get_cost_analysis() -> Dict[str, Any]:
     """Get cost analysis data."""
     try:
@@ -915,7 +579,6 @@ def _get_cost_analysis() -> Dict[str, Any]:
             'high_cost_models': 0, 'avg_input_cost': 0.0, 'avg_output_cost': 0.0
         }
 
-
 def _get_framework_distribution() -> Dict[str, Any]:
     """Get framework distribution from generated applications."""
     try:
@@ -942,7 +605,6 @@ def _get_framework_distribution() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error getting framework distribution: {e}")
         return {'backend_frameworks': {}, 'frontend_frameworks': {}}
-
 
 def _get_analysis_trends() -> Dict[str, Any]:
     """Get analysis trends over time."""
@@ -988,7 +650,6 @@ def _get_analysis_trends() -> Dict[str, Any]:
             'monthly_security_analyses': 0, 'monthly_performance_tests': 0
         }
 
-
 def _get_provider_distribution() -> Dict[str, int]:
     """Get distribution of providers from models."""
     try:
@@ -1013,7 +674,6 @@ def _get_provider_distribution() -> Dict[str, int]:
     except Exception as e:
         logger.error(f"Error getting provider distribution: {e}")
         return {}
-
 
 def _load_external_statistics() -> Dict[str, Any]:
     """Load statistics from external JSON files in misc folder."""

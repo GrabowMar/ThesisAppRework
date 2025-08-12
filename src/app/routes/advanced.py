@@ -313,16 +313,6 @@ def api_start_analysis():
         return jsonify({'error': 'Failed to start analysis'}), 500
 
 # API Routes for Models Overview
-@advanced.route('/api/models/stats/total')
-def api_models_stats_total():
-    """Get total number of models."""
-    try:
-        count = ModelCapability.query.count()
-        return f"<span class='counter' data-target='{count}'>{count}</span>"
-    except Exception as e:
-        logger.error(f"Error getting models count: {str(e)}")
-        return "Error"
-
 @advanced.route('/api/models/stats/active')
 def api_models_stats_active():
     """Get number of active models."""
@@ -332,16 +322,6 @@ def api_models_stats_active():
         return f"<span class='counter' data-target='{count}'>{count}</span>"
     except Exception as e:
         logger.error(f"Error getting active models count: {str(e)}")
-        return "Error"
-
-@advanced.route('/api/models/stats/providers')
-def api_models_stats_providers():
-    """Get number of unique providers."""
-    try:
-        count = db.session.query(ModelCapability.provider).distinct().count()
-        return f"<span class='counter' data-target='{count}'>{count}</span>"
-    except Exception as e:
-        logger.error(f"Error getting providers count: {str(e)}")
         return "Error"
 
 @advanced.route('/api/models/stats/performance')
@@ -479,27 +459,6 @@ def api_models_display():
         logger.error(f"Error in models display API: {str(e)}")
         return render_template('partials/common/error.html', 
                              error="Failed to load models"), 500
-
-@advanced.route('/api/models/providers')
-def api_models_providers():
-    """Get list of providers for filter dropdown."""
-    try:
-        providers = db.session.query(
-            ModelCapability.provider,
-            func.count(ModelCapability.id).label('count')
-        ).group_by(ModelCapability.provider).all()
-
-        return jsonify([
-            {
-                'value': provider.provider,
-                'label': f"{provider.provider.title()} ({provider.count})"
-            }
-            for provider in providers
-        ])
-
-    except Exception as e:
-        logger.error(f"Error getting providers: {str(e)}")
-        return jsonify([])
 
 @advanced.route('/api/models/<int:model_id>/details')
 def api_model_details(model_id):

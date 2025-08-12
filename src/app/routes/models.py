@@ -20,7 +20,7 @@ from ..services.openrouter_service import OpenRouterService
 # Set up logger
 logger = logging.getLogger(__name__)
 
-models_bp = Blueprint('models', __name__)
+models_bp = Blueprint('models', __name__, url_prefix='/models')
 
 # Initialize OpenRouter service
 openrouter_service = OpenRouterService()

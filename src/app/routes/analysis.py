@@ -15,7 +15,7 @@ from ..models import GeneratedApplication
 # Set up logger
 logger = logging.getLogger(__name__)
 
-analysis_bp = Blueprint('analysis', __name__)
+analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
 
 # Initialize services
 task_manager = TaskManager()

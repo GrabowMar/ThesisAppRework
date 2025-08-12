@@ -52,6 +52,7 @@ class TestAPIRoutes:
         app = GeneratedApplication()
         app.model_slug = 'test_model'
         app.app_number = 1
+        app.app_type = 'web_app'  # Add required field
         app.provider = 'test'
         
         clean_db.session.add(app)
@@ -68,6 +69,7 @@ class TestAPIRoutes:
         app = GeneratedApplication()
         app.model_slug = 'test_model'
         app.app_number = 1
+        app.app_type = 'web_app'  # Add required field
         app.provider = 'test'
         
         clean_db.session.add(app)
@@ -89,6 +91,7 @@ class TestAPIRoutes:
         app = GeneratedApplication()
         app.model_slug = 'test_model'
         app.app_number = 1
+        app.app_type = 'web_app'  # Add required field
         app.provider = 'test'
         
         clean_db.session.add(app)

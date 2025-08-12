@@ -84,7 +84,7 @@ def about():
     return render_template('pages/about.html')
 
 
-@main_bp.route('/testing')
+@main_bp.route('/test-platform')
 def testing():
     """Testing platform overview page."""
     try:

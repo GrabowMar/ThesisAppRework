@@ -11,7 +11,7 @@ from flask import Blueprint, render_template, request, flash
 # Set up logger
 logger = logging.getLogger(__name__)
 
-testing_bp = Blueprint('testing', __name__)
+testing_bp = Blueprint('testing', __name__, url_prefix='/testing')
 
 
 @testing_bp.route('/')

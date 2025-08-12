@@ -8,7 +8,7 @@ Modular Flask blueprints for the application.
 from .main import main_bp
 from .models import models_bp  
 from .analysis import analysis_bp
-from .api import api_bp
+from .api import api_bp, register_api_routes
 from .batch import batch_bp
 from .statistics import stats_bp
 from .advanced import advanced
@@ -34,7 +34,9 @@ def register_blueprints(app):
     app.register_blueprint(main_bp)
     app.register_blueprint(models_bp, url_prefix='/models')
     app.register_blueprint(analysis_bp, url_prefix='/analysis')
-    app.register_blueprint(api_bp, url_prefix='/api')
+    
+    # Register the modular API routes
+    register_api_routes(app)
     
     # Feature routes
     app.register_blueprint(batch_bp, url_prefix='/batch')

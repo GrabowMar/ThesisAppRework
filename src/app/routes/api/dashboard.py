@@ -1,0 +1,561 @@
+"""
+Dashboard API Routes
+====================
+
+API endpoints for dashboard data and visualizations.
+"""
+
+import logging
+from flask import jsonify, render_template
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import func, desc, text
+
+from . import api_bp
+from ...models import (
+    GeneratedApplication, SecurityAnalysis, PerformanceTest, ModelCapability,
+    BatchAnalysis, ContainerizedTest
+)
+from ...extensions import db
+from ...constants import JobStatus, ContainerState
+
+# Set up logger
+logger = logging.getLogger(__name__)
+
+
+@api_bp.route('/dashboard/overview')
+def api_dashboard_overview():
+    """API endpoint: Get dashboard overview data."""
+    try:
+        # Total counts
+        total_apps = db.session.query(func.count(GeneratedApplication.id)).scalar()
+        total_models = db.session.query(func.count(ModelCapability.id)).scalar()
+        total_security = db.session.query(func.count(SecurityAnalysis.id)).scalar()
+        total_performance = db.session.query(func.count(PerformanceTest.id)).scalar()
+        
+        # Recent activity (last 7 days)
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        recent_apps = (
+            db.session.query(func.count(GeneratedApplication.id))
+            .filter(GeneratedApplication.created_at >= week_ago)
+            .scalar()
+        )
+        
+        # Active applications
+        active_apps = (
+            db.session.query(func.count(GeneratedApplication.id))
+            .filter(GeneratedApplication.container_status == 'running')
+            .scalar()
+        )
+        
+        # Success rates
+        completed_security = (
+            db.session.query(func.count(SecurityAnalysis.id))
+            .filter(SecurityAnalysis.status == 'completed')
+            .scalar()
+        )
+        security_rate = (completed_security / total_security * 100) if total_security > 0 else 0
+        
+        completed_performance = (
+            db.session.query(func.count(PerformanceTest.id))
+            .filter(PerformanceTest.status == 'completed')
+            .scalar()
+        )
+        performance_rate = (completed_performance / total_performance * 100) if total_performance > 0 else 0
+        
+        return jsonify({
+            'totals': {
+                'applications': total_apps,
+                'models': total_models,
+                'security_analyses': total_security,
+                'performance_tests': total_performance
+            },
+            'activity': {
+                'recent_applications': recent_apps,
+                'active_applications': active_apps
+            },
+            'success_rates': {
+                'security': round(security_rate, 2),
+                'performance': round(performance_rate, 2)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard overview: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/dashboard/activity')
+def api_dashboard_activity():
+    """API endpoint: Get recent activity for dashboard."""
+    try:
+        # Last 30 days of application creation
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        
+        daily_apps = (
+            db.session.query(
+                func.date(GeneratedApplication.created_at).label('date'),
+                func.count(GeneratedApplication.id).label('count')
+            )
+            .filter(GeneratedApplication.created_at >= thirty_days_ago)
+            .group_by(func.date(GeneratedApplication.created_at))
+            .order_by('date')
+            .all()
+        )
+        
+        # Recent applications with details
+        recent_apps = (
+            GeneratedApplication.query
+            .filter(GeneratedApplication.created_at >= thirty_days_ago)
+            .order_by(desc(GeneratedApplication.created_at))
+            .limit(10)
+            .all()
+        )
+        
+        # Analysis activity
+        recent_security = (
+            SecurityAnalysis.query
+            .filter(SecurityAnalysis.created_at >= thirty_days_ago)
+            .order_by(desc(SecurityAnalysis.created_at))
+            .limit(5)
+            .all()
+        )
+        
+        recent_performance = (
+            PerformanceTest.query
+            .filter(PerformanceTest.created_at >= thirty_days_ago)
+            .order_by(desc(PerformanceTest.created_at))
+            .limit(5)
+            .all()
+        )
+        
+        return jsonify({
+            'daily_activity': [
+                {
+                    'date': str(date),
+                    'applications': count
+                }
+                for date, count in daily_apps
+            ],
+            'recent_applications': [app.to_dict() for app in recent_apps],
+            'recent_security': [analysis.to_dict() for analysis in recent_security],
+            'recent_performance': [test.to_dict() for test in recent_performance]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard activity: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/dashboard/charts')
+def api_dashboard_charts():
+    """API endpoint: Get chart data for dashboard."""
+    try:
+        # Application status distribution
+        status_data = (
+            db.session.query(
+                GeneratedApplication.generation_status,
+                func.count(GeneratedApplication.id).label('count')
+            )
+            .group_by(GeneratedApplication.generation_status)
+            .all()
+        )
+        
+        # Application type distribution
+        type_data = (
+            db.session.query(
+                GeneratedApplication.app_type,
+                func.count(GeneratedApplication.id).label('count')
+            )
+            .group_by(GeneratedApplication.app_type)
+            .all()
+        )
+        
+        # Model usage distribution
+        model_usage = (
+            db.session.query(
+                GeneratedApplication.model_slug,
+                func.count(GeneratedApplication.id).label('usage_count')
+            )
+            .group_by(GeneratedApplication.model_slug)
+            .order_by(desc('usage_count'))
+            .limit(10)
+            .all()
+        )
+        
+        # Analysis success rates over time (last 12 weeks)
+        twelve_weeks_ago = datetime.utcnow() - timedelta(weeks=12)
+        
+        weekly_security = (
+            db.session.query(
+                func.date_trunc('week', SecurityAnalysis.created_at).label('week'),
+                func.count(SecurityAnalysis.id).label('total'),
+                func.sum(func.case([(SecurityAnalysis.status == 'completed', 1)], else_=0)).label('completed')
+            )
+            .filter(SecurityAnalysis.created_at >= twelve_weeks_ago)
+            .group_by('week')
+            .order_by('week')
+            .all()
+        )
+        
+        return jsonify({
+            'status_distribution': [
+                {'status': str(status), 'count': count}
+                for status, count in status_data
+            ],
+            'type_distribution': [
+                {'type': app_type, 'count': count}
+                for app_type, count in type_data
+            ],
+            'model_usage': [
+                {'model': model, 'usage': usage}
+                for model, usage in model_usage
+            ],
+            'weekly_success_rates': [
+                {
+                    'week': str(week),
+                    'total': total,
+                    'completed': completed,
+                    'success_rate': round((completed / total * 100) if total > 0 else 0, 2)
+                }
+                for week, total, completed in weekly_security
+            ]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard charts: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/dashboard/health')
+def api_dashboard_health():
+    """API endpoint: Get system health metrics for dashboard."""
+    try:
+        # Check for failed applications in last 24 hours
+        day_ago = datetime.utcnow() - timedelta(days=1)
+        
+        failed_apps = (
+            db.session.query(func.count(GeneratedApplication.id))
+            .filter(
+                GeneratedApplication.generation_status == 'failed',
+                GeneratedApplication.updated_at >= day_ago
+            )
+            .scalar()
+        )
+        
+        # Check for stuck analyses (created more than 1 hour ago but still pending)
+        hour_ago = datetime.utcnow() - timedelta(hours=1)
+        
+        stuck_security = (
+            db.session.query(func.count(SecurityAnalysis.id))
+            .filter(
+                SecurityAnalysis.status == 'pending',
+                SecurityAnalysis.created_at <= hour_ago
+            )
+            .scalar()
+        )
+        
+        stuck_performance = (
+            db.session.query(func.count(PerformanceTest.id))
+            .filter(
+                PerformanceTest.status == 'pending',
+                PerformanceTest.created_at <= hour_ago
+            )
+            .scalar()
+        )
+        
+        # Calculate overall health score
+        health_issues = failed_apps + stuck_security + stuck_performance
+        health_score = max(0, 100 - (health_issues * 10))  # Deduct 10 points per issue
+        
+        # Determine health status
+        if health_score >= 90:
+            health_status = 'excellent'
+        elif health_score >= 70:
+            health_status = 'good'
+        elif health_score >= 50:
+            health_status = 'warning'
+        else:
+            health_status = 'critical'
+        
+        return jsonify({
+            'health_score': health_score,
+            'health_status': health_status,
+            'issues': {
+                'failed_applications': failed_apps,
+                'stuck_security_analyses': stuck_security,
+                'stuck_performance_tests': stuck_performance
+            },
+            'last_updated': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard health: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# =================================================================
+# HTMX DASHBOARD ENDPOINTS
+# =================================================================
+
+@api_bp.route('/sidebar_stats')
+def sidebar_stats():
+    """HTMX endpoint for sidebar statistics."""
+    try:
+        stats = {
+            'total_models': db.session.query(ModelCapability).count(),
+            'total_apps': db.session.query(GeneratedApplication).count(),
+            'security_tests': db.session.query(SecurityAnalysis).count(),
+            'performance_tests': db.session.query(PerformanceTest).count()
+        }
+        return render_template('partials/common/sidebar_stats.html', stats=stats)
+    except Exception as e:
+        logger.error(f"Error getting sidebar stats: {e}")
+        return render_template('partials/common/sidebar_stats.html', stats={
+            'total_models': 0, 'total_apps': 0, 'security_tests': 0, 'performance_tests': 0
+        })
+
+
+@api_bp.route('/recent_activity')
+def recent_activity():
+    """HTMX endpoint for recent activity timeline."""
+    try:
+        # Get recent activities (last 10 items)
+        recent_security = db.session.query(SecurityAnalysis).order_by(desc(SecurityAnalysis.started_at)).limit(5).all()
+        recent_performance = db.session.query(PerformanceTest).order_by(desc(PerformanceTest.started_at)).limit(5).all()
+        recent_batch = db.session.query(BatchAnalysis).order_by(desc(BatchAnalysis.created_at)).limit(5).all()
+        
+        activities = []
+        
+        # Add security activities
+        for analysis in recent_security:
+            if analysis.started_at:
+                activities.append({
+                    'type': 'security',
+                    'description': 'Security analysis completed',
+                    'timestamp': analysis.started_at,
+                    'status': analysis.status.value if analysis.status else 'unknown'
+                })
+        
+        # Add performance activities  
+        for test in recent_performance:
+            if test.started_at:
+                activities.append({
+                    'type': 'performance',
+                    'description': 'Performance test completed',
+                    'timestamp': test.started_at,
+                    'status': test.status.value if test.status else 'unknown'
+                })
+        
+        # Add batch activities
+        for batch in recent_batch:
+            if batch.created_at:
+                activities.append({
+                    'type': 'batch',
+                    'description': f'Batch analysis #{batch.id}',
+                    'timestamp': batch.created_at,
+                    'status': batch.status.value if batch.status else 'unknown'
+                })
+        
+        # Sort by timestamp
+        activities.sort(key=lambda x: x['timestamp'] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        activities = activities[:10]  # Keep only the 10 most recent
+        
+        return render_template('partials/common/activity_timeline.html', activities=activities)
+    except Exception as e:
+        logger.error(f"Error getting recent activity: {e}")
+        return render_template('partials/common/activity_timeline.html', activities=[])
+
+
+@api_bp.route('/recent_activity_detailed')
+def recent_activity_detailed():
+    """HTMX endpoint for detailed recent activity."""
+    try:
+        # Get more detailed recent activities
+        recent_activities = []
+        
+        # Security analyses
+        security_analyses = db.session.query(SecurityAnalysis).order_by(desc(SecurityAnalysis.started_at)).limit(5).all()
+        for analysis in security_analyses:
+            recent_activities.append({
+                'type': 'security',
+                'title': f'Security Analysis #{analysis.id}',
+                'status': analysis.status.value if analysis.status else 'unknown',
+                'timestamp': analysis.started_at or analysis.created_at,
+                'details': f'{analysis.total_issues} issues found' if analysis.total_issues else 'No issues'
+            })
+        
+        # Performance tests
+        performance_tests = db.session.query(PerformanceTest).order_by(desc(PerformanceTest.started_at)).limit(5).all()
+        for test in performance_tests:
+            recent_activities.append({
+                'type': 'performance',
+                'title': f'Performance Test #{test.id}',
+                'status': test.status.value if test.status else 'unknown',
+                'timestamp': test.started_at or test.created_at,
+                'details': f'{test.requests_per_second:.1f} RPS' if test.requests_per_second else 'No data'
+            })
+        
+        # Sort by timestamp
+        recent_activities.sort(key=lambda x: x['timestamp'] or datetime.min, reverse=True)
+        recent_activities = recent_activities[:10]
+        
+        return render_template('partials/recent_activity_detailed.html', activities=recent_activities)
+    except Exception as e:
+        logger.error(f"Error getting detailed recent activity: {e}")
+        return render_template('partials/recent_activity_detailed.html', activities=[])
+
+
+@api_bp.route('/models_overview_summary')
+def models_overview_summary():
+    """HTMX endpoint for models overview summary."""
+    try:
+        # Get model statistics
+        total_models = db.session.query(ModelCapability).count()
+        total_apps = db.session.query(GeneratedApplication).count()
+        
+        # Get provider breakdown
+        provider_stats = db.session.query(
+            ModelCapability.provider,
+            func.count(ModelCapability.id)
+        ).group_by(ModelCapability.provider).all()
+        
+        summary = {
+            'total_models': total_models,
+            'total_apps': total_apps,
+            'providers': [{'name': provider, 'count': count} for provider, count in provider_stats]
+        }
+        
+        return render_template('partials/models_overview_summary.html', summary=summary)
+    except Exception as e:
+        logger.error(f"Error getting models overview summary: {e}")
+        return render_template('partials/models_overview_summary.html', summary={
+            'total_models': 0, 'total_apps': 0, 'providers': []
+        })
+
+
+@api_bp.route('/performance_chart_data')
+def performance_chart_data():
+    """HTMX endpoint for performance chart data."""
+    try:
+        # Get performance test data for the last 30 days
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        performance_tests = db.session.query(PerformanceTest).filter(
+            PerformanceTest.created_at >= thirty_days_ago
+        ).all()
+        
+        # Group by date and calculate averages
+        chart_data = []
+        for test in performance_tests:
+            if test.average_response_time:
+                chart_data.append({
+                    'date': test.created_at.strftime('%Y-%m-%d') if test.created_at else 'Unknown',
+                    'response_time': float(test.average_response_time),
+                    'requests_per_second': float(test.requests_per_second) if test.requests_per_second else 0
+                })
+        
+        return render_template('partials/performance_chart.html', chart_data=chart_data)
+    except Exception as e:
+        logger.error(f"Error getting performance chart data: {e}")
+        return render_template('partials/performance_chart.html', chart_data=[])
+
+
+@api_bp.route('/security_distribution_data')
+def security_distribution_data():
+    """HTMX endpoint for security distribution data."""
+    try:
+        # Get security analysis distribution
+        security_analyses = db.session.query(SecurityAnalysis).all()
+        
+        # Count by severity using the actual model attributes
+        distribution = {
+            'high': sum(1 for a in security_analyses if a.high_severity_count and a.high_severity_count > 0),
+            'medium': sum(1 for a in security_analyses if a.medium_severity_count and a.medium_severity_count > 0),
+            'low': sum(1 for a in security_analyses if a.low_severity_count and a.low_severity_count > 0),
+            'clean': sum(1 for a in security_analyses if a.total_issues == 0)
+        }
+        
+        return render_template('partials/security_distribution.html', distribution=distribution)
+    except Exception as e:
+        logger.error(f"Error getting security distribution data: {e}")
+        return render_template('partials/security_distribution.html', distribution={
+            'high': 0, 'medium': 0, 'low': 0, 'clean': 0
+        })
+
+
+@api_bp.route('/dashboard/recent-models')
+def dashboard_recent_models():
+    """HTMX endpoint for dashboard recent models section."""
+    try:
+        # Get recently updated models with their app counts
+        recent_models = db.session.query(ModelCapability).order_by(
+            desc(ModelCapability.updated_at)
+        ).limit(5).all()
+        
+        # Add app counts and recent activity
+        models_data = []
+        for model in recent_models:
+            app_count = db.session.query(GeneratedApplication).filter_by(
+                model_slug=model.canonical_slug
+            ).count()
+            
+            models_data.append({
+                'model': model,
+                'app_count': app_count,
+                'last_activity': model.updated_at or model.created_at
+            })
+        
+        return render_template('partials/dashboard_recent_models.html', models_data=models_data)
+    except Exception as e:
+        logger.error(f"Error getting dashboard recent models: {e}")
+        return render_template('partials/dashboard_recent_models.html', models_data=[])
+
+
+@api_bp.route('/realtime/dashboard')
+def realtime_dashboard():
+    """HTMX endpoint for real-time dashboard updates."""
+    try:
+        from ...services.background_service import get_background_service
+        
+        # Get current statistics
+        stats = {
+            'total_models': db.session.query(ModelCapability).count(),
+            'running_containers': db.session.query(ContainerizedTest).filter_by(
+                status=ContainerState.RUNNING.value
+            ).count(),
+            'pending_tests': (
+                db.session.query(SecurityAnalysis).filter_by(status=JobStatus.PENDING).count() +
+                db.session.query(PerformanceTest).filter_by(status=JobStatus.PENDING).count()
+            ),
+            'completed_tests': (
+                db.session.query(SecurityAnalysis).filter_by(status=JobStatus.COMPLETED).count() +
+                db.session.query(PerformanceTest).filter_by(status=JobStatus.COMPLETED).count()
+            )
+        }
+        
+        # Get background task summary
+        service = get_background_service()
+        task_summary = service.get_task_summary()
+        
+        # Get system health
+        try:
+            db.session.execute(text('SELECT 1'))
+            system_health = "healthy"
+        except Exception:
+            system_health = "error"
+        
+        realtime_data = {
+            'stats': stats,
+            'tasks': task_summary,
+            'system_health': system_health,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+        
+        return render_template('partials/realtime_dashboard.html', data=realtime_data)
+    except Exception as e:
+        logger.error(f"Error getting realtime dashboard data: {e}")
+        return render_template('partials/realtime_dashboard.html', data={
+            'stats': {'total_models': 0, 'running_containers': 0, 'pending_tests': 0, 'completed_tests': 0},
+            'tasks': {'total': 0, 'pending': 0, 'running': 0, 'completed': 0, 'failed': 0, 'recent': []},
+            'system_health': 'unknown',
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
