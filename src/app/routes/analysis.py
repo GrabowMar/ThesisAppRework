@@ -28,7 +28,38 @@ def analysis_hub():
     Former template: pages/analysis.html (now removed in favor of partials).
     """
     try:
-        return render_template('pages/analysis.html')
+        # Provide initial context so that included partials render without relying
+        # on the first HTMX refresh (prevents StrictUndefined errors on first load)
+        from datetime import datetime, timedelta
+        from sqlalchemy import desc
+        from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis
+
+        # Aggregate headline stats (mirrors /analysis/api/stats endpoint)
+        stats = {
+            'total_security': SecurityAnalysis.query.count(),
+            'total_performance': PerformanceTest.query.count(),
+            'total_zap': ZAPAnalysis.query.count(),
+            'total_ai': OpenRouterAnalysis.query.count()
+        }
+
+        # Weekly trend snapshot (mirrors /analysis/api/trends endpoint)
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        trends = {
+            'security_this_week': SecurityAnalysis.query.filter(SecurityAnalysis.created_at >= week_ago).count(),
+            'performance_this_week': PerformanceTest.query.filter(PerformanceTest.created_at >= week_ago).count()
+        }
+
+        # Recent lists used by their respective partials (they self-refresh via HTMX)
+        recent_security = SecurityAnalysis.query.order_by(desc(SecurityAnalysis.created_at)).limit(5).all()
+        recent_performance = PerformanceTest.query.order_by(desc(PerformanceTest.created_at)).limit(5).all()
+
+        return render_template(
+            'pages/analysis.html',
+            stats=stats,
+            trends=trends,
+            recent_security=recent_security,
+            recent_performance=recent_performance
+        )
     except Exception as e:  # pragma: no cover - defensive catch
         logger.error(f"Error loading analysis hub: {e}")
         return render_template(
@@ -99,32 +130,45 @@ def htmx_recent_performance():
 def start_security_analysis():
     """Start security analysis for an application."""
     try:
-        app_id = request.json.get('app_id')
+        data = request.get_json(silent=True) or {}
+        app_id = data.get('app_id')
         if not app_id:
             return jsonify({'error': 'Application ID required'}), 400
-        
+
         app = GeneratedApplication.query.get_or_404(app_id)
-        
-        # Configuration options
+
+        # Raw config flags (persisted as options)
         config = {
-            'bandit_enabled': request.json.get('bandit_enabled', True),
-            'safety_enabled': request.json.get('safety_enabled', True),
-            'pylint_enabled': request.json.get('pylint_enabled', True),
-            'eslint_enabled': request.json.get('eslint_enabled', True),
-            'npm_audit_enabled': request.json.get('npm_audit_enabled', True),
-            'snyk_enabled': request.json.get('snyk_enabled', False),
+            'bandit_enabled': data.get('bandit_enabled', True),
+            'safety_enabled': data.get('safety_enabled', True),
+            'pylint_enabled': data.get('pylint_enabled', True),
+            'eslint_enabled': data.get('eslint_enabled', True),
+            'npm_audit_enabled': data.get('npm_audit_enabled', True),
+            'snyk_enabled': data.get('snyk_enabled', False),
         }
-        
-        # Start analysis task
-        task_result = task_manager.start_security_analysis(
+
+        # Derive list of enabled tools for TaskManager API
+        tool_key_map = {
+            'bandit_enabled': 'bandit',
+            'safety_enabled': 'safety',
+            'pylint_enabled': 'pylint',
+            'eslint_enabled': 'eslint',
+            'npm_audit_enabled': 'npm_audit',
+            'snyk_enabled': 'snyk'
+        }
+        tools = [tool_key_map[k] for k, v in config.items() if v and k in tool_key_map]
+
+        # Start analysis task (returns task id string)
+        task_id = task_manager.start_security_analysis(
             app.model_slug,
             app.app_number,
-            config
+            tools=tools,
+            options=config
         )
-        
+
         return jsonify({
             'success': True,
-            'task_id': task_result.id,
+            'task_id': task_id,
             'message': 'Security analysis started'
         })
         
@@ -137,30 +181,31 @@ def start_security_analysis():
 def start_performance_test():
     """Start performance test for an application."""
     try:
-        app_id = request.json.get('app_id')
+        data = request.get_json(silent=True) or {}
+        app_id = data.get('app_id')
         if not app_id:
             return jsonify({'error': 'Application ID required'}), 400
-        
+
         app = GeneratedApplication.query.get_or_404(app_id)
-        
+
         # Test configuration
-        config = {
-            'test_type': request.json.get('test_type', 'load'),
-            'users': request.json.get('users', 10),
-            'spawn_rate': request.json.get('spawn_rate', 1.0),
-            'duration': request.json.get('duration', 60)
+        test_config = {
+            'test_type': data.get('test_type', 'load'),
+            'users': data.get('users', 10),
+            'spawn_rate': data.get('spawn_rate', 1.0),
+            'duration': data.get('duration', 60)
         }
-        
-        # Start performance test
-        task_result = task_manager.start_performance_test(
+
+        # Start performance test (returns task id)
+        task_id = task_manager.start_performance_test(
             app.model_slug,
             app.app_number,
-            config
+            test_config
         )
-        
+
         return jsonify({
             'success': True,
-            'task_id': task_result.id,
+            'task_id': task_id,
             'message': 'Performance test started'
         })
         
@@ -173,22 +218,30 @@ def start_performance_test():
 def start_batch_analysis():
     """Start batch analysis job."""
     try:
-        config = {
-            'analysis_types': request.json.get('analysis_types', []),
-            'model_filter': request.json.get('model_filter', []),
-            'app_filter': request.json.get('app_filter', []),
-            'priority': request.json.get('priority', 'normal')
-        }
-        
-        if not config['analysis_types']:
+        data = request.get_json(silent=True) or {}
+        analysis_types = data.get('analysis_types', [])
+        models = data.get('model_filter', [])
+        apps = data.get('app_filter', [])
+        priority = data.get('priority', 'normal')
+
+        if not analysis_types:
             return jsonify({'error': 'At least one analysis type required'}), 400
-        
-        # Start batch analysis
-        task_result = task_manager.start_batch_analysis(config)
-        
+
+        options = {
+            'priority': priority
+        }
+
+        # Start batch analysis (returns task id)
+        task_id = task_manager.start_batch_analysis(
+            models=models,
+            apps=apps,
+            analysis_types=analysis_types,
+            options=options
+        )
+
         return jsonify({
             'success': True,
-            'task_id': task_result.id,
+            'task_id': task_id,
             'message': 'Batch analysis started'
         })
         
