@@ -1,48 +1,69 @@
-"""
-Routes Package
-=============
+"""Unified Route Registration
+=============================
 
-Modular Flask blueprints for the application.
-"""
+This package centralizes blueprint registration for the Flask application.
 
-from .main import main_bp
-from .models import models_bp  
-from .analysis import analysis_bp
-from .api import api_bp, register_api_routes
-from .batch import batch_bp
-from .statistics import stats_bp
-from .advanced import advanced
-from .testing import testing_bp
+Improvements in this refactored module:
+1. Programmatic registration table instead of ad-hoc calls
+2. Lazy imports inside `load_blueprints()` reduce import side effects during tooling
+3. Clear documentation of each blueprint's purpose
+4. Single place to toggle blueprints or adjust URL prefixes
+5. Separation of concerns: blueprint discovery vs. registration logic
+
+Extensibility: To add a new blueprint, implement it in a sibling module and
+add an entry to the BLUEPRINT_SPECS list.
+"""
+from __future__ import annotations
+
+import logging
+
 from .errors import register_error_handlers
+from .api import register_api_routes  # API blueprint managed separately
 
-__all__ = [
-    'main_bp',
-    'models_bp', 
-    'analysis_bp',
-    'api_bp',
-    'batch_bp',
-    'stats_bp',
-    'advanced',
-    'testing_bp',
-    'register_error_handlers'
-]
+logger = logging.getLogger(__name__)
 
-def register_blueprints(app):
-    """Register all blueprints with the Flask application."""
-    
-    # Core routes
-    app.register_blueprint(main_bp)
-    app.register_blueprint(models_bp, url_prefix='/models')
-    app.register_blueprint(analysis_bp, url_prefix='/analysis')
-    
-    # Register the modular API routes
+
+def load_blueprints():
+    """Import and return blueprint specifications.
+
+    Returns a list of dicts: { 'bp': Blueprint, 'url_prefix': str | None, 'name': str }
+    Lazy import pattern keeps module import side effects minimal until runtime.
+    """
+    from .main import main_bp
+    from .models import models_bp
+    from .analysis import analysis_bp
+    from .batch import batch_bp
+    from .statistics import stats_bp
+    from .advanced import advanced as advanced_bp
+    from .testing import testing_bp
+
+    return [
+        {"bp": main_bp, "url_prefix": None, "name": "main"},
+        {"bp": models_bp, "url_prefix": "/models", "name": "models"},
+        {"bp": analysis_bp, "url_prefix": "/analysis", "name": "analysis"},
+        {"bp": batch_bp, "url_prefix": "/batch", "name": "batch"},
+        {"bp": stats_bp, "url_prefix": "/statistics", "name": "statistics"},
+        {"bp": testing_bp, "url_prefix": "/testing", "name": "testing"},
+        {"bp": advanced_bp, "url_prefix": "/advanced", "name": "advanced"},
+    ]
+
+
+def register_blueprints(app):  # noqa: D401
+    """Register all application blueprints and error handlers."""
+
+    # Register non-API blueprints
+    for spec in load_blueprints():
+        bp = spec["bp"]
+        url_prefix = spec["url_prefix"]
+        app.register_blueprint(bp, url_prefix=url_prefix)
+        logger.debug("Registered blueprint '%s' at prefix '%s'", spec["name"], url_prefix or "/")
+
+    # API blueprint (handles its own lazy module imports)
     register_api_routes(app)
-    
-    # Feature routes
-    app.register_blueprint(batch_bp, url_prefix='/batch')
-    app.register_blueprint(stats_bp, url_prefix='/statistics')
-    app.register_blueprint(testing_bp, url_prefix='/testing')
-    app.register_blueprint(advanced)
-    
-    # Register error handlers
+
+    # Error handlers (global)
     register_error_handlers(app)
+
+    logger.info("All blueprints registered successfully")
+
+__all__ = ["register_blueprints", "load_blueprints"]

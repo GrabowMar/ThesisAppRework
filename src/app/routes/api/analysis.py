@@ -1,107 +1,85 @@
-"""
-Analysis API Routes
-==================
+"""Analysis API Routes (Refactored)
+=================================
 
-API endpoints for analysis operations and results.
+JSON endpoints now delegate to service layer (`analysis_service`) and return
+standard response envelopes via `json_success` / `json_error` with the
+`handle_exceptions` decorator centralizing error handling.
+
+HTMX / template endpoints retained (will be incrementally migrated later).
 """
 
 import logging
-from flask import jsonify, request, render_template
+from flask import request, render_template, jsonify
 
 from . import api_bp
-from ...models import (
-    SecurityAnalysis, PerformanceTest, BatchAnalysis, 
-    ContainerizedTest, GeneratedApplication
-)
+from ..response_utils import json_success, json_error, handle_exceptions
 from ...extensions import db
+from ...models import BatchAnalysis, ContainerizedTest, GeneratedApplication
+from ...services.analysis_service import (
+    list_security_analyses,
+    create_security_analysis,
+    list_performance_tests,
+    create_performance_test,
+    start_comprehensive_analysis,
+    start_security_analysis,
+    create_comprehensive_security_analysis,
+    update_security_analysis,
+    get_analysis_results as service_get_analysis_results,
+    AnalysisServiceError, NotFoundError, ValidationError, InvalidStateError, TaskEnqueueError
+)
 
-# Set up logger
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Error Mapping Helpers
+# ---------------------------------------------------------------------------
+
+ERROR_STATUS = {
+    NotFoundError: 404,
+    ValidationError: 400,
+    InvalidStateError: 409,
+    TaskEnqueueError: 503,
+}
+
+def _map_service_error(exc: Exception):  # returns Flask response tuple
+    status = ERROR_STATUS.get(exc.__class__, 500)
+    return json_error(str(exc), status=status, error_type=exc.__class__.__name__)
 
 
 @api_bp.route('/analysis/security')
+@handle_exceptions(logger_override=logger)
 def api_list_security_analyses():
-    """API endpoint: Get security analyses."""
-    try:
-        analyses = SecurityAnalysis.query.all()
-        return jsonify([analysis.to_dict() for analysis in analyses])
-    except Exception as e:
-        logger.error(f"Error getting security analyses: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = list_security_analyses()
+    return json_success(data, message="Security analyses fetched")
 
 
 @api_bp.route('/analysis/security', methods=['POST'])
+@handle_exceptions(logger_override=logger)
 def api_create_security_analysis():
-    """API endpoint: Create security analysis."""
+    payload = request.get_json() or {}
     try:
-        data = request.get_json()
-        app_id = data.get('application_id')
-        
-        if not app_id:
-            return jsonify({'error': 'application_id is required'}), 400
-            
-        # Check if application exists
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-            
-        # Create new security analysis
-        analysis = SecurityAnalysis()
-        analysis.application_id = app_id
-        analysis.bandit_enabled = data.get('bandit_enabled', True)
-        analysis.safety_enabled = data.get('safety_enabled', True)
-        
-        db.session.add(analysis)
-        db.session.commit()
-        
-        return jsonify(analysis.to_dict()), 201
-        
-    except Exception as e:
-        logger.error(f"Error creating security analysis: {e}")
-        return jsonify({'error': str(e)}), 500
+        created = create_security_analysis(payload)
+        return json_success(created, message="Security analysis created", status=201)
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
 
 
-@api_bp.route('/analysis/performance') 
+@api_bp.route('/analysis/performance')
+@handle_exceptions(logger_override=logger)
 def api_list_performance_tests():
-    """API endpoint: Get performance tests."""
-    try:
-        tests = PerformanceTest.query.all()
-        return jsonify([test.to_dict() for test in tests])
-    except Exception as e:
-        logger.error(f"Error getting performance tests: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = list_performance_tests()
+    return json_success(data, message="Performance tests fetched")
 
 
 @api_bp.route('/analysis/performance', methods=['POST'])
+@handle_exceptions(logger_override=logger)
 def api_create_performance_test():
-    """API endpoint: Create performance test."""
+    payload = request.get_json() or {}
     try:
-        data = request.get_json()
-        app_id = data.get('application_id')
-        
-        if not app_id:
-            return jsonify({'error': 'application_id is required'}), 400
-            
-        # Check if application exists
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-            
-        # Create new performance test
-        test = PerformanceTest()
-        test.application_id = app_id
-        test.test_type = data.get('test_type', 'load')
-        test.users = data.get('users', 10)
-        test.test_duration = data.get('test_duration', 60)
-        
-        db.session.add(test)
-        db.session.commit()
-        
-        return jsonify(test.to_dict()), 201
-        
-    except Exception as e:
-        logger.error(f"Error creating performance test: {e}")
-        return jsonify({'error': str(e)}), 500
+        created = create_performance_test(payload)
+        return json_success(created, message="Performance test created", status=201)
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
 
 
 @api_bp.route('/analysis/batch')
@@ -217,312 +195,52 @@ def api_analysis_start(app_id):
 
 
 @api_bp.route('/analysis/security/<int:app_id>', methods=['POST'])
+@handle_exceptions(logger_override=logger)
 def api_analysis_security(app_id):
-    """API endpoint to start security analysis for an application."""
+    # Create a minimal security analysis (defaults) for app
     try:
-        from ...constants import AnalysisStatus
-        from datetime import datetime, timezone
-        
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': f'Application {app_id} not found'}), 404
-        
-        # Create security analysis record
-        analysis = SecurityAnalysis(
-            application_id=app_id,
-            status=AnalysisStatus.PENDING,
-            created_at=datetime.now(timezone.utc)
-        )
-        
-        db.session.add(analysis)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Security analysis started',
-            'analysis_id': analysis.id
-        })
-            
-    except Exception as e:
-        logger.error(f"Error starting security analysis for app {app_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        created = create_security_analysis({"application_id": app_id})
+        return json_success(created, message="Security analysis record created")
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
 
 
-@api_bp.route('/analysis/security/start', methods=['POST']) 
+@api_bp.route('/analysis/security/start', methods=['POST'])
+@handle_exceptions(logger_override=logger)
 def api_analysis_security_start():
-    """API endpoint to start comprehensive security analysis."""
+    payload = request.get_json() or {}
+    if not payload.get('application_id'):
+        return json_error("Application ID required", status=400)
     try:
-        data = request.get_json()
-        app_id = data.get('application_id')
-        
-        if not app_id:
-            return jsonify({'error': 'Application ID required'}), 400
-            
-        # Check if application exists
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-            
-        # Create new security analysis with comprehensive configuration
-        analysis = SecurityAnalysis()
-        analysis.application_id = app_id
-        analysis.analysis_name = data.get('analysis_name', 'Comprehensive Security Analysis')
-        analysis.description = data.get('description', '')
-        
-        # Tool configurations
-        analysis.bandit_enabled = data.get('bandit_enabled', True)
-        if 'bandit_config' in data:
-            analysis.set_bandit_config(data['bandit_config'])
-            
-        analysis.safety_enabled = data.get('safety_enabled', True)
-        if 'safety_config' in data:
-            analysis.set_safety_config(data['safety_config'])
-            
-        analysis.pylint_enabled = data.get('pylint_enabled', True)
-        if 'pylint_config' in data:
-            analysis.set_pylint_config(data['pylint_config'])
-            
-        analysis.eslint_enabled = data.get('eslint_enabled', True)
-        if 'eslint_config' in data:
-            analysis.set_eslint_config(data['eslint_config'])
-            
-        analysis.npm_audit_enabled = data.get('npm_audit_enabled', True)
-        analysis.snyk_enabled = data.get('snyk_enabled', False)
-        analysis.zap_enabled = data.get('zap_enabled', False)
-        
-        if 'zap_config' in data:
-            analysis.set_zap_config(data['zap_config'])
-            
-        analysis.semgrep_enabled = data.get('semgrep_enabled', False)
-        
-        # Global settings
-        analysis.severity_threshold = data.get('severity_threshold', 'low')
-        analysis.max_issues_per_tool = data.get('max_issues_per_tool', 1000)
-        analysis.timeout_minutes = data.get('timeout_minutes', 30)
-        
-        if 'exclude_patterns' in data:
-            analysis.set_exclude_patterns(data['exclude_patterns'])
-            
-        if 'include_patterns' in data:
-            analysis.set_include_patterns(data['include_patterns'])
-            
-        if 'global_config' in data:
-            analysis.set_global_config(data['global_config'])
-        
-        db.session.add(analysis)
-        db.session.commit()
-        
-        # Import Celery task here to avoid circular imports
-        try:
-            from ...tasks import security_analysis_task
-            
-            # Prepare task configuration
-            tools = []
-            if analysis.bandit_enabled:
-                tools.append('bandit')
-            if analysis.safety_enabled:
-                tools.append('safety')
-            if analysis.pylint_enabled:
-                tools.append('pylint')
-            if analysis.eslint_enabled:
-                tools.append('eslint')
-            if analysis.npm_audit_enabled:
-                tools.append('npm_audit')
-            if analysis.snyk_enabled:
-                tools.append('snyk')
-            if analysis.zap_enabled:
-                tools.append('zap')
-            if analysis.semgrep_enabled:
-                tools.append('semgrep')
-            
-            # Prepare analysis options
-            analysis_options = {
-                'analysis_id': analysis.id,
-                'severity_threshold': analysis.severity_threshold,
-                'max_issues_per_tool': analysis.max_issues_per_tool,
-                'timeout_minutes': analysis.timeout_minutes,
-                'exclude_patterns': analysis.get_exclude_patterns(),
-                'include_patterns': analysis.get_include_patterns(),
-                'global_config': analysis.get_global_config(),
-                'tool_configs': {
-                    'bandit': analysis.get_bandit_config() if analysis.bandit_enabled else None,
-                    'safety': analysis.get_safety_config() if analysis.safety_enabled else None,
-                    'pylint': analysis.get_pylint_config() if analysis.pylint_enabled else None,
-                    'eslint': analysis.get_eslint_config() if analysis.eslint_enabled else None,
-                    'zap': analysis.get_zap_config() if analysis.zap_enabled else None
-                }
-            }
-            
-            # Start Celery task
-            task = security_analysis_task.delay(
-                model_slug=app.model_slug,
-                app_number=app.app_number,
-                tools=tools,
-                options=analysis_options
-            )
-            
-            # Update analysis with task info
-            from ...constants import AnalysisStatus
-            from datetime import datetime, timezone
-            
-            analysis.set_metadata({
-                'task_id': task.id,
-                'tools_requested': tools,
-                'started_by_api': True
-            })
-            analysis.status = AnalysisStatus.RUNNING
-            analysis.started_at = datetime.now(timezone.utc)
-            
-            db.session.commit()
-            
-            return jsonify({
-                'status': 'success',
-                'message': 'Security analysis started',
-                'analysis_id': analysis.id,
-                'task_id': task.id,
-                'tools': tools,
-                'estimated_duration': f"{analysis.timeout_minutes} minutes (max)"
-            }), 201
-            
-        except ImportError:
-            logger.error("Could not import Celery tasks")
-            return jsonify({
-                'error': 'Task system not available',
-                'details': 'Celery tasks could not be imported'
-            }), 503
-            
-    except Exception as e:
-        logger.error(f"Error starting security analysis: {e}")
-        return jsonify({
-            'error': 'Failed to start security analysis',
-            'details': str(e)
-        }), 500
+        # Create a comprehensive security analysis then start it
+        created = create_comprehensive_security_analysis(payload['application_id'], payload)
+        started = start_security_analysis(created['id'])
+        return json_success({"created": created, "start": started}, message="Security analysis started", status=201)
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
 
 
 @api_bp.route('/analysis/security/configure', methods=['POST'])
+@handle_exceptions(logger_override=logger)
 def api_analysis_security_configure():
-    """API endpoint to save security analysis configuration."""
+    payload = request.get_json() or {}
+    if 'analysis_id' not in payload:
+        return json_error("analysis_id required", status=400)
     try:
-        data = request.get_json()
-        app_id = data.get('application_id')
-        
-        if not app_id:
-            return jsonify({'error': 'Application ID required'}), 400
-            
-        # Check if application exists
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-            
-        # Find existing analysis or create new one
-        from ...constants import AnalysisStatus
-        analysis = SecurityAnalysis.query.filter_by(
-            application_id=app_id,
-            status=AnalysisStatus.PENDING
-        ).first()
-        
-        if not analysis:
-            analysis = SecurityAnalysis()
-            analysis.application_id = app_id
-            db.session.add(analysis)
-        
-        # Update configuration without starting analysis
-        analysis.analysis_name = data.get('analysis_name', analysis.analysis_name or 'Security Analysis')
-        analysis.description = data.get('description', analysis.description or '')
-        
-        # Tool configurations
-        if 'bandit_enabled' in data:
-            analysis.bandit_enabled = data['bandit_enabled']
-        if 'bandit_config' in data:
-            analysis.set_bandit_config(data['bandit_config'])
-            
-        if 'safety_enabled' in data:
-            analysis.safety_enabled = data['safety_enabled']
-        if 'safety_config' in data:
-            analysis.set_safety_config(data['safety_config'])
-            
-        if 'pylint_enabled' in data:
-            analysis.pylint_enabled = data['pylint_enabled']
-        if 'pylint_config' in data:
-            analysis.set_pylint_config(data['pylint_config'])
-            
-        if 'eslint_enabled' in data:
-            analysis.eslint_enabled = data['eslint_enabled']
-        if 'eslint_config' in data:
-            analysis.set_eslint_config(data['eslint_config'])
-            
-        if 'npm_audit_enabled' in data:
-            analysis.npm_audit_enabled = data['npm_audit_enabled']
-        if 'snyk_enabled' in data:
-            analysis.snyk_enabled = data['snyk_enabled']
-        if 'zap_enabled' in data:
-            analysis.zap_enabled = data['zap_enabled']
-        if 'zap_config' in data:
-            analysis.set_zap_config(data['zap_config'])
-        if 'semgrep_enabled' in data:
-            analysis.semgrep_enabled = data['semgrep_enabled']
-        
-        # Global settings
-        if 'severity_threshold' in data:
-            analysis.severity_threshold = data['severity_threshold']
-        if 'max_issues_per_tool' in data:
-            analysis.max_issues_per_tool = data['max_issues_per_tool']
-        if 'timeout_minutes' in data:
-            analysis.timeout_minutes = data['timeout_minutes']
-        if 'exclude_patterns' in data:
-            analysis.set_exclude_patterns(data['exclude_patterns'])
-        if 'include_patterns' in data:
-            analysis.set_include_patterns(data['include_patterns'])
-        if 'global_config' in data:
-            analysis.set_global_config(data['global_config'])
-        
-        db.session.commit()
-        
-        return jsonify({
-            'status': 'success',
-            'message': 'Security analysis configuration saved',
-            'analysis_id': analysis.id,
-            'configuration': analysis.to_dict()
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error saving security analysis configuration: {e}")
-        return jsonify({
-            'error': 'Failed to save configuration',
-            'details': str(e)
-        }), 500
+        updated = update_security_analysis(payload['analysis_id'], payload)
+        return json_success(updated, message="Security analysis configuration saved")
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
 
 
 @api_bp.route('/analysis/performance/<int:app_id>', methods=['POST'])
+@handle_exceptions(logger_override=logger)
 def api_analysis_performance(app_id):
-    """API endpoint to start performance analysis for an application."""
     try:
-        from ...constants import AnalysisStatus
-        from datetime import datetime, timezone
-        
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': f'Application {app_id} not found'}), 404
-        
-        # Create performance test record
-        test = PerformanceTest(
-            application_id=app_id,
-            status=AnalysisStatus.PENDING,
-            created_at=datetime.now(timezone.utc)
-        )
-        
-        db.session.add(test)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Performance test started',
-            'test_id': test.id
-        })
-            
-    except Exception as e:
-        logger.error(f"Error starting performance test for app {app_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        created = create_performance_test({"application_id": app_id})
+        return json_success(created, message="Performance test record created")
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
 
 
 @api_bp.route('/batch/active')
@@ -612,62 +330,10 @@ def api_batch_start(batch_id):
 
 
 @api_bp.route('/analysis/security/<int:analysis_id>/results')
+@handle_exceptions(logger_override=logger)
 def api_analysis_security_results(analysis_id):
-    """API endpoint to get security analysis results."""
     try:
-        analysis = SecurityAnalysis.query.get(analysis_id)
-        if not analysis:
-            return jsonify({'error': 'Security analysis not found'}), 404
-        
-        # Basic analysis info
-        result = {
-            'analysis_id': analysis.id,
-            'status': analysis.status.value if analysis.status else 'unknown',
-            'created_at': analysis.created_at.isoformat() if analysis.created_at else None,
-            'started_at': analysis.started_at.isoformat() if analysis.started_at else None,
-            'completed_at': analysis.completed_at.isoformat() if analysis.completed_at else None,
-            'application': {
-                'id': analysis.application.id,
-                'model_slug': analysis.application.model_slug,
-                'app_number': analysis.application.app_number
-            } if analysis.application else None,
-            'tools_enabled': {
-                'bandit': analysis.bandit_enabled,
-                'safety': analysis.safety_enabled,
-                'pylint': analysis.pylint_enabled,
-                'eslint': analysis.eslint_enabled,
-                'npm_audit': analysis.npm_audit_enabled,
-                'snyk': analysis.snyk_enabled,
-                'zap': analysis.zap_enabled,
-                'semgrep': analysis.semgrep_enabled
-            },
-            'metadata': analysis.get_metadata() if hasattr(analysis, 'get_metadata') else {},
-            'results': {}
-        }
-        
-        # Include detailed results if available
-        if hasattr(analysis, 'results_json') and analysis.results_json:
-            try:
-                import json
-                result['results'] = json.loads(analysis.results_json)
-            except json.JSONDecodeError:
-                result['results'] = {'error': 'Results data is corrupted'}
-        
-        # Include individual tool results if they exist
-        if hasattr(analysis, 'bandit_results') and analysis.bandit_results:
-            try:
-                result['results']['bandit'] = json.loads(analysis.bandit_results)
-            except json.JSONDecodeError:
-                result['results']['bandit'] = {'error': 'Bandit results corrupted'}
-                
-        if hasattr(analysis, 'safety_results') and analysis.safety_results:
-            try:
-                result['results']['safety'] = json.loads(analysis.safety_results)
-            except json.JSONDecodeError:
-                result['results']['safety'] = {'error': 'Safety results corrupted'}
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logger.error(f"Error getting security analysis results for {analysis_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        result = service_get_analysis_results(analysis_id)
+        return json_success(result, message="Security analysis results fetched")
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)

@@ -8,6 +8,8 @@ API endpoints for AI model management and information.
 import logging
 from flask import jsonify
 
+from ..response_utils import json_success, handle_exceptions
+
 from . import api_bp
 from ...models import ModelCapability, GeneratedApplication, SecurityAnalysis, PerformanceTest
 from ...extensions import db
@@ -17,38 +19,33 @@ logger = logging.getLogger(__name__)
 
 
 @api_bp.route('/models')
+@handle_exceptions(logger_override=logger)
 def api_models():
-    """API endpoint: Get all models."""
-    try:
-        models = ModelCapability.query.all()
-        return jsonify([{
-            'model_id': model.model_id,
-            'canonical_slug': model.canonical_slug,
-            'provider': model.provider,
-            'model_name': model.model_name,
-            'capabilities': model.get_capabilities()
-        } for model in models])
-    except Exception as e:
-        logger.error(f"Error getting models: {e}")
-        return jsonify({'error': str(e)}), 500
+    """API endpoint: Get all models (standardized envelope)."""
+    models = ModelCapability.query.all()
+    data = [{
+        'model_id': model.model_id,
+        'canonical_slug': model.canonical_slug,
+        'provider': model.provider,
+        'model_name': model.model_name,
+        'capabilities': model.get_capabilities()
+    } for model in models]
+    return json_success(data, message="Models fetched")
 
 
 @api_bp.route('/models/<model_slug>/apps')
+@handle_exceptions(logger_override=logger)
 def api_model_apps(model_slug):
-    """API endpoint: Get applications for a model."""
-    try:
-        from ...models import GeneratedApplication
-        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
-        return jsonify([{
-            'app_id': app.id,
-            'app_number': app.app_number,
-            'model_slug': app.model_slug,
-            'provider': app.provider,
-            'created_at': app.created_at.isoformat() if app.created_at else None
-        } for app in apps])
-    except Exception as e:
-        logger.error(f"Error getting apps for model {model_slug}: {e}")
-        return jsonify({'error': str(e)}), 500
+    """API endpoint: Get applications for a model (standardized envelope)."""
+    apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+    data = [{
+        'app_id': app.id,
+        'app_number': app.app_number,
+        'model_slug': app.model_slug,
+        'provider': app.provider,
+        'created_at': app.created_at.isoformat() if app.created_at else None
+    } for app in apps]
+    return json_success(data, message="Applications fetched")
 
 
 @api_bp.route('/models/list')

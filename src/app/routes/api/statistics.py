@@ -7,372 +7,84 @@ API endpoints for statistics and data aggregation.
 
 import logging
 from datetime import datetime, timedelta
-from flask import jsonify, render_template
-from sqlalchemy import func, desc, text
+from flask import render_template
+from sqlalchemy import text, func
 
 from . import api_bp
 from ...models import (
-    GeneratedApplication, ModelCapability, SecurityAnalysis, 
-    PerformanceTest
+    GeneratedApplication, ModelCapability, SecurityAnalysis, PerformanceTest
 )
 from ...extensions import db
+from ..response_utils import json_success, handle_exceptions
+from ...services.statistics_service import (
+    get_application_statistics,
+    get_model_statistics,
+    get_analysis_statistics,
+    get_recent_statistics,
+    get_model_distribution,
+    get_generation_trends,
+    get_analysis_summary,
+    export_statistics
+)
 
 # Set up logger
 logger = logging.getLogger(__name__)
 
 
 @api_bp.route('/stats/apps')
+@handle_exceptions(logger_override=logger)
 def api_stats_apps():
-    """API endpoint: Get application statistics."""
-    try:
-        total_apps = db.session.query(func.count(GeneratedApplication.id)).scalar()
-        
-        # Apps by status  
-        app_stats = (
-            db.session.query(
-                GeneratedApplication.generation_status,
-                func.count(GeneratedApplication.id).label('count')
-            )
-            .group_by(GeneratedApplication.generation_status)
-            .all()
-        )
-        
-        # Apps by type
-        type_stats = (
-            db.session.query(
-                GeneratedApplication.app_type,
-                func.count(GeneratedApplication.id).label('count')
-            )
-            .group_by(GeneratedApplication.app_type)
-            .all()
-        )
-        
-        # Recent apps (last 7 days)
-        from datetime import datetime, timedelta
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        recent_count = (
-            db.session.query(func.count(GeneratedApplication.id))
-            .filter(GeneratedApplication.created_at >= week_ago)
-            .scalar()
-        )
-        
-        return jsonify({
-            'total': total_apps,
-            'by_status': [{'status': str(s), 'count': c} for s, c in app_stats],
-            'by_type': [{'type': t, 'count': c} for t, c in type_stats],
-            'recent_count': recent_count
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting app statistics: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = get_application_statistics()
+    return json_success(data, message="Application statistics fetched")
 
 
 @api_bp.route('/stats/models')
+@handle_exceptions(logger_override=logger)
 def api_stats_models():
-    """API endpoint: Get model statistics."""
-    try:
-        total_models = db.session.query(func.count(ModelCapability.id)).scalar()
-        
-        # Models by provider
-        provider_stats = (
-            db.session.query(
-                ModelCapability.provider,
-                func.count(ModelCapability.id).label('count')
-            )
-            .group_by(ModelCapability.provider)
-            .all()
-        )
-        
-        # Models by capability
-        capability_stats = {}
-        capabilities = ['code_generation', 'code_review', 'analysis', 'testing']
-        
-        for cap in capabilities:
-            count = (
-                db.session.query(func.count(ModelCapability.id))
-                .filter(getattr(ModelCapability, cap))
-                .scalar()
-            )
-            capability_stats[cap] = count
-        
-        return jsonify({
-            'total': total_models,
-            'by_provider': [{'provider': p, 'count': c} for p, c in provider_stats],
-            'by_capability': capability_stats
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting model statistics: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = get_model_statistics()
+    return json_success(data, message="Model statistics fetched")
 
 
 @api_bp.route('/stats/analysis')
+@handle_exceptions(logger_override=logger)
 def api_stats_analysis():
-    """API endpoint: Get analysis statistics."""
-    try:
-        # Security analysis stats
-        security_total = db.session.query(func.count(SecurityAnalysis.id)).scalar()
-        security_completed = (
-            db.session.query(func.count(SecurityAnalysis.id))
-            .filter(SecurityAnalysis.status == 'completed')
-            .scalar()
-        )
-        
-        # Performance test stats
-        perf_total = db.session.query(func.count(PerformanceTest.id)).scalar()
-        perf_completed = (
-            db.session.query(func.count(PerformanceTest.id))
-            .filter(PerformanceTest.status == 'completed')
-            .scalar()
-        )
-        
-        # Analysis success rates
-        security_rate = (security_completed / security_total * 100) if security_total > 0 else 0
-        perf_rate = (perf_completed / perf_total * 100) if perf_total > 0 else 0
-        
-        return jsonify({
-            'security': {
-                'total': security_total,
-                'completed': security_completed,
-                'success_rate': round(security_rate, 2)
-            },
-            'performance': {
-                'total': perf_total,
-                'completed': perf_completed,
-                'success_rate': round(perf_rate, 2)
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting analysis statistics: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = get_analysis_statistics()
+    return json_success(data, message="Analysis statistics fetched")
 
 
 @api_bp.route('/stats/recent')
+@handle_exceptions(logger_override=logger)
 def api_stats_recent():
-    """API endpoint: Get recent activity statistics."""
-    try:
-        from datetime import datetime, timedelta
-        
-        # Last 24 hours
-        day_ago = datetime.utcnow() - timedelta(days=1)
-        
-        recent_apps = (
-            db.session.query(func.count(GeneratedApplication.id))
-            .filter(GeneratedApplication.created_at >= day_ago)
-            .scalar()
-        )
-        
-        recent_security = (
-            db.session.query(func.count(SecurityAnalysis.id))
-            .filter(SecurityAnalysis.created_at >= day_ago)
-            .scalar()
-        )
-        
-        recent_performance = (
-            db.session.query(func.count(PerformanceTest.id))
-            .filter(PerformanceTest.created_at >= day_ago)
-            .scalar()
-        )
-        
-        # Most used models (last 7 days)
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        popular_models = (
-            db.session.query(
-                GeneratedApplication.model_slug,
-                func.count(GeneratedApplication.id).label('usage_count')
-            )
-            .filter(GeneratedApplication.created_at >= week_ago)
-            .group_by(GeneratedApplication.model_slug)
-            .order_by(desc('usage_count'))
-            .limit(5)
-            .all()
-        )
-        
-        return jsonify({
-            'last_24h': {
-                'applications': recent_apps,
-                'security_analyses': recent_security,
-                'performance_tests': recent_performance
-            },
-            'popular_models': [
-                {'model_slug': m, 'usage_count': c} 
-                for m, c in popular_models
-            ]
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting recent statistics: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = get_recent_statistics()
+    return json_success(data, message="Recent statistics fetched")
 
 
 @api_bp.route('/models/distribution')
+@handle_exceptions(logger_override=logger)
 def api_models_distribution():
-    """API endpoint for model distribution statistics."""
-    try:
-        # Provider distribution
-        provider_dist = db.session.query(
-            ModelCapability.provider,
-            func.count(ModelCapability.id).label('count')
-        ).group_by(ModelCapability.provider).all()
-        
-        # Capability distribution
-        capability_stats = {
-            'function_calling': db.session.query(ModelCapability).filter(
-                ModelCapability.supports_function_calling
-            ).count(),
-            'vision': db.session.query(ModelCapability).filter(
-                ModelCapability.supports_vision
-            ).count(),
-            'streaming': db.session.query(ModelCapability).filter(
-                ModelCapability.supports_streaming
-            ).count(),
-            'json_mode': db.session.query(ModelCapability).filter(
-                ModelCapability.supports_json_mode
-            ).count()
-        }
-        
-        # Cost distribution
-        free_models = db.session.query(ModelCapability).filter(
-            ModelCapability.is_free
-        ).count()
-        
-        paid_models = db.session.query(ModelCapability).filter(
-            ~ModelCapability.is_free
-        ).count()
-        
-        return jsonify({
-            'providers': [{'provider': p, 'count': c} for p, c in provider_dist],
-            'capabilities': capability_stats,
-            'cost_distribution': {
-                'free': free_models,
-                'paid': paid_models
-            }
-        })
-    
-    except Exception as e:
-        logger.error(f"Error getting model distribution: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = get_model_distribution()
+    return json_success(data, message="Model distribution fetched")
 
 
 @api_bp.route('/generation/trends')
+@handle_exceptions(logger_override=logger)
 def api_generation_trends():
-    """API endpoint for generation trend statistics."""
-    try:
-        from datetime import datetime, timedelta
-        
-        # Get trends for last 30 days
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=30)
-        
-        # Daily generation counts
-        daily_data = []
-        current_date = start_date.date()
-        
-        while current_date <= end_date.date():
-            next_date = current_date + timedelta(days=1)
-            
-            count = db.session.query(func.count(GeneratedApplication.id)).filter(
-                func.date(GeneratedApplication.created_at) == current_date
-            ).scalar()
-            
-            daily_data.append({
-                'date': current_date.isoformat(),
-                'applications': count or 0
-            })
-            
-            current_date = next_date
-        
-        return jsonify({
-            'daily_trends': daily_data,
-            'period': {
-                'start': start_date.isoformat(),
-                'end': end_date.isoformat()
-            }
-        })
-    
-    except Exception as e:
-        logger.error(f"Error getting generation trends: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = get_generation_trends()
+    return json_success(data, message="Generation trends fetched")
 
 
 @api_bp.route('/analysis/summary')
+@handle_exceptions(logger_override=logger)
 def api_analysis_summary():
-    """API endpoint for analysis summary statistics."""
-    try:
-        # Get analysis counts by type
-        security_count = db.session.query(func.count(SecurityAnalysis.id)).scalar()
-        performance_count = db.session.query(func.count(PerformanceTest.id)).scalar()
-        
-        # Get success rates
-        security_success = db.session.query(func.count(SecurityAnalysis.id)).filter(
-            SecurityAnalysis.status == 'completed'
-        ).scalar()
-        
-        performance_success = db.session.query(func.count(PerformanceTest.id)).filter(
-            PerformanceTest.status == 'completed'
-        ).scalar()
-        
-        return jsonify({
-            'security_analyses': {
-                'total': security_count,
-                'successful': security_success,
-                'success_rate': (security_success / security_count * 100) if security_count > 0 else 0
-            },
-            'performance_tests': {
-                'total': performance_count,
-                'successful': performance_success,
-                'success_rate': (performance_success / performance_count * 100) if performance_count > 0 else 0
-            },
-            'total_analyses': security_count + performance_count
-        })
-    
-    except Exception as e:
-        logger.error(f"Error getting analysis summary: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = get_analysis_summary()
+    return json_success(data, message="Analysis summary fetched")
 
 
 @api_bp.route('/export')
+@handle_exceptions(logger_override=logger)
 def api_export_statistics():
-    """API endpoint to export statistics data."""
-    try:
-        from datetime import datetime, timedelta
-        
-        # Get export timeframe (last 30 days by default)
-        start_date = datetime.utcnow() - timedelta(days=30)
-        
-        # Export data
-        export_data = {
-            'export_info': {
-                'generated_at': datetime.utcnow().isoformat(),
-                'period_start': start_date.isoformat(),
-                'period_end': datetime.utcnow().isoformat()
-            },
-            'models': {
-                'total': db.session.query(func.count(ModelCapability.id)).scalar(),
-                'by_provider': dict(db.session.query(
-                    ModelCapability.provider,
-                    func.count(ModelCapability.id)
-                ).group_by(ModelCapability.provider).all())
-            },
-            'applications': {
-                'total': db.session.query(func.count(GeneratedApplication.id)).scalar(),
-                'recent': db.session.query(func.count(GeneratedApplication.id)).filter(
-                    GeneratedApplication.created_at >= start_date
-                ).scalar()
-            },
-            'analyses': {
-                'security': db.session.query(func.count(SecurityAnalysis.id)).scalar(),
-                'performance': db.session.query(func.count(PerformanceTest.id)).scalar()
-            }
-        }
-        
-        return jsonify(export_data)
-        
-    except Exception as e:
-        logger.error(f"Error exporting statistics: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = export_statistics()
+    return json_success(data, message="Statistics exported")
 
 
 # =================================================================

@@ -6,260 +6,153 @@ API endpoints for application management and CRUD operations.
 """
 
 import logging
-from flask import jsonify, request, render_template
+from flask import request, render_template
+
+from ..response_utils import (
+    json_success, json_error, handle_exceptions,
+    build_pagination_envelope, require_fields
+)
 
 from . import api_bp
 from ...models import GeneratedApplication
 from ...extensions import db
-from ...constants import AnalysisStatus
+from ...constants import AnalysisStatus  # noqa: F401 (may be referenced indirectly or kept for future use)
+from ...services import application_service as app_service
 
 # Set up logger
 logger = logging.getLogger(__name__)
 
 
 @api_bp.route('/applications')
+@handle_exceptions(logger_override=logger)
 def api_list_applications():
-    """API endpoint: Get applications."""
-    try:
-        # Get query parameters for pagination and filtering
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        status = request.args.get('status')
-        app_type = request.args.get('type')
-        
-        # Build query
-        query = GeneratedApplication.query
-        
-        if status:
-            query = query.filter(GeneratedApplication.generation_status == status)
-        if app_type:
-            query = query.filter(GeneratedApplication.app_type == app_type)
-        
-        # Order by creation date (newest first)
-        query = query.order_by(GeneratedApplication.created_at.desc())
-        
-        # Paginate results
-        paginated = query.paginate(
-            page=page, 
-            per_page=per_page, 
-            error_out=False
-        )
-        
-        return jsonify({
-            'applications': [app.to_dict() for app in paginated.items],
-            'pagination': {
-                'page': paginated.page,
-                'pages': paginated.pages,
-                'per_page': paginated.per_page,
-                'total': paginated.total,
-                'has_next': paginated.has_next,
-                'has_prev': paginated.has_prev
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting applications: {e}")
-        return jsonify({'error': str(e)}), 500
+    """API endpoint: Get applications (standardized envelope)."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    status = request.args.get('status')
+    app_type = request.args.get('type')
+
+    query = app_service.list_applications(status=status, app_type=app_type)
+
+    items, meta = build_pagination_envelope(query, page, per_page)
+    return json_success(
+        [app.to_dict() for app in items],
+        message="Applications fetched",
+        pagination=meta
+    )
 
 
 @api_bp.route('/applications', methods=['POST'])
+@handle_exceptions(logger_override=logger)
 def api_create_application():
-    """API endpoint: Create application."""
+    """API endpoint: Create application (standardized envelope)."""
+    data = request.get_json() or {}
+    missing = require_fields(data, ['model_slug', 'app_number', 'app_type', 'provider'])
+    if missing:
+        return json_error(f"Missing required fields: {', '.join(missing)}", status=400, error_type="ValidationError")
+
     try:
-        data = request.get_json()
-        
-        # Validate required fields
-        required_fields = ['model_slug', 'app_number', 'app_type', 'provider']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'{field} is required'}), 400
-        
-        # Create new application
-        app = GeneratedApplication()
-        app.model_slug = data['model_slug']
-        app.app_number = data['app_number']
-        app.app_type = data['app_type']
-        app.provider = data['provider']
-        app.generation_status = data.get('generation_status', AnalysisStatus.PENDING)
-        
-        # Set optional fields that exist in the model
-        if 'has_backend' in data:
-            app.has_backend = data['has_backend']
-        if 'has_frontend' in data:
-            app.has_frontend = data['has_frontend']
-        if 'has_docker_compose' in data:
-            app.has_docker_compose = data['has_docker_compose']
-        if 'backend_framework' in data:
-            app.backend_framework = data['backend_framework']
-        if 'frontend_framework' in data:
-            app.frontend_framework = data['frontend_framework']
-        if 'container_status' in data:
-            app.container_status = data['container_status']
-        
-        db.session.add(app)
-        db.session.commit()
-        
-        return jsonify(app.to_dict()), 201
-        
-    except Exception as e:
-        logger.error(f"Error creating application: {e}")
-        return jsonify({'error': str(e)}), 500
+        created = app_service.create_application(data)
+        return json_success(created, message="Application created", status=201)
+    except app_service.ValidationError as ve:
+        return json_error(str(ve), status=400, error_type='ValidationError')
 
 
 @api_bp.route('/applications/<int:app_id>')
+@handle_exceptions(logger_override=logger)
 def api_get_application(app_id):
-    """API endpoint: Get specific application."""
+    """API endpoint: Get specific application (standardized)."""
     try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-        return jsonify(app.to_dict())
-    except Exception as e:
-        logger.error(f"Error getting application {app_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return json_success(app_service.get_application(app_id))
+    except app_service.NotFoundError:
+        return json_error('Application not found', status=404, error_type='NotFound')
 
 
 @api_bp.route('/applications/<int:app_id>', methods=['PUT'])
+@handle_exceptions(logger_override=logger)
 def api_update_application(app_id):
-    """API endpoint: Update application."""
+    """API endpoint: Update application (standardized)."""
+    data = request.get_json() or {}
     try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-        
-        data = request.get_json()
-        
-        # Update allowed fields
-        updatable_fields = [
-            'model_slug', 'app_number', 'app_type', 'provider', 'generation_status',
-            'has_backend', 'has_frontend', 'has_docker_compose', 
-            'backend_framework', 'frontend_framework', 'container_status'
-        ]
-        
-        for field in updatable_fields:
-            if field in data:
-                setattr(app, field, data[field])
-        
-        # Handle metadata updates separately
-        if 'metadata' in data:
-            app.set_metadata(data['metadata'])
-        
-        db.session.commit()
-        return jsonify(app.to_dict())
-        
-    except Exception as e:
-        logger.error(f"Error updating application {app_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        updated = app_service.update_application(app_id, data)
+        return json_success(updated, message="Application updated")
+    except app_service.NotFoundError:
+        return json_error('Application not found', status=404, error_type='NotFound')
 
 
 @api_bp.route('/applications/<int:app_id>', methods=['DELETE'])
+@handle_exceptions(logger_override=logger)
 def api_delete_application(app_id):
-    """API endpoint: Delete application."""
+    """API endpoint: Delete application (standardized)."""
     try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-        
-        db.session.delete(app)
-        db.session.commit()
-        
-        return jsonify({'message': 'Application deleted successfully'})
-        
-    except Exception as e:
-        logger.error(f"Error deleting application {app_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        app_service.delete_application(app_id)
+        return json_success(message='Application deleted successfully')
+    except app_service.NotFoundError:
+        return json_error('Application not found', status=404, error_type='NotFound')
 
 
 @api_bp.route('/applications/types')
+@handle_exceptions(logger_override=logger)
 def api_get_application_types():
-    """API endpoint: Get available application types."""
-    try:
-        # Get distinct application types from the database
-        types = (
-            db.session.query(GeneratedApplication.app_type)
-            .distinct()
-            .filter(GeneratedApplication.app_type.isnot(None))
-            .all()
-        )
-        
-        type_list = [t[0] for t in types]
-        
-        # Add common application types if not already present
-        common_types = [
-            'web_app', 'api', 'microservice', 'dashboard', 
-            'e_commerce', 'blog', 'cms', 'social_media'
-        ]
-        
-        for common_type in common_types:
-            if common_type not in type_list:
-                type_list.append(common_type)
-        
-        return jsonify({
-            'types': sorted(type_list)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting application types: {e}")
-        return jsonify({'error': str(e)}), 500
+    """API endpoint: Get available application types (standardized)."""
+    types = (
+        db.session.query(GeneratedApplication.app_type)
+        .distinct()
+        .filter(GeneratedApplication.app_type.isnot(None))
+        .all()
+    )
+    type_list = [t[0] for t in types]
+    common_types = [
+        'web_app', 'api', 'microservice', 'dashboard',
+        'e_commerce', 'blog', 'cms', 'social_media'
+    ]
+    for common_type in common_types:
+        if common_type not in type_list:
+            type_list.append(common_type)
+    return json_success({'types': sorted(type_list)}, message='Application types fetched')
 
 
 @api_bp.route('/applications/<int:app_id>/code')
+@handle_exceptions(logger_override=logger)
 def api_get_application_code(app_id):
-    """API endpoint: Get application code/metadata."""
-    try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-        
-        return jsonify({
-            'model_slug': app.model_slug,
-            'app_number': app.app_number,
-            'metadata': app.get_metadata(),
-            'has_backend': app.has_backend,
-            'has_frontend': app.has_frontend,
-            'has_docker_compose': app.has_docker_compose,
-            'backend_framework': app.backend_framework,
-            'frontend_framework': app.frontend_framework
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting application code for {app_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+    """API endpoint: Get application code/metadata (standardized)."""
+    app = GeneratedApplication.query.get(app_id)
+    if not app:
+        return json_error('Application not found', status=404, error_type='NotFound')
+    return json_success({
+        'model_slug': app.model_slug,
+        'app_number': app.app_number,
+        'metadata': app.get_metadata(),
+        'has_backend': app.has_backend,
+        'has_frontend': app.has_frontend,
+        'has_docker_compose': app.has_docker_compose,
+        'backend_framework': app.backend_framework,
+        'frontend_framework': app.frontend_framework
+    }, message='Application code fetched')
 
 
 @api_bp.route('/applications/<int:app_id>/status', methods=['PATCH'])
+@handle_exceptions(logger_override=logger)
 def api_update_application_status(app_id):
-    """API endpoint: Update application status."""
-    try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': 'Application not found'}), 404
-        
-        data = request.get_json()
-        if 'generation_status' not in data and 'container_status' not in data:
-            return jsonify({'error': 'generation_status or container_status is required'}), 400
-        
-        # Update generation status
-        if 'generation_status' in data:
-            app.generation_status = data['generation_status']
-        
-        # Update container status
-        if 'container_status' in data:
-            valid_container_statuses = ['running', 'stopped', 'error', 'pending', 'building']
-            if data['container_status'] not in valid_container_statuses:
-                return jsonify({'error': f'Invalid container status. Must be one of: {valid_container_statuses}'}), 400
-            app.container_status = data['container_status']
-        
-        db.session.commit()
-        
-        return jsonify({
-            'generation_status': str(app.generation_status) if app.generation_status else None,
-            'container_status': app.container_status
-        })
-        
-    except Exception as e:
-        logger.error(f"Error updating application status for {app_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+    """API endpoint: Update application status (standardized)."""
+    app = GeneratedApplication.query.get(app_id)
+    if not app:
+        return json_error('Application not found', status=404, error_type='NotFound')
+    data = request.get_json() or {}
+    if 'generation_status' not in data and 'container_status' not in data:
+        return json_error('generation_status or container_status is required', status=400, error_type='ValidationError')
+    if 'generation_status' in data:
+        app.generation_status = data['generation_status']
+    if 'container_status' in data:
+        valid_container_statuses = ['running', 'stopped', 'error', 'pending', 'building']
+        if data['container_status'] not in valid_container_statuses:
+            return json_error(f"Invalid container status. Must be one of: {valid_container_statuses}", status=400, error_type='ValidationError')
+        app.container_status = data['container_status']
+    db.session.commit()
+    return json_success({
+        'generation_status': str(app.generation_status) if app.generation_status else None,
+        'container_status': app.container_status
+    }, message='Application status updated')
 
 
 # =================================================================
@@ -274,32 +167,32 @@ def api_apps_grid():
         search = request.args.get('search', '')
         model = request.args.get('model', '')
         status = request.args.get('status', '')
-        app_type = request.args.get('type', '')
+    # app_type placeholder for future filtering (currently unused)
         view = request.args.get('view', 'grid')
         page = request.args.get('page', 1, type=int)
         per_page = 12
-        
+
         # Build query
         query = GeneratedApplication.query
-        
+
         if search:
             query = query.filter(
                 GeneratedApplication.model_slug.contains(search)
             )
-        
+
         if model:
             query = query.filter(GeneratedApplication.model_slug == model)
-        
+
         if status:
             query = query.filter(GeneratedApplication.generation_status == status)
-        
+
         # Paginate
         apps = query.order_by(
             GeneratedApplication.created_at.desc()
         ).paginate(
             page=page, per_page=per_page, error_out=False
         )
-        
+
         # Return appropriate template based on view
         # Use consolidated namespaced partials (apps_grid namespace)
         # Legacy root-level partials (partials/apps_list.html, partials/apps_grid.html)
@@ -315,95 +208,54 @@ def api_apps_grid():
 
 @api_bp.route('/applications/<int:app_id>/start', methods=['POST'])
 def api_application_start(app_id):
-    """API endpoint to start an application container."""
+    """API endpoint to start an application container (service-backed)."""
     try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': f'Application {app_id} not found'}), 404
-        
-        # Update container status
-        app.container_status = 'running'
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Application {app_id} started successfully'
-        })
-            
-    except Exception as e:
-        logger.error(f"Error starting application {app_id}: {e}")
-        return jsonify({'error': str(e), 'success': False}), 500
+        result = app_service.start_application(app_id)
+        return json_success(result, message=f'Application {app_id} started successfully')
+    except app_service.NotFoundError:
+        return json_error(f'Application {app_id} not found', status=404, error_type='NotFound')
 
 
 @api_bp.route('/applications/<int:app_id>/stop', methods=['POST'])
 def api_application_stop(app_id):
-    """API endpoint to stop an application container."""
+    """API endpoint to stop an application container (service-backed)."""
     try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': f'Application {app_id} not found'}), 404
-        
-        # Update container status
-        app.container_status = 'stopped'
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Application {app_id} stopped successfully'
-        })
-            
-    except Exception as e:
-        logger.error(f"Error stopping application {app_id}: {e}")
-        return jsonify({'error': str(e), 'success': False}), 500
+        result = app_service.stop_application(app_id)
+        return json_success(result, message=f'Application {app_id} stopped successfully')
+    except app_service.NotFoundError:
+        return json_error(f'Application {app_id} not found', status=404, error_type='NotFound')
 
 
 @api_bp.route('/applications/<int:app_id>/restart', methods=['POST'])
 def api_application_restart(app_id):
-    """API endpoint to restart an application container."""
+    """API endpoint to restart an application container (service-backed)."""
     try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': f'Application {app_id} not found'}), 404
-        
-        # Update container status (simulate restart)
-        app.container_status = 'running'
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Application {app_id} restarted successfully'
-        })
-            
-    except Exception as e:
-        logger.error(f"Error restarting application {app_id}: {e}")
-        return jsonify({'error': str(e), 'success': False}), 500
+        result = app_service.restart_application(app_id)
+        return json_success(result, message=f'Application {app_id} restarted successfully')
+    except app_service.NotFoundError:
+        return json_error(f'Application {app_id} not found', status=404, error_type='NotFound')
 
 
 @api_bp.route('/applications/<int:app_id>/details')
+@handle_exceptions(logger_override=logger)
 def api_application_details(app_id):
-    """API endpoint to get application details."""
-    try:
-        app = GeneratedApplication.query.get(app_id)
-        if not app:
-            return jsonify({'error': f'Application {app_id} not found'}), 404
-        
-        return jsonify({
-            'id': app.id,
-            'app_number': app.app_number,
-            'model_slug': app.model_slug,
-            'provider': app.provider,
-            'container_status': app.container_status,
-            'frontend_url': app.frontend_url,
-            'backend_url': app.backend_url,
-            'description': app.description,
-            'backend_framework': app.backend_framework,
-            'frontend_framework': app.frontend_framework,
-            'created_at': app.created_at.isoformat() if app.created_at else None
-        })
-            
-    except Exception as e:
-        logger.error(f"Error getting application {app_id} details: {e}")
-        return jsonify({'error': str(e)}), 500
+    """API endpoint to get application details (standardized)."""
+    app = GeneratedApplication.query.get(app_id)
+    if not app:
+        return json_error(f'Application {app_id} not found', status=404, error_type='NotFound')
+    return json_success({
+        'id': app.id,
+        'app_number': app.app_number,
+        'model_slug': app.model_slug,
+        'provider': app.provider,
+        'container_status': app.container_status,
+        'frontend_url': app.frontend_url,
+        'backend_url': app.backend_url,
+        'description': app.description,
+        'backend_framework': app.backend_framework,
+        'frontend_framework': app.frontend_framework,
+        'created_at': app.created_at.isoformat() if app.created_at else None
+    }, message='Application details fetched')
 
 
 @api_bp.route('/applications/<int:app_id>/logs')
@@ -459,146 +311,66 @@ def api_application_logs(app_id):
 def start_app_by_model(model_slug, app_num):
     """Start application by model slug and app number."""
     try:
-        app = GeneratedApplication.query.filter_by(
-            model_slug=model_slug, 
-            app_number=app_num
-        ).first()
-        
+        # Leverage generic application start
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
         if not app:
-            return jsonify({
-                'success': False, 
-                'message': f'Application {model_slug}/{app_num} not found'
-            }), 404
-        
-        # Mock container start - in production this would use Docker API
-        app.container_status = 'running'
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Started {model_slug} app {app_num}',
-            'new_status': 'running'
-        })
-    except Exception as e:
+            return json_error(f'Application {model_slug}/{app_num} not found', status=404, error_type='NotFound')
+        result = app_service.start_application(app.id)
+        return json_success(result, message=f'Started {model_slug} app {app_num}')
+    except Exception as e:  # noqa: BLE001 broad for last-resort logging
         logger.error(f"Error starting app {model_slug}/{app_num}: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return json_error(str(e), status=500, error_type='InternalError')
 
 
 @api_bp.route('/app/<model_slug>/<int:app_num>/stop', methods=['POST'])
 def stop_app_by_model(model_slug, app_num):
     """Stop application by model slug and app number."""
     try:
-        app = GeneratedApplication.query.filter_by(
-            model_slug=model_slug, 
-            app_number=app_num
-        ).first()
-        
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
         if not app:
-            return jsonify({
-                'success': False, 
-                'message': f'Application {model_slug}/{app_num} not found'
-            }), 404
-        
-        # Mock container stop - in production this would use Docker API
-        app.container_status = 'stopped'
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Stopped {model_slug} app {app_num}',
-            'new_status': 'stopped'
-        })
-    except Exception as e:
+            return json_error(f'Application {model_slug}/{app_num} not found', status=404, error_type='NotFound')
+        result = app_service.stop_application(app.id)
+        return json_success(result, message=f'Stopped {model_slug} app {app_num}')
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error stopping app {model_slug}/{app_num}: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return json_error(str(e), status=500, error_type='InternalError')
 
 
 @api_bp.route('/app/<model_slug>/<int:app_num>/restart', methods=['POST'])
 def restart_app_by_model(model_slug, app_num):
     """Restart application by model slug and app number."""
     try:
-        app = GeneratedApplication.query.filter_by(
-            model_slug=model_slug, 
-            app_number=app_num
-        ).first()
-        
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
         if not app:
-            return jsonify({
-                'success': False, 
-                'message': f'Application {model_slug}/{app_num} not found'
-            }), 404
-        
-        # Mock container restart - in production this would use Docker API
-        app.container_status = 'running'
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Restarted {model_slug} app {app_num}',
-            'new_status': 'running'
-        })
-    except Exception as e:
+            return json_error(f'Application {model_slug}/{app_num} not found', status=404, error_type='NotFound')
+        result = app_service.restart_application(app.id)
+        return json_success(result, message=f'Restarted {model_slug} app {app_num}')
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error restarting app {model_slug}/{app_num}: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return json_error(str(e), status=500, error_type='InternalError')
 
 
 @api_bp.route('/model/<model_slug>/containers/start', methods=['POST'])
 def start_model_containers(model_slug):
     """Start all containers for a model."""
     try:
-        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
-        
-        if not apps:
-            return jsonify({
-                'success': False,
-                'message': f'No applications found for model {model_slug}'
-            }), 404
-        
-        # Mock starting all containers
-        started_count = 0
-        for app in apps:
-            if app.container_status != 'running':
-                app.container_status = 'running'
-                started_count += 1
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Started {started_count} containers for {model_slug}',
-            'started_count': started_count
-        })
-    except Exception as e:
+        result = app_service.start_model_containers(model_slug)
+        if result['affected'] == 0:
+            return json_error(f'No applications found for model {model_slug}', status=404, error_type='NotFound')
+        return json_success(result, message=f"Started {result['started']} containers for {model_slug}")
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error starting containers for model {model_slug}: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return json_error(str(e), status=500, error_type='InternalError')
 
 
 @api_bp.route('/model/<model_slug>/containers/stop', methods=['POST'])
 def stop_model_containers(model_slug):
     """Stop all containers for a model."""
     try:
-        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
-        
-        if not apps:
-            return jsonify({
-                'success': False,
-                'message': f'No applications found for model {model_slug}'
-            }), 404
-        
-        # Mock stopping all containers
-        stopped_count = 0
-        for app in apps:
-            if app.container_status == 'running':
-                app.container_status = 'stopped'
-                stopped_count += 1
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Stopped {stopped_count} containers for {model_slug}',
-            'stopped_count': stopped_count
-        })
-    except Exception as e:
+        result = app_service.stop_model_containers(model_slug)
+        if result['affected'] == 0:
+            return json_error(f'No applications found for model {model_slug}', status=404, error_type='NotFound')
+        return json_success(result, message=f"Stopped {result['stopped']} containers for {model_slug}")
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Error stopping containers for model {model_slug}: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return json_error(str(e), status=500, error_type='InternalError')
