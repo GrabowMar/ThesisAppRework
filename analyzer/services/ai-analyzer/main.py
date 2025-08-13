@@ -85,8 +85,11 @@ class AIAnalyzer:
             logger.error(f"Error reading source files: {e}")
             return {}
     
-    async def analyze_with_ai(self, prompt: str, model: Optional[str] = None) -> Dict[str, Any]:
-        """Analyze code using AI model via OpenRouter."""
+    async def analyze_with_ai(self, prompt: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Analyze code using AI model via OpenRouter with custom configuration."""
+        # Get configuration parameters
+        openrouter_config = config.get('openrouter', {}) if config else {}
+        
         try:
             if not self.openrouter_api_key:
                 return {
@@ -94,7 +97,15 @@ class AIAnalyzer:
                     'error': 'OpenRouter API key not configured'
                 }
             
-            model_to_use = model or self.default_model
+            model_to_use = openrouter_config.get('model', self.default_model)
+            max_tokens = openrouter_config.get('max_tokens', 4000)
+            temperature = openrouter_config.get('temperature', 0.1)
+            top_p = openrouter_config.get('top_p', 1.0)
+            frequency_penalty = openrouter_config.get('frequency_penalty', 0.0)
+            presence_penalty = openrouter_config.get('presence_penalty', 0.0)
+            stop_sequences = openrouter_config.get('stop', [])
+            stream = openrouter_config.get('stream', False)
+            timeout = openrouter_config.get('timeout', 120)
             
             headers = {
                 'Authorization': f'Bearer {self.openrouter_api_key}',
@@ -103,12 +114,14 @@ class AIAnalyzer:
                 'X-Title': 'AI Code Analyzer'
             }
             
-            payload = {
-                'model': model_to_use,
-                'messages': [
-                    {
-                        'role': 'system',
-                        'content': '''You are an expert code analyst. Analyze the provided code for:
+            # Add custom headers if specified
+            if openrouter_config.get('custom_headers'):
+                headers.update(openrouter_config['custom_headers'])
+            
+            # Prepare system prompt
+            system_prompt = openrouter_config.get('system_prompt')
+            if not system_prompt:
+                system_prompt = '''You are an expert code analyst. Analyze the provided code for:
 1. Security vulnerabilities and concerns
 2. Code quality issues and improvements
 3. Performance bottlenecks
@@ -117,17 +130,42 @@ class AIAnalyzer:
 6. Maintainability concerns
 
 Provide structured analysis with specific recommendations.'''
-                    },
-                    {
-                        'role': 'user',
-                        'content': prompt
-                    }
-                ],
-                'max_tokens': 4000,
-                'temperature': 0.1
+            
+            messages = [
+                {
+                    'role': 'system',
+                    'content': system_prompt
+                },
+                {
+                    'role': 'user',
+                    'content': prompt
+                }
+            ]
+            
+            payload = {
+                'model': model_to_use,
+                'messages': messages,
+                'max_tokens': max_tokens,
+                'temperature': temperature,
+                'top_p': top_p,
+                'frequency_penalty': frequency_penalty,
+                'presence_penalty': presence_penalty,
+                'stream': stream
             }
             
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
+            if stop_sequences:
+                payload['stop'] = stop_sequences
+            
+            # Add reasoning parameters if enabled
+            if openrouter_config.get('reasoning_enabled', False):
+                reasoning_config = {
+                    'effort': openrouter_config.get('reasoning_effort', 'medium')
+                }
+                if not openrouter_config.get('include_reasoning', True):
+                    reasoning_config['exclude'] = True
+                payload['reasoning'] = reasoning_config
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
                 async with session.post(
                     'https://openrouter.ai/api/v1/chat/completions',
                     headers=headers,
@@ -138,40 +176,53 @@ Provide structured analysis with specific recommendations.'''
                         result = await response.json()
                         
                         if 'choices' in result and len(result['choices']) > 0:
-                            analysis_text = result['choices'][0]['message']['content']
+                            choice = result['choices'][0]
+                            message = choice['message']
+                            analysis_text = message['content']
+                            
+                            # Extract reasoning if present
+                            reasoning = None
+                            if 'reasoning' in message and openrouter_config.get('include_reasoning'):
+                                reasoning = message['reasoning']
                             
                             return {
                                 'status': 'success',
                                 'model': model_to_use,
                                 'analysis': analysis_text,
+                                'reasoning': reasoning,
                                 'usage': result.get('usage', {}),
-                                'timestamp': datetime.now().isoformat()
+                                'timestamp': datetime.now().isoformat(),
+                                'config_used': openrouter_config
                             }
                         else:
                             return {
                                 'status': 'error',
                                 'error': 'No response from AI model',
-                                'model': model_to_use
+                                'model': model_to_use,
+                                'config_used': openrouter_config
                             }
                     else:
                         error_text = await response.text()
                         return {
                             'status': 'error',
                             'error': f'API error {response.status}: {error_text}',
-                            'model': model_to_use
+                            'model': model_to_use,
+                            'config_used': openrouter_config
                         }
                         
         except asyncio.TimeoutError:
             return {
                 'status': 'timeout',
                 'error': 'AI analysis request timed out',
-                'model': model_to_use
+                'model': openrouter_config.get('model', self.default_model),
+                'config_used': openrouter_config
             }
         except Exception as e:
             return {
                 'status': 'error',
                 'error': str(e),
-                'model': model_to_use
+                'model': openrouter_config.get('model', self.default_model),
+                'config_used': openrouter_config
             }
     
     async def analyze_code_structure(self, files_content: Dict[str, str]) -> Dict[str, Any]:
@@ -288,7 +339,7 @@ Provide structured analysis with specific recommendations.'''
         except Exception as e:
             return f"Error generating summary: {e}"
     
-    async def analyze_application_ai(self, model_slug: str, app_number: int, source_path: str) -> Dict[str, Any]:
+    async def analyze_application_ai(self, model_slug: str, app_number: int, source_path: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Perform comprehensive AI analysis of application."""
         try:
             logger.info(f"AI analyzing {model_slug} app {app_number}")
@@ -301,7 +352,8 @@ Provide structured analysis with specific recommendations.'''
                     'status': 'error',
                     'error': f'No source files found in {source_path}',
                     'model_slug': model_slug,
-                    'app_number': app_number
+                    'app_number': app_number,
+                    'config_used': config or {}
                 }
             
             # Analyze code structure
@@ -310,7 +362,7 @@ Provide structured analysis with specific recommendations.'''
             # Generate code summary for AI
             code_summary = await self.generate_code_summary(files_content)
             
-            # Perform AI analysis
+            # Perform AI analysis with configuration
             ai_prompt = f"""Please analyze this web application codebase:
 
 {code_summary}
@@ -325,7 +377,7 @@ Focus on:
 
 Provide specific, actionable recommendations with examples."""
             
-            ai_analysis = await self.analyze_with_ai(ai_prompt)
+            ai_analysis = await self.analyze_with_ai(ai_prompt, config)
             
             # Compile results
             results = {
@@ -337,7 +389,8 @@ Provide specific, actionable recommendations with examples."""
                 'ai_analysis': ai_analysis,
                 'files_analyzed': len(files_content),
                 'service': self.service_name,
-                'version': self.version
+                'version': self.version,
+                'config_used': config or {}
             }
             
             # Add summary metrics

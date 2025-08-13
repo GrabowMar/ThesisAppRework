@@ -859,6 +859,159 @@ class BatchAnalysis(db.Model):  # type: ignore[misc]
         return f'<BatchAnalysis {self.batch_id}>'
 
 
+class EnhancedAnalysis(db.Model):  # type: ignore[misc]
+    """Model for storing enhanced analysis results with custom configurations."""
+    __tablename__ = 'enhanced_analyses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    model_slug = db.Column(db.String(200), nullable=False, index=True)
+    app_number = db.Column(db.Integer, nullable=False, index=True)
+    
+    # Analysis metadata
+    status = db.Column(db.String(50), nullable=False, default='pending', index=True)
+    overall_score = db.Column(db.Float, nullable=True)
+    
+    # Configuration and results stored as JSON
+    config_json = db.Column(db.Text, nullable=True)  # Enhanced configuration used
+    results_json = db.Column(db.Text, nullable=True)  # Detailed analysis results
+    summary_json = db.Column(db.Text, nullable=True)  # Summary and metrics
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    started_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    __table_args__ = (
+        db.Index('idx_enhanced_model_app', 'model_slug', 'app_number'),
+        db.Index('idx_enhanced_status_created', 'status', 'created_at'),
+    )
+    
+    def get_config(self) -> Dict[str, Any]:
+        """Get configuration as dictionary."""
+        if self.config_json:
+            try:
+                return json.loads(self.config_json)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+    
+    def set_config(self, config: Dict[str, Any]) -> None:
+        """Set configuration from dictionary."""
+        self.config_json = json.dumps(config) if config else None
+    
+    def get_results(self) -> Dict[str, Any]:
+        """Get results as dictionary."""
+        if self.results_json:
+            try:
+                return json.loads(self.results_json)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+    
+    def set_results(self, results: Dict[str, Any]) -> None:
+        """Set results from dictionary."""
+        self.results_json = json.dumps(results) if results else None
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get summary as dictionary."""
+        if self.summary_json:
+            try:
+                return json.loads(self.summary_json)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+    
+    def set_summary(self, summary: Dict[str, Any]) -> None:
+        """Set summary from dictionary."""
+        self.summary_json = json.dumps(summary) if summary else None
+    
+    @property
+    def duration(self) -> float:
+        """Calculate analysis duration in seconds."""
+        if self.completed_at and self.started_at:
+            return (self.completed_at - self.started_at).total_seconds()
+        elif self.started_at:
+            return (utc_now() - self.started_at).total_seconds()
+        return 0.0
+    
+    @property
+    def is_running(self) -> bool:
+        """Check if analysis is currently running."""
+        return self.status in ['running', 'progress']
+    
+    @property
+    def is_completed(self) -> bool:
+        """Check if analysis is completed (successfully or with errors)."""
+        return self.status in ['completed', 'error', 'failed']
+    
+    def get_analysis_types(self) -> List[str]:
+        """Get list of analysis types that were run."""
+        config = self.get_config()
+        types = []
+        
+        if config.get('static'):
+            types.append('static_analysis')
+        if config.get('performance'):
+            types.append('performance_testing')
+        if config.get('ai'):
+            types.append('ai_analysis')
+            
+        return types
+    
+    def get_scores_by_type(self) -> Dict[str, float]:
+        """Get scores broken down by analysis type."""
+        results = self.get_results()
+        scores = {}
+        
+        # Extract scores from different analysis types
+        if 'static_analysis' in results:
+            static = results['static_analysis']
+            if static.get('pylint', {}).get('score'):
+                scores['code_quality'] = static['pylint']['score']
+            if static.get('eslint', {}).get('score'):
+                scores['javascript_quality'] = static['eslint']['score']
+        
+        if 'performance_testing' in results:
+            perf = results['performance_testing']
+            if perf.get('apache_bench', {}).get('requests_per_second'):
+                rps = perf['apache_bench']['requests_per_second']
+                scores['performance'] = min(100, (rps / 100) * 100)
+        
+        if 'ai_analysis' in results:
+            ai = results['ai_analysis']
+            if ai.get('quality_score'):
+                scores['ai_quality'] = ai['quality_score']
+        
+        return scores
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'task_id': self.task_id,
+            'model_slug': self.model_slug,
+            'app_number': self.app_number,
+            'status': self.status,
+            'overall_score': self.overall_score,
+            'duration': self.duration,
+            'is_running': self.is_running,
+            'is_completed': self.is_completed,
+            'analysis_types': self.get_analysis_types(),
+            'scores_by_type': self.get_scores_by_type(),
+            'config': self.get_config(),
+            'results': self.get_results(),
+            'summary': self.get_summary(),
+            'created_at': self.created_at,
+            'started_at': self.started_at,
+            'completed_at': self.completed_at
+        }
+    
+    def __repr__(self) -> str:
+        return f'<EnhancedAnalysis {self.task_id} - {self.model_slug} app {self.app_number}>'
+
+
 # Initialize database function
 def init_db():
     """Create all database tables."""
@@ -877,5 +1030,6 @@ __all__ = [
     'ZAPAnalysis',
     'OpenRouterAnalysis',
     'ContainerizedTest',
-    'BatchAnalysis'
+    'BatchAnalysis',
+    'EnhancedAnalysis'
 ]

@@ -1,0 +1,358 @@
+<!-- Enhanced Results Preview Interface -->
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <!-- Results Dashboard Header -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <h4 class="mb-0">
+                <i class="fas fa-chart-line me-2"></i>Enhanced Testing Results Dashboard
+              </h4>
+              <small class="text-muted">Comprehensive analysis results with advanced filtering and export</small>
+            </div>
+            <div class="col-md-4 text-end">
+              <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="refreshResults()">
+                  <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+                <button type="button" class="btn btn-outline-success btn-sm" onclick="exportAllResults()">
+                  <i class="fas fa-download me-1"></i>Export All
+                </button>
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="showComparisonView()">
+                  <i class="fas fa-balance-scale me-1"></i>Compare
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters and Controls -->
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3">
+              <label class="form-label">Model Filter</label>
+              <select class="form-select" id="modelFilter" onchange="applyFilters()">
+                <option value="">All Models</option>
+                <option value="anthropic_claude">Anthropic Claude</option>
+                <option value="openai_gpt">OpenAI GPT</option>
+                <option value="google_gemini">Google Gemini</option>
+                <option value="meta_llama">Meta Llama</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Analysis Type</label>
+              <select class="form-select" id="analysisTypeFilter" onchange="applyFilters()">
+                <option value="">All Types</option>
+                <option value="security">Security Analysis</option>
+                <option value="performance">Performance Testing</option>
+                <option value="ai_analysis">AI Analysis</option>
+                <option value="static_analysis">Static Analysis</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Date Range</label>
+              <select class="form-select" id="dateFilter" onchange="applyFilters()">
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="week">Last Week</option>
+                <option value="month">Last Month</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Status Filter</label>
+              <select class="form-select" id="statusFilter" onchange="applyFilters()">
+                <option value="">All Status</option>
+                <option value="success">Completed</option>
+                <option value="running">Running</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+          </div>
+          <div class="row mt-3">
+            <div class="col-md-6">
+              <label class="form-label">Search Results</label>
+              <input type="text" class="form-control" id="searchFilter" 
+                     placeholder="Search in results..." onkeyup="applyFilters()">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Results per Page</label>
+              <select class="form-select" id="pageSizeFilter" onchange="applyFilters()">
+                <option value="10">10 results</option>
+                <option value="25" selected>25 results</option>
+                <option value="50">50 results</option>
+                <option value="100">100 results</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Overview Cards -->
+      <div class="row mb-3">
+        <div class="col-md-3">
+          <div class="card bg-primary text-white">
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">Total Tests</h6>
+                  <h3 class="mb-0" id="totalTestsCount">---</h3>
+                </div>
+                <div class="align-self-center">
+                  <i class="fas fa-vial fa-2x"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-success text-white">
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">Completed</h6>
+                  <h3 class="mb-0" id="completedTestsCount">---</h3>
+                </div>
+                <div class="align-self-center">
+                  <i class="fas fa-check-circle fa-2x"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-warning text-white">
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">Running</h6>
+                  <h3 class="mb-0" id="runningTestsCount">---</h3>
+                </div>
+                <div class="align-self-center">
+                  <i class="fas fa-spinner fa-2x"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-danger text-white">
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">Failed</h6>
+                  <h3 class="mb-0" id="failedTestsCount">---</h3>
+                </div>
+                <div class="align-self-center">
+                  <i class="fas fa-times-circle fa-2x"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="fas fa-table me-2"></i>Detailed Results
+            </h5>
+            <div class="btn-group btn-group-sm" role="group">
+              <input type="radio" class="btn-check" name="viewMode" id="tableView" autocomplete="off" checked onchange="switchView('table')">
+              <label class="btn btn-outline-primary" for="tableView">
+                <i class="fas fa-table"></i> Table
+              </label>
+              
+              <input type="radio" class="btn-check" name="viewMode" id="cardView" autocomplete="off" onchange="switchView('card')">
+              <label class="btn btn-outline-primary" for="cardView">
+                <i class="fas fa-th-large"></i> Cards
+              </label>
+              
+              <input type="radio" class="btn-check" name="viewMode" id="chartView" autocomplete="off" onchange="switchView('chart')">
+              <label class="btn btn-outline-primary" for="chartView">
+                <i class="fas fa-chart-bar"></i> Charts
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <!-- Table View -->
+          <div id="tableViewContainer">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0" id="resultsTable">
+                <thead class="table-dark">
+                  <tr>
+                    <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                    <th>Model</th>
+                    <th>App #</th>
+                    <th>Analysis Type</th>
+                    <th>Status</th>
+                    <th>Score</th>
+                    <th>Duration</th>
+                    <th>Started</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                  <!-- Dynamic content loaded here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Card View -->
+          <div id="cardViewContainer" style="display: none;">
+            <div class="row" id="resultsCardsContainer">
+              <!-- Dynamic cards loaded here -->
+            </div>
+          </div>
+
+          <!-- Chart View -->
+          <div id="chartViewContainer" style="display: none;">
+            <div class="row">
+              <div class="col-md-6">
+                <canvas id="statusChart" width="400" height="200"></canvas>
+              </div>
+              <div class="col-md-6">
+                <canvas id="scoreChart" width="400" height="200"></canvas>
+              </div>
+            </div>
+            <div class="row mt-3">
+              <div class="col-12">
+                <canvas id="timelineChart" width="800" height="300"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted" id="resultsInfo">Showing 1-25 of 100 results</span>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="resultsPagination">
+                <!-- Dynamic pagination -->
+              </ul>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Result Detail Modal -->
+<div class="modal fade" id="resultDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-microscope me-2"></i>Detailed Analysis Results
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-8">
+            <!-- Result Content Tabs -->
+            <ul class="nav nav-tabs" id="resultDetailTabs">
+              <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#summary-tab">Summary</button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#details-tab">Details</button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#raw-tab">Raw Data</button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#config-tab">Configuration</button>
+              </li>
+            </ul>
+            <div class="tab-content mt-3" id="resultDetailContent">
+              <div class="tab-pane fade show active" id="summary-tab">
+                <div id="resultSummaryContent">
+                  <!-- Summary content -->
+                </div>
+              </div>
+              <div class="tab-pane fade" id="details-tab">
+                <div id="resultDetailsContent">
+                  <!-- Detailed content -->
+                </div>
+              </div>
+              <div class="tab-pane fade" id="raw-tab">
+                <div id="resultRawContent">
+                  <!-- Raw JSON data -->
+                </div>
+              </div>
+              <div class="tab-pane fade" id="config-tab">
+                <div id="resultConfigContent">
+                  <!-- Configuration used -->
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <!-- Result Metadata -->
+            <div class="card">
+              <div class="card-header">
+                <h6 class="mb-0">Test Information</h6>
+              </div>
+              <div class="card-body" id="resultMetadata">
+                <!-- Metadata content -->
+              </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="card mt-3">
+              <div class="card-header">
+                <h6 class="mb-0">Quick Actions</h6>
+              </div>
+              <div class="card-body">
+                <div class="d-grid gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" onclick="rerunTest()">
+                    <i class="fas fa-redo me-1"></i>Rerun Test
+                  </button>
+                  <button type="button" class="btn btn-success btn-sm" onclick="exportResult()">
+                    <i class="fas fa-download me-1"></i>Export Result
+                  </button>
+                  <button type="button" class="btn btn-info btn-sm" onclick="shareResult()">
+                    <i class="fas fa-share me-1"></i>Share Result
+                  </button>
+                  <button type="button" class="btn btn-warning btn-sm" onclick="addToComparison()">
+                    <i class="fas fa-plus me-1"></i>Add to Comparison
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison Modal -->
+<div class="modal fade" id="comparisonModal" tabindex="-1">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-balance-scale me-2"></i>Results Comparison
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="comparisonContent">
+          <!-- Comparison charts and tables -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

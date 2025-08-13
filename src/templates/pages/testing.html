@@ -1,7 +1,82 @@
 {% extends 'single_page.html' %}
-{% block title %}Testing Center | AI Research Platform{% endblock %}
-{% block page_title %}Testing Center{% endblock %}
+{% block title %}Enhanced Testing Center | AI Research Platform{% endblock %}
+{% block page_title %}Enhanced Testing Center{% endblock %}
+
+{% block head %}
+<!-- Chart.js for enhanced visualizations -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<!-- Enhanced testing scripts -->
+<script src="{{ url_for('static', filename='js/enhanced-testing-config.js') }}"></script>
+<script src="{{ url_for('static', filename='js/enhanced-results.js') }}"></script>
+{% endblock %}
+
 {% block content %}
-  {% include 'partials/testing/platform_overview.html' ignore missing %}
-  {% include 'partials/testing/recent_tests.html' ignore missing %}
+<!-- Enhanced Testing Interface -->
+<div class="container-fluid">
+  <!-- Navigation Tabs -->
+  <ul class="nav nav-tabs mb-4" id="testingTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" 
+              data-bs-target="#overview" type="button" role="tab">
+        <i class="fas fa-tachometer-alt me-1"></i>Overview
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="enhanced-config-tab" data-bs-toggle="tab" 
+              data-bs-target="#enhanced-config" type="button" role="tab">
+        <i class="fas fa-cogs me-1"></i>Enhanced Configuration
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="enhanced-results-tab" data-bs-toggle="tab" 
+              data-bs-target="#enhanced-results" type="button" role="tab">
+        <i class="fas fa-chart-line me-1"></i>Enhanced Results
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="legacy-tests-tab" data-bs-toggle="tab" 
+              data-bs-target="#legacy-tests" type="button" role="tab">
+        <i class="fas fa-history me-1"></i>Legacy Tests
+      </button>
+    </li>
+  </ul>
+
+  <!-- Tab Content -->
+  <div class="tab-content" id="testingTabContent">
+    <!-- Overview Tab -->
+    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+      {% include 'partials/testing/platform_overview.html' ignore missing %}
+    </div>
+
+    <!-- Enhanced Configuration Tab -->
+    <div class="tab-pane fade" id="enhanced-config" role="tabpanel">
+      {% include 'partials/testing/enhanced_config.html' %}
+    </div>
+
+    <!-- Enhanced Results Tab -->
+    <div class="tab-pane fade" id="enhanced-results" role="tabpanel">
+      {% include 'partials/testing/enhanced_results.html' %}
+    </div>
+
+    <!-- Legacy Tests Tab -->
+    <div class="tab-pane fade" id="legacy-tests" role="tabpanel">
+      <div class="alert alert-info">
+        <h6 class="alert-heading">
+          <i class="fas fa-info-circle me-1"></i>Legacy Testing Interface
+        </h6>
+        <p class="mb-0">
+          This section contains the original testing forms and recent results. 
+          For advanced features, use the Enhanced Configuration and Enhanced Results tabs.
+        </p>
+      </div>
+      {% include 'partials/testing/recent_tests.html' ignore missing %}
+    </div>
+  </div>
+</div>
+
+<!-- Global testing notification area -->
+<div id="testingNotifications" class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+  <!-- Notifications will be inserted here -->
+</div>
 {% endblock %}

@@ -21,9 +21,11 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
+import yaml
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import websockets
 from websockets.asyncio.server import serve
 
@@ -78,19 +80,119 @@ class StaticAnalyzer:
         
         return tools
     
-    async def analyze_python_files(self, source_path: Path) -> Dict[str, Any]:
-        """Run Python static analysis tools."""
+    def _generate_pylintrc(self, config: Dict[str, Any]) -> str:
+        """Generate .pylintrc configuration file content."""
+        rcfile_content = f"""[MAIN]
+jobs={config.get('jobs', 0)}
+load-plugins={','.join(config.get('load_plugins', []))}
+
+[MESSAGES CONTROL]
+disable={','.join(config.get('disable', ['missing-docstring', 'too-few-public-methods']))}
+enable={','.join(config.get('enable', []))}
+
+[REPORTS]
+output-format={config.get('output_format', 'json')}
+reports={'yes' if config.get('reports', False) else 'no'}
+score={'yes' if config.get('score', True) else 'no'}
+
+[FORMAT]
+max-line-length={config.get('max_line_length', 100)}
+max-module-lines={config.get('max_module_lines', 1000)}
+
+[DESIGN]
+max-args=5
+max-attributes=7
+max-bool-expr=5
+max-branches=12
+max-locals=15
+max-parents=7
+max-public-methods=20
+max-returns=6
+max-statements=50
+min-public-methods=2
+
+[BASIC]
+good-names={','.join(config.get('good_names', ['i', 'j', 'k', 'ex', 'Run', '_', 'id', 'pk']))}
+bad-names={','.join(config.get('bad_names', ['foo', 'bar', 'baz', 'toto', 'tutu', 'tata']))}
+
+[REFACTORING]
+max-nested-blocks={config.get('max_nested_blocks', 5)}
+"""
+        return rcfile_content
+    
+    async def analyze_python_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run Python static analysis tools with custom configuration."""
         python_files = list(source_path.rglob('*.py'))
         if not python_files:
             return {'status': 'no_files', 'message': 'No Python files found'}
         
         results = {}
         
+        # Get configuration settings
+        bandit_config = config.get('bandit', {}) if config else {}
+        pylint_config = config.get('pylint', {}) if config else {}
+        
         # Bandit security analysis
-        if 'bandit' in self.available_tools:
+        if 'bandit' in self.available_tools and bandit_config.get('enabled', True):
             try:
-                cmd = ['bandit', '-r', str(source_path), '-f', 'json', '--skip', 'B101']
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                cmd = ['bandit', '-r', str(source_path)]
+                
+                # Apply configuration
+                if bandit_config.get('format'):
+                    cmd.extend(['-f', bandit_config['format']])
+                else:
+                    cmd.extend(['-f', 'json'])
+                
+                if bandit_config.get('skips'):
+                    cmd.extend(['--skip', ','.join(bandit_config['skips'])])
+                else:
+                    cmd.extend(['--skip', 'B101'])  # Default skip
+                
+                if bandit_config.get('tests'):
+                    cmd.extend(['--tests', ','.join(bandit_config['tests'])])
+                
+                if bandit_config.get('severity_level'):
+                    severity_map = {'low': 'l', 'medium': 'm', 'high': 'h'}
+                    if bandit_config['severity_level'] in severity_map:
+                        cmd.extend(['-l', severity_map[bandit_config['severity_level']]])
+                
+                if bandit_config.get('confidence_level'):
+                    confidence_map = {'low': 'l', 'medium': 'm', 'high': 'h'}
+                    if bandit_config['confidence_level'] in confidence_map:
+                        cmd.extend(['-i', confidence_map[bandit_config['confidence_level']]])
+                
+                if bandit_config.get('context_lines'):
+                    cmd.extend(['--msg-template', 
+                              '{abspath}:{line}: {test_id}[bandit]: {severity}: {msg}'])
+                
+                # Create temporary config file if needed
+                config_file = None
+                if bandit_config.get('exclude_dirs') or bandit_config.get('baseline_file'):
+                    import tempfile
+                    import yaml
+                    
+                    config_data = {}
+                    if bandit_config.get('exclude_dirs'):
+                        config_data['exclude_dirs'] = bandit_config['exclude_dirs']
+                    if bandit_config.get('tests'):
+                        config_data['tests'] = bandit_config['tests']
+                    if bandit_config.get('skips'):
+                        config_data['skips'] = bandit_config['skips']
+                    
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+                        yaml.dump(config_data, f)
+                        config_file = f.name
+                        cmd.extend(['-c', config_file])
+                
+                logger.info(f"Running Bandit: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                
+                # Cleanup temporary config file
+                if config_file:
+                    try:
+                        os.unlink(config_file)
+                    except Exception:
+                        pass
                 
                 if result.stdout:
                     bandit_data = json.loads(result.stdout)
@@ -98,20 +200,52 @@ class StaticAnalyzer:
                         'tool': 'bandit',
                         'status': 'success',
                         'issues': bandit_data.get('results', []),
-                        'total_issues': len(bandit_data.get('results', []))
+                        'total_issues': len(bandit_data.get('results', [])),
+                        'metrics': bandit_data.get('metrics', {}),
+                        'config_used': bandit_config
                     }
                 else:
-                    results['bandit'] = {'tool': 'bandit', 'status': 'no_issues', 'total_issues': 0}
+                    results['bandit'] = {
+                        'tool': 'bandit', 
+                        'status': 'no_issues', 
+                        'total_issues': 0,
+                        'config_used': bandit_config
+                    }
             except Exception as e:
+                logger.error(f"Bandit analysis failed: {e}")
                 results['bandit'] = {'tool': 'bandit', 'status': 'error', 'error': str(e)}
         
         # Pylint code quality
-        if 'pylint' in self.available_tools and python_files:
+        if 'pylint' in self.available_tools and pylint_config.get('enabled', True) and python_files:
             try:
-                # Limit to first 5 files to avoid timeout
-                files_to_check = python_files[:5]
-                cmd = ['pylint', '--output-format=json', '--reports=no'] + [str(f) for f in files_to_check]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                # Create temporary pylintrc file
+                pylintrc_content = self._generate_pylintrc(pylint_config)
+                
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.pylintrc', delete=False) as f:
+                    f.write(pylintrc_content)
+                    pylintrc_file = f.name
+                
+                # Select files to analyze (limit to prevent timeout)
+                max_files = pylint_config.get('max_files', 10)
+                files_to_check = python_files[:max_files]
+                
+                cmd = ['pylint', '--rcfile', pylintrc_file] + [str(f) for f in files_to_check]
+                
+                if pylint_config.get('errors_only'):
+                    cmd.append('--errors-only')
+                
+                if pylint_config.get('jobs'):
+                    cmd.extend(['-j', str(pylint_config['jobs'])])
+                
+                logger.info(f"Running Pylint: {' '.join(cmd[:5])}... ({len(files_to_check)} files)")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                
+                # Cleanup temporary rcfile
+                try:
+                    os.unlink(pylintrc_file)
+                except Exception:
+                    pass
                 
                 if result.stdout:
                     try:
@@ -121,23 +255,35 @@ class StaticAnalyzer:
                             'status': 'success',
                             'issues': pylint_data,
                             'total_issues': len(pylint_data),
-                            'files_analyzed': len(files_to_check)
+                            'files_analyzed': len(files_to_check),
+                            'config_used': pylint_config
                         }
                     except json.JSONDecodeError:
+                        # Pylint might not output JSON, parse text output
                         results['pylint'] = {
                             'tool': 'pylint',
                             'status': 'completed',
-                            'message': 'Analysis completed'
+                            'message': 'Analysis completed',
+                            'output': result.stdout[:1000],  # Truncate output
+                            'files_analyzed': len(files_to_check),
+                            'config_used': pylint_config
                         }
                 else:
-                    results['pylint'] = {'tool': 'pylint', 'status': 'no_issues', 'total_issues': 0}
+                    results['pylint'] = {
+                        'tool': 'pylint', 
+                        'status': 'no_issues', 
+                        'total_issues': 0,
+                        'files_analyzed': len(files_to_check),
+                        'config_used': pylint_config
+                    }
             except Exception as e:
+                logger.error(f"Pylint analysis failed: {e}")
                 results['pylint'] = {'tool': 'pylint', 'status': 'error', 'error': str(e)}
         
         return results
     
-    async def analyze_javascript_files(self, source_path: Path) -> Dict[str, Any]:
-        """Run JavaScript/TypeScript static analysis."""
+    async def analyze_javascript_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run JavaScript/TypeScript static analysis with custom configuration."""
         js_files = []
         for pattern in ['*.js', '*.jsx', '*.ts', '*.tsx', '*.vue']:
             js_files.extend(list(source_path.rglob(pattern)))
@@ -146,45 +292,100 @@ class StaticAnalyzer:
             return {'status': 'no_files', 'message': 'No JavaScript/TypeScript files found'}
         
         results = {}
+        eslint_config = config.get('eslint', {}) if config else {}
         
         # ESLint analysis
-        if 'eslint' in self.available_tools:
+        if 'eslint' in self.available_tools and eslint_config.get('enabled', True):
             try:
-                # Create basic ESLint config
-                eslint_config = {
-                    "extends": ["eslint:recommended"],
-                    "parserOptions": {"ecmaVersion": 2020, "sourceType": "module"},
-                    "rules": {
+                # Create custom ESLint config
+                eslint_config_data = {
+                    "extends": eslint_config.get('extends', ["eslint:recommended"]),
+                    "env": eslint_config.get('env', {"browser": True, "es2021": True, "node": True}),
+                    "parserOptions": eslint_config.get('parser_options', {
+                        "ecmaVersion": 2021,
+                        "sourceType": "module",
+                        "ecmaFeatures": {"jsx": True}
+                    }),
+                    "rules": eslint_config.get('rules', {
                         "no-eval": "error",
                         "no-implied-eval": "error",
                         "no-new-func": "error",
-                        "no-script-url": "error"
-                    }
+                        "no-script-url": "error",
+                        "no-alert": "warn",
+                        "no-console": "warn",
+                        "no-debugger": "error",
+                        "no-unused-vars": "warn"
+                    }),
+                    "globals": eslint_config.get('globals', {}),
+                    "plugins": eslint_config.get('plugins', []),
+                    "settings": eslint_config.get('settings', {})
                 }
+                
+                # Add ignore patterns if specified
+                if eslint_config.get('ignore_patterns'):
+                    eslint_config_data['ignorePatterns'] = eslint_config['ignore_patterns']
                 
                 config_file = source_path / '.eslintrc.json'
                 with open(config_file, 'w') as f:
-                    json.dump(eslint_config, f)
+                    json.dump(eslint_config_data, f, indent=2)
                 
-                # Run ESLint
-                cmd = ['eslint', '--format', 'json', str(source_path)]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                # Build ESLint command
+                cmd = ['eslint', '--format', eslint_config.get('format', 'json')]
+                
+                if eslint_config.get('fix'):
+                    cmd.append('--fix')
+                
+                if eslint_config.get('max_warnings') is not None:
+                    cmd.extend(['--max-warnings', str(eslint_config['max_warnings'])])
+                
+                if eslint_config.get('output_file'):
+                    cmd.extend(['--output-file', eslint_config['output_file']])
+                
+                # Add files or directory
+                if len(js_files) <= 20:  # If manageable number of files
+                    cmd.extend([str(f) for f in js_files])
+                else:
+                    cmd.append(str(source_path))
+                
+                logger.info(f"Running ESLint: {' '.join(cmd[:5])}...")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
                 
                 if result.stdout:
                     try:
                         eslint_data = json.loads(result.stdout)
                         total_issues = sum(len(file_result.get('messages', [])) for file_result in eslint_data)
+                        
+                        # Calculate severity breakdown
+                        severity_counts = {'error': 0, 'warning': 0}
+                        for file_result in eslint_data:
+                            for message in file_result.get('messages', []):
+                                severity = 'error' if message.get('severity') == 2 else 'warning'
+                                severity_counts[severity] += 1
+                        
                         results['eslint'] = {
                             'tool': 'eslint',
                             'status': 'success',
                             'results': eslint_data,
                             'total_issues': total_issues,
-                            'files_analyzed': len([f for f in eslint_data if f.get('messages')])
+                            'severity_breakdown': severity_counts,
+                            'files_analyzed': len([f for f in eslint_data if f.get('messages')]),
+                            'config_used': eslint_config
                         }
                     except json.JSONDecodeError:
-                        results['eslint'] = {'tool': 'eslint', 'status': 'completed', 'message': 'Analysis completed'}
+                        results['eslint'] = {
+                            'tool': 'eslint', 
+                            'status': 'completed', 
+                            'message': 'Analysis completed',
+                            'output': result.stdout[:500],
+                            'config_used': eslint_config
+                        }
                 else:
-                    results['eslint'] = {'tool': 'eslint', 'status': 'no_issues', 'total_issues': 0}
+                    results['eslint'] = {
+                        'tool': 'eslint', 
+                        'status': 'no_issues', 
+                        'total_issues': 0,
+                        'config_used': eslint_config
+                    }
                 
                 # Cleanup
                 try:
@@ -193,11 +394,12 @@ class StaticAnalyzer:
                     pass
                     
             except Exception as e:
+                logger.error(f"ESLint analysis failed: {e}")
                 results['eslint'] = {'tool': 'eslint', 'status': 'error', 'error': str(e)}
         
         return results
     
-    async def analyze_css_files(self, source_path: Path) -> Dict[str, Any]:
+    async def analyze_css_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Run CSS static analysis."""
         css_files = []
         for pattern in ['*.css', '*.scss', '*.sass', '*.less']:
@@ -266,8 +468,8 @@ class StaticAnalyzer:
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
     
-    async def analyze_model_code(self, model_slug: str, app_number: int) -> Dict[str, Any]:
-        """Perform comprehensive static analysis on AI model code."""
+    async def analyze_model_code(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Perform comprehensive static analysis on AI model code with custom configuration."""
         try:
             model_path = Path('/app/sources') / model_slug / f'app{app_number}'
             
@@ -284,25 +486,27 @@ class StaticAnalyzer:
                 'app_number': app_number,
                 'analysis_time': datetime.now().isoformat(),
                 'tools_used': self.available_tools.copy(),
+                'configuration_applied': config is not None,
                 'results': {}
             }
             
-            # Run analysis for different file types
+            # Run analysis for different file types with configuration
             logger.info("Analyzing Python files...")
-            results['results']['python'] = await self.analyze_python_files(model_path)
+            results['results']['python'] = await self.analyze_python_files(model_path, config)
             
             logger.info("Analyzing JavaScript files...")
-            results['results']['javascript'] = await self.analyze_javascript_files(model_path)
+            results['results']['javascript'] = await self.analyze_javascript_files(model_path, config)
             
             logger.info("Analyzing CSS files...")
-            results['results']['css'] = await self.analyze_css_files(model_path)
+            results['results']['css'] = await self.analyze_css_files(model_path, config)
             
             logger.info("Analyzing project structure...")
             results['results']['structure'] = await self.analyze_project_structure(model_path)
             
-            # Calculate summary
+            # Calculate enhanced summary
             total_issues = 0
             tools_run = 0
+            severity_breakdown = {'error': 0, 'warning': 0, 'info': 0}
             
             for lang_results in results['results'].values():
                 if isinstance(lang_results, dict):
@@ -310,11 +514,18 @@ class StaticAnalyzer:
                         if isinstance(tool_result, dict) and tool_result.get('status') == 'success':
                             tools_run += 1
                             total_issues += tool_result.get('total_issues', 0)
+                            
+                            # Aggregate severity breakdown if available
+                            if 'severity_breakdown' in tool_result:
+                                for severity, count in tool_result['severity_breakdown'].items():
+                                    severity_breakdown[severity] = severity_breakdown.get(severity, 0) + count
             
             results['summary'] = {
                 'total_issues_found': total_issues,
                 'tools_run_successfully': tools_run,
-                'analysis_status': 'completed'
+                'severity_breakdown': severity_breakdown,
+                'analysis_status': 'completed',
+                'configuration_preset': config.get('preset_name', 'custom') if config else 'default'
             }
             
             return results
@@ -359,10 +570,13 @@ class StaticAnalyzer:
             elif msg_type == "static_analyze":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
+                config = message_data.get("config", None)
                 
                 logger.info(f"Starting static analysis for {model_slug} app {app_number}")
+                if config:
+                    logger.info(f"Using custom configuration: {list(config.keys())}")
                 
-                analysis_results = await self.analyze_model_code(model_slug, app_number)
+                analysis_results = await self.analyze_model_code(model_slug, app_number, config)
                 
                 response = {
                     "type": "static_analysis_result",

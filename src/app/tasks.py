@@ -687,6 +687,221 @@ def worker_ready_handler(sender, **kwargs):
     """Handle worker ready event."""
     print(f"Celery worker {sender} is ready and connected to analyzer infrastructure")
 
+
+@celery.task(bind=True, name='app.tasks.run_enhanced_analysis')
+def run_enhanced_analysis(self, model_slug: str, app_number: int, config: Dict) -> Dict:
+    """
+    Run enhanced analysis with custom configuration.
+    
+    This task orchestrates multiple analyzer services with enhanced configuration
+    options for comprehensive testing.
+    
+    Args:
+        model_slug: The model identifier (e.g., 'anthropic_claude-3.5-sonnet')
+        app_number: The application number to analyze
+        config: Enhanced configuration dict with tool-specific settings
+        
+    Returns:
+        Dict containing analysis results and metadata
+    """
+    task_id = self.request.id
+    print(f"Starting enhanced analysis task {task_id} for {model_slug} app {app_number}")
+    
+    try:
+        # Import the analyzer configuration system
+        import sys
+        import os
+        analyzer_path = os.path.join(os.path.dirname(__file__), '..', '..', 'analyzer')
+        if analyzer_path not in sys.path:
+            sys.path.append(analyzer_path)
+        
+        from analyzer_config import AnalyzerConfig
+        
+        # Initialize analyzer configuration
+        analyzer_config = AnalyzerConfig()
+        
+        # Validate the full configuration
+        validation_result = analyzer_config.validate_full_config(config)
+        if not validation_result['valid']:
+            return {
+                'status': 'error',
+                'error': 'Configuration validation failed',
+                'validation_errors': validation_result['errors'],
+                'task_id': task_id
+            }
+        
+        # Get analyzer integration service
+        if not _analyzer_integration_available:
+            return {
+                'status': 'error',
+                'error': 'Analyzer integration service not available',
+                'task_id': task_id
+            }
+        
+        analyzer_integration = _get_analyzer_integration()
+        results = {}
+        
+        # Update task progress
+        self.update_state(state='PROGRESS', meta={'stage': 'starting', 'progress': 0})
+        
+        # Run static analysis with enhanced configuration
+        if config.get('static'):
+            print(f"Running enhanced static analysis for {model_slug} app {app_number}")
+            self.update_state(state='PROGRESS', meta={'stage': 'static_analysis', 'progress': 20})
+            
+            static_result = analyzer_integration.run_static_analysis(
+                model_slug, app_number, config['static']
+            )
+            results['static_analysis'] = static_result
+        
+        # Run performance testing with enhanced configuration
+        if config.get('performance'):
+            print(f"Running enhanced performance testing for {model_slug} app {app_number}")
+            self.update_state(state='PROGRESS', meta={'stage': 'performance_testing', 'progress': 50})
+            
+            performance_result = analyzer_integration.run_performance_test(
+                model_slug, app_number, config['performance']
+            )
+            results['performance_testing'] = performance_result
+        
+        # Run AI analysis with enhanced configuration
+        if config.get('ai'):
+            print(f"Running enhanced AI analysis for {model_slug} app {app_number}")
+            self.update_state(state='PROGRESS', meta={'stage': 'ai_analysis', 'progress': 80})
+            
+            ai_result = analyzer_integration.run_ai_analysis(
+                model_slug, app_number, config['ai']
+            )
+            results['ai_analysis'] = ai_result
+        
+        # Compile final results
+        self.update_state(state='PROGRESS', meta={'stage': 'finalizing', 'progress': 95})
+        
+        # Calculate overall scores and summary
+        overall_results = {
+            'status': 'completed',
+            'task_id': task_id,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'config_used': config,
+            'analysis_results': results,
+            'completed_at': datetime.now(timezone.utc).isoformat(),
+            'summary': _generate_enhanced_summary(results)
+        }
+        
+        # Save results to database
+        _save_enhanced_results(overall_results)
+        
+        print(f"Enhanced analysis task {task_id} completed successfully")
+        return overall_results
+        
+    except Exception as e:
+        print(f"Enhanced analysis task {task_id} failed: {e}")
+        error_result = {
+            'status': 'error',
+            'error': str(e),
+            'task_id': task_id,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'failed_at': datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Try to save error to database
+        try:
+            _save_enhanced_results(error_result)
+        except Exception as save_error:
+            print(f"Failed to save error results: {save_error}")
+        
+        # Re-raise for Celery to handle
+        raise self.retry(exc=e, countdown=60, max_retries=3)
+
+
+def _generate_enhanced_summary(results: Dict) -> Dict:
+    """Generate summary from enhanced analysis results."""
+    summary = {
+        'total_analyses': 0,
+        'successful_analyses': 0,
+        'failed_analyses': 0,
+        'overall_score': 0,
+        'issues_found': 0,
+        'recommendations': []
+    }
+    
+    scores = []
+    
+    for analysis_type, result in results.items():
+        summary['total_analyses'] += 1
+        
+        if result.get('status') == 'success':
+            summary['successful_analyses'] += 1
+            
+            # Extract scores based on analysis type
+            if analysis_type == 'static_analysis':
+                if 'bandit' in result and result['bandit'].get('total_issues'):
+                    summary['issues_found'] += result['bandit']['total_issues']
+                if 'pylint' in result and result['pylint'].get('score'):
+                    scores.append(result['pylint']['score'])
+                    
+            elif analysis_type == 'performance_testing':
+                if 'apache_bench' in result and result['apache_bench'].get('requests_per_second'):
+                    # Convert RPS to a 0-100 score (normalize based on expected performance)
+                    rps = result['apache_bench']['requests_per_second']
+                    score = min(100, (rps / 100) * 100)  # 100 RPS = 100% score
+                    scores.append(score)
+                    
+            elif analysis_type == 'ai_analysis':
+                if result.get('quality_score'):
+                    scores.append(result['quality_score'])
+        else:
+            summary['failed_analyses'] += 1
+    
+    # Calculate overall score
+    if scores:
+        summary['overall_score'] = sum(scores) / len(scores)
+    
+    # Generate recommendations based on results
+    if summary['issues_found'] > 10:
+        summary['recommendations'].append('High number of security issues detected - review critical vulnerabilities')
+    
+    if summary['overall_score'] < 60:
+        summary['recommendations'].append('Overall score is below acceptable threshold - consider code improvements')
+    
+    if summary['failed_analyses'] > 0:
+        summary['recommendations'].append('Some analyses failed - check analyzer configuration and connectivity')
+    
+    return summary
+
+
+def _save_enhanced_results(results: Dict) -> None:
+    """Save enhanced analysis results to database."""
+    try:
+        from app.extensions import db
+        from app.models import EnhancedAnalysis
+        
+        # Create enhanced analysis record
+        analysis = EnhancedAnalysis(
+            task_id=results['task_id'],
+            model_slug=results['model_slug'],
+            app_number=results['app_number'],
+            status=results['status'],
+            config_json=results.get('config_used', {}),
+            results_json=results.get('analysis_results', {}),
+            summary_json=results.get('summary', {}),
+            overall_score=results.get('summary', {}).get('overall_score'),
+            created_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc) if results['status'] == 'completed' else None
+        )
+        
+        db.session.add(analysis)
+        db.session.commit()
+        
+        print(f"Saved enhanced analysis results for task {results['task_id']}")
+        
+    except Exception as e:
+        print(f"Failed to save enhanced analysis results: {e}")
+        # Don't re-raise - this is not critical for task completion
+
+
 if __name__ == '__main__':
     print("Celery tasks module loaded successfully")
     print(f"Available tasks: {list(celery.tasks.keys())}")

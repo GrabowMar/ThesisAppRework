@@ -52,6 +52,7 @@ def register_api_routes(app):
         from . import analysis  # noqa: F401
         from . import system  # noqa: F401
         from . import misc  # noqa: F401
+        from . import testing_results  # noqa: F401
 
         # Now safe to register blueprint with all routes bound
         app.register_blueprint(api_bp, url_prefix='/api')

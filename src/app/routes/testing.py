@@ -6,7 +6,9 @@ Routes for managing testing operations and configurations.
 """
 
 import logging
-from flask import Blueprint, render_template, flash
+import json
+from datetime import datetime, timedelta
+from flask import Blueprint, render_template, flash, request, jsonify
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -335,3 +337,389 @@ def testing_results():
             error_title='Testing Results Error',
             error_message=str(e)
         )
+
+
+# Enhanced Testing API Endpoints
+
+@testing_bp.route('/api/run-with-config', methods=['POST'])
+def run_test_with_config():
+    """Run test with enhanced configuration."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        config = data.get('config', {})
+        model_slug = data.get('model_slug')
+        app_number = data.get('app_number')
+        
+        if not model_slug or not app_number:
+            return jsonify({
+                'success': False, 
+                'error': 'Model slug and app number required'
+            }), 400
+        
+        # Import the analyzer configuration
+        import sys
+        import os
+        analyzer_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'analyzer')
+        if analyzer_path not in sys.path:
+            sys.path.append(analyzer_path)
+        
+        from analyzer_config import AnalyzerConfig
+        
+        # Validate configuration
+        analyzer_config = AnalyzerConfig()
+        validation_result = analyzer_config.validate_full_config(config)
+        
+        if not validation_result['valid']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid configuration',
+                'validation_errors': validation_result['errors']
+            }), 400
+        
+        # Start enhanced analysis task
+        from ..tasks import run_enhanced_analysis
+        task = run_enhanced_analysis.delay(model_slug, app_number, config)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': 'Enhanced analysis started successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error starting enhanced test: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@testing_bp.route('/api/results/enhanced')
+def get_enhanced_results():
+    """Get enhanced results with filtering and pagination."""
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest, OpenRouterAnalysis
+        from sqlalchemy import desc, or_, and_
+        
+        # Get query parameters
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 25))
+        model_filter = request.args.get('model', '')
+        analysis_type_filter = request.args.get('analysisType', '')
+        date_filter = request.args.get('dateRange', 'all')
+        status_filter = request.args.get('status', '')
+        search_filter = request.args.get('search', '')
+        
+        # Base queries for different analysis types
+        results = []
+        
+        # Security analyses
+        security_query = SecurityAnalysis.query
+        if model_filter:
+            security_query = security_query.filter(
+                SecurityAnalysis.model_slug.contains(model_filter)
+            )
+        if status_filter:
+            security_query = security_query.filter_by(status=status_filter)
+        if search_filter:
+            security_query = security_query.filter(
+                or_(
+                    SecurityAnalysis.model_slug.contains(search_filter),
+                    SecurityAnalysis.results_json.contains(search_filter)
+                )
+            )
+        
+        # Apply date filter
+        if date_filter != 'all':
+            from datetime import datetime, timedelta
+            now = datetime.utcnow()
+            if date_filter == 'today':
+                start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            elif date_filter == 'week':
+                start_date = now - timedelta(days=7)
+            elif date_filter == 'month':
+                start_date = now - timedelta(days=30)
+            
+            security_query = security_query.filter(SecurityAnalysis.created_at >= start_date)
+        
+        # Get security results
+        if not analysis_type_filter or analysis_type_filter == 'security':
+            for analysis in security_query.order_by(desc(SecurityAnalysis.created_at)).all():
+                results.append({
+                    'id': analysis.id,
+                    'model_slug': analysis.model_slug,
+                    'app_number': analysis.app_number,
+                    'analysis_type': 'security',
+                    'status': analysis.status,
+                    'score': analysis.security_score,
+                    'duration': (
+                        (analysis.completed_at - analysis.created_at).total_seconds()
+                        if analysis.completed_at and analysis.created_at else None
+                    ),
+                    'started_at': analysis.created_at.isoformat() if analysis.created_at else None,
+                    'completed_at': analysis.completed_at.isoformat() if analysis.completed_at else None,
+                    'files_analyzed': analysis.total_issues
+                })
+        
+        # Performance tests
+        perf_query = PerformanceTest.query
+        if model_filter:
+            perf_query = perf_query.filter(
+                PerformanceTest.model_slug.contains(model_filter)
+            )
+        if status_filter:
+            perf_query = perf_query.filter_by(status=status_filter)
+        if search_filter:
+            perf_query = perf_query.filter(
+                PerformanceTest.model_slug.contains(search_filter)
+            )
+        
+        if date_filter != 'all':
+            perf_query = perf_query.filter(PerformanceTest.created_at >= start_date)
+        
+        # Get performance results
+        if not analysis_type_filter or analysis_type_filter == 'performance':
+            for test in perf_query.order_by(desc(PerformanceTest.created_at)).all():
+                results.append({
+                    'id': test.id,
+                    'model_slug': test.model_slug,
+                    'app_number': test.app_number,
+                    'analysis_type': 'performance',
+                    'status': test.status,
+                    'score': int(test.requests_per_second) if test.requests_per_second else None,
+                    'duration': (
+                        (test.completed_at - test.created_at).total_seconds()
+                        if test.completed_at and test.created_at else None
+                    ),
+                    'started_at': test.created_at.isoformat() if test.created_at else None,
+                    'completed_at': test.completed_at.isoformat() if test.completed_at else None,
+                    'files_analyzed': test.total_requests
+                })
+        
+        # AI analyses
+        ai_query = OpenRouterAnalysis.query
+        if model_filter:
+            ai_query = ai_query.filter(
+                OpenRouterAnalysis.model_slug.contains(model_filter)
+            )
+        if status_filter:
+            ai_query = ai_query.filter_by(status=status_filter)
+        if search_filter:
+            ai_query = ai_query.filter(
+                or_(
+                    OpenRouterAnalysis.model_slug.contains(search_filter),
+                    OpenRouterAnalysis.results_json.contains(search_filter)
+                )
+            )
+        
+        if date_filter != 'all':
+            ai_query = ai_query.filter(OpenRouterAnalysis.created_at >= start_date)
+        
+        # Get AI analysis results
+        if not analysis_type_filter or analysis_type_filter == 'ai_analysis':
+            for analysis in ai_query.order_by(desc(OpenRouterAnalysis.created_at)).all():
+                results.append({
+                    'id': analysis.id,
+                    'model_slug': analysis.model_slug,
+                    'app_number': analysis.app_number,
+                    'analysis_type': 'ai_analysis',
+                    'status': analysis.status,
+                    'score': analysis.quality_score,
+                    'duration': (
+                        (analysis.completed_at - analysis.created_at).total_seconds()
+                        if analysis.completed_at and analysis.created_at else None
+                    ),
+                    'started_at': analysis.created_at.isoformat() if analysis.created_at else None,
+                    'completed_at': analysis.completed_at.isoformat() if analysis.completed_at else None,
+                    'files_analyzed': None
+                })
+        
+        # Sort results by started_at
+        results.sort(key=lambda x: x['started_at'] or '', reverse=True)
+        
+        # Paginate
+        total = len(results)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_results = results[start:end]
+        
+        return jsonify({
+            'success': True,
+            'results': paginated_results,
+            'pagination': {
+                'current_page': page,
+                'per_page': page_size,
+                'total': total,
+                'total_pages': (total + page_size - 1) // page_size
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting enhanced results: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@testing_bp.route('/api/results/<int:result_id>/detail')
+def get_result_detail(result_id):
+    """Get detailed information for a specific result."""
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest, OpenRouterAnalysis
+        
+        # Try to find the result in different tables
+        result = None
+        result_type = None
+        
+        # Check security analyses
+        security_result = SecurityAnalysis.query.get(result_id)
+        if security_result:
+            result = security_result
+            result_type = 'security'
+        
+        # Check performance tests
+        if not result:
+            perf_result = PerformanceTest.query.get(result_id)
+            if perf_result:
+                result = perf_result
+                result_type = 'performance'
+        
+        # Check AI analyses
+        if not result:
+            ai_result = OpenRouterAnalysis.query.get(result_id)
+            if ai_result:
+                result = ai_result
+                result_type = 'ai_analysis'
+        
+        if not result:
+            return jsonify({'success': False, 'error': 'Result not found'}), 404
+        
+        # Format detailed result data
+        detailed_result = {
+            'id': result.id,
+            'model_slug': result.model_slug,
+            'app_number': result.app_number,
+            'analysis_type': result_type,
+            'status': result.status,
+            'created_at': result.created_at.isoformat() if result.created_at else None,
+            'completed_at': result.completed_at.isoformat() if result.completed_at else None,
+            'duration': (
+                (result.completed_at - result.created_at).total_seconds()
+                if result.completed_at and result.created_at else None
+            ),
+            'config': getattr(result, 'config_json', {}) or {},
+            'results': getattr(result, 'results_json', {}) or {},
+            'version': getattr(result, 'version', None),
+            'service': getattr(result, 'service_name', None),
+            'task_id': getattr(result, 'task_id', None)
+        }
+        
+        # Add type-specific fields
+        if result_type == 'security':
+            detailed_result.update({
+                'score': result.security_score,
+                'total_issues': result.total_issues,
+                'high_severity_issues': result.high_severity_issues,
+                'medium_severity_issues': result.medium_severity_issues,
+                'low_severity_issues': result.low_severity_issues
+            })
+        elif result_type == 'performance':
+            detailed_result.update({
+                'score': int(result.requests_per_second) if result.requests_per_second else None,
+                'requests_per_second': result.requests_per_second,
+                'mean_response_time': result.mean_response_time,
+                'total_requests': result.total_requests,
+                'failed_requests': result.failed_requests
+            })
+        elif result_type == 'ai_analysis':
+            detailed_result.update({
+                'score': result.quality_score,
+                'model_used': result.model_used,
+                'tokens_used': result.tokens_used,
+                'cost': result.cost
+            })
+        
+        return jsonify({
+            'success': True,
+            'result': detailed_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting result detail: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@testing_bp.route('/api/results/<int:result_id>/download')
+def download_result(result_id):
+    """Download result data as JSON."""
+    try:
+        from flask import Response
+        import json
+        
+        # Get the detailed result
+        response = get_result_detail(result_id)
+        if response[1] != 200:
+            return response
+        
+        result_data = response[0].get_json()['result']
+        
+        # Create JSON response
+        json_data = json.dumps(result_data, indent=2, default=str)
+        
+        return Response(
+            json_data,
+            mimetype='application/json',
+            headers={
+                'Content-Disposition': f'attachment; filename=test_result_{result_id}.json'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error downloading result: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@testing_bp.route('/api/results/export')
+def export_results():
+    """Export multiple results as JSON."""
+    try:
+        from flask import Response
+        import json
+        
+        result_ids = request.args.getlist('ids')
+        if not result_ids:
+            return jsonify({'success': False, 'error': 'No result IDs provided'}), 400
+        
+        exported_results = []
+        
+        for result_id in result_ids:
+            try:
+                response = get_result_detail(int(result_id))
+                if response[1] == 200:
+                    result_data = response[0].get_json()['result']
+                    exported_results.append(result_data)
+            except (ValueError, Exception) as e:
+                logger.warning(f"Skipping invalid result ID {result_id}: {e}")
+                continue
+        
+        if not exported_results:
+            return jsonify({'success': False, 'error': 'No valid results found'}), 404
+        
+        # Create export data
+        export_data = {
+            'export_timestamp': datetime.utcnow().isoformat(),
+            'total_results': len(exported_results),
+            'results': exported_results
+        }
+        
+        json_data = json.dumps(export_data, indent=2, default=str)
+        
+        return Response(
+            json_data,
+            mimetype='application/json',
+            headers={
+                'Content-Disposition': f'attachment; filename=test_results_export_{len(exported_results)}_items.json'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting results: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

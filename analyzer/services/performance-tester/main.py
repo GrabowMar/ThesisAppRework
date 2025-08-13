@@ -22,7 +22,7 @@ import os
 import subprocess
 import statistics
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import websockets
 from websockets.asyncio.server import serve
 import aiohttp
@@ -147,21 +147,92 @@ class PerformanceTester:
             upper = sorted_data[int(index) + 1]
             return lower + (upper - lower) * (index - int(index))
     
-    async def load_test_with_ab(self, url: str, num_requests: int = 100, concurrency: int = 10) -> Dict[str, Any]:
-        """Perform load testing using Apache Bench."""
+    async def load_test_with_ab(self, url: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Perform load testing using Apache Bench with custom configuration."""
         try:
             if 'ab' not in self.available_tools:
                 return {'status': 'tool_unavailable', 'message': 'Apache Bench not available'}
             
+            # Get configuration parameters
+            ab_config = config.get('apache_bench', {}) if config else {}
+            
+            num_requests = ab_config.get('requests', 100)
+            concurrency = ab_config.get('concurrency', 10)
+            timeout = ab_config.get('timeout', 30)
+            timelimit = ab_config.get('timelimit')
+            
             logger.info(f"Load testing {url} with ab ({num_requests} requests, {concurrency} concurrent)")
             
-            cmd = [
-                'ab', '-n', str(num_requests), '-c', str(concurrency),
-                '-g', '/tmp/ab_results.tsv',  # Generate TSV output
-                url
-            ]
+            # Build Apache Bench command
+            cmd = ['ab']
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            # Core parameters
+            if timelimit:
+                cmd.extend(['-t', str(timelimit)])
+                logger.info(f"Using time limit: {timelimit}s")
+            else:
+                cmd.extend(['-n', str(num_requests)])
+                
+            cmd.extend(['-c', str(concurrency)])
+            
+            # Advanced configuration
+            if ab_config.get('keep_alive'):
+                cmd.append('-k')
+            
+            if ab_config.get('timeout'):
+                cmd.extend(['-s', str(timeout)])
+            
+            if ab_config.get('headers'):
+                for header_name, header_value in ab_config['headers'].items():
+                    cmd.extend(['-H', f"{header_name}: {header_value}"])
+            
+            if ab_config.get('cookies'):
+                for cookie_name, cookie_value in ab_config['cookies'].items():
+                    cmd.extend(['-C', f"{cookie_name}={cookie_value}"])
+            
+            if ab_config.get('auth'):
+                cmd.extend(['-A', ab_config['auth']])
+            
+            if ab_config.get('method', 'GET').upper() != 'GET':
+                cmd.extend(['-m', ab_config['method'].upper()])
+            
+            if ab_config.get('post_file'):
+                cmd.extend(['-p', ab_config['post_file']])
+            
+            if ab_config.get('put_file'):
+                cmd.extend(['-u', ab_config['put_file']])
+            
+            if ab_config.get('content_type'):
+                cmd.extend(['-T', ab_config['content_type']])
+            
+            if ab_config.get('window_size'):
+                cmd.extend(['-b', str(ab_config['window_size'])])
+            
+            if ab_config.get('verbosity', 1) != 1:
+                verbosity = ab_config['verbosity']
+                if verbosity == 0:
+                    cmd.append('-q')
+                elif verbosity >= 2:
+                    cmd.extend(['-v', str(verbosity)])
+            
+            # Output options
+            if ab_config.get('csv_output', True):
+                csv_file = f'/tmp/ab_results_{hash(url)}.csv'
+                cmd.extend(['-e', csv_file])
+            
+            if ab_config.get('gnuplot_output', False):
+                gnuplot_file = f'/tmp/ab_results_{hash(url)}.tsv'
+                cmd.extend(['-g', gnuplot_file])
+            
+            # Add URL
+            cmd.append(url)
+            
+            # Calculate timeout for subprocess
+            subprocess_timeout = timeout + 30
+            if timelimit:
+                subprocess_timeout = timelimit + 30
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=subprocess_timeout)
             
             if result.returncode == 0:
                 # Parse ab output
@@ -173,12 +244,64 @@ class PerformanceTester:
                         metrics['requests_per_second'] = float(line.split(':')[1].split()[0])
                     elif 'Time per request:' in line and 'mean' in line:
                         metrics['time_per_request_mean'] = float(line.split(':')[1].split()[0])
+                    elif 'Time per request:' in line and 'concurrent' in line:
+                        metrics['time_per_request_concurrent'] = float(line.split(':')[1].split()[0])
                     elif 'Transfer rate:' in line:
                         metrics['transfer_rate_kb_sec'] = float(line.split(':')[1].split()[0])
                     elif 'Failed requests:' in line:
                         metrics['failed_requests'] = int(line.split(':')[1].strip())
                     elif 'Complete requests:' in line:
                         metrics['complete_requests'] = int(line.split(':')[1].strip())
+                    elif 'Total transferred:' in line:
+                        metrics['total_transferred'] = int(line.split(':')[1].split()[0])
+                    elif 'HTML transferred:' in line:
+                        metrics['html_transferred'] = int(line.split(':')[1].split()[0])
+                
+                # Parse connection times
+                connection_times = {}
+                in_connection_times = False
+                for line in output_lines:
+                    if 'Connection Times (ms)' in line:
+                        in_connection_times = True
+                        continue
+                    elif in_connection_times and line.strip():
+                        if line.startswith('Connect:'):
+                            parts = line.split()
+                            connection_times['connect'] = {
+                                'min': int(parts[1]),
+                                'mean': int(parts[2].split('[')[0]),
+                                'std_dev': float(parts[2].split('[')[1].split(']')[0]) if '[' in parts[2] else 0,
+                                'median': int(parts[3]),
+                                'max': int(parts[4])
+                            }
+                        elif line.startswith('Processing:'):
+                            parts = line.split()
+                            connection_times['processing'] = {
+                                'min': int(parts[1]),
+                                'mean': int(parts[2].split('[')[0]),
+                                'std_dev': float(parts[2].split('[')[1].split(']')[0]) if '[' in parts[2] else 0,
+                                'median': int(parts[3]),
+                                'max': int(parts[4])
+                            }
+                        elif line.startswith('Waiting:'):
+                            parts = line.split()
+                            connection_times['waiting'] = {
+                                'min': int(parts[1]),
+                                'mean': int(parts[2].split('[')[0]),
+                                'std_dev': float(parts[2].split('[')[1].split(']')[0]) if '[' in parts[2] else 0,
+                                'median': int(parts[3]),
+                                'max': int(parts[4])
+                            }
+                        elif line.startswith('Total:'):
+                            parts = line.split()
+                            connection_times['total'] = {
+                                'min': int(parts[1]),
+                                'mean': int(parts[2].split('[')[0]),
+                                'std_dev': float(parts[2].split('[')[1].split(']')[0]) if '[' in parts[2] else 0,
+                                'median': int(parts[3]),
+                                'max': int(parts[4])
+                            }
+                            break
                 
                 return {
                     'status': 'success',
@@ -186,15 +309,22 @@ class PerformanceTester:
                     'url': url,
                     'test_parameters': {
                         'total_requests': num_requests,
-                        'concurrency': concurrency
+                        'concurrency': concurrency,
+                        'timeout': timeout,
+                        'time_limit': timelimit,
+                        'keep_alive': ab_config.get('keep_alive', False)
                     },
-                    'metrics': metrics
+                    'metrics': metrics,
+                    'connection_times': connection_times,
+                    'config_used': ab_config
                 }
             else:
                 return {
                     'status': 'error',
                     'tool': 'apache_bench',
-                    'error': result.stderr
+                    'error': result.stderr,
+                    'exit_code': result.returncode,
+                    'config_used': ab_config
                 }
                 
         except subprocess.TimeoutExpired:
@@ -280,7 +410,7 @@ class PerformanceTester:
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
     
-    async def test_application_performance(self, model_slug: str, app_number: int, target_urls: List[str]) -> Dict[str, Any]:
+    async def test_application_performance(self, model_slug: str, app_number: int, target_urls: List[str], config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Perform comprehensive performance testing on application."""
         try:
             logger.info(f"Performance testing {model_slug} app {app_number}")
@@ -313,7 +443,8 @@ class PerformanceTester:
                     # Apache Bench test if available
                     if 'ab' in self.available_tools:
                         logger.info(f"Running Apache Bench test for {url}")
-                        ab_result = await self.load_test_with_ab(url, num_requests=50, concurrency=5)
+                        ab_config = {'apache_bench': {'requests': 50, 'concurrency': 5}}
+                        ab_result = await self.load_test_with_ab(url, ab_config)
                         url_results['apache_bench'] = ab_result
                 
                 results['results'][f'url_{i+1}'] = url_results
@@ -389,6 +520,7 @@ class PerformanceTester:
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
                 target_urls = message_data.get("target_urls", [])
+                config = message_data.get("config", None)
                 
                 if not target_urls:
                     # Generate default URLs
@@ -399,8 +531,10 @@ class PerformanceTester:
                     ]
                 
                 logger.info(f"Starting performance test for {model_slug} app {app_number}")
+                if config:
+                    logger.info(f"Using custom configuration: {list(config.keys())}")
                 
-                test_results = await self.test_application_performance(model_slug, app_number, target_urls)
+                test_results = await self.test_application_performance(model_slug, app_number, target_urls, config)
                 
                 response = {
                     "type": "performance_test_result",
