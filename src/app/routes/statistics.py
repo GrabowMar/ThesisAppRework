@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
 
-from flask import Blueprint, request, render_template, jsonify
+from flask import Blueprint, render_template
 from sqlalchemy import func, desc
 
 from ..extensions import db
@@ -113,25 +113,33 @@ def statistics_overview():
         # Load external data from misc folder
         external_data = _load_external_statistics()
         
-        return render_template('pages/statistics_overview.html',
-                             stats=generation_stats,
-                             analysis_stats=analysis_stats,
-                             batch_stats=batch_stats,
-                             provider_stats=dict(provider_stats),
-                             recent_activity=recent_activity,
-                             top_models=top_models,
-                             daily_stats=daily_stats,
-                             error_analysis=error_analysis,
-                             model_stats=model_stats,
-                             capability_stats=capability_stats,
-                             cost_analysis=cost_analysis,
-                             framework_stats=framework_stats,
-                             analysis_trends=analysis_trends,
-                             external_data=external_data)
+        # Render new wrapper page which includes the partial
+        return render_template(
+            'pages/statistics.html',
+            stats=generation_stats,
+            analysis_stats=analysis_stats,
+            batch_stats=batch_stats,
+            provider_stats=dict(provider_stats),
+            recent_activity=recent_activity,
+            top_models=top_models,
+            daily_stats=daily_stats,
+            error_analysis=error_analysis,
+            model_stats=model_stats,
+            capability_stats=capability_stats,
+            cost_analysis=cost_analysis,
+            framework_stats=framework_stats,
+            analysis_trends=analysis_trends,
+            external_data=external_data
+        )
     
     except Exception as e:
         logger.error(f"Error loading statistics overview: {e}")
-        return render_template('pages/error.html', error=str(e))
+        return render_template(
+            'single_page.html',
+            page_title='Statistics Error',
+            main_partial='partials/common/error.html',
+            error=str(e)
+        )
 
 def _load_external_generation_data() -> Dict[str, Any]:
     """Load generation data from misc folder files."""

@@ -119,34 +119,79 @@ def security_analysis_task(self, model_slug: str, app_number: int,
     """
     
     batch_job_id = options.get('batch_job_id') if options else None
-    
+    analysis_id = options.get('analysis_id') if options else None
+
+    # Import here to avoid circular import at module load
+    from app.extensions import get_session
+    from app.models import SecurityAnalysis
+    from app.constants import AnalysisStatus
+    import json as _json
+
     try:
         analyzer_service = get_analyzer_service()
         if not analyzer_service:
             raise Exception("Analyzer service not available")
-        
+
         update_task_progress(0, 100, "Initializing security analysis")
-        
+
+        # Fetch analysis record (if provided) and mark RUNNING
+        if analysis_id:
+            with get_session() as session:
+                analysis = session.query(SecurityAnalysis).get(analysis_id)
+                if analysis:
+                    analysis.status = AnalysisStatus.RUNNING
+                    analysis.started_at = datetime.now(timezone.utc)
+                    session.commit()
+
         # Default tools if not specified
         if not tools:
             tools = ['bandit', 'safety', 'pylint']
-        
+
         update_task_progress(10, 100, "Starting analyzer services")
-        
-        # Ensure analyzer services are running
+
         if not analyzer_service.start_analyzer_services():
             raise Exception("Failed to start analyzer services")
-        
+
         update_task_progress(20, 100, "Running security analysis")
-        
+
         # Run the analysis using analyzer integration
         result = analyzer_service.run_security_analysis(
             model_slug, app_number, tools, options
         )
-        
+
         update_task_progress(80, 100, "Processing results")
-        
-        # Prepare final result
+
+        status = result.get('status', 'completed')
+
+        # Persist results
+        if analysis_id:
+            with get_session() as session:
+                analysis = session.query(SecurityAnalysis).get(analysis_id)
+                if analysis:
+                    analysis.status = AnalysisStatus.COMPLETED if status == 'completed' else AnalysisStatus.FAILED
+                    analysis.completed_at = datetime.now(timezone.utc)
+                    if analysis.started_at:
+                        analysis.analysis_duration = (analysis.completed_at - analysis.started_at).total_seconds()
+                    # Store raw result JSON
+                    try:
+                        analysis.results_json = _json.dumps(result)
+                    except Exception:
+                        analysis.results_json = _json.dumps({'raw_result': str(result)})
+
+                    # Update summary counts if present
+                    summary = result.get('summary') or {}
+                    # Some analyzers may return counts at top-level
+                    analysis.total_issues = summary.get('total_issues') or result.get('total_issues') or 0
+                    analysis.critical_severity_count = summary.get('critical') or result.get('critical_count') or 0
+                    analysis.high_severity_count = summary.get('high') or result.get('high_count') or 0
+                    analysis.medium_severity_count = summary.get('medium') or result.get('medium_count') or 0
+                    analysis.low_severity_count = summary.get('low') or result.get('low_count') or 0
+                    # Track tools run
+                    if isinstance(tools, list):
+                        analysis.tools_run_count = len(tools)
+                    session.commit()
+
+        # Prepare final return payload
         final_result = {
             'model_slug': model_slug,
             'app_number': app_number,
@@ -154,24 +199,45 @@ def security_analysis_task(self, model_slug: str, app_number: int,
             'tools': tools,
             'result': result,
             'timestamp': datetime.now(timezone.utc).isoformat(),
-            'status': result.get('status', 'completed')
+            'status': status,
+            'analysis_id': analysis_id
         }
-        
-        # Update batch progress if this is part of a batch
+
         update_batch_progress(batch_job_id, task_completed=True, result=final_result)
-        
         update_task_progress(100, 100, "Analysis completed")
-        
         return final_result
-        
+
     except Exception as e:
         error_msg = f"Security analysis failed: {str(e)}"
         update_task_progress(0, 100, f"Error: {error_msg}")
-        
-        # Update batch progress for failed task
+
+        # Mark analysis failed immediately (avoid leaving RUNNING) before retry
+        if analysis_id:
+            try:
+                with get_session() as session:
+                    analysis = session.query(SecurityAnalysis).get(analysis_id)
+                    if analysis:
+                        analysis.status = AnalysisStatus.FAILED
+                        analysis.completed_at = datetime.now(timezone.utc)
+                        if analysis.started_at:
+                            analysis.analysis_duration = (analysis.completed_at - analysis.started_at).total_seconds()
+                        # Append error metadata
+                        meta = analysis.get_metadata() if hasattr(analysis, 'get_metadata') else {}
+                        meta['last_error'] = str(e)
+                        if hasattr(analysis, 'set_metadata'):
+                            analysis.set_metadata(meta)
+                        session.commit()
+            except Exception as meta_e:
+                print(f"Failed to record failure metadata: {meta_e}")
+
         update_batch_progress(batch_job_id, task_failed=True)
-        
-        raise self.retry(exc=e, countdown=60, max_retries=3)
+
+        # Decide whether to retry: only retry transient infrastructure errors
+        transient = any(msg in str(e).lower() for msg in ["timeout", "connection refused", "temporary", "unavailable"])
+        if transient and getattr(self, 'request', None) and self.request.retries < 3:
+            raise self.retry(exc=e, countdown=60, max_retries=3)
+        # Non-transient: raise without retry so status stays FAILED
+        raise
 
 @celery.task(bind=True, name='app.tasks.performance_test_task')
 def performance_test_task(self, model_slug: str, app_number: int, 

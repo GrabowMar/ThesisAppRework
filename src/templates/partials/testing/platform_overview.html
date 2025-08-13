@@ -1,0 +1,19 @@
+<div class="row">
+  <div class="col-md-4 mb-3">
+    {% include 'partials/testing/security_test_form.html' %}
+  </div>
+  <div class="col-md-4 mb-3">
+    {% include 'partials/testing/performance_test_form.html' %}
+  </div>
+  <div class="col-md-4 mb-3">
+    {% include 'partials/testing/batch_form.html' %}
+  </div>
+</div>
+<div class="row">
+  <div class="col-lg-6 mb-3" id="analysis-results" hx-get="/analysis/api/recent/security" hx-trigger="load, every 120s" hx-swap="innerHTML">
+    <div class="card"><div class="card-body text-center text-muted small">Loading security results...</div></div>
+  </div>
+  <div class="col-lg-6 mb-3" id="performance-results" hx-get="/analysis/api/recent/performance" hx-trigger="load, every 120s" hx-swap="innerHTML">
+    <div class="card"><div class="card-body text-center text-muted small">Loading performance results...</div></div>
+  </div>
+</div>

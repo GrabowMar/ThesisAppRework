@@ -24,13 +24,23 @@ logger = logging.getLogger(__name__)
 # Apps Grid Page Routes
 @advanced.route('/apps')
 def apps_grid():
-    """Main apps grid page."""
-    return render_template('pages/apps_grid.html')
+    """Main apps grid page (unified shell)."""
+    return render_template(
+        'single_page.html',
+        page_title='Applications Grid',
+        page_icon='fas fa-th',
+        main_partial='partials/apps_grid/apps_grid.html'
+    )
 
 @advanced.route('/models')
 def models_overview():
-    """Main models overview page."""
-    return render_template('pages/models_overview.html')
+    """Main models overview page (redirect to unified models overview)."""
+    return render_template(
+        'single_page.html',
+        page_title='Models Overview',
+        page_icon='fas fa-layer-group',
+        main_partial='partials/models/overview.html'
+    )
 
 # API Routes for Apps Grid
 @advanced.route('/api/apps/grid')

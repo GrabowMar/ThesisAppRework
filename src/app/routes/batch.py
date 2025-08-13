@@ -80,16 +80,23 @@ def batch_overview():
             ])
         }
         
-        return render_template('pages/batch_testing.html',
-                             stats=stats,
-                             recent_batches=recent_batches,
-                             analyzer_status=analyzer_status,
-                             available_models=available_models)
+        return render_template(
+            'pages/batch.html',
+            stats=stats,
+            recent_batches=recent_batches,
+            analyzer_status=analyzer_status,
+            available_models=available_models
+        )
     
     except Exception as e:
         logger.error(f"Error loading batch overview: {e}")
         flash(f"Error loading batch overview: {str(e)}", 'error')
-        return render_template('pages/error.html', error=str(e))
+        return render_template(
+            'single_page.html',
+            page_title='Batch Overview Error',
+            main_partial='partials/common/error.html',
+            error=str(e)
+        )
 
 
 @batch_bp.route('/create', methods=['GET', 'POST'])
@@ -110,9 +117,14 @@ def create_batch():
             {'id': 'ai_analysis', 'name': 'AI Code Analysis', 'description': 'AI-powered code review'}
         ]
         
-        return render_template('pages/create_batch.html',
-                             available_models=available_models,
-                             analysis_types=analysis_types)
+        return render_template(
+            'single_page.html',
+            page_title='Create Batch',
+            page_icon='fas fa-plus-circle',
+            main_partial='partials/batch/create.html',
+            available_models=available_models,
+            analysis_types=analysis_types
+        )
     
     try:
         # Parse form data
@@ -275,10 +287,16 @@ def batch_detail(batch_id: str):
             'success_rate': (completed_count / max(len(analysis_results), 1)) * 100
         }
         
-        return render_template('pages/batch_detail.html',
-                             batch=batch,
-                             analysis_results=analysis_results,
-                             detailed_stats=detailed_stats)
+        return render_template(
+            'single_page.html',
+            page_title='Batch Detail',
+            page_icon='fa-layer-group',
+            page_subtitle=f"Batch {batch.batch_id}",
+            main_partial='partials/batch/detail.html',
+            batch=batch,
+            analysis_results=analysis_results,
+            detailed_stats=detailed_stats
+        )
     
     except Exception as e:
         logger.error(f"Error loading batch detail: {e}")

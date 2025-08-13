@@ -1,0 +1,19 @@
+{# Batch creation form partial (simplified) #}
+<form method="post" class="card">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-plus-circle mr-1"></i>Create Batch</h3></div>
+  <div class="card-body">
+    <div class="form-group"><label>Name</label><input type="text" name="batch_name" class="form-control" placeholder="Optional"></div>
+    <div class="form-group"><label>Description</label><textarea name="description" class="form-control" rows="2"></textarea></div>
+    <div class="form-group"><label>Priority</label><select name="priority" class="form-control"><option value="normal">Normal</option><option value="high">High</option></select></div>
+    <div class="form-group"><label>Analysis Types</label><div class="d-flex flex-wrap gap-2">
+      {% for t in analysis_types %}
+        <div class="form-check mr-3"><input class="form-check-input" type="checkbox" name="analysis_types" value="{{ t.id }}" id="chk_{{ t.id }}"><label class="form-check-label" for="chk_{{ t.id }}">{{ t.name }}</label></div>
+      {% endfor %}
+    </div></div>
+    <div class="form-group"><label>Models</label><div class="d-flex flex-wrap">
+      {% for m in available_models %}<div class="form-check mr-3"><input class="form-check-input" type="checkbox" name="model_filter" value="{{ m.canonical_slug }}" id="m_{{ m.canonical_slug }}"><label class="form-check-label" for="m_{{ m.canonical_slug }}">{{ m.model_name }}</label></div>{% endfor %}
+    </div></div>
+    <div class="form-row"><div class="col"><label>App Range Start</label><input type="number" name="app_range_start" class="form-control" value="1"></div><div class="col"><label>App Range End</label><input type="number" name="app_range_end" class="form-control" value="30"></div></div>
+  </div>
+  <div class="card-footer text-right"><button class="btn btn-primary"><i class="fas fa-save mr-1"></i> Create Batch</button></div>
+</form>

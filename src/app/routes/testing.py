@@ -6,7 +6,7 @@ Routes for managing testing operations and configurations.
 """
 
 import logging
-from flask import Blueprint, render_template, request, flash
+from flask import Blueprint, render_template, flash
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -19,10 +19,9 @@ def testing_center():
     """Testing center main page."""
     try:
         from ..models import (
-            SecurityAnalysis, PerformanceTest, ZAPAnalysis, 
+            SecurityAnalysis, PerformanceTest, ZAPAnalysis,
             OpenRouterAnalysis, BatchAnalysis, ContainerizedTest
         )
-        from ..extensions import db
         from sqlalchemy import desc
         from datetime import datetime, timedelta
         
@@ -88,7 +87,7 @@ def testing_center():
         )
         
         return render_template(
-            'pages/testing_center.html',
+            'pages/testing.html',
             stats=stats,
             active_tests=active_tests,
             recent_security=recent_security,
@@ -98,10 +97,16 @@ def testing_center():
         )
     except Exception as e:
         logger.error(f"Error loading testing center: {e}")
-        return render_template('pages/error.html',
-                             error_code=500,
-                             error_title='Testing Center Error',
-                             error_message=str(e))
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            page_icon='fa-triangle-exclamation',
+            page_subtitle='Testing Center Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Testing Center Error',
+            error_message=str(e)
+        )
 
 
 @testing_bp.route('/security')
@@ -109,35 +114,44 @@ def security_testing():
     """Security testing configuration page."""
     try:
         from ..models import SecurityAnalysis, GeneratedApplication
-        from ..extensions import db
         from sqlalchemy import desc
-        
+
         # Get available applications for testing
         applications = GeneratedApplication.query.order_by(
             desc(GeneratedApplication.created_at)
         ).limit(20).all()
-        
+
         # Get recent security analyses
         recent_analyses = SecurityAnalysis.query.order_by(
             desc(SecurityAnalysis.created_at)
         ).limit(10).all()
-        
+
         return render_template(
-            'pages/security_testing.html',
+            'single_page.html',
+            page_title='Security Testing',
+            page_icon='fa-shield-halved',
+            page_subtitle='Configure and review security analyses',
+            main_partial='partials/testing/platform_overview.html',  # reuse platform overview for now
             applications=applications,
             security_analyses=recent_analyses
         )
     except Exception as e:
         logger.error(f"Error loading security testing: {e}")
         flash('Error loading security testing page', 'error')
-        return render_template('pages/error.html',
-                             error_code=500,
-                             error_title='Security Testing Error',
-                             error_message=str(e),
-                             python_version='N/A',
-                             flask_version='N/A',
-                             debug_mode=False,
-                             environment='N/A')
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            page_icon='fa-triangle-exclamation',
+            page_subtitle='Security Testing Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Security Testing Error',
+            error_message=str(e),
+            python_version='N/A',
+            flask_version='N/A',
+            debug_mode=False,
+            environment='N/A'
+        )
 
 
 @testing_bp.route('/performance')
@@ -145,35 +159,44 @@ def performance_testing():
     """Performance testing configuration page."""
     try:
         from ..models import PerformanceTest, GeneratedApplication
-        from ..extensions import db
         from sqlalchemy import desc
-        
+
         # Get available applications for testing
         applications = GeneratedApplication.query.order_by(
             desc(GeneratedApplication.created_at)
         ).limit(20).all()
-        
+
         # Get recent performance tests
         recent_tests = PerformanceTest.query.order_by(
             desc(PerformanceTest.created_at)
         ).limit(10).all()
-        
+
         return render_template(
-            'pages/performance_testing.html',
+            'single_page.html',
+            page_title='Performance Testing',
+            page_icon='fa-gauge-high',
+            page_subtitle='Configure and review performance tests',
+            main_partial='partials/testing/platform_overview.html',  # reuse overview partial
             applications=applications,
             recent_tests=recent_tests
         )
     except Exception as e:
         logger.error(f"Error loading performance testing: {e}")
         flash('Error loading performance testing page', 'error')
-        return render_template('pages/error.html',
-                             error_code=500,
-                             error_title='Performance Testing Error',
-                             error_message=str(e),
-                             python_version='N/A',
-                             flask_version='N/A',
-                             debug_mode=False,
-                             environment='N/A')
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            page_icon='fa-triangle-exclamation',
+            page_subtitle='Performance Testing Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Performance Testing Error',
+            error_message=str(e),
+            python_version='N/A',
+            flask_version='N/A',
+            debug_mode=False,
+            environment='N/A'
+        )
 
 
 @testing_bp.route('/batch')
@@ -181,20 +204,19 @@ def batch_testing():
     """Batch testing operations page."""
     try:
         from ..models import BatchAnalysis
-        from ..extensions import db
         from sqlalchemy import desc
-        
+
         # Get batch operations
         recent_batches = BatchAnalysis.query.order_by(
             desc(BatchAnalysis.created_at)
         ).limit(20).all()
-        
+
         # Get active batches
         from ..constants import JobStatus
         active_batches = BatchAnalysis.query.filter(
             BatchAnalysis.status.in_([JobStatus.RUNNING, JobStatus.PENDING])
         ).all()
-        
+
         # Calculate stats for the template
         stats = {
             'total_batches': BatchAnalysis.query.count(),
@@ -206,9 +228,13 @@ def batch_testing():
             ).count(),
             'active_batches': len(active_batches)
         }
-        
+
         return render_template(
-            'pages/batch_testing.html',
+            'single_page.html',
+            page_title='Batch Testing',
+            page_icon='fa-layer-group',
+            page_subtitle='Manage batch analysis operations',
+            main_partial='partials/testing/platform_overview.html',  # reuse overview
             recent_batches=recent_batches,
             active_batches=active_batches,
             stats=stats
@@ -216,21 +242,26 @@ def batch_testing():
     except Exception as e:
         logger.error(f"Error loading batch testing: {e}")
         flash('Error loading batch testing page', 'error')
-        return render_template('pages/error.html',
-                             error_code=500,
-                             error_title='Batch Testing Error',
-                             error_message=str(e))
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            page_icon='fa-triangle-exclamation',
+            page_subtitle='Batch Testing Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Batch Testing Error',
+            error_message=str(e)
+        )
 
 
 @testing_bp.route('/results')
 def testing_results():
     """Testing results and analytics page."""
     try:
-        from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis
-        from ..extensions import db
-        from sqlalchemy import func, desc
-        from datetime import datetime, timedelta
-        
+        from ..models import SecurityAnalysis, PerformanceTest
+        from sqlalchemy import desc
+        from datetime import datetime
+
         # Get results by status
         results_stats = {
             'security': {
@@ -246,15 +277,15 @@ def testing_results():
                 'running': PerformanceTest.query.filter_by(status='running').count()
             }
         }
-        
+
         # Get recent results
         recent_results = []
-        
+
         # Security results
         security_results = SecurityAnalysis.query.order_by(
             desc(SecurityAnalysis.created_at)
         ).limit(10).all()
-        
+
         for result in security_results:
             recent_results.append({
                 'type': 'Security',
@@ -263,12 +294,12 @@ def testing_results():
                 'created_at': result.created_at,
                 'issues': result.total_issues or 0
             })
-        
+
         # Performance results
         performance_results = PerformanceTest.query.order_by(
             desc(PerformanceTest.created_at)
         ).limit(10).all()
-        
+
         for result in performance_results:
             recent_results.append({
                 'type': 'Performance',
@@ -277,20 +308,30 @@ def testing_results():
                 'created_at': result.created_at,
                 'rps': result.requests_per_second or 0
             })
-        
+
         # Sort by created_at
         recent_results.sort(key=lambda x: x['created_at'] or datetime.min, reverse=True)
         recent_results = recent_results[:15]
-        
+
         return render_template(
-            'pages/testing_results.html',
+            'single_page.html',
+            page_title='Testing Results',
+            page_icon='fa-chart-bar',
+            page_subtitle='Recent testing outcomes and statistics',
+            main_partial='partials/testing/platform_overview.html',  # reuse overview until dedicated partial added
             results_stats=results_stats,
             recent_results=recent_results
         )
     except Exception as e:
         logger.error(f"Error loading testing results: {e}")
         flash('Error loading testing results page', 'error')
-        return render_template('pages/error.html',
-                             error_code=500,
-                             error_title='Testing Results Error',
-                             error_message=str(e))
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            page_icon='fa-triangle-exclamation',
+            page_subtitle='Testing Results Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Testing Results Error',
+            error_message=str(e)
+        )

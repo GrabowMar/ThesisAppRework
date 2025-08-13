@@ -23,55 +23,76 @@ task_manager = TaskManager()
 
 @analysis_bp.route('/')
 def analysis_hub():
-    """Analysis hub main page."""
+    """Unified analysis hub served through dynamic single_page shell.
+
+    Former template: pages/analysis.html (now removed in favor of partials).
+    """
+    try:
+        return render_template('pages/analysis.html')
+    except Exception as e:  # pragma: no cover - defensive catch
+        logger.error(f"Error loading analysis hub: {e}")
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            main_partial='partials/common/error.html',
+            error=str(e)
+        ), 500
+
+@analysis_bp.get('/api/stats')
+def htmx_analysis_stats():
+    """HTMX endpoint for refreshing stats cards."""
     try:
         from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis
-        from ..extensions import db
-        from sqlalchemy import desc, func
-        
-        # Get analysis statistics
         stats = {
             'total_security': SecurityAnalysis.query.count(),
             'total_performance': PerformanceTest.query.count(),
             'total_zap': ZAPAnalysis.query.count(),
             'total_ai': OpenRouterAnalysis.query.count()
         }
-        
-        # Get recent analyses
-        recent_security = SecurityAnalysis.query.order_by(
-            desc(SecurityAnalysis.created_at)
-        ).limit(5).all()
-        
-        recent_performance = PerformanceTest.query.order_by(
-            desc(PerformanceTest.created_at)
-        ).limit(5).all()
-        
-        # Get analysis trends
+        return render_template('partials/analysis/stats_cards.html', stats=stats)
+    except Exception as e:
+        logger.error(f"HTMX stats error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load stats'), 500
+
+@analysis_bp.get('/api/trends')
+def htmx_analysis_trends():
+    """HTMX endpoint for refreshing trends card."""
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest
         from datetime import datetime, timedelta
         week_ago = datetime.utcnow() - timedelta(days=7)
-        
         trends = {
-            'security_this_week': SecurityAnalysis.query.filter(
-                SecurityAnalysis.created_at >= week_ago
-            ).count(),
-            'performance_this_week': PerformanceTest.query.filter(
-                PerformanceTest.created_at >= week_ago
-            ).count()
+            'security_this_week': SecurityAnalysis.query.filter(SecurityAnalysis.created_at >= week_ago).count(),
+            'performance_this_week': PerformanceTest.query.filter(PerformanceTest.created_at >= week_ago).count()
         }
-        
-        return render_template(
-            'pages/analysis_hub.html',
-            stats=stats,
-            recent_security=recent_security,
-            recent_performance=recent_performance,
-            trends=trends
-        )
+        return render_template('partials/analysis/trends.html', trends=trends)
     except Exception as e:
-        logger.error(f"Error loading analysis hub: {e}")
-        return render_template('pages/error.html',
-                             error_code=500,
-                             error_title='Analysis Hub Error',
-                             error_message=str(e))
+        logger.error(f"HTMX trends error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load trends'), 500
+
+@analysis_bp.get('/api/recent/security')
+def htmx_recent_security():
+    """HTMX endpoint for recent security analyses list."""
+    try:
+        from ..models import SecurityAnalysis
+        from sqlalchemy import desc
+        recent_security = SecurityAnalysis.query.order_by(desc(SecurityAnalysis.created_at)).limit(5).all()
+        return render_template('partials/analysis/recent_security.html', recent_security=recent_security)
+    except Exception as e:
+        logger.error(f"HTMX recent security error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load security list'), 500
+
+@analysis_bp.get('/api/recent/performance')
+def htmx_recent_performance():
+    """HTMX endpoint for recent performance tests list."""
+    try:
+        from ..models import PerformanceTest
+        from sqlalchemy import desc
+        recent_performance = PerformanceTest.query.order_by(desc(PerformanceTest.created_at)).limit(5).all()
+        return render_template('partials/analysis/recent_performance.html', recent_performance=recent_performance)
+    except Exception as e:
+        logger.error(f"HTMX recent performance error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load performance list'), 500
 
 
 @analysis_bp.route('/security/start', methods=['POST'])
@@ -375,25 +396,31 @@ def security_analysis_results_view(analysis_id):
                     else:
                         severity_distribution['Info'] += 1
         
-        return render_template('pages/security_analysis_complete.html',
-                             analysis=analysis,
-                             bandit_results=bandit_results,
-                             safety_results=safety_results,
-                             zap_results=zap_results,
-                             pylint_results=pylint_results,
-                             eslint_results=eslint_results,
-                             bandit_config=bandit_config,
-                             safety_config=safety_config,
-                             eslint_config=eslint_config,
-                             pylint_config=pylint_config,
-                             zap_config=zap_config,
-                             analysis_metadata=analysis_metadata,
-                             total_vulnerabilities=total_vulnerabilities,
-                             critical_high_count=critical_high_count,
-                             tools_executed=tools_executed,
-                             scan_duration=scan_duration,
-                             severity_distribution=severity_distribution,
-                             tool_distribution=tool_distribution)
+        return render_template(
+            'single_page.html',
+            page_title='Security Analysis Complete',
+            page_icon='fa-shield-alt',
+            page_subtitle=f"Analysis #{analysis.id}",
+            main_partial='partials/analysis/security_complete.html',
+            analysis=analysis,
+            bandit_results=bandit_results,
+            safety_results=safety_results,
+            zap_results=zap_results,
+            pylint_results=pylint_results,
+            eslint_results=eslint_results,
+            bandit_config=bandit_config,
+            safety_config=safety_config,
+            eslint_config=eslint_config,
+            pylint_config=pylint_config,
+            zap_config=zap_config,
+            analysis_metadata=analysis_metadata,
+            total_vulnerabilities=total_vulnerabilities,
+            critical_high_count=critical_high_count,
+            tools_executed=tools_executed,
+            scan_duration=scan_duration,
+            severity_distribution=severity_distribution,
+            tool_distribution=tool_distribution
+        )
         
     except Exception as e:
         logger.error(f"Error rendering security analysis results for {analysis_id}: {e}")
@@ -445,19 +472,25 @@ def security_analysis_complete_view(analysis_id):
         # Get analysis metadata
         analysis_metadata = analysis.get_metadata() if hasattr(analysis, 'get_metadata') else {}
 
-        return render_template('pages/security_analysis_complete.html',
-                             analysis=analysis,
-                             bandit_results=bandit_results,
-                             safety_results=safety_results,
-                             zap_results=zap_results,
-                             pylint_results=pylint_results,
-                             eslint_results=eslint_results,
-                             bandit_config=bandit_config,
-                             safety_config=safety_config,
-                             eslint_config=eslint_config,
-                             pylint_config=pylint_config,
-                             zap_config=zap_config,
-                             analysis_metadata=analysis_metadata)
+        return render_template(
+            'single_page.html',
+            page_title='Security Analysis (Complete View)',
+            page_icon='fa-search',
+            page_subtitle=f"Analysis #{analysis.id}",
+            main_partial='partials/analysis/security_complete.html',
+            analysis=analysis,
+            bandit_results=bandit_results,
+            safety_results=safety_results,
+            zap_results=zap_results,
+            pylint_results=pylint_results,
+            eslint_results=eslint_results,
+            bandit_config=bandit_config,
+            safety_config=safety_config,
+            eslint_config=eslint_config,
+            pylint_config=pylint_config,
+            zap_config=zap_config,
+            analysis_metadata=analysis_metadata
+        )
         
     except Exception as e:
         logger.error(f"Error rendering complete security analysis for {analysis_id}: {e}")

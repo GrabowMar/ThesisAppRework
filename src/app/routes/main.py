@@ -15,7 +15,6 @@ from ..models import (
     BatchAnalysis, ContainerizedTest
 )
 from ..constants import JobStatus, ContainerState
-from ..extensions import db
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -52,6 +51,7 @@ def dashboard():
             status=JobStatus.RUNNING
         ).all()
         
+        # Use new page wrapper template (pages/dashboard.html)
         return render_template(
             'pages/dashboard.html',
             stats=stats,
@@ -65,23 +65,50 @@ def dashboard():
         from datetime import datetime
         import sys
         import flask
-        return render_template('pages/error.html', 
-                             error_code=500,
-                             error_title='Dashboard Error',
-                             error_message=str(e),
-                             error=str(e),
-                             timestamp=datetime.now().isoformat(),
-                             request_id='dashboard-error',
-                             python_version=sys.version,
-                             flask_version=getattr(flask, '__version__', 'unknown'),
-                             debug_mode=current_app.debug,
-                             environment=current_app.config.get('ENV', 'unknown'))
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Dashboard Error',
+            error_message=str(e),
+            error=str(e),
+            timestamp=datetime.now().isoformat(),
+            request_id='dashboard-error',
+            python_version=sys.version,
+            flask_version=getattr(flask, '__version__', 'unknown'),
+            debug_mode=current_app.debug,
+            environment=current_app.config.get('ENV', 'unknown')
+        )
 
 
 @main_bp.route('/about')
 def about():
     """About page with project information."""
     return render_template('pages/about.html')
+
+
+@main_bp.route('/system-status')
+def system_status():
+    """System status / runtime health page (wrapper template)."""
+    try:
+        # Light-weight stats for status panel (reuse subset of dashboard)
+        stats = {
+            'models': ModelCapability.query.count(),
+            'applications': GeneratedApplication.query.count(),
+            'security_scans': SecurityAnalysis.query.count(),
+            'performance_tests': PerformanceTest.query.count()
+        }
+        return render_template('pages/system_status.html', stats=stats)
+    except Exception as e:
+        logger.error(f"Error loading system status: {e}")
+        flash('Error loading system status', 'error')
+        return render_template(
+            'single_page.html',
+            page_title='System Status Error',
+            main_partial='partials/common/error.html',
+            error_message=str(e)
+        )
 
 
 @main_bp.route('/test-platform')
@@ -109,18 +136,28 @@ def testing():
         # Get recent results
         recent_results = []
         
-        return render_template('pages/testing.html', 
-                             stats=stats, 
-                             available_models=available_models,
-                             active_sessions=active_sessions,
-                             recent_results=recent_results)
+        return render_template(
+            'single_page.html',
+            page_title='Testing Platform',
+            page_icon='fas fa-flask',
+            page_subtitle='System testing and validation',
+            main_partial='partials/testing/platform_overview.html',
+            stats=stats,
+            available_models=available_models,
+            active_sessions=active_sessions,
+            recent_results=recent_results
+        )
     except Exception as e:
         logger.error(f"Error loading testing page: {e}")
         flash('Error loading testing page', 'error')
-        return render_template('pages/error.html', 
-                             error_code=500,
-                             error_title='Testing Page Error',
-                             error_message=str(e))
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Testing Page Error',
+            error_message=str(e)
+        )
 
 
 @main_bp.route('/models_overview')

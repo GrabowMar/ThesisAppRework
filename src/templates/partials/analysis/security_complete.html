@@ -1,0 +1,13 @@
+{# Security analysis complete view extracted from pages/security_analysis_complete.html (simplified) #}
+<div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-shield-alt mr-1"></i> Security Analysis Summary</h3></div><div class="card-body">
+  {% if analysis %}
+  <dl class="row mb-0">
+    <dt class="col-sm-3">ID</dt><dd class="col-sm-9">{{ analysis.id }}</dd>
+    <dt class="col-sm-3">Status</dt><dd class="col-sm-9">{{ analysis.status }}</dd>
+    <dt class="col-sm-3">Issues</dt><dd class="col-sm-9">{{ analysis.total_issues or 0 }}</dd>
+    <dt class="col-sm-3">Critical</dt><dd class="col-sm-9 text-danger">{{ analysis.critical_issues or 0 }}</dd>
+  </dl>
+  {% else %}
+  <p class="text-muted mb-0">No analysis data.</p>
+  {% endif %}
+</div></div>

@@ -301,10 +301,13 @@ def api_apps_grid():
         )
         
         # Return appropriate template based on view
+        # Use consolidated namespaced partials (apps_grid namespace)
+        # Legacy root-level partials (partials/apps_list.html, partials/apps_grid.html)
+        # are being deprecated in favor of the structured namespace.
         if view == 'list':
-            return render_template('partials/apps_list.html', apps=apps)
+            return render_template('partials/apps_grid/apps_list.html', apps=apps.items if hasattr(apps, 'items') else apps)
         else:
-            return render_template('partials/apps_grid.html', apps=apps)
+            return render_template('partials/apps_grid/apps_grid.html', apps=apps.items if hasattr(apps, 'items') else apps)
     except Exception as e:
         logger.error(f"Error getting apps grid: {e}")
         return f'<div class="alert alert-danger">Error loading applications: {str(e)}</div>'

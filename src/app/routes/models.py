@@ -11,8 +11,7 @@ from flask import Blueprint, render_template, request, flash
 
 from ..models import (
     ModelCapability, GeneratedApplication,
-    SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis,
-    BatchAnalysis, ContainerizedTest
+    SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis
 )
 from ..extensions import db
 from ..services.openrouter_service import OpenRouterService
@@ -78,6 +77,7 @@ def models_overview():
         free_models = sum(1 for m in models if m.is_free)
         paid_models = total_models - free_models
         
+        # Page context
         context = {
             'models': enriched_models,
             'total_models': total_models,
@@ -88,15 +88,18 @@ def models_overview():
             'page_title': 'AI Models Overview',
             'show_openrouter_data': bool(openrouter_service.api_key)
         }
-        
-        return render_template('pages/models_overview.html', **context)
+        return render_template('pages/models.html', **context)
             
     except Exception as e:
         logger.error(f"Error loading models overview: {e}")
         flash(f"Error loading models: {e}", "error")
-        return render_template('pages/models_overview.html', 
-                             models=[], total_models=0, providers=[], 
-                             providers_count=0, error=str(e))
+        return render_template(
+            'single_page.html',
+            page_title='Models Overview Error',
+            main_partial='partials/common/error.html',
+            error=str(e),
+            models=[], total_models=0, providers=[], providers_count=0
+        )
 
 
 @models_bp.route('/model/<model_slug>/details')
@@ -123,16 +126,25 @@ def model_details(model_slug):
             'analyses_count': analyses_count,
         })
         
-        return render_template('pages/model_details.html', 
-                             model=enriched_data)
+        return render_template(
+            'single_page.html',
+            page_title=f"Model: {enriched_data.get('model_name', model_slug)}",
+            page_icon='fas fa-robot',
+            main_partial='partials/models/details.html',
+            model=enriched_data
+        )
         
     except Exception as e:
         logger.error(f"Error loading model details for {model_slug}: {e}")
         flash(f"Error loading model details: {e}", "error")
-        return render_template('pages/error.html', 
-                             error_code=404,
-                             error_title='Model Not Found',
-                             error_message=f"Model '{model_slug}' not found")
+        return render_template(
+            'single_page.html',
+            page_title='Model Not Found',
+            main_partial='partials/common/error.html',
+            error_code=404,
+            error_title='Model Not Found',
+            error_message=f"Model '{model_slug}' not found"
+        )
 
 
 @models_bp.route('/applications')
@@ -225,17 +237,19 @@ def applications():
                 'search': search_filter
             }
         }
-        
         return render_template('pages/applications.html', **context)
             
     except Exception as e:
         logger.error(f"Error loading applications: {e}")
         flash(f"Error loading applications: {e}", "error")
-        return render_template('pages/applications.html', 
-                             application_grid=[], total_apps=0, 
-                             running_containers=0, stopped_containers=0,
-                             current_filters={}, providers=[],
-                             error=str(e))
+        return render_template(
+            'single_page.html',
+            page_title='Applications Error',
+            main_partial='partials/common/error.html',
+            application_grid=[], total_apps=0,
+            running_containers=0, stopped_containers=0,
+            current_filters={}, providers=[], error=str(e)
+        )
 
 
 @models_bp.route('/application/<model_slug>/<int:app_number>')
@@ -340,23 +354,29 @@ def application_detail(model_slug, app_number):
                 'total_openrouter_analyses': len(analyses['openrouter'])
             }
         
-        context = {
-            'model': model,
-            'app': app_data,
-            'files_info': files_info,
-            'analyses': analyses,
-            'stats': stats
-        }
-        
-        return render_template('pages/application_detail.html', **context)
+        return render_template(
+            'single_page.html',
+            page_title=f"Application {app_number}",
+            page_icon='fas fa-cube',
+            main_partial='partials/applications/detail.html',
+            app_data=app_data,
+            files_info=files_info,
+            analyses=analyses,
+            stats=stats,
+            model=model
+        )
         
     except Exception as e:
         logger.error(f"Error loading application details for {model_slug}/app{app_number}: {e}")
         flash(f"Error loading application details: {e}", "error")
-        return render_template('pages/error.html', 
-                             error_code=404,
-                             error_title='Application Not Found',
-                             error_message=f"Application '{model_slug}/app{app_number}' not found")
+        return render_template(
+            'single_page.html',
+            page_title='Application Not Found',
+            main_partial='partials/common/error.html',
+            error_code=404,
+            error_title='Application Not Found',
+            error_message=f"Application '{model_slug}/app{app_number}' not found"
+        )
 
 
 @models_bp.route('/model_actions/<model_slug>')
@@ -403,18 +423,28 @@ def model_apps(model_slug):
         apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
         
         return render_template(
-            'pages/model_apps.html',
+            'single_page.html',
+            page_title=f"{model.display_name} Applications",
+            page_icon='fa-cubes',
+            page_subtitle=f"All generated apps for {model.display_name}",
+            main_partial='partials/applications/overview.html',  # reuse existing apps overview partial
             model=model,
             apps=apps
         )
     except Exception as e:
         logger.error(f"Error loading model apps for {model_slug}: {e}")
         flash(f'Error loading applications: {str(e)}', 'error')
-        return render_template('pages/error.html', 
-                             error_code=500,
-                             error_title='Model Applications Error',
-                             error_message=str(e),
-                             python_version='3.11')
+        return render_template(
+            'single_page.html',
+            page_title='Error',
+            page_icon='fa-triangle-exclamation',
+            page_subtitle='Model Applications Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Model Applications Error',
+            error_message=str(e),
+            python_version='3.11'
+        )
 
 
 

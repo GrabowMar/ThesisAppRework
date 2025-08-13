@@ -1,0 +1,7 @@
+{% extends 'single_page.html' %}
+{% block title %}Statistics | AI Research Platform{% endblock %}
+{% block page_title %}Statistics{% endblock %}
+{% block content %}
+  {% include 'partials/statistics/overview.html' ignore missing %}
+  {% include 'partials/statistics/model_performance.html' ignore missing %}
+{% endblock %}
