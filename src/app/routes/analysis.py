@@ -6,6 +6,8 @@ Routes for managing analysis operations and results.
 """
 
 import logging
+import time
+from functools import wraps
 
 from flask import Blueprint, request, jsonify, render_template
 
@@ -16,6 +18,38 @@ from ..models import GeneratedApplication
 logger = logging.getLogger(__name__)
 
 analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
+
+# ---------------------------------------------------------------------------
+# Lightweight in-process rate limiting (best-effort; not for multi-instance)
+# ---------------------------------------------------------------------------
+_last_call_registry = {}
+
+def rate_limited(min_interval: float = 5.0):
+    """Decorator to throttle high-frequency HTMX polling endpoints.
+
+    Uses (route, remote_addr) key in an in-memory dictionary. If calls arrive
+    sooner than min_interval seconds, returns a 429 with a tiny partial that
+    HTMX will swap in (but visually minimal) instead of hitting the DB again.
+    """
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                from flask import request, make_response
+                key = (fn.__name__, request.remote_addr or 'anon')
+                now = time.time()
+                last = _last_call_registry.get(key, 0)
+                if now - last < min_interval:
+                    # Too soon; short-circuit with 429
+                    resp = make_response('<div class="d-none" data-rate="limited"></div>', 429)
+                    resp.headers['Retry-After'] = str(int(min_interval))
+                    return resp
+                _last_call_registry[key] = now
+            except Exception:  # pragma: no cover - safety net
+                pass
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
 
 # Initialize services
 task_manager = TaskManager()
@@ -102,6 +136,7 @@ def htmx_analysis_trends():
         return render_template('partials/common/error.html', error='Failed to load trends'), 500
 
 @analysis_bp.get('/api/recent/security')
+@rate_limited(2.5)
 def htmx_recent_security():
     """HTMX endpoint for recent security analyses list."""
     try:
@@ -114,6 +149,7 @@ def htmx_recent_security():
         return render_template('partials/common/error.html', error='Failed to load security list'), 500
 
 @analysis_bp.get('/api/recent/performance')
+@rate_limited(2.5)
 def htmx_recent_performance():
     """HTMX endpoint for recent performance tests list."""
     try:
@@ -550,3 +586,26 @@ def security_analysis_complete_view(analysis_id):
         from flask import flash, redirect, url_for
         flash(f'Error loading complete analysis: {str(e)}', 'error')
         return redirect(url_for('analysis.analysis_hub'))
+
+
+# ============================================================================
+# Combined recent activity endpoint (single poll instead of two)
+# ============================================================================
+@analysis_bp.get('/api/recent/combined')
+@rate_limited(2.5)
+def htmx_recent_combined():
+    """Return a combined partial containing both recent security & performance.
+
+    This reduces client polling overhead by consolidating two requests into one.
+    """
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest
+        from sqlalchemy import desc
+        security_items = SecurityAnalysis.query.order_by(desc(SecurityAnalysis.created_at)).limit(5).all()
+        performance_items = PerformanceTest.query.order_by(desc(PerformanceTest.created_at)).limit(5).all()
+        return render_template('partials/analysis/recent_combined.html',
+                               recent_security=security_items,
+                               recent_performance=performance_items)
+    except Exception as e:  # pragma: no cover - defensive
+        logger.error(f"HTMX recent combined error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load recent activity'), 500

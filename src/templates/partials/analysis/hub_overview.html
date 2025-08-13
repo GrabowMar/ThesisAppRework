@@ -15,7 +15,9 @@
   <div class="col-md-6 mb-3 mb-md-0">{% include 'partials/analysis/trends.html' %}</div>
   <div class="col-md-6">{% include 'partials/analysis/quick_actions.html' %}</div>
 </div>
-<div class="row">
-  <div class="col-md-6 mb-3 mb-md-0">{% include 'partials/analysis/recent_security.html' %}</div>
-  <div class="col-md-6">{% include 'partials/analysis/recent_performance.html' %}</div>
+<div class="row" id="recentCombined"
+     hx-get="/analysis/api/recent/combined"
+     hx-trigger="load, every 60s"
+     hx-swap="outerHTML">
+  <div class="col-12">{% include 'partials/analysis/recent_combined.html' %}</div>
 </div>
