@@ -944,21 +944,31 @@ def _ping_analyzer_manager():
                 'message': 'Analyzer manager script not found'
             }
         
-        # Try to run status command with short timeout
+        # Try to run status command with sufficient timeout for health checks
+        import sys
         result = subprocess.run([
-            'python', str(analyzer_manager_path), 'health'
-        ], capture_output=True, text=True, timeout=5, cwd=analyzer_manager_path.parent)
+            sys.executable, str(analyzer_manager_path), 'health'
+        ], capture_output=True, text=True, timeout=15, cwd=analyzer_manager_path.parent,
+        encoding='utf-8', errors='replace')  # Handle Unicode characters properly
         
         if result.returncode == 0:
+            # Clean the output to remove Unicode characters that might cause issues
+            clean_output = result.stdout.encode('ascii', 'ignore').decode('ascii')
             return {
                 'status': 'available',
-                'message': 'Analyzer manager responding',
-                'output': result.stdout[:200]  # Truncate output
+                'message': 'Analyzer manager responding - all services healthy',
+                'output': clean_output[:200]  # Truncate output
             }
         else:
+            # Include both stderr and stdout in error message for debugging
+            error_details = f"return code {result.returncode}"
+            if result.stderr:
+                error_details += f", stderr: {result.stderr[:100]}"
+            if result.stdout:
+                error_details += f", stdout: {result.stdout[:100]}"
             return {
                 'status': 'error', 
-                'message': f'Analyzer manager error: {result.stderr[:100]}'
+                'message': f'Analyzer manager error ({error_details})'
             }
             
     except subprocess.TimeoutExpired:

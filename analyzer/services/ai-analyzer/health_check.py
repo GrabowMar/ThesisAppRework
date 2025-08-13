@@ -19,7 +19,10 @@ async def check_health() -> Dict[str, Any]:
         port = int(os.getenv('WEBSOCKET_PORT', 2004))
         uri = f"ws://localhost:{port}"
         
-        async with websockets.connect(uri, timeout=5.0) as websocket:
+        # Use simple connect without deprecated timeout parameter
+        websocket = await websockets.connect(uri)
+        
+        try:
             # Send simple health check message
             message = {
                 "type": "health_check",
@@ -45,6 +48,8 @@ async def check_health() -> Dict[str, Any]:
                     "service": "ai-analyzer",
                     "error": f"Invalid response: {response_data}"
                 }
+        finally:
+            await websocket.close()
                 
     except asyncio.TimeoutError:
         return {

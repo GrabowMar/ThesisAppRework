@@ -6,15 +6,19 @@ Core application routes including dashboard and basic pages.
 """
 
 import logging
+import subprocess
+from datetime import datetime, timedelta
 
-from flask import Blueprint, render_template, flash, current_app
+from flask import Blueprint, render_template, flash, current_app, jsonify, request
 
 from ..models import (
     ModelCapability, GeneratedApplication,
     SecurityAnalysis, PerformanceTest,
     BatchAnalysis, ContainerizedTest
 )
+from ..extensions import db
 from ..constants import JobStatus, ContainerState
+from ..services.data_initialization import data_init_service
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -187,3 +191,169 @@ def api_stats():
     except Exception as e:
         logger.error(f"Error getting API stats: {e}")
         return {'error': str(e)}, 500
+
+
+@main_bp.route('/api/data/initialize', methods=['POST'])
+def api_initialize_data():
+    """API endpoint to initialize database with data from JSON files."""
+    try:
+        results = data_init_service.initialize_all_data()
+        return jsonify(results)
+    except Exception as e:
+        logger.error(f"Error initializing data: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@main_bp.route('/api/data/status')
+def api_data_status():
+    """API endpoint to get data initialization status."""
+    try:
+        status = data_init_service.get_initialization_status()
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Error getting data status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@main_bp.route('/api/system/health')
+def api_system_health():
+    """API endpoint for system health status."""
+    try:
+        from ..services.docker_manager import DockerManager
+        from ..services.service_locator import ServiceLocator
+        
+        # Check Docker status
+        docker_manager = ServiceLocator.get_docker_manager()
+        docker_status = {
+            'available': False,
+            'containers_running': 0,
+            'error': None
+        }
+        
+        try:
+            client = docker_manager.client
+            if client:
+                containers = client.containers.list()
+                docker_status['available'] = True
+                docker_status['containers_running'] = len(containers)
+        except Exception as e:
+            docker_status['error'] = str(e)
+        
+        # Check analyzer services
+        analyzer_status = {
+            'security': {'status': 'unknown', 'port': 2001},
+            'performance': {'status': 'unknown', 'port': 2002},
+            'dynamic': {'status': 'unknown', 'port': 2003},
+            'ai': {'status': 'unknown', 'port': 2004}
+        }
+        
+        # Check database connection
+        db_status = {'available': True, 'error': None}
+        try:
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
+        except Exception as e:
+            db_status['available'] = False
+            db_status['error'] = str(e)
+        
+        return jsonify({
+            'docker': docker_status,
+            'analyzers': analyzer_status,
+            'database': db_status,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting system health: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@main_bp.route('/api/dashboard/stats')
+def api_dashboard_stats():
+    """Enhanced API endpoint for dashboard statistics."""
+    try:
+        # Basic counts
+        models_count = ModelCapability.query.count()
+        apps_count = GeneratedApplication.query.count()
+        security_count = SecurityAnalysis.query.count()
+        performance_count = PerformanceTest.query.count()
+        
+        # Provider breakdown
+        from sqlalchemy import func
+        provider_stats = db.session.query(
+            ModelCapability.provider,
+            func.count(ModelCapability.id).label('count')
+        ).group_by(ModelCapability.provider).all()
+        
+        # Application framework breakdown
+        framework_stats = db.session.query(
+            GeneratedApplication.backend_framework,
+            func.count(GeneratedApplication.id).label('count')
+        ).group_by(GeneratedApplication.backend_framework).all()
+        
+        # Recent activity
+        recent_models = ModelCapability.query.order_by(
+            ModelCapability.created_at.desc()
+        ).limit(5).all()
+        
+        recent_apps = GeneratedApplication.query.order_by(
+            GeneratedApplication.created_at.desc()
+        ).limit(5).all()
+        
+        return jsonify({
+            'counts': {
+                'models': models_count,
+                'applications': apps_count,
+                'security_tests': security_count,
+                'performance_tests': performance_count
+            },
+            'providers': [{'name': p[0], 'count': p[1]} for p in provider_stats],
+            'frameworks': [{'name': f[0] or 'Unknown', 'count': f[1]} for f in framework_stats],
+            'recent_models': [m.to_dict() for m in recent_models],
+            'recent_apps': [a.to_dict() for a in recent_apps],
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@main_bp.route('/api/analyzer/start', methods=['POST'])
+def start_analyzer_services():
+    """Start analyzer services via Docker"""
+    try:
+        # Simple docker check and analyzer service startup
+        result = subprocess.run(['docker', 'ps'], 
+                              capture_output=True, text=True, timeout=10)
+        
+        if result.returncode == 0:
+            # Docker is available, try to start analyzer services
+            # This is a simplified implementation
+            return jsonify({
+                'success': True,
+                'message': 'Docker is available. Analyzer services can be started via the analyzer_manager.py script.',
+                'note': 'Please run: cd analyzer && python analyzer_manager.py start'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Docker not available'
+            }), 500
+                
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Docker command timed out'
+        }), 500
+    except FileNotFoundError:
+        return jsonify({
+            'success': False,
+            'error': 'Docker not found. Please install Docker.'
+        }), 500
+    except Exception as e:
+        current_app.logger.error(f"Error starting analyzer services: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

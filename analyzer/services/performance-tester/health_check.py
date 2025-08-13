@@ -17,7 +17,10 @@ async def health_check():
         port = int(os.getenv('WEBSOCKET_PORT', 2003))
         uri = f"ws://localhost:{port}"
         
-        async with websockets.connect(uri, timeout=5.0) as websocket:
+        # Use simple connect without deprecated timeout parameter
+        websocket = await websockets.connect(uri)
+        
+        try:
             # Send simple health check message
             message = {
                 "type": "health_check",
@@ -37,6 +40,8 @@ async def health_check():
             else:
                 print(f"Health check failed - unexpected response: {response_data}")
                 return False
+        finally:
+            await websocket.close()
                 
     except Exception as e:
         print(f"Health check failed: {str(e)}")

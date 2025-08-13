@@ -374,7 +374,7 @@ class AnalyzerManager:
     
     async def check_all_services_health(self) -> Dict[str, Dict[str, Any]]:
         """Check health of all services."""
-        logger.info("💓 Checking health of all services...")
+        logger.info("Checking health of all services...")
         
         health_tasks = [
             self.check_service_health(service_name)
@@ -940,12 +940,24 @@ async def main():
             print(f"  Overall health: {summary['overall_health'].upper()}")
         
         elif command == 'health':
-            health_results = await manager.check_all_services_health()
-            print("\n💓 SERVICE HEALTH:")
-            for service_name, result in health_results.items():
-                status = result.get('status', 'unknown')
-                icon = "✅" if status == 'healthy' else "❌"
-                print(f"  {icon} {service_name}: {status}")
+            try:
+                health_results = await manager.check_all_services_health()
+                print("\nSERVICE HEALTH:")
+                all_healthy = True
+                for service_name, result in health_results.items():
+                    status = result.get('status', 'unknown')
+                    icon = "OK" if status == 'healthy' else "FAIL"
+                    print(f"  {icon} {service_name}: {status}")
+                    if status != 'healthy':
+                        all_healthy = False
+                
+                # Exit with code 0 only if all services are healthy
+                if not all_healthy:
+                    sys.exit(1)
+                    
+            except Exception as e:
+                print(f"HEALTH CHECK FAILED: {e}")
+                sys.exit(1)
         
         elif command == 'ping':
             if len(sys.argv) < 3:

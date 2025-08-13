@@ -424,6 +424,16 @@ class TestingConfigManager {
                 }
             });
         });
+
+        // Model selection change listener - handled by template script
+        // App selection change listener - handled by template script
+
+        // Batch selection listeners
+        document.querySelectorAll('.batch-model-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                this.updateBatchSummary();
+            });
+        });
     }
 
     updateConfigFromForms() {

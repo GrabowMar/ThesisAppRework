@@ -180,25 +180,62 @@ class AnalyzerIntegration:
         """
         
         try:
-            # For now, avoid the status command that has encoding issues
-            # Return a simplified status based on file existence
-            if self.analyzer_manager_path.exists():
-                status_info = {
-                    'services': {
-                        'analyzer_manager': {'status': 'available'},
-                        'docker_services': {'status': 'unknown'}
-                    },
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'health_check_mode': 'simplified'
-                }
-                self.services_status = status_info
-                self.last_health_check = datetime.now(timezone.utc)
-                return status_info
-            else:
+            # Check if analyzer manager exists
+            if not self.analyzer_manager_path.exists():
                 return {
                     'error': 'Analyzer manager not found',
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
+            
+            # Try to get real status from analyzer manager
+            try:
+                result = self.run_analyzer_command(['health'], timeout=10)
+                
+                if result.get('returncode') == 0:
+                    # Parse health output to extract service status
+                    output = result.get('stdout', '')
+                    
+                    # Look for service health in output
+                    services_status = {}
+                    lines = output.split('\n')
+                    
+                    for line in lines:
+                        if '✅' in line and ':' in line:
+                            # Extract service name and status from lines like "✅ static-analyzer: healthy"
+                            parts = line.split(':')
+                            if len(parts) >= 2:
+                                service_name = parts[0].replace('✅', '').replace('❌', '').strip()
+                                status = parts[1].strip()
+                                services_status[service_name] = {'status': status}
+                    
+                    if services_status:
+                        status_info = {
+                            'services': services_status,
+                            'timestamp': datetime.now(timezone.utc).isoformat(),
+                            'health_check_mode': 'real'
+                        }
+                        self.services_status = status_info
+                        self.last_health_check = datetime.now(timezone.utc)
+                        return status_info
+                
+                # Fallback to simplified status if parsing failed
+                logger.warning("Failed to parse analyzer health output, using simplified status")
+                
+            except Exception as e:
+                logger.warning(f"Failed to get real analyzer status: {e}, using simplified status")
+            
+            # Simplified fallback status
+            status_info = {
+                'services': {
+                    'analyzer_manager': {'status': 'available'},
+                    'docker_services': {'status': 'unknown'}
+                },
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'health_check_mode': 'simplified'
+            }
+            self.services_status = status_info
+            self.last_health_check = datetime.now(timezone.utc)
+            return status_info
                 
         except Exception as e:
             logger.error(f"Error getting services status: {e}")

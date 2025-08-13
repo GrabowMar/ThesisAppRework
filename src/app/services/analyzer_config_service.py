@@ -5,14 +5,23 @@ Analyzer Configuration Service
 Service for managing and validating analyzer configurations.
 Provides methods to get, set, and validate configuration options
 for security, performance, and AI analysis tools.
+
+Enhanced with database integration for models and applications,
+and support for scanning apps from the misc folder structure.
 """
 
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict
+from pathlib import Path
 import json
+import logging
 
 from ..extensions import db
+from ..models import ModelCapability, GeneratedApplication
 from ..models.analysis import AnalysisConfig
+from ..constants import Paths
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -182,10 +191,518 @@ class SecurityAnalyzerConfig:
 
 
 class AnalyzerConfigService:
-    """Service for managing analyzer configurations."""
+    """Service for managing analyzer configurations with database integration."""
     
     def __init__(self):
         self.default_config = SecurityAnalyzerConfig()
+        self.logger = logging.getLogger(__name__)
+    
+    def get_available_models(self) -> List[Dict[str, Any]]:
+        """Get all available models from database and misc folder."""
+        models = []
+        
+        # Get models from database
+        db_models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        for model in db_models:
+            models.append({
+                'slug': model.canonical_slug,
+                'name': model.model_name,
+                'provider': model.provider,
+                'source': 'database'
+            })
+        
+        # Scan misc folder for additional models
+        models_dir = Paths.MODELS_DIR
+        if models_dir.exists():
+            for model_dir in models_dir.iterdir():
+                if model_dir.is_dir() and model_dir.name not in [m['slug'] for m in models]:
+                    # Extract provider from slug
+                    provider = model_dir.name.split('_')[0] if '_' in model_dir.name else 'unknown'
+                    models.append({
+                        'slug': model_dir.name,
+                        'name': model_dir.name.replace('_', ' ').title(),
+                        'provider': provider,
+                        'source': 'misc_folder'
+                    })
+        
+        return models
+    
+    def get_available_apps(self, model_slug: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all available apps from database and misc folder."""
+        apps = []
+        
+        if model_slug:
+            # Get apps for specific model from database
+            db_apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+            for app in db_apps:
+                apps.append({
+                    'model_slug': app.model_slug,
+                    'app_number': app.app_number,
+                    'app_type': app.app_type,
+                    'has_backend': app.has_backend,
+                    'has_frontend': app.has_frontend,
+                    'backend_framework': app.backend_framework,
+                    'frontend_framework': app.frontend_framework,
+                    'source': 'database'
+                })
+            
+            # Check misc folder for additional apps
+            misc_model_dir = Paths.MODELS_DIR / model_slug
+            if misc_model_dir.exists():
+                for app_dir in misc_model_dir.iterdir():
+                    if app_dir.is_dir() and app_dir.name.startswith('app'):
+                        try:
+                            app_number = int(app_dir.name.replace('app', ''))
+                            # Check if this app is already in database
+                            if not any(app['app_number'] == app_number for app in apps):
+                                has_backend = (app_dir / 'backend').exists()
+                                has_frontend = (app_dir / 'frontend').exists()
+                                
+                                apps.append({
+                                    'model_slug': model_slug,
+                                    'app_number': app_number,
+                                    'app_type': 'fullstack' if has_backend and has_frontend else 'backend' if has_backend else 'frontend',
+                                    'has_backend': has_backend,
+                                    'has_frontend': has_frontend,
+                                    'backend_framework': self._detect_backend_framework(app_dir / 'backend') if has_backend else None,
+                                    'frontend_framework': self._detect_frontend_framework(app_dir / 'frontend') if has_frontend else None,
+                                    'source': 'misc_folder',
+                                    'path': str(app_dir)
+                                })
+                        except ValueError:
+                            continue
+        else:
+            # Get all apps from database
+            db_apps = GeneratedApplication.query.all()
+            for app in db_apps:
+                apps.append({
+                    'model_slug': app.model_slug,
+                    'app_number': app.app_number,
+                    'app_type': app.app_type,
+                    'has_backend': app.has_backend,
+                    'has_frontend': app.has_frontend,
+                    'backend_framework': app.backend_framework,
+                    'frontend_framework': app.frontend_framework,
+                    'source': 'database'
+                })
+            
+            # Scan all models in misc folder
+            models_dir = Paths.MODELS_DIR
+            if models_dir.exists():
+                for model_dir in models_dir.iterdir():
+                    if not model_dir.is_dir():
+                        continue
+                        
+                    model_slug = model_dir.name
+                    for app_dir in model_dir.iterdir():
+                        if app_dir.is_dir() and app_dir.name.startswith('app'):
+                            try:
+                                app_number = int(app_dir.name.replace('app', ''))
+                                # Check if this app is already in database
+                                if not any(app['model_slug'] == model_slug and app['app_number'] == app_number for app in apps):
+                                    has_backend = (app_dir / 'backend').exists()
+                                    has_frontend = (app_dir / 'frontend').exists()
+                                    
+                                    apps.append({
+                                        'model_slug': model_slug,
+                                        'app_number': app_number,
+                                        'app_type': 'fullstack' if has_backend and has_frontend else 'backend' if has_backend else 'frontend',
+                                        'has_backend': has_backend,
+                                        'has_frontend': has_frontend,
+                                        'backend_framework': self._detect_backend_framework(app_dir / 'backend') if has_backend else None,
+                                        'frontend_framework': self._detect_frontend_framework(app_dir / 'frontend') if has_frontend else None,
+                                        'source': 'misc_folder',
+                                        'path': str(app_dir)
+                                    })
+                            except ValueError:
+                                continue
+        
+        return sorted(apps, key=lambda x: (x['model_slug'], x['app_number']))
+    
+    def get_app_directory_path(self, model_slug: str, app_number: int) -> Optional[str]:
+        """Get the directory path for an application."""
+        # First check database
+        app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug, 
+            app_number=app_number
+        ).first()
+        
+        if app:
+            metadata = app.get_metadata()
+            if 'directory_path' in metadata:
+                return metadata['directory_path']
+        
+        # Check misc folder
+        misc_app_path = Paths.MODELS_DIR / model_slug / f"app{app_number}"
+        if misc_app_path.exists():
+            return str(misc_app_path)
+        
+        return None
+    
+    def _detect_backend_framework(self, backend_dir: Path) -> Optional[str]:
+        """Detect backend framework from directory structure."""
+        if not backend_dir.exists():
+            return None
+            
+        if (backend_dir / 'requirements.txt').exists():
+            # Check for Flask/Django indicators
+            try:
+                with open(backend_dir / 'requirements.txt', 'r') as f:
+                    content = f.read().lower()
+                    if 'flask' in content:
+                        return 'flask'
+                    elif 'django' in content:
+                        return 'django'
+                    elif 'fastapi' in content:
+                        return 'fastapi'
+                    else:
+                        return 'python'
+            except Exception:
+                return 'python'
+        elif (backend_dir / 'package.json').exists():
+            return 'node'
+        elif (backend_dir / 'go.mod').exists():
+            return 'go'
+        elif (backend_dir / 'Cargo.toml').exists():
+            return 'rust'
+        
+        return None
+    
+    def _detect_frontend_framework(self, frontend_dir: Path) -> Optional[str]:
+        """Detect frontend framework from directory structure."""
+        if not frontend_dir.exists():
+            return None
+            
+        if (frontend_dir / 'package.json').exists():
+            try:
+                with open(frontend_dir / 'package.json', 'r') as f:
+                    content = json.load(f)
+                    dependencies = {**content.get('dependencies', {}), **content.get('devDependencies', {})}
+                    
+                    if 'react' in dependencies:
+                        return 'react'
+                    elif 'vue' in dependencies:
+                        return 'vue'
+                    elif 'angular' in dependencies or '@angular/core' in dependencies:
+                        return 'angular'
+                    elif 'svelte' in dependencies:
+                        return 'svelte'
+                    else:
+                        return 'javascript'
+            except Exception:
+                return 'javascript'
+        elif (frontend_dir / 'index.html').exists():
+            return 'vanilla'
+        
+        return None
+    
+    def get_model_apps_summary(self, model_slug: str) -> Dict[str, Any]:
+        """Get summary of apps for a specific model."""
+        apps = self.get_available_apps(model_slug)
+        
+        summary = {
+            'model_slug': model_slug,
+            'total_apps': len(apps),
+            'app_types': {},
+            'frameworks': {'backend': {}, 'frontend': {}},
+            'sources': {'database': 0, 'misc_folder': 0},
+            'apps': apps
+        }
+        
+        for app in apps:
+            # Count app types
+            app_type = app['app_type']
+            summary['app_types'][app_type] = summary['app_types'].get(app_type, 0) + 1
+            
+            # Count frameworks
+            if app['backend_framework']:
+                framework = app['backend_framework']
+                summary['frameworks']['backend'][framework] = summary['frameworks']['backend'].get(framework, 0) + 1
+            
+            if app['frontend_framework']:
+                framework = app['frontend_framework']
+                summary['frameworks']['frontend'][framework] = summary['frameworks']['frontend'].get(framework, 0) + 1
+            
+            # Count sources
+            source = app['source']
+            summary['sources'][source] += 1
+        
+        return summary
+    
+    def validate_model_app_combination(self, model_slug: str, app_number: int) -> bool:
+        """Validate that a model/app combination exists."""
+        # Check database first
+        db_app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug,
+            app_number=app_number
+        ).first()
+        
+        if db_app:
+            return True
+        
+        # Check misc folder
+        misc_path = Paths.MODELS_DIR / model_slug / f"app{app_number}"
+        return misc_path.exists() and misc_path.is_dir()
+    
+    def get_scannable_targets(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get all scannable targets organized by model."""
+        targets = {}
+        apps = self.get_available_apps()
+        
+        for app in apps:
+            model_slug = app['model_slug']
+            if model_slug not in targets:
+                targets[model_slug] = []
+            
+            # Add target information
+            target = {
+                'app_number': app['app_number'],
+                'app_type': app['app_type'],
+                'has_backend': app['has_backend'],
+                'has_frontend': app['has_frontend'],
+                'backend_framework': app['backend_framework'],
+                'frontend_framework': app['frontend_framework'],
+                'source': app['source']
+            }
+            
+            # Add path if available
+            path = self.get_app_directory_path(model_slug, app['app_number'])
+            if path:
+                target['path'] = path
+            
+            targets[model_slug].append(target)
+        
+        return targets
+    
+    def sync_database_from_misc_folder(self) -> Dict[str, int]:
+        """Synchronize database with misc folder structure."""
+        synced = {'models': 0, 'apps': 0}
+        
+        models_dir = Paths.MODELS_DIR
+        if not models_dir.exists():
+            self.logger.warning(f"Models directory not found: {models_dir}")
+            return synced
+        
+        # Scan for models and apps
+        for model_dir in models_dir.iterdir():
+            if not model_dir.is_dir():
+                continue
+                
+            model_slug = model_dir.name
+            
+            # Check if model exists in database
+            existing_model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+            if not existing_model:
+                # Create minimal model entry
+                provider = model_slug.split('_')[0] if '_' in model_slug else 'unknown'
+                model = ModelCapability()
+                model.model_id = model_slug
+                model.canonical_slug = model_slug
+                model.provider = provider
+                model.model_name = model_slug.replace('_', ' ').title()
+                db.session.add(model)
+                synced['models'] += 1
+                self.logger.info(f"Added model to database: {model_slug}")
+            
+            # Scan for apps
+            for app_dir in model_dir.iterdir():
+                if not app_dir.is_dir() or not app_dir.name.startswith('app'):
+                    continue
+                    
+                try:
+                    app_number = int(app_dir.name.replace('app', ''))
+                except ValueError:
+                    continue
+                
+                # Check if app exists in database
+                existing_app = GeneratedApplication.query.filter_by(
+                    model_slug=model_slug,
+                    app_number=app_number
+                ).first()
+                
+                if not existing_app:
+                    # Create app entry
+                    provider = model_slug.split('_')[0] if '_' in model_slug else 'unknown'
+                    has_backend = (app_dir / 'backend').exists()
+                    has_frontend = (app_dir / 'frontend').exists()
+                    has_docker_compose = (app_dir / 'docker-compose.yml').exists()
+                    
+                    app = GeneratedApplication()
+                    app.model_slug = model_slug
+                    app.app_number = app_number
+                    app.app_type = 'fullstack' if has_backend and has_frontend else 'backend' if has_backend else 'frontend'
+                    app.provider = provider
+                    app.has_backend = has_backend
+                    app.has_frontend = has_frontend
+                    app.has_docker_compose = has_docker_compose
+                    app.backend_framework = self._detect_backend_framework(app_dir / 'backend') if has_backend else None
+                    app.frontend_framework = self._detect_frontend_framework(app_dir / 'frontend') if has_frontend else None
+                    app.container_status = 'stopped'
+                    
+                    # Store metadata with paths
+                    metadata = {
+                        'directory_path': str(app_dir),
+                        'backend_path': str(app_dir / 'backend') if has_backend else None,
+                        'frontend_path': str(app_dir / 'frontend') if has_frontend else None,
+                        'docker_compose_path': str(app_dir / 'docker-compose.yml') if has_docker_compose else None,
+                        'sync_source': 'misc_folder'
+                    }
+                    app.set_metadata(metadata)
+                    
+                    db.session.add(app)
+                    synced['apps'] += 1
+                    self.logger.info(f"Added app to database: {model_slug}/app{app_number}")
+        
+        try:
+            db.session.commit()
+            self.logger.info(f"Database sync completed: {synced['models']} models, {synced['apps']} apps")
+        except Exception as e:
+            db.session.rollback()
+            self.logger.error(f"Failed to sync database: {e}")
+            raise
+        
+        return synced
+    
+    def get_analyzer_targets_for_config(self, config: SecurityAnalyzerConfig) -> List[Dict[str, Any]]:
+        """Get list of targets that can be analyzed with the given configuration."""
+        targets = []
+        apps = self.get_available_apps()
+        
+        for app in apps:
+            target = {
+                'model_slug': app['model_slug'],
+                'app_number': app['app_number'],
+                'app_type': app['app_type'],
+                'analyzers': []
+            }
+            
+            # Check which analyzers are applicable
+            if app['has_backend']:
+                if config.bandit and config.bandit.enabled:
+                    target['analyzers'].append('bandit')
+                if config.safety and config.safety.enabled:
+                    target['analyzers'].append('safety')
+                if config.pylint and config.pylint.enabled:
+                    target['analyzers'].append('pylint')
+            
+            if app['has_frontend']:
+                if config.eslint and config.eslint.enabled:
+                    target['analyzers'].append('eslint')
+            
+            # ZAP can scan any web application
+            if config.zap and config.zap.enabled and (app['has_frontend'] or app['has_backend']):
+                target['analyzers'].append('zap')
+            
+            # Only include targets that have applicable analyzers
+            if target['analyzers']:
+                targets.append(target)
+        
+        return targets
+    
+    def generate_analysis_plan(self, model_slug: Optional[str] = None, 
+                             app_numbers: Optional[List[int]] = None,
+                             config: Optional[SecurityAnalyzerConfig] = None) -> Dict[str, Any]:
+        """Generate a comprehensive analysis plan."""
+        if not config:
+            config = self.default_config
+        
+        # Get target apps
+        if model_slug:
+            if app_numbers:
+                # Specific apps for a model
+                apps = []
+                for app_num in app_numbers:
+                    if self.validate_model_app_combination(model_slug, app_num):
+                        app_data = next(
+                            (app for app in self.get_available_apps(model_slug) 
+                             if app['app_number'] == app_num), 
+                            None
+                        )
+                        if app_data:
+                            apps.append(app_data)
+            else:
+                # All apps for a model
+                apps = self.get_available_apps(model_slug)
+        else:
+            # All apps
+            apps = self.get_available_apps()
+        
+        # Generate plan
+        plan = {
+            'target_count': len(apps),
+            'estimated_duration': 0,
+            'analysis_types': [],
+            'targets': [],
+            'configuration': asdict(config),
+            'warnings': []
+        }
+        
+        # Analyze each target
+        for app in apps:
+            target_plan = {
+                'model_slug': app['model_slug'],
+                'app_number': app['app_number'],
+                'path': self.get_app_directory_path(app['model_slug'], app['app_number']),
+                'analyses': []
+            }
+            
+            # Plan specific analyses
+            if app['has_backend']:
+                if config.bandit and config.bandit.enabled:
+                    target_plan['analyses'].append({
+                        'type': 'bandit',
+                        'estimated_duration': config.bandit.timeout,
+                        'target': 'backend'
+                    })
+                    plan['estimated_duration'] += config.bandit.timeout
+                
+                if config.safety and config.safety.enabled:
+                    target_plan['analyses'].append({
+                        'type': 'safety',
+                        'estimated_duration': config.safety.timeout,
+                        'target': 'backend'
+                    })
+                    plan['estimated_duration'] += config.safety.timeout
+                
+                if config.pylint and config.pylint.enabled:
+                    target_plan['analyses'].append({
+                        'type': 'pylint',
+                        'estimated_duration': config.pylint.timeout,
+                        'target': 'backend'
+                    })
+                    plan['estimated_duration'] += config.pylint.timeout
+            
+            if app['has_frontend']:
+                if config.eslint and config.eslint.enabled:
+                    target_plan['analyses'].append({
+                        'type': 'eslint',
+                        'estimated_duration': config.eslint.timeout,
+                        'target': 'frontend'
+                    })
+                    plan['estimated_duration'] += config.eslint.timeout
+            
+            if config.zap and config.zap.enabled and (app['has_frontend'] or app['has_backend']):
+                target_plan['analyses'].append({
+                    'type': 'zap',
+                    'estimated_duration': config.zap.timeout,
+                    'target': 'web_application'
+                })
+                plan['estimated_duration'] += config.zap.timeout
+            
+            # Add warnings for missing paths
+            if not target_plan['path']:
+                plan['warnings'].append(f"Path not found for {app['model_slug']}/app{app['app_number']}")
+            
+            if target_plan['analyses']:
+                plan['targets'].append(target_plan)
+        
+        # Get unique analysis types
+        all_analyses = []
+        for target in plan['targets']:
+            all_analyses.extend([analysis['type'] for analysis in target['analyses']])
+        plan['analysis_types'] = list(set(all_analyses))
+        
+        return plan
     
     def get_security_config(self, config_id: Optional[int] = None) -> SecurityAnalyzerConfig:
         """Get security analyzer configuration."""
