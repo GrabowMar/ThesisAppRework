@@ -50,6 +50,10 @@ class AnalysisConfig(db.Model):
     child_configs = db.relationship('AnalysisConfig', 
                                   backref=db.backref('parent_config', remote_side=[id]),
                                   lazy=True)
+
+    # Provide an explicit __init__ for type checkers (SQLAlchemy supplies one dynamically)
+    def __init__(self, **kwargs: Any) -> None:  # type: ignore[override]
+        super().__init__(**kwargs)  # type: ignore[misc]
     
     def get_config_data(self) -> Dict[str, Any]:
         """Get configuration data as dictionary."""
@@ -176,7 +180,7 @@ class ConfigPreset(db.Model):
     
     def to_config(self) -> AnalysisConfig:
         """Convert preset to an AnalysisConfig instance."""
-        return AnalysisConfig(
+        return AnalysisConfig(  # type: ignore[call-arg]
             name=f"{self.name} (from preset)",
             description=self.description,
             config_type=self.config_type,

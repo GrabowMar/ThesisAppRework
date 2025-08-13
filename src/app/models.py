@@ -14,32 +14,28 @@ Models include:
 """
 
 import json
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, JSON, ForeignKey
+from datetime import datetime, timezone
+from typing import Dict, Any, List
+from typing import TYPE_CHECKING
 
-# Import centralized constants and enums
-try:
-    from ..constants import (
-        AnalysisStatus, JobStatus, TaskStatus, AnalysisType, 
-        JobPriority, ContainerState
-    )
-except ImportError:
-    from app.constants import (
-        AnalysisStatus, JobStatus, TaskStatus, AnalysisType, 
-        JobPriority, ContainerState
-    )
+# Avoid importing SQLAlchemy column symbols directly; rely on db provided by Flask SQLAlchemy
+if TYPE_CHECKING:  # pragma: no cover - type checking helpers
+    from flask_sqlalchemy.model import Model as _ModelBase
+else:  # At runtime, db.Model supplies the base class
+    _ModelBase = object  # Fallback placeholder
 
-try:
-    from ..extensions import db
-except ImportError:
-    from app.extensions import db
+# Import centralized constants and enums (prefer absolute to reduce type checker ambiguity)
+from app.constants import (
+    AnalysisStatus, JobStatus, JobPriority, ContainerState
+)
+
+from app.extensions import db
 
 def utc_now() -> datetime:
     """Get current UTC time - replacement for deprecated datetime.utcnow()"""
     return datetime.now(timezone.utc)
 
-class ModelCapability(db.Model):
+class ModelCapability(db.Model):  # type: ignore[misc]
     """Model for storing AI model capabilities and metadata."""
     __tablename__ = 'model_capabilities'
     
@@ -129,7 +125,7 @@ class ModelCapability(db.Model):
         return f'<ModelCapability {self.model_id}>'
 
 
-class PortConfiguration(db.Model):
+class PortConfiguration(db.Model):  # type: ignore[misc]
     """Model for storing Docker port configurations."""
     __tablename__ = 'port_configurations'
     
@@ -181,7 +177,7 @@ class PortConfiguration(db.Model):
         return f'<PortConfiguration {self.model}/app{self.app_num}>'
 
 
-class GeneratedApplication(db.Model):
+class GeneratedApplication(db.Model):  # type: ignore[misc]
     """Model for storing information about AI-generated applications."""
     __tablename__ = 'generated_applications'
     
@@ -190,7 +186,8 @@ class GeneratedApplication(db.Model):
     app_number = db.Column(db.Integer, nullable=False)
     app_type = db.Column(db.String(50), nullable=False)
     provider = db.Column(db.String(100), nullable=False, index=True)  # Added provider field
-    generation_status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING)
+    # Store enum value as string for compatibility with type checking tools
+    generation_status = db.Column(db.String(50), default=AnalysisStatus.PENDING.value)
     has_backend = db.Column(db.Boolean, default=False)
     has_frontend = db.Column(db.Boolean, default=False)
     has_docker_compose = db.Column(db.Boolean, default=False)
@@ -252,7 +249,7 @@ class GeneratedApplication(db.Model):
             'app_number': self.app_number,
             'app_type': self.app_type,
             'provider': self.provider,
-            'generation_status': self.generation_status.value if self.generation_status else None,
+            'generation_status': self.generation_status,
             'has_backend': self.has_backend,
             'has_frontend': self.has_frontend,
             'has_docker_compose': self.has_docker_compose,
@@ -268,7 +265,7 @@ class GeneratedApplication(db.Model):
         return f'<GeneratedApplication {self.model_slug}/app{self.app_number}>'
 
 
-class SecurityAnalysis(db.Model):
+class SecurityAnalysis(db.Model):  # type: ignore[misc]
     """Model for storing security analysis results."""
     __tablename__ = 'security_analyses'
     
@@ -276,7 +273,7 @@ class SecurityAnalysis(db.Model):
     application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
     
     # Analysis status and configuration
-    status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
+    status = db.Column(db.String(50), default=AnalysisStatus.PENDING.value, index=True)
     
     # Tool enablement
     bandit_enabled = db.Column(db.Boolean, default=True)
@@ -337,7 +334,7 @@ class SecurityAnalysis(db.Model):
         return {
             'id': self.id,
             'application_id': self.application_id,
-            'status': self.status.value if self.status else None,
+            'status': self.status,
             'bandit_enabled': self.bandit_enabled,
             'safety_enabled': self.safety_enabled,
             'pylint_enabled': self.pylint_enabled,
@@ -362,7 +359,7 @@ class SecurityAnalysis(db.Model):
         return f'<SecurityAnalysis {self.id}>'
 
 
-class PerformanceTest(db.Model):
+class PerformanceTest(db.Model):  # type: ignore[misc]
     """Model for storing performance test results."""
     __tablename__ = 'performance_tests'
     
@@ -370,7 +367,7 @@ class PerformanceTest(db.Model):
     application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
     
     # Test configuration
-    status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
+    status = db.Column(db.String(50), default=AnalysisStatus.PENDING.value, index=True)
     test_type = db.Column(db.String(50), default='load')  # load, stress, spike
     users = db.Column(db.Integer, default=10)
     spawn_rate = db.Column(db.Float, default=1.0)
@@ -426,7 +423,7 @@ class PerformanceTest(db.Model):
         return {
             'id': self.id,
             'application_id': self.application_id,
-            'status': self.status.value if self.status else None,
+            'status': self.status,
             'test_type': self.test_type,
             'users': self.users,
             'spawn_rate': self.spawn_rate,
@@ -450,7 +447,7 @@ class PerformanceTest(db.Model):
         return f'<PerformanceTest {self.id}>'
 
 
-class ZAPAnalysis(db.Model):
+class ZAPAnalysis(db.Model):  # type: ignore[misc]
     """Model for storing ZAP security analysis results."""
     __tablename__ = 'zap_analyses'
     
@@ -458,7 +455,7 @@ class ZAPAnalysis(db.Model):
     application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
     
     # ZAP specific configuration
-    status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
+    status = db.Column(db.String(50), default=AnalysisStatus.PENDING.value, index=True)
     target_url = db.Column(db.String(500), nullable=False)
     scan_type = db.Column(db.String(50), default='active')  # active, passive, spider
     
@@ -509,7 +506,7 @@ class ZAPAnalysis(db.Model):
         return {
             'id': self.id,
             'application_id': self.application_id,
-            'status': self.status.value if self.status else None,
+            'status': self.status,
             'target_url': self.target_url,
             'scan_type': self.scan_type,
             'high_risk_alerts': self.high_risk_alerts,
@@ -528,7 +525,7 @@ class ZAPAnalysis(db.Model):
         return f'<ZAPAnalysis {self.id}>'
 
 
-class OpenRouterAnalysis(db.Model):
+class OpenRouterAnalysis(db.Model):  # type: ignore[misc]
     """Model for storing OpenRouter AI analysis results."""
     __tablename__ = 'openrouter_analyses'
     
@@ -631,7 +628,7 @@ class OpenRouterAnalysis(db.Model):
         return f'<OpenRouterAnalysis {self.id}>'
 
 
-class ContainerizedTest(db.Model):
+class ContainerizedTest(db.Model):  # type: ignore[misc]
     """Model for tracking containerized test services."""
     __tablename__ = 'containerized_tests'
     
@@ -711,7 +708,7 @@ class ContainerizedTest(db.Model):
         return f'<ContainerizedTest {self.container_name}>'
 
 
-class BatchAnalysis(db.Model):
+class BatchAnalysis(db.Model):  # type: ignore[misc]
     """Model for tracking batch analysis jobs."""
     __tablename__ = 'batch_analyses'
     
@@ -719,8 +716,8 @@ class BatchAnalysis(db.Model):
     batch_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
     
     # Job configuration
-    status = db.Column(db.Enum(JobStatus), default=JobStatus.PENDING, index=True)
-    priority = db.Column(db.Enum(JobPriority), default=JobPriority.NORMAL)
+    status = db.Column(db.String(50), default=JobStatus.PENDING.value, index=True)
+    priority = db.Column(db.String(50), default=JobPriority.NORMAL.value)
     analysis_types = db.Column(db.Text)     # JSON array of analysis types
     
     # Progress tracking
@@ -839,8 +836,8 @@ class BatchAnalysis(db.Model):
         return {
             'id': self.id,
             'batch_id': self.batch_id,
-            'status': self.status.value if self.status else None,
-            'priority': self.priority.value if self.priority else None,
+            'status': self.status,
+            'priority': self.priority,
             'analysis_types': self.get_analysis_types(),
             'total_tasks': self.total_tasks,
             'completed_tasks': self.completed_tasks,

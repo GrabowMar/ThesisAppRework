@@ -21,9 +21,9 @@ class BanditConfig:
     enabled: bool = True
     confidence_level: str = "HIGH"  # LOW, MEDIUM, HIGH
     severity_level: str = "LOW"     # LOW, MEDIUM, HIGH
-    exclude_paths: List[str] = None
-    skipped_tests: List[str] = None
-    formats: List[str] = None
+    exclude_paths: Optional[List[str]] = None
+    skipped_tests: Optional[List[str]] = None
+    formats: Optional[List[str]] = None
     baseline_file: Optional[str] = None
     timeout: int = 300
     
@@ -44,7 +44,7 @@ class SafetyConfig:
     """Configuration for Safety dependency scanner."""
     enabled: bool = True
     database_path: Optional[str] = None
-    ignore_ids: List[str] = None
+    ignore_ids: Optional[List[str]] = None
     output_format: str = "json"
     check_unpinned: bool = True
     timeout: int = 180
@@ -59,8 +59,8 @@ class PylintConfig:
     """Configuration for Pylint code quality scanner."""
     enabled: bool = True
     rcfile: Optional[str] = None
-    disable: List[str] = None
-    enable: List[str] = None
+    disable: Optional[List[str]] = None
+    enable: Optional[List[str]] = None
     output_format: str = "json"
     confidence: str = "HIGH"
     timeout: int = 300
@@ -77,8 +77,8 @@ class ESLintConfig:
     """Configuration for ESLint JavaScript security scanner."""
     enabled: bool = True
     config_file: Optional[str] = None
-    rules: Dict[str, str] = None
-    plugins: List[str] = None
+    rules: Optional[Dict[str, str]] = None
+    plugins: Optional[List[str]] = None
     output_format: str = "json"
     max_warnings: int = 50
     timeout: int = 240
@@ -106,10 +106,10 @@ class ZAPConfig:
     daemon_mode: bool = True
     host: str = "localhost"
     port: int = 8080
-    scan_types: Dict[str, Any] = None
-    authentication: Dict[str, Any] = None
-    context: Dict[str, Any] = None
-    reporting: Dict[str, Any] = None
+    scan_types: Optional[Dict[str, Any]] = None
+    authentication: Optional[Dict[str, Any]] = None
+    context: Optional[Dict[str, Any]] = None
+    reporting: Optional[Dict[str, Any]] = None
     timeout: int = 3600
     
     def __post_init__(self):
@@ -162,11 +162,11 @@ class ZAPConfig:
 @dataclass
 class SecurityAnalyzerConfig:
     """Complete security analyzer configuration."""
-    bandit: BanditConfig = None
-    safety: SafetyConfig = None
-    pylint: PylintConfig = None
-    eslint: ESLintConfig = None
-    zap: ZAPConfig = None
+    bandit: Optional[BanditConfig] = None
+    safety: Optional[SafetyConfig] = None
+    pylint: Optional[PylintConfig] = None
+    eslint: Optional[ESLintConfig] = None
+    zap: Optional[ZAPConfig] = None
     
     def __post_init__(self):
         if self.bandit is None:
@@ -292,31 +292,32 @@ class AnalyzerConfigService:
         errors = []
         
         # Validate timeouts
-        if config.bandit.timeout < 30 or config.bandit.timeout > 3600:
+        bandit = config.bandit or BanditConfig()
+        safety = config.safety or SafetyConfig()
+        pylint_cfg = config.pylint or PylintConfig()
+        eslint = config.eslint or ESLintConfig()
+        zap = config.zap or ZAPConfig()
+
+        if bandit.timeout < 30 or bandit.timeout > 3600:
             errors.append("Bandit timeout must be between 30 and 3600 seconds")
-        
-        if config.safety.timeout < 30 or config.safety.timeout > 1800:
+        if safety.timeout < 30 or safety.timeout > 1800:
             errors.append("Safety timeout must be between 30 and 1800 seconds")
-        
-        if config.pylint.timeout < 30 or config.pylint.timeout > 3600:
+        if pylint_cfg.timeout < 30 or pylint_cfg.timeout > 3600:
             errors.append("Pylint timeout must be between 30 and 3600 seconds")
-        
-        if config.eslint.timeout < 30 or config.eslint.timeout > 1800:
+        if eslint.timeout < 30 or eslint.timeout > 1800:
             errors.append("ESLint timeout must be between 30 and 1800 seconds")
-        
-        if config.zap.timeout < 300 or config.zap.timeout > 7200:
+        if zap.timeout < 300 or zap.timeout > 7200:
             errors.append("ZAP timeout must be between 300 and 7200 seconds")
         
         # Validate confidence levels
         valid_confidence = ['LOW', 'MEDIUM', 'HIGH']
-        if config.bandit.confidence_level not in valid_confidence:
+        if bandit.confidence_level not in valid_confidence:
             errors.append(f"Bandit confidence level must be one of: {valid_confidence}")
-        
-        if config.bandit.severity_level not in valid_confidence:
+        if bandit.severity_level not in valid_confidence:
             errors.append(f"Bandit severity level must be one of: {valid_confidence}")
         
         # Validate ZAP port
-        if config.zap.port < 1024 or config.zap.port > 65535:
+        if zap.port < 1024 or zap.port > 65535:
             errors.append("ZAP port must be between 1024 and 65535")
         
         return errors

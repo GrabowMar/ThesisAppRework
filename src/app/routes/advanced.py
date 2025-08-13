@@ -4,7 +4,7 @@ Handles HTMX requests, filtering, pagination, and dynamic content loading.
 """
 
 from flask import Blueprint, render_template, request, jsonify, abort
-from sqlalchemy import and_, or_, func, desc
+from sqlalchemy import and_, or_, func, desc, cast, String
 import json
 import os
 from datetime import datetime
@@ -64,11 +64,15 @@ def api_apps_grid():
         if search:
             search_terms = search.split()
             for term in search_terms:
+                pattern = f'%{term}%'
+                model_slug_col = cast(GeneratedApplication.model_slug, String)
+                provider_col = cast(GeneratedApplication.provider, String)
+                app_type_col = cast(GeneratedApplication.app_type, String)
                 query = query.filter(
                     or_(
-                        GeneratedApplication.model_slug.ilike(f'%{term}%'),
-                        GeneratedApplication.provider.ilike(f'%{term}%'),
-                        GeneratedApplication.app_type.ilike(f'%{term}%')
+                        model_slug_col.ilike(pattern),
+                        provider_col.ilike(pattern),
+                        app_type_col.ilike(pattern)
                     )
                 )
 
@@ -76,7 +80,7 @@ def api_apps_grid():
             if model_filter in ['anthropic', 'openai', 'google', 'deepseek', 'mistralai']:
                 query = query.filter(GeneratedApplication.provider == model_filter)
             else:
-                query = query.filter(GeneratedApplication.model_slug.ilike(f'%{model_filter}%'))
+                query = query.filter(cast(GeneratedApplication.model_slug, String).ilike(f'%{model_filter}%'))
 
         if status_filter:
             query = query.filter(GeneratedApplication.container_status == status_filter)
@@ -390,7 +394,7 @@ def api_models_display():
                     or_(
                         ModelCapability.model_name.ilike(f'%{term}%'),
                         ModelCapability.provider.ilike(f'%{term}%'),
-                        ModelCapability.capabilities_json.ilike(f'%{term}%')
+                        cast(ModelCapability.capabilities_json, String).ilike(f'%{term}%')  # type: ignore[attr-defined]
                     )
                 )
 
@@ -399,7 +403,7 @@ def api_models_display():
 
         if capabilities:
             for capability in capabilities:
-                query = query.filter(ModelCapability.capabilities_json.ilike(f'%{capability}%'))
+                query = query.filter(cast(ModelCapability.capabilities_json, String).ilike(f'%{capability}%'))  # type: ignore[attr-defined]
 
         if cost:
             if cost == 'free':

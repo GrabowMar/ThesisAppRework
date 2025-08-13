@@ -6,14 +6,11 @@ Orchestrates analysis tasks using Celery and integrates with the analyzer infras
 Provides high-level interface for managing analysis workflows.
 """
 
-import uuid
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Protocol, runtime_checkable
 import logging
 
 from celery.result import AsyncResult
-from celery.states import SUCCESS, FAILURE, PENDING, RETRY, REVOKED
 
 # Import tasks
 from app.tasks import (
@@ -25,8 +22,11 @@ from app.tasks import (
     batch_analysis_task,
     container_management_task,
     health_check_analyzers,
-    monitor_analyzer_containers
 )
+
+@runtime_checkable
+class SupportsDelay(Protocol):
+    def delay(self, *args: Any, **kwargs: Any) -> AsyncResult: ...
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +75,15 @@ class TaskManager:
         
         try:
             # Submit task to Celery
-            result = security_analysis_task.delay(
+            task: SupportsDelay = security_analysis_task  # type: ignore[assignment]
+            result = task.delay(
                 model_slug=model_slug,
                 app_number=app_number,
                 tools=tools,
                 options=options or {}
             )
             
-            task_id = result.id
+            task_id = str(result.id)
             
             # Track task
             self.active_tasks[task_id] = {
@@ -118,13 +119,14 @@ class TaskManager:
         """
         
         try:
-            result = performance_test_task.delay(
+            task: SupportsDelay = performance_test_task  # type: ignore[assignment]
+            result = task.delay(
                 model_slug=model_slug,
                 app_number=app_number,
                 test_config=test_config or {}
             )
             
-            task_id = result.id
+            task_id = str(result.id)
             
             self.active_tasks[task_id] = {
                 'type': AnalysisType.PERFORMANCE,
@@ -160,14 +162,15 @@ class TaskManager:
         """
         
         try:
-            result = static_analysis_task.delay(
+            task: SupportsDelay = static_analysis_task  # type: ignore[assignment]
+            result = task.delay(
                 model_slug=model_slug,
                 app_number=app_number,
                 tools=tools,
                 options=options or {}
             )
             
-            task_id = result.id
+            task_id = str(result.id)
             
             self.active_tasks[task_id] = {
                 'type': AnalysisType.STATIC,
@@ -204,14 +207,15 @@ class TaskManager:
         """
         
         try:
-            result = ai_analysis_task.delay(
+            task: SupportsDelay = ai_analysis_task  # type: ignore[assignment]
+            result = task.delay(
                 model_slug=model_slug,
                 app_number=app_number,
                 analysis_types=analysis_types,
                 options=options or {}
             )
             
-            task_id = result.id
+            task_id = str(result.id)
             
             self.active_tasks[task_id] = {
                 'type': AnalysisType.AI,
@@ -248,14 +252,15 @@ class TaskManager:
         """
         
         try:
-            result = batch_analysis_task.delay(
+            task: SupportsDelay = batch_analysis_task  # type: ignore[assignment]
+            result = task.delay(
                 models=models,
                 apps=apps,
                 analysis_types=analysis_types,
                 options=options or {}
             )
             
-            task_id = result.id
+            task_id = str(result.id)
             
             self.active_tasks[task_id] = {
                 'type': AnalysisType.BATCH,
@@ -414,8 +419,9 @@ class TaskManager:
         """
         
         try:
-            result = health_check_analyzers.delay()
-            health_info = result.get(timeout=30)
+            task: SupportsDelay = health_check_analyzers  # type: ignore[assignment]
+            result = task.delay()
+            health_info = result.get(timeout=30) or {}
             return health_info
             
         except Exception as e:
@@ -439,8 +445,9 @@ class TaskManager:
         """
         
         try:
-            result = container_management_task.delay(action=action, service=service)
-            operation_result = result.get(timeout=120)
+            task: SupportsDelay = container_management_task  # type: ignore[assignment]
+            result = task.delay(action=action, service=service)
+            operation_result = result.get(timeout=120) or {}
             return operation_result
             
         except Exception as e:

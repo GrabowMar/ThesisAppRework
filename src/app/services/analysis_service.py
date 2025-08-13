@@ -152,7 +152,7 @@ def start_security_analysis(analysis_id: int, *, enqueue: bool = True) -> Dict[s
         except Exception as e:  # noqa: BLE001
             raise TaskEnqueueError(f"Failed to enqueue security analysis task: {e}")
 
-    return {"analysis_id": analysis_id, "status": analysis.status.value, "task_id": task_id}
+    return {"analysis_id": analysis_id, "status": analysis.status, "task_id": task_id}
 
 def create_comprehensive_security_analysis(application_id: int, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     payload = payload or {}
@@ -179,7 +179,7 @@ def get_analysis_results(analysis_id: int) -> Dict[str, Any]:
         raise NotFoundError("Security analysis not found")
     return {
         "id": analysis.id,
-        "status": analysis.status.value if analysis.status else None,
+    "status": analysis.status,
         "results": analysis.get_results(),
         "summary": {
             "total_issues": analysis.total_issues,
@@ -244,7 +244,7 @@ def start_performance_test(test_id: int) -> Dict[str, Any]:
     db.session.commit()
 
     # Placeholder for enqueue (future)
-    return {"test_id": test_id, "status": test.status.value}
+    return {"test_id": test_id, "status": test.status}
 
 # ---------------------------------------------------------------------------
 # Activity Helpers

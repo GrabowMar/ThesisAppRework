@@ -10,7 +10,7 @@ import os
 import psutil
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import jsonify, render_template
 
 from . import api_bp
@@ -63,7 +63,7 @@ def api_system_health():
         
         return jsonify({
             'status': health_status,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'database': {
                 'healthy': db_healthy,
                 'error': db_error
@@ -81,7 +81,7 @@ def api_system_health():
         return jsonify({
             'status': 'error',
             'error': str(e),
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         }), 500
 
 
@@ -114,7 +114,7 @@ def api_system_info():
         return jsonify({
             'system': system_info,
             'process': process_info,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
     except Exception as e:
@@ -126,11 +126,11 @@ def api_system_info():
 def api_system_overview():
     """API endpoint: Get system overview."""
     try:
-        # Get basic system metrics
+        # Basic system metrics
         cpu_percent = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
-        
+
         # Database status
         db_status = 'connected'
         try:
@@ -139,15 +139,15 @@ def api_system_overview():
             db.session.commit()
         except Exception:
             db_status = 'disconnected'
-        
-        # Uptime
+
+        # Uptime calculation
         boot_time = psutil.boot_time()
-        uptime_seconds = datetime.utcnow().timestamp() - boot_time
+        uptime_seconds = datetime.now(timezone.utc).timestamp() - boot_time
         uptime_days = int(uptime_seconds // 86400)
         uptime_hours = int((uptime_seconds % 86400) // 3600)
         uptime_minutes = int((uptime_seconds % 3600) // 60)
-        
-        return jsonify({
+
+        data = {
             'status': 'online',
             'uptime': {
                 'days': uptime_days,
@@ -175,9 +175,9 @@ def api_system_overview():
                 'database': db_status,
                 'api': 'running'
             },
-            'timestamp': datetime.utcnow().isoformat()
-        })
-        
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+        return jsonify(data)
     except Exception as e:
         logger.error(f"Error getting system overview: {e}")
         return jsonify({'error': str(e)}), 500
@@ -237,7 +237,7 @@ def api_system_metrics():
             'memory': memory_info,
             'disk': disk_info,
             'network': network_info,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
     except Exception as e:
@@ -253,13 +253,13 @@ def api_system_logs():
         # you would read from actual log files
         logs = [
             {
-                'timestamp': datetime.utcnow().isoformat(),
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'level': 'INFO',
                 'message': 'System health check completed',
                 'component': 'health_monitor'
             },
             {
-                'timestamp': (datetime.utcnow()).isoformat(),
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'level': 'INFO', 
                 'message': 'API server running normally',
                 'component': 'api_server'
@@ -269,7 +269,7 @@ def api_system_logs():
         return jsonify({
             'logs': logs,
             'count': len(logs),
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
     except Exception as e:
@@ -286,7 +286,7 @@ def system_health():
     """HTMX endpoint for system health status."""
     try:
         from sqlalchemy import text
-        from flask import render_template
+    # render_template already imported at module level
         
         # Check database status
         try:
@@ -540,8 +540,8 @@ def get_analyzer_status():
             'status': 'available',
             'analyzer_manager': analyzer_manager_health,
             'services': status_info.get('services', {}),
-            'last_check': datetime.utcnow().isoformat(),
-            'timestamp': datetime.utcnow().isoformat()
+            'last_check': datetime.now(timezone.utc).isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
     except Exception as e:
@@ -578,14 +578,14 @@ def ping_analyzer_services():
                 services_status[service_name] = {
                     'status': 'reachable' if result == 0 else 'unreachable',
                     'port': port,
-                    'last_ping': datetime.utcnow().isoformat()
+                    'last_ping': datetime.now(timezone.utc).isoformat()
                 }
             except Exception as e:
                 services_status[service_name] = {
                     'status': 'error',
                     'port': port,
                     'error': str(e),
-                    'last_ping': datetime.utcnow().isoformat()
+                    'last_ping': datetime.now(timezone.utc).isoformat()
                 }
         
         overall_status = 'healthy' if any(s['status'] == 'reachable' for s in services_status.values()) else 'unhealthy'
@@ -593,7 +593,7 @@ def ping_analyzer_services():
         return jsonify({
             'overall_status': overall_status,
             'services': services_status,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
     except Exception as e:
@@ -609,7 +609,7 @@ def ping_analyzer_services():
 def start_analyzer_services():
     """Start analyzer services via analyzer_manager.py."""
     try:
-        import subprocess
+    # subprocess imported at module level
         from pathlib import Path
         
         analyzer_manager_path = Path(__file__).parent.parent.parent.parent.parent / "analyzer" / "analyzer_manager.py"
@@ -654,7 +654,7 @@ def start_analyzer_services():
 def stop_analyzer_services():
     """Stop analyzer services via analyzer_manager.py."""
     try:
-        import subprocess
+    # subprocess imported at module level
         from pathlib import Path
         
         analyzer_manager_path = Path(__file__).parent.parent.parent.parent.parent / "analyzer" / "analyzer_manager.py"
@@ -718,7 +718,7 @@ def memory_usage():
                 'vms': process.memory_info().vms,
                 'percent': process.memory_percent()
             },
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
     except Exception as e:
@@ -791,7 +791,7 @@ def cpu_usage():
                 'min': cpu_freq.min if cpu_freq else None,
                 'max': cpu_freq.max if cpu_freq else None
             },
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
     except Exception as e:
@@ -933,7 +933,7 @@ def network_activity_bar():
 def _ping_analyzer_manager():
     """Helper function to ping analyzer_manager.py."""
     try:
-        import subprocess
+    # subprocess imported at module level
         from pathlib import Path
         
         analyzer_manager_path = Path(__file__).parent.parent.parent.parent.parent / "analyzer" / "analyzer_manager.py"

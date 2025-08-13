@@ -9,10 +9,18 @@ Analyzes all route files for conflicts, duplications, and organizational issues.
 import re
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Any
 
-def extract_routes_from_file(file_path: Path) -> Dict[str, List[str]]:
-    """Extract routes from a Python file with their blueprints."""
+def extract_routes_from_file(file_path: Path) -> Dict[str, Any]:
+    """Extract routes from a Python file with their blueprints.
+
+    Returns a dictionary containing:
+        blueprint_var: variable name used for the Blueprint (str)
+        blueprint_name: declared blueprint name (str)
+        url_prefix: url prefix if provided (str)
+        routes: list of full route paths (List[str])
+        raw_routes: list of raw route decorators without prefix (List[str])
+    """
     try:
         content = file_path.read_text(encoding='utf-8')
         
@@ -45,9 +53,15 @@ def extract_routes_from_file(file_path: Path) -> Dict[str, List[str]]:
             'routes': full_routes,
             'raw_routes': routes
         }
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - defensive
         print(f"Error reading {file_path}: {e}")
-        return {'routes': [], 'blueprint_var': 'error', 'blueprint_name': 'error', 'url_prefix': ''}
+        return {
+            'routes': [],
+            'raw_routes': [],
+            'blueprint_var': 'error',
+            'blueprint_name': 'error',
+            'url_prefix': ''
+        }
 
 def normalize_route(route: str) -> str:
     """Normalize route for comparison by removing parameters."""
@@ -57,7 +71,7 @@ def normalize_route(route: str) -> str:
     normalized = normalized.rstrip('/')
     return normalized
 
-def find_conflicts(all_routes: Dict[str, Dict]) -> Dict[str, List]:
+def find_conflicts(all_routes: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
     """Find route conflicts across files."""
     conflicts = defaultdict(list)
     route_to_files = defaultdict(list)
@@ -75,34 +89,33 @@ def find_conflicts(all_routes: Dict[str, Dict]) -> Dict[str, List]:
     
     return dict(conflicts)
 
-def analyze_file_purposes(all_routes: Dict[str, Dict]) -> Dict[str, str]:
+def analyze_file_purposes(all_routes: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
     """Analyze the purpose of each route file."""
-    purposes = {}
-    
+    purposes: Dict[str, str] = {}
+
     for file_name, file_data in all_routes.items():
-        routes = file_data['routes']
-        blueprint_name = file_data['blueprint_name']
-        
-        # Categorize based on routes and blueprint name
+        routes: List[str] = file_data.get('routes', [])
+
+        # Categorize based on routes
         api_routes = [r for r in routes if '/api/' in r]
         page_routes = [r for r in routes if '/api/' not in r and not r.endswith('.json')]
-        
+
         if file_name == 'api.py':
             purposes[file_name] = "API endpoints (mixed functionality)"
         elif file_name == 'main.py':
             purposes[file_name] = "Main dashboard and core pages"
-        elif len(api_routes) > 0 and len(page_routes) > 0:
+        elif api_routes and page_routes:
             purposes[file_name] = f"MIXED: {len(page_routes)} pages + {len(api_routes)} API routes"
-        elif len(api_routes) > 0:
+        elif api_routes:
             purposes[file_name] = f"API-only: {len(api_routes)} endpoints"
-        elif len(page_routes) > 0:
+        elif page_routes:
             purposes[file_name] = f"Pages-only: {len(page_routes)} routes"
         else:
             purposes[file_name] = "Utility/other"
-    
+
     return purposes
 
-def check_api_organization(all_routes: Dict[str, Dict]) -> Dict[str, List]:
+def check_api_organization(all_routes: Dict[str, Dict[str, Any]]) -> Dict[str, List[str]]:
     """Check API route organization issues."""
     issues = defaultdict(list)
     
@@ -126,7 +139,7 @@ def check_api_organization(all_routes: Dict[str, Dict]) -> Dict[str, List]:
     
     return dict(issues)
 
-def main():
+def main() -> None:
     print("=== COMPREHENSIVE ROUTE ANALYSIS ===\n")
     
     # Find all route files
@@ -152,7 +165,7 @@ def main():
     print()
     
     # Extract routes from all files
-    all_routes = {}
+    all_routes: Dict[str, Dict[str, Any]] = {}
     total_routes = 0
     
     for file_path in route_files:
@@ -220,14 +233,14 @@ def main():
     # Check statistics duplication
     stats_files = [f for f in all_routes.keys() if 'statistics' in f.lower()]
     if len(stats_files) > 1:
-        print(f"\n📊 Statistics Route Duplication:")
+        print("\n📊 Statistics Route Duplication:")
         for file_name in stats_files:
             routes = all_routes[file_name]['routes']
             print(f"   📁 {file_name}: {len(routes)} routes")
             for route in routes:
                 print(f"     • {route}")
     
-    # Check analysis duplication  
+    # Check analysis duplication
     analysis_routes = defaultdict(list)
     for file_name, file_data in all_routes.items():
         for route in file_data['routes']:
@@ -235,7 +248,7 @@ def main():
                 analysis_routes[file_name].append(route)
     
     if len(analysis_routes) > 1:
-        print(f"\n🔬 Analysis Route Distribution:")
+        print("\n🔬 Analysis Route Distribution:")
         for file_name, routes in analysis_routes.items():
             print(f"   📁 {file_name}: {len(routes)} analysis routes")
             for route in routes[:3]:
