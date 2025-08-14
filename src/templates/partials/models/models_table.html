@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Models Table', classes='module-models-table', body_classes='p-0') %}
 <!-- Models Table View -->
 <div class="table-responsive">
     <table class="table table-hover table-striped models-table">
@@ -148,6 +151,7 @@
 <div id="results-info-data" class="d-none">
     Showing {{ models|length }} of {{ total }} models
 </div>
+{% endcall %}
 
 <script>
 function toggleAllModels(checkbox) {

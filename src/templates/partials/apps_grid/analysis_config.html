@@ -1,4 +1,6 @@
-<!-- Analysis Configuration Form -->
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Analysis Configuration', classes='module-analysis-config') %}
 <form id="analysisConfigForm" class="analysis-config-form">
     <input type="hidden" name="app_ids" value="{{ app_ids | join(',') }}">
     
@@ -112,4 +114,5 @@
         </div>
     </div>
 </form>
+{% endcall %}
 

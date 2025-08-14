@@ -1,46 +1,57 @@
-<div class="row" id="analysis-stats" hx-get="/analysis/api/stats" hx-trigger="load, every 60s" hx-target="#analysis-stats" hx-swap="outerHTML">
-  <div class="col-md-3">
-    <div class="card bg-primary text-white mb-3">
-      <div class="card-body d-flex justify-content-between align-items-center">
-        <div>
-          <h4 class="mb-0">{{ stats.total_security }}</h4>
-          <p class="mb-0 small">Security Analyses</p>
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Analysis Stats', classes='module-stats-cards') %}
+  <div id="analysis-stats"
+       class="row"
+       hx-get="/analysis/api/stats"
+       hx-trigger="load, every 30s"
+       hx-target="#analysis-stats"
+       hx-swap="innerHTML"
+       hx-indicator="#global-spinner">
+    {# Placeholder skeleton to avoid relying on stats during initial render #}
+    <div class="col-md-3">
+      <div class="card bg-light mb-3">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="placeholder-glow mb-1"><span class="placeholder col-4"></span></div>
+            <div class="placeholder col-8"></div>
+          </div>
+          <i class="fas fa-shield-alt fa-2x text-muted opacity-25"></i>
         </div>
-        <i class="fas fa-shield-alt fa-2x opacity-75"></i>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-light mb-3">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="placeholder-glow mb-1"><span class="placeholder col-4"></span></div>
+            <div class="placeholder col-8"></div>
+          </div>
+          <i class="fas fa-tachometer-alt fa-2x text-muted opacity-25"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-light mb-3">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="placeholder-glow mb-1"><span class="placeholder col-4"></span></div>
+            <div class="placeholder col-8"></div>
+          </div>
+          <i class="fas fa-search fa-2x text-muted opacity-25"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-light mb-3">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="placeholder-glow mb-1"><span class="placeholder col-4"></span></div>
+            <div class="placeholder col-8"></div>
+          </div>
+          <i class="fas fa-brain fa-2x text-muted opacity-25"></i>
+        </div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card bg-info text-white mb-3">
-      <div class="card-body d-flex justify-content-between align-items-center">
-        <div>
-          <h4 class="mb-0">{{ stats.total_performance }}</h4>
-          <p class="mb-0 small">Performance Tests</p>
-        </div>
-        <i class="fas fa-tachometer-alt fa-2x opacity-75"></i>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card bg-warning text-dark mb-3">
-      <div class="card-body d-flex justify-content-between align-items-center">
-        <div>
-          <h4 class="mb-0">{{ stats.total_zap }}</h4>
-          <p class="mb-0 small">ZAP Scans</p>
-        </div>
-        <i class="fas fa-search fa-2x opacity-75"></i>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card bg-success text-white mb-3">
-      <div class="card-body d-flex justify-content-between align-items-center">
-        <div>
-          <h4 class="mb-0">{{ stats.total_ai }}</h4>
-          <p class="mb-0 small">AI Analyses</p>
-        </div>
-        <i class="fas fa-brain fa-2x opacity-75"></i>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}

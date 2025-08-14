@@ -1,4 +1,6 @@
-<!-- Active Tasks Panel -->
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Active Tasks', classes='module-active-tasks') %}
 <div class="active-tasks-panel">
     {% if tasks and tasks|length > 0 %}
         <div class="tasks-header mb-3">
@@ -131,6 +133,7 @@
         </div>
     {% endif %}
 </div>
+{% endcall %}
 
 <!-- Modal container for task details -->
 <div id="modal-container"></div>

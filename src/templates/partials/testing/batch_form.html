@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Batch Test Form', classes='module-testing-batch-form') %}
 <!-- Enhanced Batch Test Form -->
 <div class="card border-0 shadow-sm h-100">
     <div class="card-header bg-primary text-white border-0">
@@ -328,6 +331,8 @@
         <!-- Results will be loaded here -->
     </div>
 </div>
+
+{% endcall %}
 
 <script>
 function selectAllModels() {

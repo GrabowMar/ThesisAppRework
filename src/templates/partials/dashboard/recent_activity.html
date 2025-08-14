@@ -1,4 +1,11 @@
-<!-- Recent Activity Panel -->
+<!-- Recent Activity Panel (HTMX) -->
+<div id="recent-activity-panel"
+    data-refresh-interval="30s"
+    hx-get="{{ url_for('api.recent_activity') }}"
+    hx-trigger="load, every 30s"
+    hx-target="#recent-activity-panel"
+    hx-swap="innerHTML"
+    hx-indicator="#global-spinner">
 {% if recent_activity %}
     <div class="activity-timeline">
         {% for activity in recent_activity %}
@@ -255,3 +262,5 @@ function exportActivityLog() {
     }, 1000);
 })();
 </script>
+<!-- end HTMX wrapper -->
+</div>

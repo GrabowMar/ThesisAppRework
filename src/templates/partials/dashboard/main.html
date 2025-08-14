@@ -1,4 +1,6 @@
-{# Unified dashboard main partial composed of existing smaller dashboard partials #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Dashboard', classes='module-dashboard-main') %}
 <div class="row mb-3">
   <div class="col-12">
     {% include 'partials/dashboard/dashboard_stats.html' %}
@@ -14,3 +16,4 @@
     {% include 'partials/dashboard/analyzer_services.html' %}
   </section>
 </div>
+{% endcall %}

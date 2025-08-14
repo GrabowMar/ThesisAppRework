@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Model Details', classes='module-model-details') %}
 {# Extracted summary of former pages/model_details.html (reduced, no inline CSS/JS) #}
 <div class="card mb-4">
   <div class="card-body">
@@ -91,3 +94,4 @@
     </div>
   </div>
 </div>
+{% endcall %}

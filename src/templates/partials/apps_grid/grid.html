@@ -1,2 +1,6 @@
-{# Alias partial: keeps pages/applications.html stable while using the canonical apps_grid.html #}
-{% include 'partials/apps_grid/apps_grid.html' %}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{# Grid alias - include the canonical apps_grid content inside a module wrapper #}
+{% call module_card(title='Applications', classes='module-applications') %}
+	{% include 'partials/apps_grid/apps_grid.html' %}
+{% endcall %}

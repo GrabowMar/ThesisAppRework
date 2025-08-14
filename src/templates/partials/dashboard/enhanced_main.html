@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Enhanced Dashboard', classes='module-enhanced-main') %}
 <!-- Enhanced Dashboard with Real-time Stats and Data Initialization -->
 <div class="container-fluid">
   <!-- Stats Cards Row -->
@@ -262,6 +265,7 @@
     </div>
   </div>
 </div>
+{% endcall %}
 
 <script>
 // Dashboard functionality

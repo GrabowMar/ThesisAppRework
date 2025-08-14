@@ -7,6 +7,7 @@ API endpoints for dashboard data and visualizations.
 
 import logging
 from flask import jsonify, render_template
+import psutil
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, desc, text
 
@@ -369,11 +370,34 @@ def sidebar_stats():
             'security_tests': db.session.query(SecurityAnalysis).count(),
             'performance_tests': db.session.query(PerformanceTest).count()
         }
-        return render_template('partials/common/sidebar_stats.html', stats=stats)
+        # Return only the inner fragment so outer wrapper doesn't duplicate on hx swaps
+        return render_template('partials/common/_sidebar_stats_inner.html', stats=stats)
     except Exception as e:
         logger.error(f"Error getting sidebar stats: {e}")
-        return render_template('partials/common/sidebar_stats.html', stats={
+        return render_template('partials/common/_sidebar_stats_inner.html', stats={
             'total_models': 0, 'total_apps': 0, 'security_tests': 0, 'performance_tests': 0
+        })
+
+
+@api_bp.route('/dashboard/stats-fragment')
+def dashboard_stats_fragment():
+    """HTMX endpoint returning dashboard stats inner fragment HTML."""
+    try:
+        stats = {
+            'total_models': db.session.query(ModelCapability).count(),
+            'total_apps': db.session.query(GeneratedApplication).count(),
+            'security_tests': db.session.query(SecurityAnalysis).count(),
+            'performance_tests': db.session.query(PerformanceTest).count(),
+        }
+        return render_template('partials/dashboard/_dashboard_stats_inner.html', stats=stats)
+    except Exception as e:
+        logger.error(f"Error rendering dashboard stats fragment: {e}")
+        return render_template('partials/dashboard/_dashboard_stats_inner.html', stats={
+            'total_models': 0,
+            'total_apps': 0,
+            'security_tests': 0,
+            'performance_tests': 0,
+            'recent_activity': []
         })
 
 
@@ -697,8 +721,9 @@ def dashboard_docker_status():
         except Exception as e:
             logger.error(f"Docker status check error: {e}")
             docker_info['docker_available'] = False
-        
-        return render_template('partials/dashboard/docker_status.html', docker_status=docker_info)
+
+        # Return only inner fragment to avoid duplicating wrapper on HTMX swaps
+        return render_template('partials/dashboard/_docker_status_inner.html', docker_status=docker_info)
     except Exception as e:
         logger.error(f"Error getting Docker status: {e}")
         fallback_info = {
@@ -717,4 +742,80 @@ def dashboard_docker_status():
             'last_check': datetime.now().isoformat(),
             'error': str(e)
         }
-        return render_template('partials/dashboard/docker_status.html', docker_status=fallback_info)
+        return render_template('partials/dashboard/_docker_status_inner.html', docker_status=fallback_info)
+
+
+@api_bp.route('/dashboard/system-health-fragment')
+def dashboard_system_health_fragment():
+    """HTMX endpoint returning system health inner fragment HTML."""
+    try:
+        # Database health check
+        db_healthy = True
+        try:
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
+        except Exception:
+            db_healthy = False
+
+        # Celery/analyzer status (best-effort without hard dependency)
+        celery_status = {'status': 'warning', 'message': 'Unknown'}
+        analyzer_status = {'status': 'warning', 'message': 'Unknown'}
+        try:
+            from ...extensions import get_components
+            components = get_components()
+            if components and getattr(components, 'celery', None):
+                celery_status = {'status': 'healthy', 'message': 'Configured'}
+            if components and getattr(components, 'analyzer_integration', None):
+                analyzer_status = {'status': 'available', 'message': 'Service available'}
+        except Exception:
+            # Keep defaults
+            pass
+
+        # System resource metrics
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            memory_percent = psutil.virtual_memory().percent
+            disk_percent = psutil.disk_usage('/').percent
+        except Exception:
+            cpu_percent = None
+            memory_percent = None
+            disk_percent = None
+
+        # Determine overall status
+        issues = 0
+        if not db_healthy:
+            issues += 1
+        if cpu_percent is not None and cpu_percent > 85:
+            issues += 1
+        if memory_percent is not None and memory_percent > 85:
+            issues += 1
+        if disk_percent is not None and disk_percent > 90:
+            issues += 1
+
+        if issues == 0:
+            overall = 'healthy'
+        elif issues <= 2:
+            overall = 'warning'
+        else:
+            overall = 'critical'
+
+        system_health = {
+            'overall_status': overall,
+            'components': [
+                {'name': 'Database', 'description': 'Primary DB connection', 'status': 'healthy' if db_healthy else 'error', 'message': ''},
+                {'name': 'Celery', 'description': 'Background worker', 'status': celery_status.get('status', 'warning'), 'message': celery_status.get('message', '')},
+                {'name': 'Analyzer', 'description': 'Analyzer integration', 'status': analyzer_status.get('status', 'warning'), 'message': analyzer_status.get('message', '')},
+            ],
+            'resources': {
+                'cpu_usage': cpu_percent,
+                'memory_usage': memory_percent,
+                'disk_usage': disk_percent,
+            },
+            'last_check': datetime.utcnow().strftime('%H:%M:%S')
+        }
+
+        return render_template('partials/dashboard/_system_health_inner.html', system_health=system_health)
+    except Exception as e:
+        logger.error(f"Error rendering system health fragment: {e}")
+        # Minimal fallback to avoid template errors
+        return render_template('partials/dashboard/_system_health_inner.html', system_health=None)

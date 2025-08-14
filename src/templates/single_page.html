@@ -3,6 +3,7 @@
 {% block title %}{{ page_title or 'App' }}{% endblock %}
 
 {% block content %}
+{% block pre_content %}{% endblock %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     {% if page_icon %}<i class="{{ page_icon }} text-muted mr-2"></i>{% endif %}
@@ -17,6 +18,8 @@
 <div id="main-partial-wrapper" hx-get="{{ initial_hx_get or '' }}" hx-trigger="{{ 'load' if initial_hx_get }}" hx-target="#main-partial-wrapper" hx-swap="innerHTML">
   {% if main_partial %}
     {% include main_partial %}
+  {% elif self.main_content %}
+    {% block main_content %}{% endblock %}
   {% else %}
     <div class="alert alert-warning mb-0">No content specified.</div>
   {% endif %}

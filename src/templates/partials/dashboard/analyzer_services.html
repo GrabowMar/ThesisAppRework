@@ -1,4 +1,6 @@
-<!-- Analyzer Services Status Panel -->
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Analyzer Services', classes='module-analyzer-services') %}
 <div class="p-3">
     {% if analyzer_services %}
         <div class="row">
@@ -135,4 +137,5 @@
         </div>
     {% endif %}
 </div>
+{% endcall %}
 

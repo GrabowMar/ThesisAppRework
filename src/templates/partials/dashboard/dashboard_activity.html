@@ -1,4 +1,6 @@
-<!-- Recent Activity Panel -->
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Dashboard Activity', classes='module-recent-activity') %}
 {% if recent_activity %}
     <div class="activity-timeline">
         {% for activity in recent_activity %}
@@ -167,13 +169,23 @@
         </div>
     </div>
 {% endif %}
+<div id="dashboard-activity"
+    data-refresh-interval="30s"
+    hx-get="{{ url_for('api.recent_activity') }}"
+    hx-trigger="load, every 30s"
+    hx-target="#dashboard-activity"
+    hx-swap="innerHTML"
+    hx-indicator="#global-spinner">
 
 <!-- Auto-refresh timer -->
 <div class="activity-refresh-timer mt-2 text-center">
     <small class="text-muted">
         Auto-refresh in <span id="activityRefreshCountdown">30</span>s
     </small>
+    </div>
 </div>
+{% endif %}
+{% endcall %}
 
 <!-- styles moved to theme.css -->
 

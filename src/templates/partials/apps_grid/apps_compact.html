@@ -1,4 +1,6 @@
-<!-- Apps Compact View -->
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Apps Compact', classes='module-apps-compact') %}
 <div class="apps-compact-container">
     {% for app in apps %}
     <div class="app-card app-compact-item" data-app-id="{{ app.id }}">
@@ -76,4 +78,5 @@
     </div>
     {% endif %}
 </div>
+{% endcall %}
 

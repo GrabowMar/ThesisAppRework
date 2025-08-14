@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Enhanced Testing Configuration', classes='module-testing-enhanced-config') %}
 <!-- Enhanced Testing Configuration Interface -->
 <div class="container-fluid">
   <div class="row">
@@ -660,6 +663,135 @@
     </div>
   </div>
 </div>
+
+<script>
+// Models and apps data from server
+const modelsData = {{ models | tojson | safe }};
+const appsByModel = {{ apps_by_model | tojson | safe }};
+
+function onModelChange() {
+  const modelSelect = document.getElementById('enhancedModelSelect');
+  const appSelect = document.getElementById('enhancedAppSelect');
+  const selectedModel = modelSelect.value;
+  
+  // Clear and reset app select
+  appSelect.innerHTML = '<option value="">Loading applications...</option>';
+  appSelect.disabled = true;
+  
+  if (!selectedModel) {
+    appSelect.innerHTML = '<option value="">Choose a model first...</option>';
+    updateTargetSummary();
+    return;
+  }
+  
+  // Load applications for the selected model
+  loadAppsForModel(selectedModel);
+}
+
+function loadAppsForModel(modelSlug) {
+  const appSelect = document.getElementById('enhancedAppSelect');
+  
+  // Use server-provided data if available
+  if (appsByModel[modelSlug] && appsByModel[modelSlug].length > 0) {
+    appSelect.innerHTML = '<option value="">Choose an application...</option>';
+    appsByModel[modelSlug].forEach(app => {
+      const option = document.createElement('option');
+      option.value = app.app_number;
+      option.textContent = `App ${app.app_number}`;
+      option.dataset.appId = app.id;
+      option.dataset.framework = app.backend_framework || 'Unknown';
+      appSelect.appendChild(option);
+    });
+    appSelect.disabled = false;
+  } else {
+    // Fallback to API call if no data available
+    fetch(`/api/models/${modelSlug}/apps`)
+      .then(response => response.json())
+      .then(data => {
+        appSelect.innerHTML = '<option value="">Choose an application...</option>';
+        if (data.success && data.data && data.data.length > 0) {
+          data.data.forEach(app => {
+            const option = document.createElement('option');
+            option.value = app.app_number;
+            option.textContent = `App ${app.app_number}`;
+            option.dataset.appId = app.app_id;
+            appSelect.appendChild(option);
+          });
+          appSelect.disabled = false;
+        } else {
+          appSelect.innerHTML = '<option value="">No applications found</option>';
+        }
+        updateTargetSummary();
+      })
+      .catch(error => {
+        console.error('Error loading applications:', error);
+        appSelect.innerHTML = '<option value="">Error loading applications</option>';
+        updateTargetSummary();
+      });
+  }
+  
+  updateTargetSummary();
+}
+
+function updateTargetSummary() {
+  const modelSelect = document.getElementById('enhancedModelSelect');
+  const appSelect = document.getElementById('enhancedAppSelect');
+  const summaryText = document.getElementById('targetSummaryText');
+  
+  const selectedModel = modelSelect.value;
+  const selectedApp = appSelect.value;
+  
+  if (!selectedModel) {
+    summaryText.textContent = 'Select a model and application to see analysis targets';
+    return;
+  }
+  
+  const modelName = modelSelect.selectedOptions[0]?.textContent || selectedModel;
+  
+  if (!selectedApp) {
+    summaryText.textContent = `Model: ${modelName} - Select an application to continue`;
+    return;
+  }
+  
+  const appFramework = appSelect.selectedOptions[0]?.dataset.framework || 'Unknown';
+  summaryText.textContent = `Target: ${modelName} App ${selectedApp} (${appFramework}) - Ready for analysis`;
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Populate model checkboxes for batch selection
+  const modelCheckboxes = document.getElementById('modelCheckboxes');
+  if (modelCheckboxes && modelsData) {
+    modelCheckboxes.innerHTML = '';
+    modelsData.forEach(model => {
+      const checkboxDiv = document.createElement('div');
+      checkboxDiv.className = 'form-check';
+      checkboxDiv.innerHTML = `
+        <input class="form-check-input batch-model-checkbox" type="checkbox" 
+               value="${model.canonical_slug}" id="batch_${model.canonical_slug}">
+        <label class="form-check-label" for="batch_${model.canonical_slug}">
+          ${model.provider}/${model.model_name}
+        </label>
+      `;
+      modelCheckboxes.appendChild(checkboxDiv);
+    });
+  }
+  
+  // Setup analysis scope change handler
+  const analysisScopeSelect = document.getElementById('analysisScopeSelect');
+  if (analysisScopeSelect) {
+    analysisScopeSelect.addEventListener('change', function() {
+      const batchPanel = document.getElementById('batchSelectionPanel');
+      if (this.value === 'batch') {
+        batchPanel.style.display = 'block';
+      } else {
+        batchPanel.style.display = 'none';
+      }
+    });
+  }
+});
+</script>
+{% endcall %}
 
 <script>
 // Models and apps data from server

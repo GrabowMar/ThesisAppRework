@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Analysis Results', classes='module-testing-analysis-results') %}
 <!-- Enhanced Analysis Results Partial -->
 <div class="analysis-results-container">
     {% if analyses %}
@@ -425,6 +428,7 @@
     </div>
     {% endif %}
 </div>
+{% endcall %}
 
 <!-- Analysis Details Modal -->
 <div class="modal fade" id="analysisDetailsModal" tabindex="-1">

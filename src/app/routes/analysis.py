@@ -114,10 +114,16 @@ def htmx_analysis_stats():
             'total_zap': ZAPAnalysis.query.count(),
             'total_ai': OpenRouterAnalysis.query.count()
         }
-        return render_template('partials/analysis/stats_cards.html', stats=stats)
+        # Return inner fragment only; outer wrapper handles hx-* attributes
+        return render_template('partials/analysis/_stats_cards_inner.html', stats=stats)
     except Exception as e:
         logger.error(f"HTMX stats error: {e}")
-        return render_template('partials/common/error.html', error='Failed to load stats'), 500
+        return render_template('partials/analysis/_stats_cards_inner.html', stats={
+            'total_security': 0,
+            'total_performance': 0,
+            'total_zap': 0,
+            'total_ai': 0
+        }), 200
 
 @analysis_bp.get('/api/trends')
 def htmx_analysis_trends():

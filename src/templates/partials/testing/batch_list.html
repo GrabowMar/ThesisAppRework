@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Batch List', classes='module-testing-batch-list') %}
 <!-- Enhanced Batch List Partial -->
 <div class="batch-list-container">
     {% if batches %}
@@ -280,6 +283,93 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+function refreshBatchList() {
+    // Reload the batch list
+    htmx.ajax('GET', '{{ url_for("batch.get_batch_list") }}', {
+        target: '.batch-list-container',
+        swap: 'innerHTML'
+    });
+}
+
+function filterBatches(status) {
+    const items = document.querySelectorAll('.batch-item');
+    items.forEach(item => {
+        if (status === 'all' || item.dataset.status === status) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function viewBatchDetails(batchId) {
+    // Open batch details modal or navigate to details page
+    window.open(`/batch/${batchId}`, '_blank');
+}
+
+function downloadBatchResults(batchId) {
+    // Download batch results as ZIP
+    window.location.href = `/batch/${batchId}/download`;
+}
+
+function cloneBatch(batchId) {
+    // Clone batch configuration
+    fetch(`/batch/${batchId}/clone`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Batch cloned successfully!');
+                refreshBatchList();
+            }
+        });
+}
+
+function pauseBatch(batchId) {
+    if (confirm('Are you sure you want to pause this batch?')) {
+        fetch(`/batch/${batchId}/pause`, { method: 'POST' })
+            .then(() => refreshBatchList());
+    }
+}
+
+function cancelBatch(batchId) {
+    if (confirm('Are you sure you want to cancel this batch? This action cannot be undone.')) {
+        fetch(`/batch/${batchId}/cancel`, { method: 'POST' })
+            .then(() => refreshBatchList());
+    }
+}
+
+function deleteBatch(batchId) {
+    if (confirm('Are you sure you want to delete this batch? All results will be permanently lost.')) {
+        fetch(`/batch/${batchId}`, { method: 'DELETE' })
+            .then(() => refreshBatchList());
+    }
+}
+
+function loadBatchPage(page) {
+    // Implement pagination logic
+    console.log('Loading page:', page);
+}
+
+function switchToTab(tabId) {
+    // Switch to the specified tab
+    const tab = document.querySelector(`[data-bs-target="#${tabId.replace('-tab', '')}"]`);
+    if (tab) {
+        const bsTab = new bootstrap.Tab(tab);
+        bsTab.show();
+    }
+}
+
+// Auto-refresh running batches every 30 seconds
+setInterval(() => {
+    const runningBatches = document.querySelectorAll('.batch-item[data-status="running"]');
+    if (runningBatches.length > 0) {
+        refreshBatchList();
+    }
+}, 30000);
+</script>
+{% endcall %}
 
 <script>
 function refreshBatchList() {

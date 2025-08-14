@@ -1,5 +1,4 @@
-<!-- Activity Timeline Widget -->
-<div class="activity-timeline p-2">
+<div class="activity-timeline p-2" id="activity-timeline">
     {% if activities %}
         {% for activity in activities %}
         <div class="activity-item mb-3 pb-3 {% if not loop.last %}border-bottom{% endif %}">
@@ -61,6 +60,15 @@
             <p class="text-muted mb-1 fs-0_9rem">No recent activity</p>
             <small class="text-muted fs-0_8rem">System events will appear here</small>
         </div>
+    {% endif %}
+    
+    <!-- View All Link -->
+    {% if activities and activities|length > 0 %}
+    <div class="text-center mt-3 pt-3 border-top">
+    <small class="text-muted fs-0_75rem">
+            <i class="fas fa-info-circle mr-1"></i>Showing {{ activities|length }} recent activities
+        </small>
+    </div>
     {% endif %}
     
     <!-- View All Link -->

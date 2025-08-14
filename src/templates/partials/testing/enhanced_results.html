@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Testing Results & Analytics', classes='module-testing-results') %}
 <!-- Enhanced Results Preview Interface -->
 <div class="container-fluid">
   <div class="row">
@@ -554,6 +557,7 @@
     </div>
   </div>
 </div>
+{% endcall %}
 
 <!-- Enhanced Comparison Modal -->
 <div class="modal fade" id="comparisonModal" tabindex="-1" aria-labelledby="comparisonModalLabel" aria-hidden="true">

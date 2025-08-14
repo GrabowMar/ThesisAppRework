@@ -1,4 +1,6 @@
-{# Derived from former pages/analysis.html #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Analysis Hub', subtitle='Unified security & performance overview', classes='module-hub-overview') %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h1 class="h3 mb-0">Analysis Hub</h1>
@@ -21,3 +23,4 @@
      hx-swap="outerHTML">
   <div class="col-12">{% include 'partials/analysis/recent_combined.html' %}</div>
 </div>
+{% endcall %}

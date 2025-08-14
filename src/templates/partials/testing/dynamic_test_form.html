@@ -1,3 +1,7 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+{% call module_card(title='Dynamic Security Scan', classes='module-testing-dynamic-scan') %}
+<!-- Dynamic (ZAP) Security Test Form -->
+<div class="card border-0 shadow-sm h-100">
 <!-- Dynamic (ZAP) Security Test Form -->
 <div class="card border-0 shadow-sm h-100">
     <div class="card-header bg-info text-white border-0">
@@ -112,6 +116,8 @@
         <!-- Results will be loaded here -->
     </div>
 </div>
+
+{% endcall %}
 
 <script>
 function resetDynamicForm() {

@@ -1,4 +1,6 @@
-<!-- App Details Partial -->
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Application Details', classes='module-app-details') %}
 <div class="app-details-container">
     <div class="row">
         <!-- Basic Information -->
@@ -174,4 +176,5 @@
         </div>
     </div>
 </div>
+{% endcall %}
 

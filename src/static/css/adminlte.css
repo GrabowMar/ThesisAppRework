@@ -1,4 +1,17 @@
 @charset "UTF-8";
+/* =============================================================
+  Project overrides (Bootstrap/AdminLTE compatible)
+  ============================================================= */
+/* Full-width content by default; legacy left margin removed */
+.content-area { margin-left: 0; }
+/* HTMX indicator visibility */
+.hx-indicator { display: none; }
+.htmx-request .hx-indicator { display: inline-block; }
+/* Offcanvas sidebar refinements */
+#offcanvasSidebar .stat-item .stat-value { font-size: 1.05rem; }
+#offcanvasSidebar .stat-item .stat-label { font-size: 0.75rem; }
+#offcanvasSidebar hr { opacity: .15; }
+#offcanvasSidebar .offcanvas-header { border-bottom: 1px solid rgba(0,0,0,.05); }
 /*!
  *   AdminLTE v4.0.0-rc3
  *   Author: Colorlib

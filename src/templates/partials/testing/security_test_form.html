@@ -1,3 +1,8 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Security Test Form', classes='module-testing-security-form') %}
+<!-- Enhanced Security Test Form -->
+<div class="card border-0 shadow-sm h-100">
 <!-- Enhanced Security Test Form -->
 <div class="card border-0 shadow-sm h-100">
     <div class="card-header bg-danger text-white border-0">
@@ -233,3 +238,4 @@
         <!-- Results will be loaded here -->
     </div>
 </div>
+{% endcall %}

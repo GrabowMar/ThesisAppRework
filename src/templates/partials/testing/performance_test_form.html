@@ -1,3 +1,8 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Performance Test Form', classes='module-testing-performance-form') %}
+<!-- Enhanced Performance Test Form -->
+<div class="card border-0 shadow-sm h-100">
 <!-- Enhanced Performance Test Form -->
 <div class="card border-0 shadow-sm h-100">
     <div class="card-header bg-warning text-dark border-0">
@@ -252,6 +257,9 @@
         <!-- Results will be loaded here -->
     </div>
 </div>
+
+{% endcall %}
+
 
 <script>
 function updateTestTypeInfo() {

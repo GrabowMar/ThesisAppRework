@@ -1,18 +1,14 @@
-<div class="card h-100" id="analysis-trends" hx-get="/analysis/api/trends" hx-trigger="load, every 120s" hx-target="#analysis-trends" hx-swap="outerHTML">
-  <div class="card-header py-2 d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">Weekly Trends</h5>
-    <span class="text-muted small">Last 7 days</span>
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Weekly Trends', subtitle='Last 7 days', classes='module-trends') %}
+<div class="row text-center">
+  <div class="col-6 mb-3 mb-sm-0">
+    <h3 class="text-primary mb-1">{{ trends.security_this_week }}</h3>
+    <p class="text-muted small mb-0">Security Analyses</p>
   </div>
-  <div class="card-body">
-    <div class="row text-center">
-      <div class="col-6 mb-3 mb-sm-0">
-        <h3 class="text-primary mb-1">{{ trends.security_this_week }}</h3>
-        <p class="text-muted small mb-0">Security Analyses</p>
-      </div>
-      <div class="col-6">
-        <h3 class="text-info mb-1">{{ trends.performance_this_week }}</h3>
-        <p class="text-muted small mb-0">Performance Tests</p>
-      </div>
-    </div>
+  <div class="col-6">
+    <h3 class="text-info mb-1">{{ trends.performance_this_week }}</h3>
+    <p class="text-muted small mb-0">Performance Tests</p>
   </div>
 </div>
+{% endcall %}

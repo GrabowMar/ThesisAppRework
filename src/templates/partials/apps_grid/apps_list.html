@@ -1,4 +1,6 @@
-<!-- Apps List View -->
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Applications List', classes='module-apps-list') %}
 <div class="apps-list-container">
     {% for app in apps %}
     <div class="app-card app-list-item" data-app-id="{{ app.id }}">
@@ -98,5 +100,7 @@
         </button>
     </div>
     {% endif %}
+
 </div>
+{% endcall %}
 

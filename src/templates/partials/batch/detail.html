@@ -1,9 +1,10 @@
-{# Batch detail partial (simplified) #}
-<div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-layer-group mr-1"></i> Batch {{ batch.id }}</h3></div><div class="card-body">
-  <dl class="row mb-0">
-    <dt class="col-sm-3">Status</dt><dd class="col-sm-9">{{ batch.status }}</dd>
-    <dt class="col-sm-3">Created</dt><dd class="col-sm-9">{{ batch.created_at.strftime('%Y-%m-%d %H:%M') if batch.created_at else '' }}</dd>
-    <dt class="col-sm-3">Priority</dt><dd class="col-sm-9">{{ batch.priority }}</dd>
-    <dt class="col-sm-3">Apps</dt><dd class="col-sm-9">{{ batch.apps_count or 0 }}</dd>
-  </dl>
-</div></div>
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Batch ' ~ batch.id, classes='module-batch-detail') %}
+<dl class="row mb-0">
+  <dt class="col-sm-3">Status</dt><dd class="col-sm-9">{{ batch.status }}</dd>
+  <dt class="col-sm-3">Created</dt><dd class="col-sm-9">{{ batch.created_at.strftime('%Y-%m-%d %H:%M') if batch.created_at else '' }}</dd>
+  <dt class="col-sm-3">Priority</dt><dd class="col-sm-9">{{ batch.priority }}</dd>
+  <dt class="col-sm-3">Apps</dt><dd class="col-sm-9">{{ batch.apps_count or 0 }}</dd>
+</dl>
+{% endcall %}

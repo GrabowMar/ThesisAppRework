@@ -63,11 +63,14 @@
                     <tr>
                       <td>
                         {% set risk = alert.riskcode|int %}
+                {% call module_card(title='Dynamic Analysis Complete', classes='module-dynamic-complete') %}
+                {% comment %} dynamic_complete content {% endcomment %}
                         {% if risk == 3 %}<span class="badge bg-danger">High</span>
                         {% elif risk == 2 %}<span class="badge bg-warning text-dark">Medium</span>
                         {% elif risk == 1 %}<span class="badge bg-primary">Low</span>
                         {% else %}<span class="badge bg-secondary">Info</span>{% endif %}
                       </td>
+                {% endcall %}
                       <td>{{ alert.alert or alert.name }}</td>
                       <td class="text-truncate mw-380" title="{{ alert.url }}">{{ alert.url }}</td>
                     </tr>

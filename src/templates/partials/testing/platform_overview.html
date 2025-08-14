@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Platform Overview', classes='module-testing-platform-overview') %}
 <!-- Enhanced Platform Overview Dashboard -->
 <div class="container-fluid">
   <!-- Real-time System Status Cards -->
@@ -271,3 +274,4 @@
     </div>
   </div>
 </div>
+{% endcall %}

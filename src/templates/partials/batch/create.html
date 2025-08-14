@@ -1,6 +1,7 @@
-{# Batch creation form partial (simplified) #}
-<form method="post" class="card">
-  <div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-plus-circle mr-1"></i>Create Batch</h3></div>
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Create Batch', classes='module-batch-create') %}
+<form method="post">
   <div class="card-body">
     <div class="form-group"><label>Name</label><input type="text" name="batch_name" class="form-control" placeholder="Optional"></div>
     <div class="form-group"><label>Description</label><textarea name="description" class="form-control" rows="2"></textarea></div>
@@ -17,3 +18,4 @@
   </div>
   <div class="card-footer text-right"><button class="btn btn-primary"><i class="fas fa-save mr-1"></i> Create Batch</button></div>
 </form>
+{% endcall %}

@@ -1,52 +1,48 @@
-<div class="card h-100">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <span><i class="fas fa-stream me-1"></i> Recent Activity (Security & Performance)</span>
-    <div class="small text-muted">Consolidated feed</div>
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Recent Activity', subtitle='Security & Performance', classes='module-recent-combined') %}
+<div class="row g-2">
+  <div class="col-md-6">
+    <h6 class="border-bottom pb-1 mb-2">Security</h6>
+    {% if recent_security %}
+      <ul class="list-group list-group-flush small">
+        {% for item in recent_security %}
+          <li class="list-group-item py-1 d-flex justify-content-between align-items-center">
+            <span>
+              <i class="fas fa-shield-alt text-secondary me-1"></i>
+              #{{ item.id }}
+              <span class="text-muted">{{ item.status or 'unknown' }}</span>
+            </span>
+            <span class="text-muted">{{ item.created_at.strftime('%H:%M:%S') if item.created_at else '' }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="text-muted small">No security analyses yet.</div>
+    {% endif %}
   </div>
-  <div class="card-body p-2">
-    <div class="row g-2">
-      <div class="col-md-6">
-        <h6 class="border-bottom pb-1 mb-2">Security</h6>
-        {% if recent_security %}
-          <ul class="list-group list-group-flush small">
-            {% for item in recent_security %}
-              <li class="list-group-item py-1 d-flex justify-content-between align-items-center">
-                <span>
-                  <i class="fas fa-shield-alt text-secondary me-1"></i>
-                  #{{ item.id }}
-                  <span class="text-muted">{{ item.status or 'unknown' }}</span>
-                </span>
-                <span class="text-muted">{{ item.created_at.strftime('%H:%M:%S') if item.created_at else '' }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <div class="text-muted small">No security analyses yet.</div>
-        {% endif %}
-      </div>
-      <div class="col-md-6">
-        <h6 class="border-bottom pb-1 mb-2">Performance</h6>
-        {% if recent_performance %}
-          <ul class="list-group list-group-flush small">
-            {% for item in recent_performance %}
-              <li class="list-group-item py-1 d-flex justify-content-between align-items-center">
-                <span>
-                  <i class="fas fa-tachometer-alt text-secondary me-1"></i>
-                  #{{ item.id }}
-                  <span class="text-muted">{{ item.status or 'unknown' }}</span>
-                </span>
-                <span class="text-muted">{{ item.created_at.strftime('%H:%M:%S') if item.created_at else '' }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <div class="text-muted small">No performance tests yet.</div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-  <div class="card-footer py-1 d-flex justify-content-between align-items-center small">
-    <span class="text-muted">Polling combined endpoint</span>
-    <button class="btn btn-sm btn-outline-secondary" hx-get="/analysis/api/recent/combined" hx-target="#recentCombined" hx-swap="outerHTML">Refresh</button>
+  <div class="col-md-6">
+    <h6 class="border-bottom pb-1 mb-2">Performance</h6>
+    {% if recent_performance %}
+      <ul class="list-group list-group-flush small">
+        {% for item in recent_performance %}
+          <li class="list-group-item py-1 d-flex justify-content-between align-items-center">
+            <span>
+              <i class="fas fa-tachometer-alt text-secondary me-1"></i>
+              #{{ item.id }}
+              <span class="text-muted">{{ item.status or 'unknown' }}</span>
+            </span>
+            <span class="text-muted">{{ item.created_at.strftime('%H:%M:%S') if item.created_at else '' }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="text-muted small">No performance tests yet.</div>
+    {% endif %}
   </div>
 </div>
+<div class="mt-2 d-flex justify-content-between align-items-center small">
+  <span class="text-muted">Polling combined endpoint</span>
+  <button class="btn btn-sm btn-outline-secondary" hx-get="/analysis/api/recent/combined" hx-target="#recentCombined" hx-swap="outerHTML">Refresh</button>
+</div>
+{% endcall %}

@@ -1,9 +1,12 @@
-<!-- Error Display Partial -->
-<div class="alert alert-danger" role="alert">
-    <div class="d-flex align-items-center">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <div>
-            <strong>Error:</strong> {{ error }}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Error', classes='module-error') %}
+    <div class="alert alert-danger mb-0" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <div>
+                <strong>Error:</strong> {{ error }}
+            </div>
         </div>
     </div>
-</div>
+{% endcall %}

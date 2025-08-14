@@ -1,5 +1,7 @@
-<!-- Container Status Partial -->
-<div class="container-status">
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='', classes='module-container-status body-compact', body_classes='p-0') %}
+<div class="container-status p-2">
     {% if status == 'running' %}
     <span class="badge bg-success">
         <i class="fas fa-play me-1"></i>
@@ -36,3 +38,4 @@
     <small class="text-muted ms-2">{{ timestamp }}</small>
     {% endif %}
 </div>
+{% endcall %}

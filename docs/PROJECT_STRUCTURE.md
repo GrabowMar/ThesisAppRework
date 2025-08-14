@@ -171,7 +171,11 @@ Pattern:
 - Modular Blueprints: UI pages separated by domain (dashboard, analysis, models, batch, testing, statistics, advanced)
 - Fine-Grained API Subpackage: The `routes/api/` folder decomposes endpoints for maintainability & discoverability
 - HTMX + Progressive Enhancement: Partial templates return fragment responses for dynamic updates
+- Separate WebSocket REST helper blueprint mounted at `/api/websocket` (see `app/routes/api/websocket.py`) for starting/canceling analyses and querying WS service state
+- Some UI blueprints intentionally expose small JSON/HTMX utilities under paths like `/analysis/api/...` or `/advanced/api/...` which are not part of the main `/api` blueprint; they serve page-specific partials or JSON
 - Legacy Aggregated API retained as `api.py.backup` for reference during transition
+  
+See also: `docs/ROUTES.md` for a comprehensive, blueprint-grouped route inventory.
 
 ### Data Layer
 - SQLAlchemy ORM models (analysis, applications, port config, security results, etc.)

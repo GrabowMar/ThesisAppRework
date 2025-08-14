@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Models List', classes='module-models-list') %}
 <!-- Models List View -->
 <div class="models-list-container">
     {% if models %}
@@ -129,3 +132,4 @@
 <!-- Modal container for model details -->
 <div id="model-details-modal"></div>
 <div id="test-results"></div>
+{% endcall %}

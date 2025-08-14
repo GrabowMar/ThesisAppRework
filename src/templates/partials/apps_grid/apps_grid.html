@@ -1,4 +1,6 @@
-<!-- Apps Grid View -->
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Applications Grid', classes='module-apps-grid') %}
 <div class="apps-grid-container">
     {% for app in apps %}
     <div class="row g-4">
@@ -141,3 +143,4 @@
 
 <!-- Modal container for app details and forms -->
 <div id="modal-container"></div>
+{% endcall %}

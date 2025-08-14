@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Models Table (Grouped)', classes='module-models-table-grouped', body_classes='p-0') %}
 <!-- Models Table Grouped View -->
 <div class="models-grouped-container">
     {% for group_name, group_models in grouped_models.items() %}
@@ -99,3 +102,4 @@
     <small class="text-muted">Total: {{ total }} models</small>
 </div>
 {% endif %}
+{% endcall %}

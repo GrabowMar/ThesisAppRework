@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Statistics Overview', classes='module-statistics-overview') %}
 {# Placeholder statistics overview partial extracted from former page (structure simplified) #}
 <div class="row mb-3">
   <div class="col-md-3"><div class="info-box"><span class="info-box-icon bg-primary"><i class="fas fa-cubes"></i></span><div class="info-box-content"><span class="info-box-text">Models</span><span class="info-box-number">{{ stats.total_models }}</span></div></div></div>
@@ -17,3 +20,4 @@
     {% for app in recent_activity %}<li class="list-group-item d-flex justify-content-between align-items-center"><span><i class="fas fa-cube text-muted mr-1"></i>{{ app.model_slug }} app {{ app.app_number }}</span><small class="text-muted">{{ app.created_at.strftime('%Y-%m-%d') if app.created_at else '' }}</small></li>{% endfor %}
   </ul>
 </div></div>
+{% endcall %}

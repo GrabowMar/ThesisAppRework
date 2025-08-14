@@ -1,70 +1,15 @@
-<!-- Dashboard Stats Partial -->
-<div class="dashboard-stats-container">
-    <div class="row">
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-robot"></i>
-                </div>
-                <div class="stat-info">
-                    <h3>{{ stats.total_models or 0 }}</h3>
-                    <p>AI Models</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-cubes"></i>
-                </div>
-                <div class="stat-info">
-                    <h3>{{ stats.total_apps or 0 }}</h3>
-                    <p>Applications</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-shield-alt"></i>
-                </div>
-                <div class="stat-info">
-                    <h3>{{ stats.security_tests or 0 }}</h3>
-                    <p>Security Tests</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-tachometer-alt"></i>
-                </div>
-                <div class="stat-info">
-                    <h3>{{ stats.performance_tests or 0 }}</h3>
-                    <p>Performance Tests</p>
-                </div>
-            </div>
-        </div>
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Dashboard Stats', classes='module-dashboard-stats') %}
+<div id="dashboard-stats"
+    data-refresh-interval="30s"
+    hx-get="{{ url_for('api.dashboard_stats_fragment') }}"
+    hx-trigger="load, every 30s"
+    hx-target="#dashboard-stats"
+    hx-swap="innerHTML"
+    hx-indicator="#global-spinner">
+    <div class="text-center text-muted py-3">
+        <i class="fas fa-spinner fa-spin mr-1"></i>Loading stats...
     </div>
-    
-    {% if stats.recent_activity %}
-    <div class="row mt-4">
-        <div class="col-12">
-            <h5>Recent Activity</h5>
-            <div class="activity-list">
-                {% for activity in stats.recent_activity %}
-                <div class="activity-item">
-                    <div class="activity-icon">
-                        <i class="fas fa-{{ activity.icon or 'info-circle' }}"></i>
-                    </div>
-                    <div class="activity-content">
-                        <p class="activity-text">{{ activity.message }}</p>
-                        <small class="text-muted">{{ activity.timestamp }}</small>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    {% endif %}
 </div>
+{% endcall %}

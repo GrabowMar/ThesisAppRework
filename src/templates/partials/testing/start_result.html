@@ -1,3 +1,6 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Start Result', classes='module-testing-start-result') %}
 <div class="alert alert-info">
   <strong>{{ title }}</strong>
   {% if task_id %}
@@ -15,3 +18,4 @@
     <a href="/analysis/dynamic/{{ analysis_id }}" class="btn btn-sm btn-primary">View dynamic results</a>
   {% endif %}
 </div>
+{% endcall %}
