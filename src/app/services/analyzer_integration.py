@@ -430,6 +430,39 @@ class AnalyzerIntegration:
                 'status': 'failed',
                 'error': str(e)
             }
+
+    def run_dynamic_analysis(self, model_slug: str, app_number: int,
+                            options: Optional[Dict] = None) -> Dict[str, Any]:
+        """Run dynamic (ZAP-like) analysis through analyzer infrastructure."""
+        try:
+            # Construct command using the analyzer manager CLI
+            command = ['analyze', model_slug, str(app_number), 'dynamic']
+
+            result = self.run_analyzer_command(command, timeout=options.get('timeout', 600) if options else 600)
+
+            if result['success']:
+                try:
+                    analysis_results = json.loads(result['stdout'])
+                    return analysis_results
+                except json.JSONDecodeError:
+                    return {
+                        'status': 'completed',
+                        'raw_output': result['stdout'],
+                        'command': command
+                    }
+            else:
+                return {
+                    'status': 'failed',
+                    'error': result.get('stderr', 'Unknown error'),
+                    'command': command
+                }
+
+        except Exception as e:
+            logger.error(f"Error running dynamic analysis: {e}")
+            return {
+                'status': 'failed',
+                'error': str(e)
+            }
     
     def _parse_status_output(self, status_output: str) -> Dict[str, Any]:
         """

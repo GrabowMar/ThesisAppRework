@@ -425,6 +425,22 @@ class AnalyzerManager:
         }
         
         return await self.send_websocket_message('static-analyzer', message, timeout=180)
+
+    async def run_dynamic_analysis(self, model_slug: str, app_number: int,
+                                  target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Run dynamic (ZAP-like) analysis against running app endpoints."""
+        logger.info(f"🕷️  Running dynamic (ZAP) analysis on {model_slug} app {app_number}")
+
+        message = {
+            "type": "dynamic_analyze",
+            "model_slug": model_slug,
+            "app_number": app_number,
+            "target_urls": target_urls or [],
+            "timestamp": datetime.now().isoformat(),
+            "id": str(uuid.uuid4())
+        }
+
+        return await self.send_websocket_message('dynamic-analyzer', message, timeout=180)
     
     async def run_performance_test(self, model_slug: str, app_number: int,
                                  target_url: Optional[str] = None, users: int = 10, 
@@ -475,7 +491,8 @@ class AnalyzerManager:
                                 tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run static code analysis."""
         if tools is None:
-            tools = ['pylint', 'flake8']
+            # Broaden to common static tools across Python/JS/CSS
+            tools = ['pylint', 'flake8', 'mypy', 'eslint', 'stylelint']
         
         logger.info(f"🔍 Running static analysis on {model_slug} app {app_number}")
         
@@ -499,37 +516,38 @@ class AnalyzerManager:
         return await self.send_websocket_message('static-analyzer', message, timeout=180)
     
     async def run_comprehensive_analysis(self, model_slug: str, app_number: int) -> Dict[str, Dict[str, Any]]:
-        """Run all types of analysis on an application."""
+        """Run comprehensive analysis (security, static, performance, dynamic) without AI."""
         logger.info(f"🎯 Running comprehensive analysis on {model_slug} app {app_number}")
-        
-        # Run all analysis types in parallel
+
+        # Prepare tasks (no AI per request)
         analysis_tasks = [
             ('security', self.run_security_analysis(model_slug, app_number)),
             ('static', self.run_static_analysis(model_slug, app_number)),
-            ('ai', self.run_ai_analysis(model_slug, app_number))
+            ('performance', self.run_performance_test(model_slug, app_number)),
+            ('dynamic', self.run_dynamic_analysis(model_slug, app_number)),
         ]
         
         results = {}
-        
+
         for analysis_type, task in analysis_tasks:
             try:
                 logger.info(f"Starting {analysis_type} analysis...")
                 result = await task
                 results[analysis_type] = result
-                
+
                 status = result.get('status', 'unknown')
                 if status == 'success':
                     logger.info(f"✅ {analysis_type.title()} analysis completed")
                 else:
                     logger.warning(f"⚠️ {analysis_type.title()} analysis failed: {result.get('error', 'Unknown error')}")
-                    
+
             except Exception as e:
                 logger.error(f"❌ {analysis_type.title()} analysis error: {e}")
                 results[analysis_type] = {'status': 'error', 'error': str(e)}
-        
+
         # Save comprehensive results
         await self.save_analysis_results(model_slug, app_number, 'comprehensive', results)
-        
+
         return results
     
     async def run_batch_analysis(self, models_and_apps: List[Tuple[str, int]],
@@ -796,8 +814,8 @@ CONTAINER MANAGEMENT:
   logs [service] [lines]   Show logs (optional: specific service, line count)
 
 ANALYSIS OPERATIONS:
-  analyze <model> <app> [type]     Run analysis on specific app
-                                   Types: comprehensive, security, ai, static
+    analyze <model> <app> [type]     Run analysis on specific app
+                                                                     Types: comprehensive, security, static, performance, dynamic (zap), ai
   
   batch <models_file>              Run batch analysis from JSON file
                                    Format: [["model1", 1], ["model2", 2], ...]
@@ -882,6 +900,18 @@ async def main():
                     await manager.save_analysis_results(model_slug, app_number, 'security', results)
                 except Exception as e:
                     logger.warning(f"Could not save security analysis results: {e}")
+            elif analysis_type == 'performance':
+                results = await manager.run_performance_test(model_slug, app_number)
+                try:
+                    await manager.save_analysis_results(model_slug, app_number, 'performance', results)
+                except Exception as e:
+                    logger.warning(f"Could not save performance test results: {e}")
+            elif analysis_type in ['dynamic', 'zap']:
+                results = await manager.run_dynamic_analysis(model_slug, app_number)
+                try:
+                    await manager.save_analysis_results(model_slug, app_number, 'dynamic', results)
+                except Exception as e:
+                    logger.warning(f"Could not save dynamic analysis results: {e}")
             elif analysis_type == 'ai':
                 results = await manager.run_ai_analysis(model_slug, app_number)
                 try:

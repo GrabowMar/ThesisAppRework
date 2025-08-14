@@ -8,6 +8,7 @@ containerized analyzer services through analyzer integration.
 
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
+import json as _json
 
 from celery import Celery
 from celery.signals import task_prerun, task_postrun, worker_ready
@@ -125,7 +126,6 @@ def security_analysis_task(self, model_slug: str, app_number: int,
     from app.extensions import get_session
     from app.models import SecurityAnalysis
     from app.constants import AnalysisStatus
-    import json as _json
 
     try:
         analyzer_service = get_analyzer_service()
@@ -374,6 +374,122 @@ def static_analysis_task(self, model_slug: str, app_number: int,
         
         raise self.retry(exc=e, countdown=60, max_retries=3)
 
+@celery.task(bind=True, name='app.tasks.dynamic_analysis_task')
+def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optional[Dict] = None):
+    """
+    Run dynamic (ZAP-like) security analysis on a specific model application.
+    
+    Args:
+        model_slug: Model identifier
+        app_number: Application number
+        options: Additional options (e.g., target URLs, timeouts)
+    """
+    batch_job_id = options.get('batch_job_id') if options else None
+    analysis_id = options.get('analysis_id') if options else None
+
+    # Import here to avoid circular import at module load
+    from app.extensions import get_session
+    from app.models import ZAPAnalysis
+    from app.constants import AnalysisStatus
+
+    try:
+        analyzer_service = get_analyzer_service()
+        if not analyzer_service:
+            raise Exception("Analyzer service not available")
+
+        update_task_progress(0, 100, "Initializing dynamic analysis")
+
+        # Mark RUNNING if an analysis record is provided
+        if analysis_id:
+            with get_session() as session:
+                analysis = session.query(ZAPAnalysis).get(analysis_id)
+                if analysis:
+                    analysis.status = AnalysisStatus.RUNNING
+                    analysis.started_at = datetime.now(timezone.utc)
+                    session.commit()
+
+        update_task_progress(10, 100, "Starting analyzer services")
+
+        if not analyzer_service.start_analyzer_services():
+            raise Exception("Failed to start analyzer services")
+
+        update_task_progress(20, 100, "Running dynamic analysis")
+
+        # Run dynamic analysis using analyzer integration
+        result = analyzer_service.run_dynamic_analysis(model_slug, app_number, options)
+
+        update_task_progress(80, 100, "Processing dynamic analysis results")
+
+        status = result.get('status', 'completed')
+
+        # Persist results if analysis record provided
+        if analysis_id:
+            with get_session() as session:
+                analysis = session.query(ZAPAnalysis).get(analysis_id)
+                if analysis:
+                    analysis.status = AnalysisStatus.COMPLETED if status == 'completed' else AnalysisStatus.FAILED
+                    analysis.completed_at = datetime.now(timezone.utc)
+                    if analysis.started_at:
+                        analysis_duration = (analysis.completed_at - analysis.started_at).total_seconds()
+                        # Not stored explicitly in ZAPAnalysis; include in metadata
+                        meta = analysis.get_metadata()
+                        meta['analysis_duration'] = analysis_duration
+                        analysis.set_metadata(meta)
+                    # Store raw result JSON
+                    try:
+                        analysis.set_zap_report(result)
+                    except Exception:
+                        analysis.set_zap_report({'raw_result': str(result)})
+
+                    # Attempt to map summary counts if present
+                    summary = result.get('summary') or {}
+                    analysis.high_risk_alerts = summary.get('high', summary.get('high_risk_alerts', 0)) or 0
+                    analysis.medium_risk_alerts = summary.get('medium', summary.get('medium_risk_alerts', 0)) or 0
+                    analysis.low_risk_alerts = summary.get('low', summary.get('low_risk_alerts', 0)) or 0
+                    analysis.informational_alerts = summary.get('informational', summary.get('info', 0)) or 0
+                    session.commit()
+
+        final_result = {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'analysis_type': 'dynamic',
+            'result': result,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'status': status,
+            'analysis_id': analysis_id
+        }
+
+        update_batch_progress(batch_job_id, task_completed=True, result=final_result)
+        update_task_progress(100, 100, "Dynamic analysis completed")
+        return final_result
+
+    except Exception as e:
+        error_msg = f"Dynamic analysis failed: {str(e)}"
+        update_task_progress(0, 100, f"Error: {error_msg}")
+
+        # Mark analysis failed before retry
+        if analysis_id:
+            try:
+                with get_session() as session:
+                    analysis = session.query(ZAPAnalysis).get(analysis_id)
+                    if analysis:
+                        analysis.status = AnalysisStatus.FAILED
+                        analysis.completed_at = datetime.now(timezone.utc)
+                        meta = analysis.get_metadata()
+                        meta['last_error'] = str(e)
+                        analysis.set_metadata(meta)
+                        session.commit()
+            except Exception as meta_e:
+                print(f"Failed to record failure metadata: {meta_e}")
+
+        update_batch_progress(batch_job_id, task_failed=True)
+
+        # Retry only for transient errors
+        transient = any(msg in str(e).lower() for msg in ["timeout", "connection refused", "temporary", "unavailable"]) 
+        if transient and getattr(self, 'request', None) and self.request.retries < 3:
+            raise self.retry(exc=e, countdown=60, max_retries=3)
+        raise
+
 @celery.task(bind=True, name='app.tasks.ai_analysis_task')
 def ai_analysis_task(self, model_slug: str, app_number: int,
                     analysis_types: Optional[List[str]] = None, options: Optional[Dict] = None):
@@ -493,6 +609,11 @@ def batch_analysis_task(self, models: List[str], apps: List[int],
                                 model, app, 
                                 options.get('static_tools', ['pylint']) if options else ['pylint'], 
                                 options
+                            )
+                        elif analysis_type in ('dynamic', 'zap'):
+                            result = analyzer_service.run_dynamic_analysis(
+                                model, app, 
+                                options.get('dynamic_options', {}) if options else {}
                             )
                         elif analysis_type == 'ai':
                             result = analyzer_service.run_ai_analysis(
@@ -708,37 +829,14 @@ def run_enhanced_analysis(self, model_slug: str, app_number: int, config: Dict) 
     print(f"Starting enhanced analysis task {task_id} for {model_slug} app {app_number}")
     
     try:
-        # Import the analyzer configuration system
-        import sys
-        import os
-        analyzer_path = os.path.join(os.path.dirname(__file__), '..', '..', 'analyzer')
-        if analyzer_path not in sys.path:
-            sys.path.append(analyzer_path)
-        
-        from analyzer_config import AnalyzerConfig
-        
-        # Initialize analyzer configuration
-        analyzer_config = AnalyzerConfig()
-        
-        # Validate the full configuration
-        validation_result = analyzer_config.validate_full_config(config)
-        if not validation_result['valid']:
-            return {
-                'status': 'error',
-                'error': 'Configuration validation failed',
-                'validation_errors': validation_result['errors'],
-                'task_id': task_id
-            }
-        
         # Get analyzer integration service
-        if not _analyzer_integration_available:
+        analyzer_integration = get_analyzer_service()
+        if not analyzer_integration:
             return {
                 'status': 'error',
                 'error': 'Analyzer integration service not available',
                 'task_id': task_id
             }
-        
-        analyzer_integration = _get_analyzer_integration()
         results = {}
         
         # Update task progress
@@ -876,27 +974,32 @@ def _save_enhanced_results(results: Dict) -> None:
     """Save enhanced analysis results to database."""
     try:
         from app.extensions import db
-        from app.models import EnhancedAnalysis
-        
+        import app.models as _models
+
+        EnhancedAnalysisModel = getattr(_models, 'EnhancedAnalysis', None)
+        if EnhancedAnalysisModel is None:
+            print("EnhancedAnalysis model not available; skipping DB save")
+            return
+
         # Create enhanced analysis record
-        analysis = EnhancedAnalysis(
-            task_id=results['task_id'],
-            model_slug=results['model_slug'],
-            app_number=results['app_number'],
-            status=results['status'],
+        analysis = EnhancedAnalysisModel(
+            task_id=results.get('task_id'),
+            model_slug=results.get('model_slug'),
+            app_number=results.get('app_number'),
+            status=results.get('status'),
             config_json=results.get('config_used', {}),
             results_json=results.get('analysis_results', {}),
             summary_json=results.get('summary', {}),
-            overall_score=results.get('summary', {}).get('overall_score'),
+            overall_score=(results.get('summary') or {}).get('overall_score'),
             created_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc) if results['status'] == 'completed' else None
+            completed_at=datetime.now(timezone.utc) if results.get('status') == 'completed' else None
         )
-        
+
         db.session.add(analysis)
         db.session.commit()
-        
-        print(f"Saved enhanced analysis results for task {results['task_id']}")
-        
+
+        print(f"Saved enhanced analysis results for task {results.get('task_id')}")
+
     except Exception as e:
         print(f"Failed to save enhanced analysis results: {e}")
         # Don't re-raise - this is not critical for task completion
