@@ -19,6 +19,7 @@ from app.tasks import (
     performance_test_task,
     static_analysis_task,
     ai_analysis_task,
+    dynamic_analysis_task,
     batch_analysis_task,
     container_management_task,
     health_check_analyzers,
@@ -47,6 +48,7 @@ class AnalysisType:
     STATIC = 'static'
     AI = 'ai'
     BATCH = 'batch'
+    DYNAMIC = 'dynamic'
 
 class TaskManager:
     """
@@ -188,6 +190,47 @@ class TaskManager:
             
         except Exception as e:
             logger.error(f"Failed to start static analysis: {e}")
+            raise
+
+    def start_dynamic_analysis(self, model_slug: str, app_number: int,
+                               options: Optional[Dict] = None) -> str:
+        """
+        Start a dynamic (ZAP-like) security analysis task.
+        
+        Args:
+            model_slug: Model identifier
+            app_number: Application number
+            options: Additional scan options (e.g., target_url, scan_type)
+        
+        Returns:
+            Task ID
+        """
+
+        try:
+            task: SupportsDelay = dynamic_analysis_task  # type: ignore[assignment]
+            result = task.delay(
+                model_slug=model_slug,
+                app_number=app_number,
+                options=options or {}
+            )
+
+            task_id = str(result.id)
+
+            self.active_tasks[task_id] = {
+                'type': AnalysisType.DYNAMIC,
+                'model_slug': model_slug,
+                'app_number': app_number,
+                'options': options,
+                'started_at': datetime.now(timezone.utc),
+                'result': result
+            }
+
+            logger.info(f"Started dynamic analysis task {task_id} for {model_slug} app {app_number}")
+
+            return task_id
+
+        except Exception as e:
+            logger.error(f"Failed to start dynamic analysis: {e}")
             raise
     
     def start_ai_analysis(self, model_slug: str, app_number: int,

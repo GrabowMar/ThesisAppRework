@@ -27,7 +27,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from ..extensions import db
-from ..models import SecurityAnalysis, PerformanceTest, GeneratedApplication
+from ..models import SecurityAnalysis, PerformanceTest, GeneratedApplication, ZAPAnalysis
 from ..constants import AnalysisStatus
 
 # ---------------------------------------------------------------------------
@@ -66,6 +66,74 @@ DEFAULT_SECURITY_FLAGS = {
     "zap_enabled": False,
     "semgrep_enabled": False,
 }
+
+# ---------------------------------------------------------------------------
+# Dynamic/ZAP Analysis Operations
+# ---------------------------------------------------------------------------
+
+def list_dynamic_analyses(*, application_id: Optional[int] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    query = ZAPAnalysis.query
+    if application_id is not None:
+        query = query.filter_by(application_id=application_id)
+    query = query.order_by(ZAPAnalysis.created_at.desc())
+    if limit:
+        query = query.limit(limit)
+    return [a.to_dict() for a in query.all()]
+
+def create_dynamic_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
+    required = ["application_id", "target_url"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        raise ValidationError(f"Missing required fields: {', '.join(missing)}")
+
+    app = db.session.get(GeneratedApplication, data["application_id"])
+    if not app:
+        raise ValidationError("Referenced application does not exist")
+
+    analysis = ZAPAnalysis()
+    analysis.application_id = data["application_id"]
+    analysis.target_url = data["target_url"]
+    analysis.scan_type = data.get("scan_type", "active")
+
+    db.session.add(analysis)
+    db.session.commit()
+    return analysis.to_dict()
+
+def start_dynamic_analysis(analysis_id: int, *, enqueue: bool = True) -> Dict[str, Any]:
+    analysis = db.session.get(ZAPAnalysis, analysis_id)
+    if not analysis:
+        raise NotFoundError("Dynamic analysis not found")
+    if analysis.status not in {AnalysisStatus.PENDING, AnalysisStatus.FAILED}:
+        raise InvalidStateError(f"Cannot start analysis in state {analysis.status}")
+
+    analysis.status = AnalysisStatus.RUNNING
+    analysis.started_at = datetime.utcnow()
+    db.session.commit()
+
+    task_id = None
+    if enqueue:
+        try:
+            from ..tasks import dynamic_analysis_task  # type: ignore[attr-defined]
+            payload = {
+                'analysis_id': analysis_id,
+                'batch_job_id': None,
+                'timeout': 600,
+            }
+            app = db.session.get(GeneratedApplication, analysis.application_id)
+            model_slug = app.model_slug if app else ""
+            app_number = app.app_number if app else 0
+            celery_result = dynamic_analysis_task.delay(model_slug, app_number, payload)  # type: ignore[call-arg]
+            task_id = getattr(celery_result, 'id', None)
+        except Exception as e:  # noqa: BLE001
+            raise TaskEnqueueError(f"Failed to enqueue dynamic analysis task: {e}")
+
+    return {"analysis_id": analysis_id, "status": analysis.status, "task_id": task_id}
+
+def get_dynamic_results(analysis_id: int) -> Dict[str, Any]:
+    analysis = db.session.get(ZAPAnalysis, analysis_id)
+    if not analysis:
+        raise NotFoundError("Dynamic analysis not found")
+    return analysis.to_dict()
 
 # ---------------------------------------------------------------------------
 # Security Analysis Operations
@@ -267,5 +335,7 @@ __all__ = [
     # Performance operations
     'list_performance_tests', 'get_performance_test', 'create_performance_test', 'start_performance_test',
     # Helpers
-    'get_recent_activity'
+    'get_recent_activity',
+    # Dynamic/ZAP
+    'list_dynamic_analyses', 'create_dynamic_analysis', 'start_dynamic_analysis', 'get_dynamic_results'
 ]

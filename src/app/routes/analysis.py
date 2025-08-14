@@ -250,6 +250,58 @@ def start_performance_test():
         return jsonify({'error': str(e)}), 500
 
 
+@analysis_bp.route('/dynamic/start', methods=['POST'])
+def start_dynamic_analysis():
+    """Start dynamic (ZAP-like) analysis for an application."""
+    try:
+        data = request.get_json(silent=True) or {}
+
+        # Support both app_id JSON payload and form-based model/app selection
+        app_id = data.get('app_id')
+        model_slug = data.get('model_slug')
+        app_number = data.get('app_number')
+
+        app = None
+        if app_id:
+            app = GeneratedApplication.query.get_or_404(app_id)
+        else:
+            if not model_slug or not app_number:
+                return jsonify({'error': 'model_slug and app_number are required'}), 400
+            try:
+                app_number_int = int(app_number)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'app_number must be an integer'}), 400
+            app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number_int).first()
+            if not app:
+                return jsonify({'error': 'Application not found for given model/app'}), 404
+
+        # Dynamic analysis configuration
+        dynamic_options = {
+            'target_url': data.get('target_url'),
+            'scan_type': data.get('scan_type', 'baseline'),
+            'timeout': data.get('timeout', 30),
+            'include_paths': data.get('include_paths', []),
+            'exclude_paths': data.get('exclude_paths', []),
+        }
+
+        # Start dynamic analysis task
+        task_id = task_manager.start_dynamic_analysis(
+            app.model_slug,
+            app.app_number,
+            options=dynamic_options
+        )
+
+        return jsonify({
+            'success': True,
+            'task_id': task_id,
+            'message': 'Dynamic analysis started'
+        })
+
+    except Exception as e:
+        logger.error(f"Error starting dynamic analysis: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @analysis_bp.route('/batch/start', methods=['POST'])
 def start_batch_analysis():
     """Start batch analysis job."""
@@ -306,6 +358,19 @@ def performance_test_form():
     return render_template('partials/testing/performance_test_form.html')
 
 
+@analysis_bp.route('/dynamic_test_form')
+def dynamic_test_form():
+    """HTMX endpoint for dynamic (ZAP) test form."""
+    from ..models import ModelCapability
+    try:
+        models = ModelCapability.query.all()
+        return render_template('partials/testing/dynamic_test_form.html', models=models)
+    except Exception as e:
+        logger.error(f"Error loading dynamic test form: {e}")
+        return render_template('partials/common/error.html', 
+                             error=f"Error loading dynamic test form: {str(e)}")
+
+
 @analysis_bp.route('/security/run', methods=['POST'])
 def run_security_test():
     """Run security test (alias for start_security_analysis)."""
@@ -316,6 +381,12 @@ def run_security_test():
 def run_performance_test():
     """Run performance test (alias for start_performance_test)."""
     return start_performance_test()
+
+
+@analysis_bp.route('/dynamic/run', methods=['POST'])
+def run_dynamic_test():
+    """Run dynamic test (alias for start_dynamic_analysis)."""
+    return start_dynamic_analysis()
 
 
 @analysis_bp.route('/get_model_apps')

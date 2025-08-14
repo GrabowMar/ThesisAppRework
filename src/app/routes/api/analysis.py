@@ -20,10 +20,14 @@ from ...services.analysis_service import (
     create_security_analysis,
     list_performance_tests,
     create_performance_test,
+    list_dynamic_analyses,
+    create_dynamic_analysis,
+    start_dynamic_analysis,
     start_security_analysis,
     create_comprehensive_security_analysis,
     update_security_analysis,
     get_analysis_results as service_get_analysis_results,
+    get_dynamic_results as service_get_dynamic_results,
     AnalysisServiceError, NotFoundError, ValidationError, InvalidStateError, TaskEnqueueError
 )
 
@@ -77,6 +81,37 @@ def api_create_performance_test():
     try:
         created = create_performance_test(payload)
         return json_success(created, message="Performance test created", status=201)
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
+
+
+@api_bp.route('/analysis/dynamic')
+@handle_exceptions(logger_override=logger)
+def api_list_dynamic_analyses():
+    data = list_dynamic_analyses()
+    return json_success(data, message="Dynamic analyses fetched")
+
+
+@api_bp.route('/analysis/dynamic', methods=['POST'])
+@handle_exceptions(logger_override=logger)
+def api_create_dynamic_analysis():
+    payload = request.get_json() or {}
+    try:
+        created = create_dynamic_analysis(payload)
+        return json_success(created, message="Dynamic analysis created", status=201)
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
+
+
+@api_bp.route('/analysis/dynamic/start', methods=['POST'])
+@handle_exceptions(logger_override=logger)
+def api_start_dynamic_analysis():
+    payload = request.get_json() or {}
+    if not payload.get('analysis_id'):
+        return json_error("analysis_id required", status=400)
+    try:
+        started = start_dynamic_analysis(payload['analysis_id'])
+        return json_success(started, message="Dynamic analysis started", status=201)
     except (AnalysisServiceError,) as exc:
         return _map_service_error(exc)
 
@@ -320,5 +355,15 @@ def api_analysis_security_results(analysis_id):
     try:
         result = service_get_analysis_results(analysis_id)
         return json_success(result, message="Security analysis results fetched")
+    except (AnalysisServiceError,) as exc:  # pragma: no cover - defensive
+        return _map_service_error(exc)
+
+
+@api_bp.route('/analysis/dynamic/<int:analysis_id>/results')
+@handle_exceptions(logger_override=logger)
+def api_analysis_dynamic_results(analysis_id):
+    try:
+        result = service_get_dynamic_results(analysis_id)
+        return json_success(result, message="Dynamic analysis results fetched")
     except (AnalysisServiceError,) as exc:  # pragma: no cover - defensive
         return _map_service_error(exc)
