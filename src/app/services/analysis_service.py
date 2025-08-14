@@ -81,7 +81,8 @@ def list_dynamic_analyses(*, application_id: Optional[int] = None, limit: Option
     return [a.to_dict() for a in query.all()]
 
 def create_dynamic_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
-    required = ["application_id", "target_url"]
+    # Target URL can be empty (will be inferred from port mapping if not provided)
+    required = ["application_id"]
     missing = [f for f in required if f not in data]
     if missing:
         raise ValidationError(f"Missing required fields: {', '.join(missing)}")
@@ -92,8 +93,18 @@ def create_dynamic_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
 
     analysis = ZAPAnalysis()
     analysis.application_id = data["application_id"]
-    analysis.target_url = data["target_url"]
-    analysis.scan_type = data.get("scan_type", "active")
+    analysis.target_url = data.get("target_url", "") or ""
+    analysis.scan_type = data.get("scan_type", "baseline")
+
+    # Persist auxiliary options into metadata for traceability
+    meta = analysis.get_metadata()
+    if "include_paths" in data:
+        meta["include_paths"] = data["include_paths"]
+    if "exclude_paths" in data:
+        meta["exclude_paths"] = data["exclude_paths"]
+    if "timeout_minutes" in data:
+        meta["timeout_minutes"] = data["timeout_minutes"]
+    analysis.set_metadata(meta)
 
     db.session.add(analysis)
     db.session.commit()
@@ -117,7 +128,8 @@ def start_dynamic_analysis(analysis_id: int, *, enqueue: bool = True) -> Dict[st
             payload = {
                 'analysis_id': analysis_id,
                 'batch_job_id': None,
-                'timeout': 600,
+                # Use configured timeout from metadata if present (minutes -> seconds)
+                'timeout': int((analysis.get_metadata().get('timeout_minutes') or 10) * 60),
             }
             app = db.session.get(GeneratedApplication, analysis.application_id)
             model_slug = app.model_slug if app else ""
@@ -195,6 +207,26 @@ def update_security_analysis(analysis_id: int, data: Dict[str, Any]) -> Dict[str
         analysis.set_exclude_patterns(data["exclude_patterns"])
     if "include_patterns" in data:
         analysis.set_include_patterns(data["include_patterns"])
+
+    # Tool-specific configuration dicts
+    # Allow clients to pass JSON objects named *_config to override defaults
+    if "bandit_config" in data and isinstance(data["bandit_config"], dict):
+        analysis.set_bandit_config(data["bandit_config"])
+    if "safety_config" in data and isinstance(data["safety_config"], dict):
+        analysis.set_safety_config(data["safety_config"])
+    if "eslint_config" in data and isinstance(data["eslint_config"], dict):
+        analysis.set_eslint_config(data["eslint_config"])
+    if "pylint_config" in data and isinstance(data["pylint_config"], dict):
+        analysis.set_pylint_config(data["pylint_config"])
+    if "zap_config" in data and isinstance(data["zap_config"], dict):
+        analysis.set_zap_config(data["zap_config"])
+    if "semgrep_config" in data and isinstance(data["semgrep_config"], dict):
+        # Not yet modeled separately, but we can store in metadata/global for now
+        meta = analysis.get_metadata()
+        meta["semgrep_config"] = data["semgrep_config"]
+        analysis.set_metadata(meta)
+    if "global_config" in data and isinstance(data["global_config"], dict):
+        analysis.set_global_config(data["global_config"])
 
     db.session.commit()
     return analysis.to_dict()

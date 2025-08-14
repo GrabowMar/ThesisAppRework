@@ -164,53 +164,86 @@ def htmx_recent_performance():
 
 @analysis_bp.route('/security/start', methods=['POST'])
 def start_security_analysis():
-    """Start security analysis for an application."""
+    """Start security analysis using service-layer to persist config and results."""
     try:
-        data = request.get_json(silent=True) or {}
-        app_id = data.get('app_id')
+        # Accept both JSON and form-encoded data
+        payload = request.get_json(silent=True) or request.form.to_dict()
+
+        # Resolve application
+        app_id = payload.get('app_id')
         if not app_id:
-            return jsonify({'error': 'Application ID required'}), 400
+            # Support model_slug + app_number in form submissions
+            model_slug = payload.get('model_slug')
+            app_number = payload.get('app_number')
+            if not model_slug or not app_number:
+                return jsonify({'error': 'Application ID or (model_slug + app_number) required'}), 400
+            try:
+                app_number = int(app_number)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'app_number must be an integer'}), 400
+            app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+            if not app:
+                return jsonify({'error': 'Application not found for given model/app'}), 404
+            app_id = app.id
+        else:
+            try:
+                app_id = int(app_id)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'app_id must be an integer'}), 400
 
-        app = GeneratedApplication.query.get_or_404(app_id)
-
-        # Raw config flags (persisted as options)
-        config = {
-            'bandit_enabled': data.get('bandit_enabled', True),
-            'safety_enabled': data.get('safety_enabled', True),
-            'pylint_enabled': data.get('pylint_enabled', True),
-            'eslint_enabled': data.get('eslint_enabled', True),
-            'npm_audit_enabled': data.get('npm_audit_enabled', True),
-            'snyk_enabled': data.get('snyk_enabled', False),
+        # Build create payload with flags
+        create_payload = {
+            'application_id': app_id,
+            'analysis_name': payload.get('analysis_name') or 'Security Analysis',
+            'description': payload.get('description')
         }
+        # Flags
+        for flag in ['bandit_enabled','safety_enabled','pylint_enabled','eslint_enabled','npm_audit_enabled','snyk_enabled','zap_enabled','semgrep_enabled']:
+            if flag in payload:
+                # Treat any truthy string as True for form posts
+                val = payload.get(flag)
+                create_payload[flag] = (str(val).lower() in ['1','true','on','yes'])
 
-        # Derive list of enabled tools for TaskManager API
-        tool_key_map = {
-            'bandit_enabled': 'bandit',
-            'safety_enabled': 'safety',
-            'pylint_enabled': 'pylint',
-            'eslint_enabled': 'eslint',
-            'npm_audit_enabled': 'npm_audit',
-            'snyk_enabled': 'snyk'
-        }
-        tools = [tool_key_map[k] for k, v in config.items() if v and k in tool_key_map]
+        # Create analysis record
+        from ..services import analysis_service as svc
+        created = svc.create_security_analysis(create_payload)
 
-        # Start analysis task (returns task id string)
-        task_id = task_manager.start_security_analysis(
-            app.model_slug,
-            app.app_number,
-            tools=tools,
-            options=config
-        )
+        # Optional: apply advanced configs via update
+        update_payload = {'analysis_id': created['id']}
+        # Pattern lists if present (comma-separated)
+        if payload.get('include_patterns'):
+            update_payload['include_patterns'] = [p.strip() for p in str(payload['include_patterns']).split(',') if p.strip()]
+        if payload.get('exclude_patterns'):
+            update_payload['exclude_patterns'] = [p.strip() for p in str(payload['exclude_patterns']).split(',') if p.strip()]
+        # Timeout and thresholds
+        for f in ['severity_threshold','max_issues_per_tool','timeout_minutes']:
+            if f in payload:
+                update_payload[f] = payload[f]
+        # Tool configs as JSON strings
+        import json
+        for cfg_key in ['bandit_config','safety_config','eslint_config','pylint_config','zap_config','global_config']:
+            if cfg_key in payload and payload[cfg_key]:
+                try:
+                    update_payload[cfg_key] = json.loads(payload[cfg_key]) if isinstance(payload[cfg_key], str) else payload[cfg_key]
+                except json.JSONDecodeError:
+                    pass  # ignore invalid JSON silently for now
+        # Persist updates if any
+        if len(update_payload) > 1:
+            svc.update_security_analysis(created['id'], update_payload)
 
-        return jsonify({
-            'success': True,
-            'task_id': task_id,
-            'message': 'Security analysis started'
-        })
-        
+        # Start analysis via Celery-backed path that persists results
+        started = svc.start_security_analysis(created['id'])
+
+        # Return a small HTMX-friendly partial by default
+        return render_template('partials/testing/start_result.html',
+                               title='Security analysis started',
+                               task_id=started.get('task_id'),
+                               analysis_id=created['id'],
+                               analysis_type='security')
+
     except Exception as e:
         logger.error(f"Error starting security analysis: {e}")
-        return jsonify({'error': str(e)}), 500
+        return render_template('partials/common/error.html', error=str(e)), 500
 
 
 @analysis_bp.route('/performance/start', methods=['POST'])
@@ -252,54 +285,72 @@ def start_performance_test():
 
 @analysis_bp.route('/dynamic/start', methods=['POST'])
 def start_dynamic_analysis():
-    """Start dynamic (ZAP-like) analysis for an application."""
+    """Start dynamic (ZAP-like) analysis through service layer (DB-backed)."""
     try:
-        data = request.get_json(silent=True) or {}
+        payload = request.get_json(silent=True) or request.form.to_dict()
 
-        # Support both app_id JSON payload and form-based model/app selection
-        app_id = data.get('app_id')
-        model_slug = data.get('model_slug')
-        app_number = data.get('app_number')
-
-        app = None
-        if app_id:
-            app = GeneratedApplication.query.get_or_404(app_id)
-        else:
+        # Resolve application
+        app_id = payload.get('app_id')
+        if not app_id:
+            model_slug = payload.get('model_slug')
+            app_number = payload.get('app_number')
             if not model_slug or not app_number:
-                return jsonify({'error': 'model_slug and app_number are required'}), 400
+                return render_template('partials/common/error.html', error='model_slug and app_number are required'), 400
             try:
-                app_number_int = int(app_number)
+                app_number = int(app_number)
             except (TypeError, ValueError):
-                return jsonify({'error': 'app_number must be an integer'}), 400
-            app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number_int).first()
+                return render_template('partials/common/error.html', error='app_number must be an integer'), 400
+            app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
             if not app:
-                return jsonify({'error': 'Application not found for given model/app'}), 404
+                return render_template('partials/common/error.html', error='Application not found for given model/app'), 404
+            app_id = app.id
+        else:
+            try:
+                app_id = int(app_id)
+            except (TypeError, ValueError):
+                return render_template('partials/common/error.html', error='app_id must be an integer'), 400
 
-        # Dynamic analysis configuration
-        dynamic_options = {
-            'target_url': data.get('target_url'),
-            'scan_type': data.get('scan_type', 'baseline'),
-            'timeout': data.get('timeout', 30),
-            'include_paths': data.get('include_paths', []),
-            'exclude_paths': data.get('exclude_paths', []),
+        # Build create payload
+        # If target_url omitted, leave empty; analyzer task may infer from port mapping
+        create_payload = {
+            'application_id': app_id,
+            'target_url': payload.get('target_url', '') or '' ,
+            'scan_type': payload.get('scan_type', 'baseline')
         }
+        # Optional include/exclude path lists: accept comma-separated strings or arrays
+        if payload.get('include_paths'):
+            val = payload.get('include_paths')
+            if isinstance(val, str):
+                create_payload['include_paths'] = [p.strip() for p in val.split(',') if p.strip()]
+            elif isinstance(val, list):
+                create_payload['include_paths'] = val
+        if payload.get('exclude_paths'):
+            val = payload.get('exclude_paths')
+            if isinstance(val, str):
+                create_payload['exclude_paths'] = [p.strip() for p in val.split(',') if p.strip()]
+            elif isinstance(val, list):
+                create_payload['exclude_paths'] = val
+        # Timeout in minutes
+        if 'timeout' in payload and payload.get('timeout') not in (None, ''):
+            try:
+                create_payload['timeout_minutes'] = int(str(payload.get('timeout')).strip())
+            except Exception:
+                pass
 
-        # Start dynamic analysis task
-        task_id = task_manager.start_dynamic_analysis(
-            app.model_slug,
-            app.app_number,
-            options=dynamic_options
-        )
+        # Persist analysis and start
+        from ..services import analysis_service as svc
+        created = svc.create_dynamic_analysis(create_payload)
+        started = svc.start_dynamic_analysis(created['id'])
 
-        return jsonify({
-            'success': True,
-            'task_id': task_id,
-            'message': 'Dynamic analysis started'
-        })
+        return render_template('partials/testing/start_result.html',
+                               title='Dynamic analysis started',
+                               task_id=started.get('task_id'),
+                               analysis_id=created['id'],
+                               analysis_type='dynamic')
 
     except Exception as e:
         logger.error(f"Error starting dynamic analysis: {e}")
-        return jsonify({'error': str(e)}), 500
+        return render_template('partials/common/error.html', error=str(e)), 500
 
 
 @analysis_bp.route('/batch/start', methods=['POST'])
@@ -407,6 +458,67 @@ def get_model_apps():
     return render_template('partials/common/model_apps_select.html', 
                          apps=apps, 
                          model_slug=model_slug)
+
+
+@analysis_bp.route('/dynamic/<int:analysis_id>')
+def dynamic_analysis_results_view(analysis_id: int):
+    """HTML view for dynamic (ZAP) analysis results."""
+    try:
+        from flask import render_template, flash, redirect, url_for
+        from ..models import ZAPAnalysis
+
+        analysis = ZAPAnalysis.query.get(analysis_id)
+        if not analysis:
+            flash('Dynamic analysis not found', 'error')
+            return redirect(url_for('analysis.analysis_hub'))
+
+        zap_report = analysis.get_zap_report() if hasattr(analysis, 'get_zap_report') else {}
+        metadata = analysis.get_metadata() if hasattr(analysis, 'get_metadata') else {}
+
+        # Derive basic stats if not already populated
+        high = analysis.high_risk_alerts or 0
+        medium = analysis.medium_risk_alerts or 0
+        low = analysis.low_risk_alerts or 0
+        info = analysis.informational_alerts or 0
+
+        # Fallback: compute counts from report if needed
+        try:
+            if (high + medium + low + info) == 0 and zap_report and 'site' in zap_report and zap_report['site']:
+                alerts = zap_report['site'][0].get('alerts', [])
+                for alert in alerts:
+                    risk_code = int(alert.get('riskcode', 0))
+                    if risk_code == 3:
+                        high += 1
+                    elif risk_code == 2:
+                        medium += 1
+                    elif risk_code == 1:
+                        low += 1
+                    else:
+                        info += 1
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+        return render_template(
+            'single_page.html',
+            page_title='Dynamic Security Analysis',
+            page_icon='fa-bolt',
+            page_subtitle=f"ZAP Scan #{analysis.id}",
+            main_partial='partials/analysis/dynamic_complete.html',
+            analysis=analysis,
+            zap_report=zap_report,
+            metadata=metadata,
+            counts={
+                'high': high,
+                'medium': medium,
+                'low': low,
+                'info': info,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error rendering dynamic analysis results for {analysis_id}: {e}")
+        from flask import flash, redirect, url_for
+        flash(f'Error loading dynamic analysis results: {str(e)}', 'error')
+        return redirect(url_for('analysis.analysis_hub'))
 
 
 @analysis_bp.route('/security/<int:analysis_id>/results/view')

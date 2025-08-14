@@ -1,0 +1,17 @@
+<div class="alert alert-info">
+  <strong>{{ title }}</strong>
+  {% if task_id %}
+    <div>Task ID: <code>{{ task_id }}</code></div>
+  {% endif %}
+  {% if analysis_id %}
+    <div>Analysis ID: <code>{{ analysis_id }}</code></div>
+  {% endif %}
+</div>
+
+<div class="mt-2">
+  {% if analysis_type == 'security' %}
+    <a href="/analysis/security/{{ analysis_id }}/results/view" class="btn btn-sm btn-primary">View security results</a>
+  {% elif analysis_type == 'dynamic' %}
+    <a href="/analysis/dynamic/{{ analysis_id }}" class="btn btn-sm btn-primary">View dynamic results</a>
+  {% endif %}
+</div>
