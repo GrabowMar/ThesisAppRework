@@ -1,180 +1,445 @@
-<!-- Analysis Results Partial -->
+<!-- Enhanced Analysis Results Partial -->
 <div class="analysis-results-container">
     {% if analyses %}
+    <!-- Results Summary Header -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-info text-white border-0 h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-bar fa-2x mb-2"></i>
+                    <h5 class="mb-0">{{ analyses|length }}</h5>
+                    <small>Total Analyses</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white border-0 h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                    <h5 class="mb-0">{{ analyses|selectattr('status', 'equalto', 'completed')|list|length }}</h5>
+                    <small>Completed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark border-0 h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x mb-2"></i>
+                    <h5 class="mb-0">{{ analyses|selectattr('status', 'equalto', 'running')|list|length }}</h5>
+                    <small>Running</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white border-0 h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <h5 class="mb-0">{{ analyses|selectattr('status', 'equalto', 'failed')|list|length }}</h5>
+                    <small>Failed</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter Controls -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm active" data-filter="all" onclick="filterAnalyses(this, 'all')">
+                        <i class="fas fa-list me-1"></i>All
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" data-filter="security" onclick="filterAnalyses(this, 'security')">
+                        <i class="fas fa-shield-alt me-1"></i>Security
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" data-filter="performance" onclick="filterAnalyses(this, 'performance')">
+                        <i class="fas fa-tachometer-alt me-1"></i>Performance
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" data-filter="ai" onclick="filterAnalyses(this, 'ai')">
+                        <i class="fas fa-robot me-1"></i>AI Analysis
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" data-filter="static" onclick="filterAnalyses(this, 'static')">
+                        <i class="fas fa-search me-1"></i>Static
+                    </button>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="refreshResults()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fas fa-sort me-1"></i>Sort
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="sortAnalyses('date-desc')">Latest First</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="sortAnalyses('date-asc')">Oldest First</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="sortAnalyses('type')">By Type</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="sortAnalyses('status')">By Status</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analysis List -->
     <div class="analysis-list">
         {% for analysis in analyses %}
-        <div class="analysis-item card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <div class="analysis-type">
-                    {% if analysis.type == 'security' %}
-                    <i class="fas fa-shield-alt text-danger me-2"></i>
-                    <span class="fw-bold">Security Analysis</span>
-                    {% elif analysis.type == 'performance' %}
-                    <i class="fas fa-tachometer-alt text-primary me-2"></i>
-                    <span class="fw-bold">Performance Analysis</span>
-                    {% elif analysis.type == 'zap' %}
-                    <i class="fas fa-bug text-warning me-2"></i>
-                    <span class="fw-bold">ZAP Security Scan</span>
-                    {% elif analysis.type == 'ai' %}
-                    <i class="fas fa-robot text-info me-2"></i>
-                    <span class="fw-bold">AI Code Analysis</span>
-                    {% else %}
-                    <i class="fas fa-search me-2"></i>
-                    <span class="fw-bold">{{ analysis.type.title() }} Analysis</span>
-                    {% endif %}
-                </div>
-                
-                <div class="analysis-status">
-                    {% if analysis.status == 'completed' %}
-                    <span class="badge bg-success">
-                        <i class="fas fa-check me-1"></i>
-                        Completed
-                    </span>
-                    {% elif analysis.status == 'running' %}
-                    <span class="badge bg-info">
-                        <i class="fas fa-spinner fa-spin me-1"></i>
-                        Running
-                    </span>
-                    {% elif analysis.status == 'failed' %}
-                    <span class="badge bg-danger">
-                        <i class="fas fa-times me-1"></i>
-                        Failed
-                    </span>
-                    {% elif analysis.status == 'pending' %}
-                    <span class="badge bg-secondary">
-                        <i class="fas fa-clock me-1"></i>
-                        Pending
-                    </span>
-                    {% else %}
-                    <span class="badge bg-light text-dark">{{ analysis.status.title() }}</span>
-                    {% endif %}
+        <div class="analysis-item card mb-3 border-0 shadow-sm" data-type="{{ analysis.type }}" data-status="{{ analysis.status }}">
+            <div class="card-header border-0" style="background: linear-gradient(135deg, 
+                {%- if analysis.type == 'security' %}#dc3545, #ff6b7a
+                {%- elif analysis.type == 'performance' %}#fd7e14, #ffb366
+                {%- elif analysis.type == 'ai' %}#6f42c1, #9f7aea
+                {%- elif analysis.type == 'static' %}#20c997, #6bcf7f
+                {%- else %}#6c757d, #9ba5b0
+                {%- endif %});">
+                <div class="d-flex justify-content-between align-items-center text-white">
+                    <div class="analysis-type d-flex align-items-center">
+                        <div class="me-3">
+                            {% if analysis.type == 'security' %}
+                            <i class="fas fa-shield-alt fa-lg"></i>
+                            {% elif analysis.type == 'performance' %}
+                            <i class="fas fa-tachometer-alt fa-lg"></i>
+                            {% elif analysis.type == 'zap' %}
+                            <i class="fas fa-bug fa-lg"></i>
+                            {% elif analysis.type == 'ai' %}
+                            <i class="fas fa-robot fa-lg"></i>
+                            {% elif analysis.type == 'static' %}
+                            <i class="fas fa-search fa-lg"></i>
+                            {% else %}
+                            <i class="fas fa-cog fa-lg"></i>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h6 class="mb-0 text-white fw-bold">
+                                {% if analysis.type == 'security' %}Security Analysis
+                                {% elif analysis.type == 'performance' %}Performance Analysis
+                                {% elif analysis.type == 'zap' %}ZAP Security Scan
+                                {% elif analysis.type == 'ai' %}AI Code Analysis
+                                {% elif analysis.type == 'static' %}Static Code Analysis
+                                {% else %}{{ analysis.type.title() }} Analysis
+                                {% endif %}
+                            </h6>
+                            <small class="text-white-50">
+                                {{ analysis.model_slug }} - App {{ analysis.app_number }}
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-status">
+                        {% if analysis.status == 'completed' %}
+                        <span class="badge bg-light text-success fs-6">
+                            <i class="fas fa-check me-1"></i>
+                            Completed
+                        </span>
+                        {% elif analysis.status == 'running' %}
+                        <span class="badge bg-light text-warning fs-6">
+                            <i class="fas fa-spinner fa-spin me-1"></i>
+                            Running
+                        </span>
+                        {% elif analysis.status == 'failed' %}
+                        <span class="badge bg-light text-danger fs-6">
+                            <i class="fas fa-times me-1"></i>
+                            Failed
+                        </span>
+                        {% elif analysis.status == 'pending' %}
+                        <span class="badge bg-light text-secondary fs-6">
+                            <i class="fas fa-clock me-1"></i>
+                            Pending
+                        </span>
+                        {% else %}
+                        <span class="badge bg-light text-dark fs-6">{{ analysis.status.title() }}</span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6">
-                        <dl class="row">
-                            <dt class="col-sm-4">Started:</dt>
-                            <dd class="col-sm-8">
-                                {{ analysis.started_at.strftime('%Y-%m-%d %H:%M:%S') if analysis.started_at else 'N/A' }}
-                            </dd>
+                    <!-- Timeline Information -->
+                    <div class="col-md-4">
+                        <div class="timeline-info">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-clock me-1"></i>Timeline
+                            </h6>
+                            <div class="timeline-item mb-2">
+                                <small class="text-muted">Started:</small>
+                                <div class="fw-medium">
+                                    {{ analysis.started_at.strftime('%m/%d/%Y %H:%M') if analysis.started_at else 'Pending' }}
+                                </div>
+                            </div>
                             
                             {% if analysis.completed_at %}
-                            <dt class="col-sm-4">Completed:</dt>
-                            <dd class="col-sm-8">
-                                {{ analysis.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}
-                            </dd>
+                            <div class="timeline-item mb-2">
+                                <small class="text-muted">Completed:</small>
+                                <div class="fw-medium">
+                                    {{ analysis.completed_at.strftime('%m/%d/%Y %H:%M') }}
+                                </div>
+                            </div>
                             {% endif %}
                             
                             {% if analysis.duration %}
-                            <dt class="col-sm-4">Duration:</dt>
-                            <dd class="col-sm-8">{{ analysis.duration }}s</dd>
+                            <div class="timeline-item">
+                                <small class="text-muted">Duration:</small>
+                                <div class="fw-medium">
+                                    <i class="fas fa-stopwatch me-1 text-info"></i>
+                                    {{ "%.1f"|format(analysis.duration) }}s
+                                </div>
+                            </div>
                             {% endif %}
-                        </dl>
+                        </div>
                     </div>
                     
-                    <div class="col-md-6">
+                    <!-- Results Summary -->
+                    <div class="col-md-5">
                         {% if analysis.type == 'security' and analysis.results %}
-                        <div class="security-summary">
-                            <h6>Security Summary</h6>
+                        <div class="results-summary">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-chart-pie me-1"></i>Security Summary
+                            </h6>
                             {% set results = analysis.results %}
                             {% if results.get('severity_counts') %}
-                            <div class="severity-counts">
+                            <div class="severity-grid">
                                 {% for severity, count in results.severity_counts.items() %}
-                                <span class="badge me-1 
-                                    {%- if severity == 'high' %} bg-danger
-                                    {%- elif severity == 'medium' %} bg-warning
-                                    {%- elif severity == 'low' %} bg-info
-                                    {%- else %} bg-secondary
-                                    {%- endif %}">
-                                    {{ severity.title() }}: {{ count }}
-                                </span>
+                                <div class="severity-item d-flex justify-content-between align-items-center mb-1">
+                                    <span class="text-capitalize">{{ severity }}:</span>
+                                    <span class="badge 
+                                        {%- if severity == 'high' %} bg-danger
+                                        {%- elif severity == 'medium' %} bg-warning
+                                        {%- elif severity == 'low' %} bg-info
+                                        {%- else %} bg-secondary
+                                        {%- endif %}">
+                                        {{ count }}
+                                    </span>
+                                </div>
                                 {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            {% if results.get('total_issues') %}
+                            <div class="mt-2 pt-2 border-top">
+                                <div class="d-flex justify-content-between">
+                                    <strong>Total Issues:</strong>
+                                    <span class="badge bg-primary">{{ results.total_issues }}</span>
+                                </div>
                             </div>
                             {% endif %}
                         </div>
                         {% elif analysis.type == 'performance' and analysis.results %}
-                        <div class="performance-summary">
-                            <h6>Performance Summary</h6>
+                        <div class="results-summary">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-chart-line me-1"></i>Performance Summary
+                            </h6>
                             {% set results = analysis.results %}
-                            {% if results.get('avg_response_time') %}
-                            <p class="mb-1">
-                                <strong>Avg Response Time:</strong> {{ "%.2f"|format(results.avg_response_time) }}ms
-                            </p>
+                            <div class="performance-metrics">
+                                {% if results.get('avg_response_time') %}
+                                <div class="metric-item d-flex justify-content-between align-items-center mb-1">
+                                    <span>Avg Response:</span>
+                                    <span class="badge bg-info">{{ "%.0f"|format(results.avg_response_time) }}ms</span>
+                                </div>
+                                {% endif %}
+                                {% if results.get('requests_per_second') %}
+                                <div class="metric-item d-flex justify-content-between align-items-center mb-1">
+                                    <span>Requests/sec:</span>
+                                    <span class="badge bg-success">{{ "%.1f"|format(results.requests_per_second) }}</span>
+                                </div>
+                                {% endif %}
+                                {% if results.get('error_rate') %}
+                                <div class="metric-item d-flex justify-content-between align-items-center mb-1">
+                                    <span>Error Rate:</span>
+                                    <span class="badge bg-{{ 'danger' if results.error_rate > 0.05 else 'warning' if results.error_rate > 0.01 else 'success' }}">
+                                        {{ "%.1f"|format(results.error_rate * 100) }}%
+                                    </span>
+                                </div>
+                                {% endif %}
+                                {% if results.get('p95_response_time') %}
+                                <div class="metric-item d-flex justify-content-between align-items-center">
+                                    <span>95th Percentile:</span>
+                                    <span class="badge bg-secondary">{{ "%.0f"|format(results.p95_response_time) }}ms</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% elif analysis.type == 'ai' and analysis.results %}
+                        <div class="results-summary">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-brain me-1"></i>AI Analysis Summary
+                            </h6>
+                            {% set results = analysis.results %}
+                            {% if results.get('code_quality_score') %}
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>Code Quality:</span>
+                                <span class="badge bg-{{ 'success' if results.code_quality_score > 8 else 'warning' if results.code_quality_score > 6 else 'danger' }}">
+                                    {{ results.code_quality_score }}/10
+                                </span>
+                            </div>
                             {% endif %}
-                            {% if results.get('requests_per_second') %}
-                            <p class="mb-1">
-                                <strong>RPS:</strong> {{ "%.2f"|format(results.requests_per_second) }}
-                            </p>
-                            {% endif %}
-                            {% if results.get('error_rate') %}
-                            <p class="mb-1">
-                                <strong>Error Rate:</strong> {{ "%.2f"|format(results.error_rate * 100) }}%
-                            </p>
+                            {% if results.get('suggestions_count') %}
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>Suggestions:</span>
+                                <span class="badge bg-info">{{ results.suggestions_count }}</span>
+                            </div>
                             {% endif %}
                         </div>
+                        {% elif analysis.results %}
+                        <div class="results-summary">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-info-circle me-1"></i>Analysis Summary
+                            </h6>
+                            <div class="alert alert-info mb-0 small">
+                                Analysis completed successfully. View details for full results.
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="results-summary">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-hourglass-half me-1"></i>Status
+                            </h6>
+                            <div class="alert alert-{{ 'warning' if analysis.status == 'running' else 'secondary' }} mb-0 small">
+                                {% if analysis.status == 'running' %}
+                                <i class="fas fa-spinner fa-spin me-1"></i>
+                                Analysis in progress...
+                                {% elif analysis.status == 'pending' %}
+                                <i class="fas fa-clock me-1"></i>
+                                Waiting to start...
+                                {% else %}
+                                {{ analysis.status.title() }}
+                                {% endif %}
+                            </div>
+                        </div>
                         {% endif %}
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="col-md-3">
+                        <div class="action-buttons">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-tools me-1"></i>Actions
+                            </h6>
+                            
+                            {% if analysis.status == 'completed' and analysis.results %}
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-primary btn-sm" onclick="showAnalysisDetails('{{ analysis.id }}')">
+                                    <i class="fas fa-eye me-1"></i>View Details
+                                </button>
+                                
+                                {% if analysis.report_path %}
+                                <a href="{{ url_for('advanced.download_report', analysis_id=analysis.id) }}" 
+                                   class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-download me-1"></i>Download Report
+                                </a>
+                                {% endif %}
+                                
+                                <button class="btn btn-outline-info btn-sm" onclick="shareAnalysis('{{ analysis.id }}')">
+                                    <i class="fas fa-share me-1"></i>Share
+                                </button>
+                            </div>
+                            {% elif analysis.status in ['running', 'pending'] %}
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-outline-danger btn-sm" onclick="cancelAnalysis('{{ analysis.id }}')">
+                                    <i class="fas fa-stop me-1"></i>Cancel
+                                </button>
+                                {% if analysis.status == 'running' %}
+                                <button class="btn btn-outline-secondary btn-sm" onclick="viewLogs('{{ analysis.id }}')">
+                                    <i class="fas fa-file-alt me-1"></i>View Logs
+                                </button>
+                                {% endif %}
+                            </div>
+                            {% elif analysis.status == 'failed' %}
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-warning btn-sm" onclick="retryAnalysis('{{ analysis.id }}')">
+                                    <i class="fas fa-redo me-1"></i>Retry
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="viewError('{{ analysis.id }}')">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>View Error
+                                </button>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="mt-2">
+                                <button class="btn btn-outline-danger btn-sm w-100" onclick="deleteAnalysis('{{ analysis.id }}')">
+                                    <i class="fas fa-trash me-1"></i>Delete
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
                 {% if analysis.error_message %}
-                <div class="alert alert-danger mt-2">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>Error:</strong> {{ analysis.error_message }}
+                <div class="alert alert-danger mt-3 mb-0">
+                    <div class="d-flex align-items-start">
+                        <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+                        <div>
+                            <strong>Error Details:</strong>
+                            <div class="mt-1 font-monospace small">{{ analysis.error_message }}</div>
+                        </div>
+                    </div>
                 </div>
                 {% endif %}
                 
-                <div class="analysis-actions mt-3">
-                    {% if analysis.status == 'completed' and analysis.results %}
-                    <button class="btn btn-sm btn-outline-primary me-2" 
-                            onclick="showAnalysisDetails('{{ analysis.id }}')">
-                        <i class="fas fa-eye me-1"></i>
-                        View Details
-                    </button>
-                    {% endif %}
-                    
-                    {% if analysis.report_path %}
-                    <a href="{{ url_for('advanced.download_report', analysis_id=analysis.id) }}" 
-                       class="btn btn-sm btn-outline-secondary me-2">
-                        <i class="fas fa-download me-1"></i>
-                        Download Report
-                    </a>
-                    {% endif %}
-                    
-                    {% if analysis.status in ['running', 'pending'] %}
-                    <button class="btn btn-sm btn-outline-danger" 
-                            onclick="cancelAnalysis('{{ analysis.id }}')">
-                        <i class="fas fa-stop me-1"></i>
-                        Cancel
-                    </button>
-                    {% elif analysis.status == 'failed' %}
-                    <button class="btn btn-sm btn-outline-warning" 
-                            onclick="retryAnalysis('{{ analysis.id }}')">
-                        <i class="fas fa-redo me-1"></i>
-                        Retry
-                    </button>
-                    {% endif %}
+                <!-- Progress Bar for Running Analyses -->
+                {% if analysis.status == 'running' and analysis.progress %}
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Progress</small>
+                        <small class="text-muted">{{ analysis.progress }}%</small>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: {{ analysis.progress }}%"></div>
+                    </div>
                 </div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
+    
+    <!-- Load More Button -->
+    {% if analyses|length >= 10 %}
+    <div class="text-center mt-4">
+        <button class="btn btn-outline-primary" onclick="loadMoreAnalyses()">
+            <i class="fas fa-plus me-1"></i>Load More Results
+        </button>
+    </div>
+    {% endif %}
+    
     {% else %}
-    <div class="no-analyses text-center py-4">
-        <i class="fas fa-search fa-3x text-muted mb-3"></i>
-        <h5 class="text-muted">No Analysis Results</h5>
-        <p class="text-muted">Run an analysis to see results here.</p>
+    <!-- Empty State -->
+    <div class="empty-state card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-search text-muted" style="font-size: 4rem;"></i>
+            </div>
+            <h5 class="text-muted mb-3">No Analysis Results Found</h5>
+            <p class="text-muted mb-4">
+                Start your first analysis to see comprehensive results and insights here.
+            </p>
+            <div class="d-flex justify-content-center gap-2">
+                <button class="btn btn-danger" onclick="switchToAnalysisTab('security')">
+                    <i class="fas fa-shield-alt me-2"></i>Security Analysis
+                </button>
+                <button class="btn btn-warning" onclick="switchToAnalysisTab('performance')">
+                    <i class="fas fa-tachometer-alt me-2"></i>Performance Test
+                </button>
+                <button class="btn btn-primary" onclick="switchToAnalysisTab('batch')">
+                    <i class="fas fa-layer-group me-2"></i>Batch Analysis
+                </button>
+            </div>
+        </div>
     </div>
     {% endif %}
 </div>
 
 <!-- Analysis Details Modal -->
 <div class="modal fade" id="analysisDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Analysis Details</h5>
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-bar me-2"></i>Analysis Details
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="analysisDetailsContent">
@@ -182,73 +447,241 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="downloadCurrentReport()">
+                    <i class="fas fa-download me-1"></i>Download Report
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+let currentAnalysisId = null;
+
+function filterAnalyses(button, type) {
+    // Update active button
+    document.querySelectorAll('[data-filter]').forEach(btn => btn.classList.remove('active'));
+    button.classList.add('active');
+    
+    // Filter analyses
+    const items = document.querySelectorAll('.analysis-item');
+    items.forEach(item => {
+        if (type === 'all' || item.dataset.type === type) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function sortAnalyses(sortBy) {
+    const container = document.querySelector('.analysis-list');
+    const items = Array.from(container.querySelectorAll('.analysis-item'));
+    
+    items.sort((a, b) => {
+        switch(sortBy) {
+            case 'date-desc':
+                return new Date(b.dataset.date) - new Date(a.dataset.date);
+            case 'date-asc':
+                return new Date(a.dataset.date) - new Date(b.dataset.date);
+            case 'type':
+                return a.dataset.type.localeCompare(b.dataset.type);
+            case 'status':
+                return a.dataset.status.localeCompare(b.dataset.status);
+            default:
+                return 0;
+        }
+    });
+    
+    items.forEach(item => container.appendChild(item));
+}
+
+function refreshResults() {
+    htmx.ajax('GET', window.location.pathname, {
+        target: '.analysis-results-container',
+        swap: 'innerHTML'
+    });
+}
+
 function showAnalysisDetails(analysisId) {
+    currentAnalysisId = analysisId;
     const modal = new bootstrap.Modal(document.getElementById('analysisDetailsModal'));
     const content = document.getElementById('analysisDetailsContent');
     
-    content.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    content.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading analysis details...</p>
+        </div>
+    `;
     modal.show();
     
-    // Load analysis details via HTMX or fetch
+    // Load analysis details
     htmx.ajax('GET', `/advanced/analysis/${analysisId}/details`, {
         target: '#analysisDetailsContent'
     });
 }
 
+function shareAnalysis(analysisId) {
+    const shareUrl = `${window.location.origin}/shared/analysis/${analysisId}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Analysis Results',
+            url: shareUrl
+        });
+    } else {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            alert('Share link copied to clipboard!');
+        });
+    }
+}
+
+function viewLogs(analysisId) {
+    window.open(`/advanced/analysis/${analysisId}/logs`, '_blank');
+}
+
+function viewError(analysisId) {
+    htmx.ajax('GET', `/advanced/analysis/${analysisId}/error`, {
+        target: '#analysisDetailsContent'
+    });
+    const modal = new bootstrap.Modal(document.getElementById('analysisDetailsModal'));
+    modal.show();
+}
+
 function cancelAnalysis(analysisId) {
     if (confirm('Are you sure you want to cancel this analysis?')) {
         htmx.ajax('POST', `/advanced/analysis/${analysisId}/cancel`, {
-            target: '.analysis-results-container'
+            target: '.analysis-results-container',
+            swap: 'innerHTML'
         });
     }
 }
 
 function retryAnalysis(analysisId) {
-    htmx.ajax('POST', `/advanced/analysis/${analysisId}/retry`, {
-        target: '.analysis-results-container'
-    });
+    if (confirm('Are you sure you want to retry this analysis?')) {
+        htmx.ajax('POST', `/advanced/analysis/${analysisId}/retry`, {
+            target: '.analysis-results-container',
+            swap: 'innerHTML'
+        });
+    }
 }
+
+function deleteAnalysis(analysisId) {
+    if (confirm('Are you sure you want to delete this analysis? This action cannot be undone.')) {
+        htmx.ajax('DELETE', `/advanced/analysis/${analysisId}`, {
+            target: '.analysis-results-container',
+            swap: 'innerHTML'
+        });
+    }
+}
+
+function downloadCurrentReport() {
+    if (currentAnalysisId) {
+        window.location.href = `/advanced/analysis/${currentAnalysisId}/download`;
+    }
+}
+
+function loadMoreAnalyses() {
+    // Implement pagination loading
+    console.log('Loading more analyses...');
+}
+
+function switchToAnalysisTab(type) {
+    const tabMap = {
+        'security': 'security-tab',
+        'performance': 'performance-tab', 
+        'batch': 'batch-tab'
+    };
+    
+    const tabId = tabMap[type];
+    if (tabId) {
+        const tab = document.querySelector(`[data-bs-target="#${tabId.replace('-tab', '')}"]`);
+        if (tab) {
+            const bsTab = new bootstrap.Tab(tab);
+            bsTab.show();
+        }
+    }
+}
+
+// Auto-refresh running analyses every 15 seconds
+setInterval(() => {
+    const runningAnalyses = document.querySelectorAll('.analysis-item[data-status="running"]');
+    if (runningAnalyses.length > 0) {
+        refreshResults();
+    }
+}, 15000);
 </script>
 
 <style>
 .analysis-item {
-    border: 1px solid #dee2e6;
-    transition: box-shadow 0.15s ease-in-out;
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
 }
 
 .analysis-item:hover {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-.analysis-item .card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    padding: 0.75rem 1rem;
+.analysis-item[data-type="security"] {
+    border-left-color: #dc3545;
 }
 
-.analysis-type {
+.analysis-item[data-type="performance"] {
+    border-left-color: #fd7e14;
+}
+
+.analysis-item[data-type="ai"] {
+    border-left-color: #6f42c1;
+}
+
+.analysis-item[data-type="static"] {
+    border-left-color: #20c997;
+}
+
+.timeline-info .timeline-item {
+    padding-left: 1rem;
+    border-left: 2px solid #e9ecef;
+    position: relative;
+}
+
+.timeline-info .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 0.5rem;
+    width: 6px;
+    height: 6px;
+    background: #6c757d;
+    border-radius: 50%;
+}
+
+.severity-grid .severity-item,
+.performance-metrics .metric-item {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.empty-state {
+    min-height: 400px;
     display: flex;
     align-items: center;
 }
 
-.severity-counts .badge {
-    font-size: 0.75rem;
-}
-
-.analysis-actions .btn {
+.action-buttons .btn {
     font-size: 0.875rem;
 }
 
-.no-analyses {
-    min-height: 200px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+@media (max-width: 768px) {
+    .analysis-item .row > div {
+        margin-bottom: 1rem;
+    }
+    
+    .analysis-item .col-md-3:last-child {
+        margin-bottom: 0;
+    }
 }
 </style>

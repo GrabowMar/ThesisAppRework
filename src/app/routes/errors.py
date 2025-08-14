@@ -5,7 +5,8 @@ Error Handlers
 Global error handlers for the application.
 """
 
-from flask import render_template
+from flask import render_template, jsonify, request
+from werkzeug.routing.exceptions import WebsocketMismatch
 
 
 def register_error_handlers(app):
@@ -37,3 +38,23 @@ def register_error_handlers(app):
             main_partial='partials/common/error.html',
             error="Service temporarily unavailable"
         ), 503
+
+    # Gracefully handle accidental WebSocket requests on Flask routes
+    @app.errorhandler(WebsocketMismatch)
+    def websocket_mismatch_error(error):
+        # If the request targets an API path, return JSON; otherwise render a minimal page
+        status = 400
+        message = 'WebSocket endpoint not available. Use Socket.IO client or REST fallback.'
+        if request.path.startswith('/api'):
+            return jsonify({
+                'error': 'websocket_mismatch',
+                'message': message,
+                'hint': 'Use /api/websocket/* endpoints for polling when real-time is disabled'
+            }), status
+        # Non-API paths – show a friendly page
+        return render_template(
+            'single_page.html',
+            page_title='WebSocket Not Available',
+            main_partial='partials/common/error.html',
+            error=message
+        ), status

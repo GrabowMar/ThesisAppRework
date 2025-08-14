@@ -61,6 +61,10 @@ def register_blueprints(app):  # noqa: D401
     # API blueprint (handles its own lazy module imports)
     register_api_routes(app)
 
+    # WebSocket fallback routes
+    from .websocket_fallbacks import register_websocket_routes
+    register_websocket_routes(app)
+
     # Error handlers (global)
     register_error_handlers(app)
 

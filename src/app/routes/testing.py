@@ -725,48 +725,53 @@ def export_results():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@testing_bp.route('/enhanced-config')
-def enhanced_config():
-    """Enhanced testing configuration page with models and apps loaded."""
-    try:
-        from ..models import ModelCapability, GeneratedApplication
-        from sqlalchemy import desc
-
-        # Load all available models
-        models = ModelCapability.query.order_by(ModelCapability.model_name).all()
-        
-        # Load recent applications for quick access
-        recent_applications = GeneratedApplication.query.order_by(
-            desc(GeneratedApplication.created_at)
-        ).limit(50).all()
-        
-        # Group applications by model for easier access
-        apps_by_model = {}
-        for app in recent_applications:
-            if app.model_slug not in apps_by_model:
-                apps_by_model[app.model_slug] = []
-            apps_by_model[app.model_slug].append(app)
-
-        return render_template(
-            'single_page.html',
-            page_title='Enhanced Testing Configuration',
-            page_icon='fa-cogs',
-            page_subtitle='Advanced analyzer configuration with database integration',
-            main_partial='partials/testing/enhanced_config.html',
-            models=models,
-            recent_applications=recent_applications,
-            apps_by_model=apps_by_model
-        )
-    except Exception as e:
-        logger.error(f"Error loading enhanced config: {e}")
-        flash('Error loading enhanced configuration page', 'error')
-        return render_template(
-            'single_page.html',
-            page_title='Error',
-            page_icon='fa-triangle-exclamation',
-            page_subtitle='Enhanced Config Error',
-            main_partial='partials/common/error.html',
-            error_code=500,
-            error_title='Enhanced Config Error',
-            error_message=str(e)
-        )
+# @testing_bp.route('/enhanced-config')
+# def enhanced_config():
+#     """Enhanced testing configuration page with models and apps loaded.
+#     
+#     NOTE: This route is commented out as configuration should be dynamically 
+#     created before tests based on the selected model, not directly accessed.
+#     The configuration functionality is now integrated into the test workflow.
+#     """
+#     try:
+#         from ..models import ModelCapability, GeneratedApplication
+#         from sqlalchemy import desc
+# 
+#         # Load all available models
+#         models = ModelCapability.query.order_by(ModelCapability.model_name).all()
+#         
+#         # Load recent applications for quick access
+#         recent_applications = GeneratedApplication.query.order_by(
+#             desc(GeneratedApplication.created_at)
+#         ).limit(50).all()
+#         
+#         # Group applications by model for easier access
+#         apps_by_model = {}
+#         for app in recent_applications:
+#             if app.model_slug not in apps_by_model:
+#                 apps_by_model[app.model_slug] = []
+#             apps_by_model[app.model_slug].append(app)
+# 
+#         return render_template(
+#             'single_page.html',
+#             page_title='Enhanced Testing Configuration',
+#             page_icon='fa-cogs',
+#             page_subtitle='Advanced analyzer configuration with database integration',
+#             main_partial='partials/testing/enhanced_config.html',
+#             models=models,
+#             recent_applications=recent_applications,
+#             apps_by_model=apps_by_model
+#         )
+#     except Exception as e:
+#         logger.error(f"Error loading enhanced config: {e}")
+#         flash('Error loading enhanced configuration page', 'error')
+#         return render_template(
+#             'single_page.html',
+#             page_title='Error',
+#             page_icon='fa-triangle-exclamation',
+#             page_subtitle='Enhanced Config Error',
+#             main_partial='partials/common/error.html',
+#             error_code=500,
+#             error_title='Enhanced Config Error',
+#             error_message=str(e)
+#         )

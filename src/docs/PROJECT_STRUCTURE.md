@@ -101,7 +101,11 @@ src/
 │   │   ├── adminlte.css          # ✅ Theme overrides
 │   │   └── security-analysis.css # ✅ Security analysis styling
 │   └── js/
-│       └── dashboard.js          # ✅ Dashboard interactivity & HTMX helpers
+│       ├── testing-dashboard.js  # ✅ Testing page polling dashboard logic
+│       ├── realtime-dashboard.js # ✅ Optional Socket.IO realtime glue (flag-gated)
+│       ├── testing-forms.js      # ✅ Testing forms helpers & UX
+│       ├── enhanced-results.js   # ✅ Results table, filters, charts
+│       └── analyzer-integration.js # ✅ Analyzer services WS integration (optional)
 │
 ├── config/                       # Configuration modules
 │   ├── __init__.py               # ✅ Config package init

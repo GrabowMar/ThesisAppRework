@@ -152,6 +152,24 @@ def create_app(config_name: str = 'default') -> Flask:
         components.set_analyzer_integration(analyzer_integration)
         logger.info("Analyzer integration initialized")
         
+        # Initialize WebSocket/Celery bridge service
+        try:
+            from app.extensions import SOCKETIO_AVAILABLE, socketio
+            if SOCKETIO_AVAILABLE and socketio:
+                # Prefer new Celery-backed service; uses SocketIO if present
+                from app.services.celery_websocket_service import initialize_celery_websocket_service
+                websocket_service = initialize_celery_websocket_service(socketio)
+                components.set_websocket_service(websocket_service)
+                logger.info("Celery-backed WebSocket service initialized")
+            else:
+                # Fallback to mock service for environments without SocketIO
+                from app.services.mock_websocket_service import initialize_mock_websocket_service
+                websocket_service = initialize_mock_websocket_service()
+                components.set_websocket_service(websocket_service)
+                logger.info("Mock WebSocket service initialized (real-time features simulated)")
+        except Exception as e:
+            logger.error(f"Failed to initialize WebSocket service: {e}")
+        
         # Auto-start analyzer services if configured
         if app.config['ANALYZER_AUTO_START'] and analyzer_integration:
             logger.info("Auto-starting analyzer services...")

@@ -10,8 +10,10 @@ modules are working correctly.
 import sys
 import os
 
-# Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Add src directory to path (scripts/.. /src)
+SRC_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'src'))
+if SRC_PATH not in sys.path:
+    sys.path.insert(0, SRC_PATH)
 
 def test_imports():
     """Test that all new modules can be imported correctly."""
@@ -56,7 +58,8 @@ def test_route_urls():
     print("\nTesting route URLs...")
     from app.factory import create_app
     app = create_app()
-    with app.app_context():
+    # Use a request context for URL building
+    with app.test_request_context('/'):
         batch_urls = {
             'batch_overview': app.url_for('batch.batch_overview'),
             'create_batch': app.url_for('batch.create_batch'),
@@ -67,7 +70,8 @@ def test_route_urls():
 
         stats_urls = {
             'statistics_overview': app.url_for('statistics.statistics_overview'),
-            'models_distribution': app.url_for('statistics.api_models_distribution'),
+            # API endpoint is registered under the 'api' blueprint
+            'models_distribution': app.url_for('api.api_models_distribution'),
         }
         print("✅ Statistics route URLs generated:")
         for name, url in stats_urls.items():

@@ -1,28 +1,368 @@
-<!-- Batch List Partial -->
+<!-- Enhanced Batch List Partial -->
 <div class="batch-list-container">
     {% if batches %}
-    <div class="list-group">
-        {% for batch in batches %}
-        <div class="list-group-item">
-            <div class="d-flex w-100 justify-content-between">
-                <h6 class="mb-1">{{ batch.name or 'Batch #' + batch.id|string }}</h6>
-                <small>{{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+    <!-- Batch Statistics Header -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white border-0">
+                <div class="card-body text-center">
+                    <i class="fas fa-layer-group fa-2x mb-2"></i>
+                    <h5 class="mb-0">{{ batches|length }}</h5>
+                    <small>Total Batches</small>
+                </div>
             </div>
-            <p class="mb-1">Status: 
-                <span class="badge bg-{{ 'success' if batch.status == 'completed' else 'warning' if batch.status == 'running' else 'secondary' }}">
-                    {{ batch.status.title() }}
-                </span>
-            </p>
-            {% if batch.description %}
-            <small>{{ batch.description }}</small>
-            {% endif %}
         </div>
-        {% endfor %}
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark border-0">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x mb-2"></i>
+                    <h5 class="mb-0">{{ batches|selectattr('status', 'equalto', 'running')|list|length }}</h5>
+                    <small>Running</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white border-0">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                    <h5 class="mb-0">{{ batches|selectattr('status', 'equalto', 'completed')|list|length }}</h5>
+                    <small>Completed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white border-0">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <h5 class="mb-0">{{ batches|selectattr('status', 'equalto', 'failed')|list|length }}</h5>
+                    <small>Failed</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Batch List -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-0">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Batch Analysis History
+                </h6>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="refreshBatchList()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                                data-bs-toggle="dropdown">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="filterBatches('all')">All Batches</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="filterBatches('running')">Running Only</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="filterBatches('completed')">Completed Only</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="filterBatches('failed')">Failed Only</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+                {% for batch in batches %}
+                <div class="list-group-item batch-item" data-status="{{ batch.status }}">
+                    <div class="row align-items-center">
+                        <!-- Batch Info -->
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    {% if batch.status == 'running' %}
+                                    <div class="spinner-border spinner-border-sm text-warning" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    {% elif batch.status == 'completed' %}
+                                    <i class="fas fa-check-circle text-success fa-lg"></i>
+                                    {% elif batch.status == 'failed' %}
+                                    <i class="fas fa-exclamation-circle text-danger fa-lg"></i>
+                                    {% else %}
+                                    <i class="fas fa-clock text-secondary fa-lg"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <h6 class="mb-1 fw-bold">
+                                        {{ batch.name or 'Batch #' + batch.id|string }}
+                                    </h6>
+                                    {% if batch.description %}
+                                    <p class="mb-1 text-muted small">{{ batch.description[:100] }}{% if batch.description|length > 100 %}...{% endif %}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Status & Progress -->
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <span class="badge fs-6 bg-{{ 'success' if batch.status == 'completed' else 'warning' if batch.status == 'running' else 'danger' if batch.status == 'failed' else 'secondary' }}">
+                                    {% if batch.status == 'running' %}
+                                    <i class="fas fa-spinner fa-spin me-1"></i>
+                                    {% elif batch.status == 'completed' %}
+                                    <i class="fas fa-check me-1"></i>
+                                    {% elif batch.status == 'failed' %}
+                                    <i class="fas fa-times me-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-clock me-1"></i>
+                                    {% endif %}
+                                    {{ batch.status.title() }}
+                                </span>
+                                {% if batch.progress %}
+                                <div class="progress mt-2" style="height: 4px;">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: {{ batch.progress }}%" 
+                                         aria-valuenow="{{ batch.progress }}" 
+                                         aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <small class="text-muted">{{ batch.progress or 0 }}% complete</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Actions & Time -->
+                        <div class="col-md-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="text-end">
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        {{ batch.created_at.strftime('%m/%d/%Y') }}
+                                    </small>
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-clock me-1"></i>
+                                        {{ batch.created_at.strftime('%H:%M') }}
+                                    </small>
+                                    {% if batch.duration %}
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-stopwatch me-1"></i>
+                                        {{ batch.duration }}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                                            data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="#" onclick="viewBatchDetails('{{ batch.id }}')">
+                                                <i class="fas fa-eye me-2"></i>View Details
+                                            </a>
+                                        </li>
+                                        {% if batch.status == 'completed' %}
+                                        <li>
+                                            <a class="dropdown-item" href="#" onclick="downloadBatchResults('{{ batch.id }}')">
+                                                <i class="fas fa-download me-2"></i>Download Results
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="#" onclick="cloneBatch('{{ batch.id }}')">
+                                                <i class="fas fa-copy me-2"></i>Clone Batch
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if batch.status == 'running' %}
+                                        <li>
+                                            <a class="dropdown-item text-warning" href="#" onclick="pauseBatch('{{ batch.id }}')">
+                                                <i class="fas fa-pause me-2"></i>Pause
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item text-danger" href="#" onclick="cancelBatch('{{ batch.id }}')">
+                                                <i class="fas fa-stop me-2"></i>Cancel
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item text-danger" href="#" onclick="deleteBatch('{{ batch.id }}')">
+                                                <i class="fas fa-trash me-2"></i>Delete
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Batch Metrics (expandable) -->
+                    {% if batch.models_count or batch.tests_count %}
+                    <div class="mt-2 pt-2 border-top">
+                        <div class="row text-center">
+                            {% if batch.models_count %}
+                            <div class="col-3">
+                                <small class="text-muted d-block">Models</small>
+                                <strong class="text-primary">{{ batch.models_count }}</strong>
+                            </div>
+                            {% endif %}
+                            {% if batch.tests_count %}
+                            <div class="col-3">
+                                <small class="text-muted d-block">Tests</small>
+                                <strong class="text-info">{{ batch.tests_count }}</strong>
+                            </div>
+                            {% endif %}
+                            {% if batch.success_count %}
+                            <div class="col-3">
+                                <small class="text-muted d-block">Success</small>
+                                <strong class="text-success">{{ batch.success_count }}</strong>
+                            </div>
+                            {% endif %}
+                            {% if batch.failure_count %}
+                            <div class="col-3">
+                                <small class="text-muted d-block">Failures</small>
+                                <strong class="text-danger">{{ batch.failure_count }}</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Pagination -->
+        {% if batches|length > 10 %}
+        <div class="card-footer bg-light border-0">
+            <nav>
+                <ul class="pagination pagination-sm justify-content-center mb-0">
+                    <li class="page-item">
+                        <a class="page-link" href="#" onclick="loadBatchPage(1)">
+                            <i class="fas fa-angle-double-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="#" onclick="loadBatchPage('prev')">
+                            <i class="fas fa-angle-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link">1</span>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="#" onclick="loadBatchPage('next')">
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="#" onclick="loadBatchPage('last')">
+                            <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
     </div>
     {% else %}
-    <div class="text-center py-4 text-muted">
-        <i class="fas fa-inbox fa-2x mb-2"></i>
-        <p>No batch analyses found</p>
+    <!-- Empty State -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-inbox text-muted" style="font-size: 4rem;"></i>
+            </div>
+            <h5 class="text-muted mb-3">No Batch Analyses Found</h5>
+            <p class="text-muted mb-4">
+                Create your first batch analysis to run tests across multiple AI models simultaneously.
+            </p>
+            <button class="btn btn-primary" onclick="switchToTab('batch-tab')">
+                <i class="fas fa-plus me-2"></i>Create First Batch
+            </button>
+        </div>
     </div>
     {% endif %}
 </div>
+
+<script>
+function refreshBatchList() {
+    // Reload the batch list
+    htmx.ajax('GET', '{{ url_for("batch.get_batch_list") }}', {
+        target: '.batch-list-container',
+        swap: 'innerHTML'
+    });
+}
+
+function filterBatches(status) {
+    const items = document.querySelectorAll('.batch-item');
+    items.forEach(item => {
+        if (status === 'all' || item.dataset.status === status) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function viewBatchDetails(batchId) {
+    // Open batch details modal or navigate to details page
+    window.open(`/batch/${batchId}`, '_blank');
+}
+
+function downloadBatchResults(batchId) {
+    // Download batch results as ZIP
+    window.location.href = `/batch/${batchId}/download`;
+}
+
+function cloneBatch(batchId) {
+    // Clone batch configuration
+    fetch(`/batch/${batchId}/clone`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Batch cloned successfully!');
+                refreshBatchList();
+            }
+        });
+}
+
+function pauseBatch(batchId) {
+    if (confirm('Are you sure you want to pause this batch?')) {
+        fetch(`/batch/${batchId}/pause`, { method: 'POST' })
+            .then(() => refreshBatchList());
+    }
+}
+
+function cancelBatch(batchId) {
+    if (confirm('Are you sure you want to cancel this batch? This action cannot be undone.')) {
+        fetch(`/batch/${batchId}/cancel`, { method: 'POST' })
+            .then(() => refreshBatchList());
+    }
+}
+
+function deleteBatch(batchId) {
+    if (confirm('Are you sure you want to delete this batch? All results will be permanently lost.')) {
+        fetch(`/batch/${batchId}`, { method: 'DELETE' })
+            .then(() => refreshBatchList());
+    }
+}
+
+function loadBatchPage(page) {
+    // Implement pagination logic
+    console.log('Loading page:', page);
+}
+
+function switchToTab(tabId) {
+    // Switch to the specified tab
+    const tab = document.querySelector(`[data-bs-target="#${tabId.replace('-tab', '')}"]`);
+    if (tab) {
+        const bsTab = new bootstrap.Tab(tab);
+        bsTab.show();
+    }
+}
+
+// Auto-refresh running batches every 30 seconds
+setInterval(() => {
+    const runningBatches = document.querySelectorAll('.batch-item[data-status="running"]');
+    if (runningBatches.length > 0) {
+        refreshBatchList();
+    }
+}, 30000);
+</script>

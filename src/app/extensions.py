@@ -16,6 +16,15 @@ from typing import Optional
 db = SQLAlchemy()
 migrate = Migrate()
 
+# SocketIO placeholder - will be initialized if available
+socketio = None
+try:
+    from flask_socketio import SocketIO
+    socketio = SocketIO(cors_allowed_origins="*", logger=False, engineio_logger=False)
+    SOCKETIO_AVAILABLE = True
+except ImportError:
+    SOCKETIO_AVAILABLE = False
+
 class AppComponents:
     """Centralized component manager for Flask app."""
     
@@ -24,6 +33,7 @@ class AppComponents:
         self.task_manager = None
         self.analyzer_integration = None
         self.background_service = None
+        self.websocket_service = None
     
     def init_app(self, app: Flask):
         """Initialize components with Flask app."""
@@ -44,6 +54,10 @@ class AppComponents:
     def set_background_service(self, background_service):
         """Set background service instance."""
         self.background_service = background_service
+    
+    def set_websocket_service(self, websocket_service):
+        """Set WebSocket service instance."""
+        self.websocket_service = websocket_service
 
 def get_components() -> Optional[AppComponents]:
     """Get components from current Flask app."""
@@ -69,6 +83,11 @@ def get_background_service():
     components = get_components()
     return components.background_service if components else None
 
+def get_websocket_service():
+    """Get WebSocket service from app components."""
+    components = get_components()
+    return components.websocket_service if components else None
+
 # Configure requests for containerized services
 requests_session = requests.Session()
 # Note: timeout should be set per request, not on session
@@ -77,6 +96,16 @@ def init_extensions(app):
     """Initialize Flask extensions with the app instance."""
     db.init_app(app)
     migrate.init_app(app, db)
+    
+    # Initialize SocketIO if available
+    if SOCKETIO_AVAILABLE and socketio:
+        try:
+            socketio.init_app(app, async_mode='threading')
+            app.logger.info("SocketIO initialized successfully")
+        except Exception as e:
+            app.logger.warning(f"Failed to initialize SocketIO: {e}")
+    else:
+        app.logger.info("SocketIO not available - running without real-time features")
     
     # Initialize app components
     components = AppComponents()

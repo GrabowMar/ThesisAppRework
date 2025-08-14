@@ -53,9 +53,20 @@ def register_api_routes(app):
         from . import system  # noqa: F401
         from . import misc  # noqa: F401
         from . import testing_results  # noqa: F401
+        from . import websocket  # noqa: F401
+        from . import results  # noqa: F401
+        from . import testing  # noqa: F401
 
         # Now safe to register blueprint with all routes bound
         app.register_blueprint(api_bp, url_prefix='/api')
+        
+        # Register WebSocket API blueprint separately
+        try:
+            from .websocket import websocket_api
+            app.register_blueprint(websocket_api)
+            logger.info("WebSocket API registered successfully")
+        except Exception as e:
+            logger.warning(f"Failed to register WebSocket API: {e}")
 
 __all__ = ['api_bp', 'register_api_routes']
 
