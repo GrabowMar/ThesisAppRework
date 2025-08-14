@@ -13,6 +13,83 @@ from typing import Dict, Any, Optional, Union
 logger = logging.getLogger(__name__)
 
 
+# Common chat/completions parameter metadata for OpenAI-compatible APIs (incl. OpenRouter)
+# Defaults are typical values; actual model/provider defaults may vary.
+PARAMETER_METADATA: Dict[str, Dict[str, Any]] = {
+    'temperature': {
+        'type': 'number',
+        'default': 1.0,
+        'range': [0.0, 2.0],
+        'notes': 'Controls randomness. Lower is more deterministic.'
+    },
+    'top_p': {
+        'type': 'number',
+        'default': 1.0,
+        'range': [0.0, 1.0],
+        'notes': 'Nucleus sampling; consider adjusting either temperature or top_p, not both.'
+    },
+    'top_k': {
+        'type': 'integer',
+        'default': None,
+        'range': [1, 1000],
+        'notes': 'Controls candidate pool size for some models; ignored by others.'
+    },
+    'max_tokens': {
+        'type': 'integer',
+        'default': None,
+        'range': [1, None],
+        'notes': 'Maximum output tokens; capped by model max and context limits.'
+    },
+    'presence_penalty': {
+        'type': 'number',
+        'default': 0.0,
+        'range': [-2.0, 2.0],
+        'notes': 'Penalizes new tokens based on whether they appear in text so far.'
+    },
+    'frequency_penalty': {
+        'type': 'number',
+        'default': 0.0,
+        'range': [-2.0, 2.0],
+        'notes': 'Penalizes new tokens based on frequency in text so far.'
+    },
+    'stop': {
+        'type': 'string|string[]',
+        'default': None,
+        'notes': 'Up to 4 sequences where API will stop generating further tokens.'
+    },
+    'logit_bias': {
+        'type': 'object',
+        'default': None,
+        'notes': 'Mapping of token ID to bias; support varies by model/provider.'
+    },
+    'tools': {
+        'type': 'object[]',
+        'default': None,
+        'notes': 'Tool/function definitions for tool calling; schema depends on provider.'
+    },
+    'response_format': {
+        'type': 'object',
+        'default': None,
+        'notes': 'e.g., {"type":"json_object"} to request structured JSON where supported.'
+    },
+    'stream': {
+        'type': 'boolean',
+        'default': False,
+        'notes': 'Enable Server-Sent Events (SSE) streaming of tokens.'
+    },
+}
+
+
+def get_parameter_metadata(param_names: Optional[list[str]]) -> Dict[str, Dict[str, Any]]:
+    """Return metadata for a subset of parameter names.
+
+    If param_names is None or empty, returns the full registry.
+    """
+    if not param_names:
+        return PARAMETER_METADATA
+    return {p: PARAMETER_METADATA.get(p, {'type': 'unknown', 'notes': 'No metadata available'}) for p in param_names}
+
+
 def safe_json_loads(json_str: Optional[str], default: Any = None) -> Any:
     """Safely load JSON string with fallback."""
     if not json_str:

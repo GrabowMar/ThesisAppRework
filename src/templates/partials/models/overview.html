@@ -27,9 +27,21 @@
       <thead><tr><th>Provider</th><th>Model Name</th><th>Type</th><th>Context</th><th>Pricing</th><th>Capabilities</th><th>Apps</th><th>Actions</th></tr></thead>
   <tbody>
         {% for model in models %}
-        <tr>
+  <tr>
           <td><span class="badge provider-dynamic" data-provider-color="{{ get_provider_color(model.provider) }}">{{ model.provider }}</span></td>
-          <td><strong>{{ model.model_name }}</strong>{% if model.openrouter_data and model.openrouter_data.name %}<br><small class="text-muted">{{ model.openrouter_data.name }}</small>{% endif %}</td>
+          <td>
+            <strong>{{ model.model_name }}</strong>
+            {% if model.openrouter_data and model.openrouter_data.name %}
+              <br><small class="text-muted">{{ model.openrouter_data.name }}</small>
+            {% endif %}
+            {% if model.openrouter_variants %}
+              <div class="mt-1 d-flex flex-wrap gap-1">
+                {% for v in model.openrouter_variants %}
+                  <span class="badge bg-dark">{{ v }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </td>
           <td>{% if model.openrouter_data and model.openrouter_data.architecture %}<span class="badge bg-info">{{ model.openrouter_data.architecture.modality or 'Text' }}</span>{% else %}<span class="badge bg-secondary">Unknown</span>{% endif %}</td>
           <td>{% if model.openrouter_data and model.openrouter_data.context_length %}<span class="badge bg-primary">{{ "{:,}".format(model.openrouter_data.context_length) }}</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
           <td>{% if model.openrouter_data and model.openrouter_data.pricing %}{% if model.openrouter_data.pricing.prompt %}<small class="text-success">In: ${{ "%.6f"|format(model.openrouter_data.pricing.prompt|float) }}</small><br>{% endif %}{% if model.openrouter_data.pricing.completion %}<small class="text-warning">Out: ${{ "%.6f"|format(model.openrouter_data.pricing.completion|float) }}</small>{% endif %}{% else %}<span class="text-muted">-</span>{% endif %}</td>

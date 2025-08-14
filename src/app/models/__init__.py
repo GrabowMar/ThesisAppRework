@@ -1056,9 +1056,9 @@ class OpenRouterModelCache(db.Model):
 
 
 class ExternalModelInfoCache(db.Model):
-    """Cache for merged external model info (OpenRouter + Hugging Face).
+    """Cache for external model info (primarily OpenRouter).
 
-    Keyed by canonical model slug, stores merged JSON and expiry.
+    Keyed by canonical model slug, stores JSON payload and expiry.
     """
     __tablename__ = 'external_model_info_cache'
 

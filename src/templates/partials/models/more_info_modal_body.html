@@ -4,7 +4,21 @@
       <span class="badge provider-dynamic" data-provider-color="{{ get_provider_color(model.provider) }}">{{ model.provider }}</span>
       {{ model.model_name }}
     </h5>
-    <div class="text-muted small">{{ model.canonical_slug }}</div>
+    <div class="text-muted small">{{ model.canonical_slug }}
+      {% if model.openrouter_created %}
+        {% set _created_raw = (model.openrouter_created|string) %}
+        {% set _created_fmt = _created_raw.replace('T',' ').replace('Z','').split('.')|first %}
+        <span class="mx-1">•</span>
+        <span title="Added on OpenRouter">Created: {{ _created_fmt }}</span>
+      {% endif %}
+    </div>
+    {% if model.openrouter_variants %}
+      <div class="mt-1 d-flex flex-wrap gap-1">
+        {% for v in model.openrouter_variants %}
+          <span class="badge bg-dark">{{ v }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
     <div class="mt-1 d-flex flex-wrap gap-1">
       {% if model.is_free or model.openrouter_is_free %}<span class="badge bg-success">Free</span>{% endif %}
       {% if model.supports_tool_calling or model.supports_function_calling %}<span class="badge bg-info">Tools</span>{% endif %}
@@ -19,8 +33,22 @@
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#mi-capabilities" role="tab">Capabilities</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#mi-pricing" role="tab">Pricing</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#mi-external" role="tab">External</a></li>
+  {% if model.openrouter_supported_parameters %}
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#mi-parameters" role="tab">Parameters</a></li>
+  {% endif %}
+    {% if model.openrouter_data %}
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#mi-raw" role="tab">Raw JSON</a></li>
+    {% endif %}
   </ul>
   <div class="tab-content pt-3">
+    {% if model.openrouter_data %}
+    <div class="tab-pane fade" id="mi-raw" role="tabpanel">
+      <div class="d-flex justify-content-end">
+        <button class="btn btn-sm btn-outline-secondary mb-2" type="button" onclick="copyJsonContent('rawOpenRouterJson')" title="Copy as JSON"><i class="fas fa-copy"></i></button>
+      </div>
+      <pre id="rawOpenRouterJson" class="small bg-light p-2 border rounded">{{ model.openrouter_data | tojson(indent=2) }}</pre>
+    </div>
+    {% endif %}
     <div class="tab-pane fade show active" id="mi-overview" role="tabpanel">
       <div class="row">
         <div class="col-md-6">
@@ -29,6 +57,8 @@
             <tr><th>Provider</th><td>{{ model.provider }}</td></tr>
             <tr><th>Context</th><td>{{ model.openrouter_context_length or model.context_window or 'N/A' }}</td></tr>
             <tr><th>Max Output</th><td>{{ model.max_output_tokens or 'N/A' }}</td></tr>
+              {% if model.openrouter_name %}<tr><th>Display Name</th><td>{{ model.openrouter_name }}</td></tr>{% endif %}
+              {% if model.openrouter_canonical_slug %}<tr><th>OpenRouter Slug</th><td><code>{{ model.openrouter_canonical_slug }}</code></td></tr>{% endif %}
           </table>
         </div>
         <div class="col-md-6">
@@ -42,6 +72,20 @@
         </div>
       </div>
     </div>
+    {% if model.openrouter_supported_parameters %}
+    <div class="tab-pane fade" id="mi-parameters" role="tabpanel">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0">Supported Parameters</h6>
+        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="copyJsonContent('paramsJsonDumpFull')" title="Copy as JSON"><i class="fas fa-copy"></i></button>
+      </div>
+      <div class="mb-2">
+        {% for p in model.openrouter_supported_parameters %}
+          <span class="badge bg-light text-dark border me-1 mb-1">{{ p }}</span>
+        {% endfor %}
+      </div>
+      <pre id="paramsJsonDumpFull" class="visually-hidden">{{ model.openrouter_supported_parameters | tojson(indent=2) }}</pre>
+    </div>
+    {% endif %}
     <div class="tab-pane fade" id="mi-capabilities" role="tabpanel">
       <div class="row">
         <div class="col-md-6">
@@ -58,6 +102,37 @@
             <li class="list-group-item d-flex justify-content-between align-items-center">Tool Use {% if model.supports_tool_calling %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-muted"></i>{% endif %}</li>
             <li class="list-group-item d-flex justify-content-between align-items-center">JSON Mode {% if model.supports_json %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-muted"></i>{% endif %}</li>
           </ul>
+          {% if model.architecture_input_modalities or model.architecture_output_modalities %}
+          <div class="mt-3">
+            <h6 class="mb-1">Modalities</h6>
+            {% if model.architecture_input_modalities %}
+              <div class="small text-muted mb-1">Input</div>
+              <div class="mb-2">
+                {% for im in model.architecture_input_modalities %}
+                  <span class="badge bg-secondary me-1">{{ im }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if model.architecture_output_modalities %}
+              <div class="small text-muted mb-1">Output</div>
+              <div>
+                {% for om in model.architecture_output_modalities %}
+                  <span class="badge bg-secondary me-1">{{ om }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if model.openrouter_supported_parameters %}
+          <div class="mt-3">
+            <h6 class="mb-1">Supported Parameters</h6>
+            <div>
+              {% for p in model.openrouter_supported_parameters %}
+                <span class="badge bg-light text-dark border me-1 mb-1">{{ p }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -73,35 +148,71 @@
     </div>
     <div class="tab-pane fade" id="mi-external" role="tabpanel">
       <div class="row">
-        <div class="col-md-6">
+        <div class="col-12">
           <h6><i class="fas fa-cloud text-primary"></i> OpenRouter</h6>
           <table class="table table-sm">
             <tr><th>ID</th><td><code>{{ model.openrouter_model_id or model.model_id }}</code></td></tr>
             <tr><th>Context</th><td>{{ model.openrouter_context_length or model.context_window or 'N/A' }}</td></tr>
             <tr><th>Modality</th><td>{{ model.architecture_modality or (model.openrouter_data.architecture.modality if model.openrouter_data and model.openrouter_data.architecture) or 'Unknown' }}</td></tr>
+              {% if model.architecture_tokenizer %}
+              <tr><th>Tokenizer</th><td>{{ model.architecture_tokenizer }}</td></tr>
+              {% endif %}
+              {% if model.architecture_instruct_type %}
+              <tr><th>Instruct Type</th><td>{{ model.architecture_instruct_type }}</td></tr>
+              {% endif %}
             {% if model.openrouter_description %}
             <tr><th>Description</th><td>{{ model.openrouter_description }}</td></tr>
             {% endif %}
+        {% if model.openrouter_supported_parameters %}
+              <tr><th>Parameters</th>
+                <td>
+                  {% for p in model.openrouter_supported_parameters %}
+                    <span class="badge bg-light text-dark border me-1 mb-1">{{ p }}</span>
+                  {% endfor %}
+          <button class="btn btn-xs btn-outline-secondary ms-2" type="button" onclick="copyJsonContent('paramsJsonDump')" title="Copy as JSON"><i class="fas fa-copy"></i></button>
+          <pre id="paramsJsonDump" class="visually-hidden">{{ model.openrouter_supported_parameters | tojson(indent=2) }}</pre>
+                </td>
+              </tr>
+              {% endif %}
+              {% if model.openrouter_per_request_limits %}
+              <tr>
+                <th>Per-request Limits</th>
+                <td>
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#prlDetails" aria-expanded="false" aria-controls="prlDetails">
+                    Show details
+                  </button>
+                  <div class="collapse mt-2" id="prlDetails">
+                    <div class="d-flex justify-content-end">
+                      <button class="btn btn-xs btn-outline-secondary mb-1" type="button" onclick="copyJsonContent('prlJsonDump')" title="Copy as JSON"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <pre id="prlJsonDump" class="small bg-light p-2 border rounded">{{ model.openrouter_per_request_limits | tojson(indent=2) }}</pre>
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
           </table>
-        </div>
-        <div class="col-md-6">
-          <h6><i class="fas fa-hashtag text-warning"></i> Hugging Face</h6>
-          <table class="table table-sm">
-            <tr><th>Repo</th><td>{% if model.hf_repo_id %}<a href="https://huggingface.co/{{ model.hf_repo_id }}" target="_blank" rel="noopener">{{ model.hf_repo_id }}</a>{% else %}<span class="text-muted">Not found</span>{% endif %}</td></tr>
-            <tr><th>License</th><td>{{ model.hf_license or 'N/A' }}</td></tr>
-            <tr><th>Likes</th><td>{{ model.hf_likes or 0 }}</td></tr>
-            <tr><th>Downloads</th><td>{{ model.hf_downloads or 0 }}</td></tr>
-            <tr><th>Task</th><td>{{ model.hf_pipeline_tag or 'N/A' }}</td></tr>
-            <tr><th>Last Modified</th><td>{{ model.hf_last_modified or 'N/A' }}</td></tr>
-          </table>
-          {% if model.hf_tags %}
-          <div class="mb-2">
-            {% for t in model.hf_tags %}
-              <span class="badge bg-secondary me-1 mb-1">{{ t }}</span>
-            {% endfor %}
-          </div>
-          {% endif %}
-        </div>
+            {% if model.top_provider_name or model.top_provider_is_moderated is not none %}
+            <div class="card card-body py-2">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-semibold">Top Provider</div>
+                  <div class="small text-muted">{{ model.top_provider_name or 'Unknown' }}</div>
+                </div>
+                <div class="text-end small">
+                  {% if model.top_provider_is_moderated is not none %}
+                    <div>Moderated: {% if model.top_provider_is_moderated %}<span class="text-success">Yes</span>{% else %}<span class="text-muted">No</span>{% endif %}</div>
+                  {% endif %}
+                  {% if model.top_provider_max_completion_tokens %}
+                    <div>Max Tokens: {{ model.top_provider_max_completion_tokens }}</div>
+                  {% endif %}
+                  {% if model.top_provider_latency_ms %}
+                    <div>Latency: {{ model.top_provider_latency_ms }} ms</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endif %}
+    </div>
       </div>
     </div>
   </div>
@@ -115,4 +226,14 @@
     </button>
     {% endif %}
   </div>
+  <script>
+    function copyJsonContent(elId) {
+      try {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        const text = el.innerText || el.textContent || '';
+        navigator.clipboard.writeText(text);
+      } catch (e) { /* best effort */ }
+    }
+  </script>
 </div>

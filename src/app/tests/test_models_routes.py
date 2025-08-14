@@ -29,18 +29,19 @@ def app_ctx():
         db.drop_all()
         db.create_all()
         # Seed one model
-    mc = ModelCapability()  # type: ignore[call-arg]
-    mc.model_id = 'anthropic/claude-3.7-sonnet'
-    mc.canonical_slug = 'anthropic_claude-3.7-sonnet'
-    mc.provider = 'anthropic'
-    mc.model_name = 'claude-3.7-sonnet'
-    mc.is_free = False
-    mc.supports_function_calling = True
-    mc.supports_json_mode = True
-    db.session.add(mc)
-    db.session.commit()
-    yield app
-    db.session.remove()
+        mc = ModelCapability()  # type: ignore[call-arg]
+        mc.model_id = 'anthropic/claude-3.7-sonnet'
+        mc.canonical_slug = 'anthropic_claude-3.7-sonnet'
+        mc.provider = 'anthropic'
+        mc.model_name = 'claude-3.7-sonnet'
+        mc.is_free = False
+        mc.supports_function_calling = True
+        mc.supports_json_mode = True
+        db.session.add(mc)
+        db.session.commit()
+        # Keep context alive for the test and clean up after
+        yield app
+        db.session.remove()
 
 
 def test_model_more_info_endpoint_renders(app_ctx: Flask):
@@ -50,7 +51,6 @@ def test_model_more_info_endpoint_renders(app_ctx: Flask):
     assert rv.status_code == 200
     html = rv.get_data(as_text=True)
     assert 'OpenRouter' in html
-    assert 'Hugging Face' in html
 
 
 def test_export_models_csv(app_ctx: Flask):
@@ -59,5 +59,7 @@ def test_export_models_csv(app_ctx: Flask):
     assert rv.status_code == 200
     assert rv.mimetype == 'text/csv'
     text = rv.get_data(as_text=True)
-    # At minimum, headers should be present
-    assert 'provider,model_name,slug' in text.splitlines()[0]
+    # At minimum, headers should be present and include enriched columns
+    header = text.splitlines()[0]
+    for col in ['provider','model_name','slug','context_window','prompt_price','completion_price','modality','input_modalities','output_modalities','tokenizer','instruct_type','supported_parameters']:
+        assert col in header

@@ -16,7 +16,6 @@ from ..models import (
 )
 from ..extensions import db
 from ..services.openrouter_service import OpenRouterService
-from ..services.huggingface_service import HuggingFaceService
 from ..utils.helpers import deep_merge_dicts, dicts_to_csv
 from datetime import timedelta
 
@@ -27,7 +26,6 @@ models_bp = Blueprint('models', __name__, url_prefix='/models')
 
 # Initialize OpenRouter service
 openrouter_service = OpenRouterService()
-hf_service = HuggingFaceService()
 
 # Provider color mapping for templates
 PROVIDER_COLORS = {
@@ -154,7 +152,7 @@ def model_details(model_slug):
 
 @models_bp.route('/model/<model_slug>/more-info')
 def model_more_info(model_slug):
-    """HTMX endpoint: external details (OpenRouter+HuggingFace) for modal display."""
+    """HTMX endpoint: external details (OpenRouter) for modal display."""
     try:
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
 
@@ -170,13 +168,6 @@ def model_more_info(model_slug):
 
         if cached is None or force_refresh:
             data = openrouter_service.enrich_model_data(model)
-            # Merge HF enrichment (best-effort)
-            try:
-                hf_data = hf_service.enrich_model_data(model.provider, model.model_name)
-                if hf_data:
-                    data = deep_merge_dicts(data, hf_data)
-            except Exception as e:
-                logger.warning(f"HF enrich failed for {model_slug}: {e}")
 
             # Upsert cache
             try:
@@ -191,7 +182,7 @@ def model_more_info(model_slug):
                 # set expiry
                 from ..models import utc_now
                 entry.cache_expires_at = utc_now() + timedelta(hours=ttl_hours)
-                entry.source_notes = 'openrouter+hf'
+                entry.source_notes = 'openrouter'
                 db.session.commit()
             except Exception as e:
                 logger.warning(f"Failed to persist external cache for {model_slug}: {e}")
@@ -213,7 +204,11 @@ def model_more_info(model_slug):
         except Exception as e:
             logger.warning(f"Failed to compute live counts for {model_slug}: {e}")
 
-        return render_template('partials/models/more_info_modal_body.html', model=payload, model_slug=model_slug)
+        return render_template(
+            'partials/models/more_info_modal_body.html',
+            model=payload,
+            model_slug=model_slug
+        )
     except Exception as e:
         logger.error(f"Error loading more info for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error: {str(e)}</div>'
@@ -239,9 +234,11 @@ def export_models_csv():
                 'prompt_price': data.get('openrouter_prompt_price'),
                 'completion_price': data.get('openrouter_completion_price'),
                 'modality': data.get('architecture_modality'),
-                'hf_repo': data.get('hf_repo_id'),
-                'hf_likes': data.get('hf_likes'),
-                'hf_downloads': data.get('hf_downloads'),
+                'input_modalities': '|'.join(data.get('architecture_input_modalities') or []) if isinstance(data.get('architecture_input_modalities'), list) else data.get('architecture_input_modalities'),
+                'output_modalities': '|'.join(data.get('architecture_output_modalities') or []) if isinstance(data.get('architecture_output_modalities'), list) else data.get('architecture_output_modalities'),
+                'tokenizer': data.get('architecture_tokenizer'),
+                'instruct_type': data.get('architecture_instruct_type'),
+                'supported_parameters': '|'.join(data.get('openrouter_supported_parameters') or []) if isinstance(data.get('openrouter_supported_parameters'), list) else data.get('openrouter_supported_parameters'),
                 'is_free': m.is_free,
             })
 

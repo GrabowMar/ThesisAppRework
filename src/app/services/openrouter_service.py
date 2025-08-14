@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class OpenRouterService:
     """Service for integrating with OpenRouter API to fetch model details with caching."""
     
-    def __init__(self, app: Flask = None):
+    def __init__(self, app: Optional[Flask] = None):
         self.app = app
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.api_url = "https://openrouter.ai/api/v1/models"
@@ -127,13 +127,12 @@ class OpenRouterService:
                     cache_entry.api_response_status = status_code
                     cache_entry.updated_at = utc_now()
                 else:
-                    # Create new entry
-                    cache_entry = OpenRouterModelCache(
-                        model_id=model_id,
-                        cache_expires_at=expiry_time,
-                        fetch_duration=fetch_duration,
-                        api_response_status=status_code
-                    )
+                    # Create new entry (set attributes explicitly to satisfy type checkers)
+                    cache_entry = OpenRouterModelCache()
+                    cache_entry.model_id = model_id
+                    cache_entry.cache_expires_at = expiry_time
+                    cache_entry.fetch_duration = fetch_duration
+                    cache_entry.api_response_status = status_code
                     cache_entry.set_model_data(model)
                     db.session.add(cache_entry)
             
@@ -230,7 +229,7 @@ class OpenRouterService:
         # Check database cache for specific model
         if self.cache_enabled:
             try:
-                from ..models import OpenRouterModelCache, utc_now
+                from ..models import OpenRouterModelCache
                 
                 cache_entry = OpenRouterModelCache.query.filter_by(model_id=model_id).first()
                 if cache_entry and not cache_entry.is_expired():
@@ -312,12 +311,24 @@ class OpenRouterService:
         """Extract and format OpenRouter model details."""
         details = {}
         
+        # Basic identifiers
+        if api_model.get("name"):
+            details["openrouter_name"] = api_model.get("name")
+        if api_model.get("canonical_slug"):
+            details["openrouter_canonical_slug"] = api_model.get("canonical_slug")
+
         # Pricing information
         pricing = api_model.get("pricing", {})
         if pricing:
             details.update({
                 'openrouter_prompt_price': pricing.get("prompt"),
                 'openrouter_completion_price': pricing.get("completion"),
+                'openrouter_pricing_request': pricing.get("request"),
+                'openrouter_pricing_image': pricing.get("image"),
+                'openrouter_pricing_web_search': pricing.get("web_search"),
+                'openrouter_pricing_internal_reasoning': pricing.get("internal_reasoning"),
+                'openrouter_pricing_input_cache_read': pricing.get("input_cache_read"),
+                'openrouter_pricing_input_cache_write': pricing.get("input_cache_write"),
                 'openrouter_is_free': (
                     float(pricing.get("prompt", "0") or "0") == 0 and 
                     float(pricing.get("completion", "0") or "0") == 0
@@ -335,13 +346,18 @@ class OpenRouterService:
             details.update({
                 'top_provider_max_completion_tokens': top_provider.get("max_completion_tokens"),
                 'top_provider_is_moderated': top_provider.get("is_moderated"),
+                'top_provider_name': top_provider.get("name"),
+                'top_provider_latency_ms': top_provider.get("ttft") or top_provider.get("latency"),
+                'top_provider_context_length': top_provider.get("context_length"),
             })
         
         # Architecture and capabilities
         architecture = api_model.get("architecture", {})
         if architecture:
             details.update({
-                'architecture_modality': architecture.get("modality"),
+                'architecture_modality': architecture.get("modality"),  # legacy single modality if present
+                'architecture_input_modalities': architecture.get("input_modalities"),
+                'architecture_output_modalities': architecture.get("output_modalities"),
                 'architecture_tokenizer': architecture.get("tokenizer"),
                 'architecture_instruct_type': architecture.get("instruct_type"),
             })
@@ -351,7 +367,21 @@ class OpenRouterService:
             'openrouter_description': api_model.get("description"),
             'openrouter_created': api_model.get("created"),
             'openrouter_per_request_limits': api_model.get("per_request_limits"),
+            'openrouter_supported_parameters': api_model.get("supported_parameters"),
         })
+
+        # Variants (if provided in schema)
+        variants = api_model.get("variants") or api_model.get("static_variants")
+        if variants:
+            try:
+                # normalize to list of strings
+                if isinstance(variants, dict):
+                    variants = list(variants.keys())
+                elif isinstance(variants, str):
+                    variants = [variants]
+                details['openrouter_variants'] = variants
+            except Exception:
+                pass
         
         return details
     
