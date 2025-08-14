@@ -16,7 +16,7 @@ Models include:
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 
 # Import centralized constants and enums
@@ -25,7 +25,6 @@ from ..extensions import db
 
 # Import analysis configuration models
 from .analysis import AnalysisConfig, ConfigPreset
-from ..extensions import db
 
 def utc_now() -> datetime:
     """Get current UTC time - replacement for deprecated datetime.utcnow()"""
@@ -1056,6 +1055,48 @@ class OpenRouterModelCache(db.Model):
         return f'<OpenRouterModelCache {self.model_id}>'
 
 
+class ExternalModelInfoCache(db.Model):
+    """Cache for merged external model info (OpenRouter + Hugging Face).
+
+    Keyed by canonical model slug, stores merged JSON and expiry.
+    """
+    __tablename__ = 'external_model_info_cache'
+
+    id = db.Column(db.Integer, primary_key=True)
+    model_slug = db.Column(db.String(200), unique=True, nullable=False, index=True)
+
+    # Cached merged JSON payload
+    merged_json = db.Column(db.Text, nullable=False)
+
+    # Cache metadata
+    cache_expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    last_refreshed = db.Column(db.DateTime, default=utc_now)
+    source_notes = db.Column(db.String(200))  # e.g., "openrouter+hf"
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+
+    def get_data(self) -> Dict[str, Any]:
+        try:
+            return json.loads(self.merged_json) if self.merged_json else {}
+        except json.JSONDecodeError:
+            return {}
+
+    def set_data(self, data: Dict[str, Any]) -> None:
+        self.merged_json = json.dumps(data)
+
+    def is_expired(self) -> bool:
+        return utc_now() > self.cache_expires_at
+
+    def mark_refreshed(self, ttl_hours: int) -> None:
+        self.last_refreshed = utc_now()
+        self.cache_expires_at = utc_now().replace(microsecond=0) + timedelta(hours=ttl_hours)
+
+    def __repr__(self) -> str:
+        return f'<ExternalModelInfoCache {self.model_slug}>'
+
+
 class BatchAnalysis(db.Model):
     """Model for tracking batch analysis jobs."""
     __tablename__ = 'batch_analyses'
@@ -1223,6 +1264,7 @@ __all__ = [
     'ZAPAnalysis',
     'OpenRouterAnalysis',
     'OpenRouterModelCache',
+    'ExternalModelInfoCache',
     'ContainerizedTest',
     'BatchAnalysis',
     'AnalysisConfig',

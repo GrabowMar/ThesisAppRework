@@ -17,8 +17,8 @@
           {% if model.supports_vision %}<span class="badge bg-purple">Vision</span>{% endif %}
           {% if model.supports_streaming %}<span class="badge bg-cyan">Streaming</span>{% endif %}
         </div>
-      </div>
-  <div class="card bg-light mb-2 min-w-180">
+  </div>
+  <div class="card bg-light mb-2" style="min-width: 180px;">
         <div class="card-body py-2">
           <h6 class="card-title mb-2">Quick Stats</h6>
           <div class="row text-center">
@@ -32,10 +32,10 @@
 </div>
 <div class="card">
   <div class="card-header"><ul class="nav nav-tabs card-header-tabs" role="tablist">
-    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#overview" role="tab"><i class="fas fa-info-circle"></i> Overview</a></li>
-    <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#capabilities" role="tab"><i class="fas fa-cogs"></i> Capabilities</a></li>
-    <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#pricing" role="tab"><i class="fas fa-dollar-sign"></i> Pricing</a></li>
-    {% if model.openrouter_description %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#openrouter" role="tab"><i class="fas fa-cloud"></i> OpenRouter Data</a></li>{% endif %}
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#overview" role="tab"><i class="fas fa-info-circle"></i> Overview</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#capabilities" role="tab"><i class="fas fa-cogs"></i> Capabilities</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#pricing" role="tab"><i class="fas fa-dollar-sign"></i> Pricing</a></li>
+    {% if model.openrouter_description %}<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#openrouter" role="tab"><i class="fas fa-cloud"></i> OpenRouter Data</a></li>{% endif %}
   </ul></div>
   <div class="card-body">
     <div class="tab-content">
@@ -55,8 +55,8 @@
           <div class="col-md-6">
             <h6><i class="fas fa-chart-line text-success"></i> Performance Metrics</h6>
             <table class="table table-sm mb-3">
-              <tr><th width="30%">Cost Efficiency:</th><td>{% if model.cost_efficiency %}<div class="progress h-18px"><div class="progress-bar" data-width="{{ (model.cost_efficiency*100)|round }}%">{{ (model.cost_efficiency*100)|round }}%</div></div>{% else %}<span class="text-muted">N/A</span>{% endif %}</td></tr>
-              <tr><th>Safety Score:</th><td>{% if model.safety_score %}<div class="progress h-18px"><div class="progress-bar bg-success" data-width="{{ (model.safety_score*100)|round }}%">{{ (model.safety_score*100)|round }}%</div></div>{% else %}<span class="text-muted">N/A</span>{% endif %}</td></tr>
+              <tr><th width="30%">Cost Efficiency:</th><td>{% if model.cost_efficiency %}{% set ce = (model.cost_efficiency*100)|round %}<div class="progress" style="height: 18px;"><div class="progress-bar" role="progressbar" style="width: {{ ce }}%;" aria-valuenow="{{ ce }}" aria-valuemin="0" aria-valuemax="100">{{ ce }}%</div></div>{% else %}<span class="text-muted">N/A</span>{% endif %}</td></tr>
+              <tr><th>Safety Score:</th><td>{% if model.safety_score %}{% set ss = (model.safety_score*100)|round %}<div class="progress" style="height: 18px;"><div class="progress-bar bg-success" role="progressbar" style="width: {{ ss }}%;" aria-valuenow="{{ ss }}" aria-valuemin="0" aria-valuemax="100">{{ ss }}%</div></div>{% else %}<span class="text-muted">N/A</span>{% endif %}</td></tr>
             </table>
             <h6><i class="fas fa-external-link-alt text-info"></i> Actions</h6>
             <a href="{{ url_for('models.applications') }}?model={{ model.canonical_slug }}" class="btn btn-outline-primary btn-sm mb-1"><i class="fas fa-cubes"></i> View Applications</a>
@@ -94,4 +94,17 @@
     </div>
   </div>
 </div>
+<script>
+  // Activate the tab matching the URL hash on load (Bootstrap 5)
+  (function() {
+    var hash = window.location.hash;
+    if (!hash) return;
+    try {
+      var tabLink = document.querySelector('a.nav-link[href="' + hash + '"]');
+      if (tabLink && window.bootstrap && bootstrap.Tab) {
+        new bootstrap.Tab(tabLink).show();
+      }
+    } catch(e) { /* no-op */ }
+  })();
+</script>
 {% endcall %}

@@ -7,15 +7,18 @@ Routes for managing AI models and their generated applications.
 
 import logging
 
-from flask import Blueprint, render_template, request, flash
+from flask import Blueprint, render_template, request, flash, Response
 
 from ..models import (
     ModelCapability, GeneratedApplication,
-    SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis
+    SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis,
+    ExternalModelInfoCache
 )
 from ..extensions import db
 from ..services.openrouter_service import OpenRouterService
 from ..services.huggingface_service import HuggingFaceService
+from ..utils.helpers import deep_merge_dicts, dicts_to_csv
+from datetime import timedelta
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -155,19 +158,102 @@ def model_more_info(model_slug):
     try:
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
 
-        data = openrouter_service.enrich_model_data(model)
-        # Merge HF enrichment (best-effort, no error if missing)
-        try:
-            hf_data = hf_service.enrich_model_data(model.provider, model.model_name)
-            if hf_data:
-                data.update(hf_data)
-        except Exception as e:
-            logger.warning(f"HF enrich failed for {model_slug}: {e}")
+        # Cache settings and refresh flag
+        ttl_hours = int(request.args.get('ttl', 6))
+        force_refresh = request.args.get('refresh') == '1'
 
-        return render_template('partials/models/more_info_modal_body.html', model=data)
+        cached = None
+        if not force_refresh:
+            cached = ExternalModelInfoCache.query.filter_by(model_slug=model_slug).first()
+            if cached and cached.is_expired():
+                cached = None
+
+        if cached is None or force_refresh:
+            data = openrouter_service.enrich_model_data(model)
+            # Merge HF enrichment (best-effort)
+            try:
+                hf_data = hf_service.enrich_model_data(model.provider, model.model_name)
+                if hf_data:
+                    data = deep_merge_dicts(data, hf_data)
+            except Exception as e:
+                logger.warning(f"HF enrich failed for {model_slug}: {e}")
+
+            # Upsert cache
+            try:
+                entry = ExternalModelInfoCache.query.filter_by(model_slug=model_slug).first()
+                if not entry:
+                    entry = ExternalModelInfoCache()
+                    entry.model_slug = model_slug
+                    entry.set_data(data)
+                    db.session.add(entry)
+                else:
+                    entry.set_data(data)
+                # set expiry
+                from ..models import utc_now
+                entry.cache_expires_at = utc_now() + timedelta(hours=ttl_hours)
+                entry.source_notes = 'openrouter+hf'
+                db.session.commit()
+            except Exception as e:
+                logger.warning(f"Failed to persist external cache for {model_slug}: {e}")
+
+            payload = data
+        else:
+            payload = cached.get_data()
+
+        # Inject live counts (do not persist to cache)
+        try:
+            app_count = GeneratedApplication.query.filter_by(model_slug=model_slug).count()
+            sec_count = (
+                SecurityAnalysis.query.join(GeneratedApplication)
+                .filter(GeneratedApplication.model_slug == model_slug)
+                .count()
+            )
+            payload['apps_count'] = app_count
+            payload['analyses_count'] = sec_count
+        except Exception as e:
+            logger.warning(f"Failed to compute live counts for {model_slug}: {e}")
+
+        return render_template('partials/models/more_info_modal_body.html', model=payload, model_slug=model_slug)
     except Exception as e:
         logger.error(f"Error loading more info for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error: {str(e)}</div>'
+
+
+@models_bp.route('/export/models.csv')
+def export_models_csv():
+    """Export models overview to CSV with selected fields including OpenRouter/HF when available."""
+    try:
+        rows = []
+        models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        for m in models:
+            data = openrouter_service.enrich_model_data(m)
+            # best-effort merge cached external info
+            cached = ExternalModelInfoCache.query.filter_by(model_slug=m.canonical_slug).first()
+            if cached:
+                data = deep_merge_dicts(data, cached.get_data())
+            rows.append({
+                'provider': m.provider,
+                'model_name': m.model_name,
+                'slug': m.canonical_slug,
+                'context_window': data.get('openrouter_context_length') or m.context_window,
+                'prompt_price': data.get('openrouter_prompt_price'),
+                'completion_price': data.get('openrouter_completion_price'),
+                'modality': data.get('architecture_modality'),
+                'hf_repo': data.get('hf_repo_id'),
+                'hf_likes': data.get('hf_likes'),
+                'hf_downloads': data.get('hf_downloads'),
+                'is_free': m.is_free,
+            })
+
+        csv_content = dicts_to_csv(rows, fieldnames=(list(rows[0].keys()) if rows else ['provider','model_name','slug']))
+        return Response(
+            csv_content,
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=models_export.csv'}
+        )
+    except Exception as e:
+        logger.error(f"Error exporting models CSV: {e}")
+        return Response('provider,model_name,slug\n', mimetype='text/csv')
 
 
 @models_bp.route('/applications')

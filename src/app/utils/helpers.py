@@ -245,3 +245,34 @@ class Timer:
         if self.start_time and self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return None
+
+
+def dicts_to_csv(rows: list[dict], fieldnames: Optional[list[str]] = None) -> str:
+    """Convert list of dictionaries to CSV string.
+
+    Args:
+        rows: List of dictionaries with uniform keys.
+        fieldnames: Optional explicit header order.
+
+    Returns:
+        CSV content as string (including header row).
+    """
+    import csv
+    from io import StringIO
+
+    output = StringIO()
+    if not rows:
+        # Emit minimal header if none provided
+        writer = csv.writer(output)
+        writer.writerow(fieldnames or ["provider", "model_name", "slug"])
+        return output.getvalue()
+
+    if fieldnames is None:
+        # Preserve insertion order of first row
+        fieldnames = list(rows[0].keys())
+
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow(r)
+    return output.getvalue()
