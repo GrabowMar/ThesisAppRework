@@ -137,10 +137,33 @@
       </div>
     </div>
     <div class="tab-pane fade" id="mi-pricing" role="tabpanel">
-      {% if model.openrouter_prompt_price or model.openrouter_completion_price %}
-        <div class="row">
-          <div class="col-md-6"><h6>Prompt</h6><p class="mb-0">${{ model.openrouter_prompt_price }}</p></div>
-          <div class="col-md-6"><h6>Completion</h6><p class="mb-0">${{ model.openrouter_completion_price }}</p></div>
+      {% set any_price = model.openrouter_prompt_price or model.openrouter_completion_price or model.openrouter_pricing_request or model.openrouter_pricing_image or model.openrouter_pricing_web_search or model.openrouter_pricing_internal_reasoning or model.openrouter_pricing_input_cache_read or model.openrouter_pricing_input_cache_write %}
+      {% if any_price %}
+        <div class="row g-2">
+          {% if model.openrouter_prompt_price %}
+            <div class="col-md-6"><h6>Prompt</h6><p class="mb-0">${{ model.openrouter_prompt_price }}</p></div>
+          {% endif %}
+          {% if model.openrouter_completion_price %}
+            <div class="col-md-6"><h6>Completion</h6><p class="mb-0">${{ model.openrouter_completion_price }}</p></div>
+          {% endif %}
+          {% if model.openrouter_pricing_request %}
+            <div class="col-md-6"><h6>Per Request</h6><p class="mb-0">${{ model.openrouter_pricing_request }}</p></div>
+          {% endif %}
+          {% if model.openrouter_pricing_image %}
+            <div class="col-md-6"><h6>Image</h6><p class="mb-0">${{ model.openrouter_pricing_image }}</p></div>
+          {% endif %}
+          {% if model.openrouter_pricing_web_search %}
+            <div class="col-md-6"><h6>Web Search</h6><p class="mb-0">${{ model.openrouter_pricing_web_search }}</p></div>
+          {% endif %}
+          {% if model.openrouter_pricing_internal_reasoning %}
+            <div class="col-md-6"><h6>Internal Reasoning</h6><p class="mb-0">${{ model.openrouter_pricing_internal_reasoning }}</p></div>
+          {% endif %}
+          {% if model.openrouter_pricing_input_cache_read %}
+            <div class="col-md-6"><h6>Cache Read</h6><p class="mb-0">${{ model.openrouter_pricing_input_cache_read }}</p></div>
+          {% endif %}
+          {% if model.openrouter_pricing_input_cache_write %}
+            <div class="col-md-6"><h6>Cache Write</h6><p class="mb-0">${{ model.openrouter_pricing_input_cache_write }}</p></div>
+          {% endif %}
         </div>
       {% else %}
         <p class="text-muted mb-0">No pricing data available.</p>
@@ -201,6 +224,9 @@
                 <div class="text-end small">
                   {% if model.top_provider_is_moderated is not none %}
                     <div>Moderated: {% if model.top_provider_is_moderated %}<span class="text-success">Yes</span>{% else %}<span class="text-muted">No</span>{% endif %}</div>
+                  {% endif %}
+                  {% if model.top_provider_context_length %}
+                    <div>Context: {{ model.top_provider_context_length }}</div>
                   {% endif %}
                   {% if model.top_provider_max_completion_tokens %}
                     <div>Max Tokens: {{ model.top_provider_max_completion_tokens }}</div>
