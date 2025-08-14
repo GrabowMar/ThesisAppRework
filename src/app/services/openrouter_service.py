@@ -275,6 +275,9 @@ class OpenRouterService:
             'supports_vision': db_model.supports_vision,
             'supports_streaming': db_model.supports_streaming,
             'supports_json_mode': db_model.supports_json_mode,
+            # Back-compat flags expected by some templates
+            'supports_tool_calling': getattr(db_model, 'supports_function_calling', False),
+            'supports_json': getattr(db_model, 'supports_json_mode', False),
             'input_price_per_token': db_model.input_price_per_token,
             'output_price_per_token': db_model.output_price_per_token,
             'cost_efficiency': db_model.cost_efficiency,
@@ -288,15 +291,20 @@ class OpenRouterService:
         if '_' in db_model.canonical_slug:
             provider, model_part = db_model.canonical_slug.split('_', 1)
             openrouter_id = f"{provider}/{model_part}"
-            
+
             api_model = self.fetch_model_by_id(openrouter_id)
             if api_model:
+                # include extracted details and full raw object for templates expecting nested data
                 base_data.update(self._extract_openrouter_details(api_model))
+                base_data['openrouter_data'] = api_model
+                base_data['openrouter_model_id'] = openrouter_id
             else:
                 # Try without conversion
                 api_model = self.fetch_model_by_id(db_model.model_id)
                 if api_model:
                     base_data.update(self._extract_openrouter_details(api_model))
+                    base_data['openrouter_data'] = api_model
+                    base_data['openrouter_model_id'] = db_model.model_id
         
         return base_data
     

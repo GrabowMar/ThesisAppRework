@@ -371,8 +371,8 @@ async function checkDataStatus() {
 // System health functions
 async function refreshSystemHealth() {
   try {
-    const response = await fetch('/api/system/health');
-    const health = await response.json();
+  const response = await fetch('/api/system/health');
+  const health = await response.json();
     
     // Update Docker status
     const dockerBadge = document.getElementById('dockerStatus');
@@ -394,10 +394,26 @@ async function refreshSystemHealth() {
       dbBadge.textContent = 'Error';
     }
     
-    // Update Analyzer status
+    // Update Analyzer status via dedicated endpoint for more detail
     const analyzerBadge = document.getElementById('analyzersStatus');
-    analyzerBadge.className = 'badge bg-warning';
-    analyzerBadge.textContent = 'Checking...';
+    try {
+      const aResp = await fetch('/api/analyzer/status');
+      const a = await aResp.json();
+      if (a.status === 'available') {
+        const running = Object.values(a.services || {}).filter(s => s.status === 'running').length;
+        analyzerBadge.className = running > 0 ? 'badge bg-success' : 'badge bg-secondary';
+        analyzerBadge.textContent = running > 0 ? `Running (${running})` : 'Available';
+      } else if (a.status === 'unavailable') {
+        analyzerBadge.className = 'badge bg-warning';
+        analyzerBadge.textContent = 'Unavailable';
+      } else {
+        analyzerBadge.className = 'badge bg-danger';
+        analyzerBadge.textContent = 'Error';
+      }
+    } catch (e) {
+      analyzerBadge.className = 'badge bg-warning';
+      analyzerBadge.textContent = 'Unknown';
+    }
     
   } catch (error) {
     console.error('Error refreshing system health:', error);
@@ -407,8 +423,8 @@ async function refreshSystemHealth() {
 // Dashboard stats functions
 async function loadDashboardStats() {
   try {
-    const response = await fetch('/api/dashboard/stats');
-    dashboardData = await response.json();
+  const response = await fetch('/api/dashboard/stats');
+  dashboardData = await response.json();
     
     // Update counts
     document.getElementById('modelsCount').textContent = dashboardData.counts.models;
@@ -422,9 +438,13 @@ async function loadDashboardStats() {
     // Update recent applications
     updateRecentApps(dashboardData.recent_apps);
     
-    // Update charts
+  // Update charts
     updateProviderChart(dashboardData.providers);
     updateFrameworkChart(dashboardData.frameworks);
+
+  // Update last updated timestamp
+  const ts = document.getElementById('modelsLastUpdate');
+  if (ts) ts.textContent = new Date().toLocaleTimeString();
     
   } catch (error) {
     console.error('Error loading dashboard stats:', error);

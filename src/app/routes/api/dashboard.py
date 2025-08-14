@@ -7,6 +7,7 @@ API endpoints for dashboard data and visualizations.
 
 import logging
 from flask import jsonify, render_template
+from flask import Response
 import psutil
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, desc, text
@@ -491,6 +492,68 @@ def recent_activity_detailed():
         return render_template('partials/recent_activity_detailed.html', activities=[])
 
 
+@api_bp.route('/activity/clear', methods=['POST'])
+def activity_clear():
+    """Clear recent activity.
+
+    Activities on this platform are derived from database records (apps/tests),
+    so we don't delete history. This endpoint responds success for UX and
+    clients can refresh the panel.
+    """
+    try:
+        return jsonify({'success': True, 'message': 'Activity cleared (no-op)'}), 200
+    except Exception as e:
+        logger.error(f"Error clearing activity: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/activity/export')
+def activity_export():
+    """Export recent activity as CSV for download."""
+    try:
+        # Build the same activities list as recent_activity, but fetch more rows
+        recent_security = db.session.query(SecurityAnalysis).order_by(desc(SecurityAnalysis.started_at)).limit(50).all()
+        recent_performance = db.session.query(PerformanceTest).order_by(desc(PerformanceTest.started_at)).limit(50).all()
+        recent_batch = db.session.query(BatchAnalysis).order_by(desc(BatchAnalysis.created_at)).limit(50).all()
+
+        rows = ["type,description,timestamp,status"]
+
+        def fmt_ts(ts):
+            try:
+                return ts.isoformat()
+            except Exception:
+                return ''
+
+        for a in recent_security:
+            if a.started_at:
+                status = a.status.value if getattr(a, 'status', None) and hasattr(a.status, 'value') else str(getattr(a, 'status', 'unknown'))
+                rows.append(f"security,Security analysis completed,{fmt_ts(a.started_at)},{status}")
+
+        for t in recent_performance:
+            if t.started_at:
+                status = t.status.value if getattr(t, 'status', None) and hasattr(t.status, 'value') else str(getattr(t, 'status', 'unknown'))
+                rows.append(f"performance,Performance test completed,{fmt_ts(t.started_at)},{status}")
+
+        for b in recent_batch:
+            if b.created_at:
+                status = b.status.value if getattr(b, 'status', None) and hasattr(b.status, 'value') else str(getattr(b, 'status', 'unknown'))
+                rows.append(f"batch,Batch analysis #{b.id},{fmt_ts(b.created_at)},{status}")
+
+        csv_data = "\n".join(rows)
+
+        filename = f"activity_log_{datetime.utcnow().date().isoformat()}.csv"
+        return Response(
+            csv_data,
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename={filename}'
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error exporting activity: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @api_bp.route('/models_overview_summary')
 def models_overview_summary():
     """HTMX endpoint for models overview summary."""
@@ -819,3 +882,43 @@ def dashboard_system_health_fragment():
         logger.error(f"Error rendering system health fragment: {e}")
         # Minimal fallback to avoid template errors
         return render_template('partials/dashboard/_system_health_inner.html', system_health=None)
+
+
+@api_bp.route('/dashboard/analyzer-services')
+def dashboard_analyzer_services():
+    """HTMX endpoint returning analyzer services panel content.
+
+    Renders the analyzer services list using 'partials/dashboard/analyzer_services.html'.
+    Falls back to an empty list when analyzer integration is unavailable.
+    """
+    try:
+        analyzer_services = []
+
+        # Try to fetch status via the analyzer integration if available
+        try:
+            from ...extensions import get_components
+            components = get_components()
+            analyzer_integration = getattr(components, 'analyzer_integration', None) if components else None
+            if analyzer_integration:
+                status_info = analyzer_integration.get_services_status()
+                services = status_info.get('services', {}) if isinstance(status_info, dict) else {}
+
+                # Normalize services mapping into list of dicts expected by template
+                for name, info in services.items():
+                    analyzer_services.append({
+                        'name': name,
+                        'display_name': info.get('display_name') or name.replace('-', ' ').title(),
+                        'description': info.get('description') or 'Analyzer microservice',
+                        'status': info.get('status') or 'unknown',
+                        'port': info.get('port'),
+                        'uptime': info.get('uptime') or info.get('uptime_human'),
+                        'health_status': info.get('health') or info.get('health_status') or 'Unknown',
+                        'error_message': info.get('error') or info.get('error_message')
+                    })
+        except Exception as inner_err:  # keep dashboard resilient
+            logger.warning(f"Analyzer integration unavailable: {inner_err}")
+
+        return render_template('partials/dashboard/analyzer_services.html', analyzer_services=analyzer_services)
+    except Exception as e:
+        logger.error(f"Error rendering analyzer services: {e}")
+        return render_template('partials/dashboard/analyzer_services.html', analyzer_services=[])

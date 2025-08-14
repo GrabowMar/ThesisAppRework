@@ -117,22 +117,44 @@ class SystemDashboard {
     // Panel Management Methods
     refreshAnalyzerStatus() {
         console.log('Refreshing analyzer status...');
-        htmx.trigger('#analyzer-services-panel', 'refresh');
+        const panel = document.querySelector('#analyzer-services-panel');
+        if (panel) {
+            // Trigger the custom refresh event configured on the panel
+            htmx.trigger(panel, 'refresh');
+        } else {
+            // Fallback: attempt to fetch and swap manually
+            htmx.ajax('GET', '/api/dashboard/analyzer-services', { target: 'body', swap: 'none' });
+        }
     }
 
     refreshDockerStatus() {
         console.log('Refreshing Docker status...');
-        htmx.trigger('#docker-status-panel', 'refresh');
+        const panel = document.querySelector('#docker-status-content');
+        if (panel) {
+            htmx.trigger(panel, 'refreshDockerStatus');
+        } else {
+            htmx.ajax('GET', '/api/dashboard/docker-status', { target: 'body', swap: 'none' });
+        }
     }
 
     refreshSystemHealth() {
         console.log('Refreshing system health...');
-        htmx.trigger('#system-health-panel', 'refresh');
+        const panel = document.querySelector('#system-health-panel');
+        if (panel) {
+            htmx.trigger(panel, 'refresh');
+        } else {
+            htmx.ajax('GET', '/api/dashboard/system-health-fragment', { target: 'body', swap: 'none' });
+        }
     }
 
     refreshActivity() {
         console.log('Refreshing recent activity...');
-        htmx.trigger('#recent-activity-panel', 'refresh');
+        const panel = document.querySelector('#recent-activity-panel');
+        if (panel) {
+            htmx.trigger(panel, 'refresh');
+        } else {
+            htmx.ajax('GET', '/api/recent_activity', { target: 'body', swap: 'none' });
+        }
     }
 
     refreshAllPanels() {
@@ -517,6 +539,20 @@ class ModelsManager {
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize dashboard
     window.dashboard = new SystemDashboard();
+    // Back-compat: global showToast alias
+    if (typeof window.showToast !== 'function') {
+        window.showToast = function(message, type) {
+            if (window.dashboard) {
+                window.dashboard.showNotification(message, type || 'info');
+            }
+        };
+    }
+    // Back-compat: dashboard.showToast alias
+    if (typeof window.dashboard.showToast !== 'function') {
+        window.dashboard.showToast = function(message, type) {
+            window.dashboard.showNotification(message, type || 'info');
+        };
+    }
     
     // Initialize apps grid if on apps page
     if (document.getElementById('apps-container')) {

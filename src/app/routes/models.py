@@ -15,6 +15,7 @@ from ..models import (
 )
 from ..extensions import db
 from ..services.openrouter_service import OpenRouterService
+from ..services.huggingface_service import HuggingFaceService
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ models_bp = Blueprint('models', __name__, url_prefix='/models')
 
 # Initialize OpenRouter service
 openrouter_service = OpenRouterService()
+hf_service = HuggingFaceService()
 
 # Provider color mapping for templates
 PROVIDER_COLORS = {
@@ -145,6 +147,27 @@ def model_details(model_slug):
             error_title='Model Not Found',
             error_message=f"Model '{model_slug}' not found"
         )
+
+
+@models_bp.route('/model/<model_slug>/more-info')
+def model_more_info(model_slug):
+    """HTMX endpoint: external details (OpenRouter+HuggingFace) for modal display."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
+
+        data = openrouter_service.enrich_model_data(model)
+        # Merge HF enrichment (best-effort, no error if missing)
+        try:
+            hf_data = hf_service.enrich_model_data(model.provider, model.model_name)
+            if hf_data:
+                data.update(hf_data)
+        except Exception as e:
+            logger.warning(f"HF enrich failed for {model_slug}: {e}")
+
+        return render_template('partials/models/more_info_modal_body.html', model=data)
+    except Exception as e:
+        logger.error(f"Error loading more info for {model_slug}: {e}")
+        return f'<div class="alert alert-danger">Error: {str(e)}</div>'
 
 
 @models_bp.route('/applications')

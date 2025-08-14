@@ -1,0 +1,39 @@
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-6">
+      <h6><i class="fas fa-cloud text-primary"></i> OpenRouter</h6>
+      <table class="table table-sm">
+        <tr><th>ID</th><td><code>{{ model.openrouter_model_id or model.model_id }}</code></td></tr>
+        <tr><th>Context</th><td>{{ model.openrouter_context_length or model.context_window or 'N/A' }}</td></tr>
+        <tr><th>Pricing</th><td>
+          {% if model.openrouter_prompt_price or model.openrouter_completion_price %}
+            <small class="text-success">In: ${{ model.openrouter_prompt_price }}</small>
+            <small class="text-warning ms-2">Out: ${{ model.openrouter_completion_price }}</small>
+          {% else %}<span class="text-muted">No pricing</span>{% endif %}
+        </td></tr>
+        <tr><th>Modality</th><td>{{ model.architecture_modality or (model.openrouter_data.architecture.modality if model.openrouter_data and model.openrouter_data.architecture) or 'Unknown' }}</td></tr>
+        {% if model.openrouter_description %}
+        <tr><th>Description</th><td>{{ model.openrouter_description }}</td></tr>
+        {% endif %}
+      </table>
+    </div>
+    <div class="col-md-6">
+      <h6><i class="fas fa-hashtag text-warning"></i> Hugging Face</h6>
+      <table class="table table-sm">
+        <tr><th>Repo</th><td>{% if model.hf_repo_id %}<a href="https://huggingface.co/{{ model.hf_repo_id }}" target="_blank" rel="noopener">{{ model.hf_repo_id }}</a>{% else %}<span class="text-muted">Not found</span>{% endif %}</td></tr>
+        <tr><th>License</th><td>{{ model.hf_license or 'N/A' }}</td></tr>
+        <tr><th>Likes</th><td>{{ model.hf_likes or 0 }}</td></tr>
+        <tr><th>Downloads</th><td>{{ model.hf_downloads or 0 }}</td></tr>
+        <tr><th>Task</th><td>{{ model.hf_pipeline_tag or 'N/A' }}</td></tr>
+        <tr><th>Last Modified</th><td>{{ model.hf_last_modified or 'N/A' }}</td></tr>
+      </table>
+      {% if model.hf_tags %}
+      <div class="mb-2">
+        {% for t in model.hf_tags %}
+          <span class="badge bg-secondary me-1 mb-1">{{ t }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
