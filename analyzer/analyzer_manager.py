@@ -877,19 +877,38 @@ async def main():
                 results = await manager.run_comprehensive_analysis(model_slug, app_number)
             elif analysis_type == 'security':
                 results = await manager.run_security_analysis(model_slug, app_number)
+                # Persist results for single analysis types
+                try:
+                    await manager.save_analysis_results(model_slug, app_number, 'security', results)
+                except Exception as e:
+                    logger.warning(f"Could not save security analysis results: {e}")
             elif analysis_type == 'ai':
                 results = await manager.run_ai_analysis(model_slug, app_number)
+                try:
+                    await manager.save_analysis_results(model_slug, app_number, 'ai', results)
+                except Exception as e:
+                    logger.warning(f"Could not save AI analysis results: {e}")
             elif analysis_type == 'static':
                 results = await manager.run_static_analysis(model_slug, app_number)
+                try:
+                    await manager.save_analysis_results(model_slug, app_number, 'static', results)
+                except Exception as e:
+                    logger.warning(f"Could not save static analysis results: {e}")
             else:
                 print(f"❌ Unknown analysis type: {analysis_type}")
                 return
             
             print("✅ Analysis completed. Results summary:")
             if isinstance(results, dict):
-                for key, result in results.items():
-                    status = result.get('status', 'unknown') if isinstance(result, dict) else 'unknown'
-                    print(f"  {key}: {status}")
+                # For comprehensive results (dict of dicts), print each section
+                if any(isinstance(v, dict) for v in results.values()):
+                    for key, result in results.items():
+                        if isinstance(result, dict):
+                            status = result.get('status', 'unknown')
+                            print(f"  {key}: {status}")
+                else:
+                    status = results.get('status', 'unknown')
+                    print(f"  type: {analysis_type}, status: {status}")
         
         elif command == 'batch':
             if len(sys.argv) < 3:

@@ -258,15 +258,9 @@ class AnalyzerIntegration:
         """
         
         try:
-            # Construct command
-            command = ['analyze', '--type', 'security', '--model', model_slug, '--app', str(app_number)]
-            
-            if tools:
-                command.extend(['--tools'] + tools)
-            
-            if options:
-                # Add options as JSON
-                command.extend(['--options', json.dumps(options)])
+            # Construct command using analyzer_manager.py positional CLI
+            # Format: analyze <model> <app_number> [type]
+            command = ['analyze', model_slug, str(app_number), 'security']
             
             # Run analysis
             result = self.run_analyzer_command(command, timeout=options.get('timeout', 600) if options else 600)
@@ -312,11 +306,9 @@ class AnalyzerIntegration:
         """
         
         try:
-            # Construct command
-            command = ['analyze', '--type', 'performance', '--model', model_slug, '--app', str(app_number)]
-            
-            if test_config:
-                command.extend(['--config', json.dumps(test_config)])
+            # Construct command using analyzer_manager.py positional CLI
+            # Note: Current CLI does not accept passing config; defaults will be used by the manager.
+            command = ['analyze', model_slug, str(app_number), 'performance']
             
             # Run test
             result = self.run_analyzer_command(command, timeout=test_config.get('timeout', 900) if test_config else 900)
@@ -362,14 +354,8 @@ class AnalyzerIntegration:
         """
         
         try:
-            # Construct command
-            command = ['analyze', '--type', 'static', '--model', model_slug, '--app', str(app_number)]
-            
-            if tools:
-                command.extend(['--tools'] + tools)
-            
-            if options:
-                command.extend(['--options', json.dumps(options)])
+            # Construct command using analyzer_manager.py positional CLI
+            command = ['analyze', model_slug, str(app_number), 'static']
             
             # Run analysis
             result = self.run_analyzer_command(command, timeout=options.get('timeout', 300) if options else 300)
@@ -415,14 +401,8 @@ class AnalyzerIntegration:
         """
         
         try:
-            # Construct command
-            command = ['analyze', '--type', 'ai', '--model', model_slug, '--app', str(app_number)]
-            
-            if analysis_types:
-                command.extend(['--analysis-types'] + analysis_types)
-            
-            if options:
-                command.extend(['--options', json.dumps(options)])
+            # Construct command using analyzer_manager.py positional CLI
+            command = ['analyze', model_slug, str(app_number), 'ai']
             
             # Run analysis
             result = self.run_analyzer_command(command, timeout=options.get('timeout', 1200) if options else 1200)
