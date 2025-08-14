@@ -84,9 +84,9 @@
                     <small class="text-muted">CPU Usage</small>
                     <small class="font-weight-medium">{{ "%.1f"|format(docker_status.resource_usage.cpu_usage) }}%</small>
                 </div>
-                <div class="progress progress-sm">
+                <div class="progress h-4px">
                     <div class="progress-bar bg-primary" 
-                         style="width: {{ docker_status.resource_usage.cpu_usage }}%"></div>
+                         data-width="{{ docker_status.resource_usage.cpu_usage }}%"></div>
                 </div>
             </div>
             {% endif %}
@@ -97,9 +97,9 @@
                     <small class="text-muted">Memory Usage</small>
                     <small class="font-weight-medium">{{ docker_status.resource_usage.memory_usage }}</small>
                 </div>
-                <div class="progress progress-sm">
+                <div class="progress h-4px">
                     <div class="progress-bar bg-info" 
-                         style="width: {{ docker_status.resource_usage.memory_percentage or 50 }}%"></div>
+                         data-width="{{ docker_status.resource_usage.memory_percentage or 50 }}%"></div>
                 </div>
             </div>
             {% endif %}
@@ -182,63 +182,7 @@
     </div>
 {% endif %}
 
-<style>
-.docker-metric {
-    padding: 0.5rem 0;
-}
-
-.docker-metric .metric-value {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #495057;
-}
-
-.docker-metric .metric-label {
-    font-size: 0.75rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.stat-item {
-    padding: 0.5rem;
-}
-
-.stat-item .stat-value {
-    font-size: 1.25rem;
-    font-weight: 700;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-}
-
-.stat-item .stat-label {
-    font-size: 0.75rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.container-item {
-    font-size: 0.875rem;
-}
-
-.container-name {
-    font-weight: 500;
-    color: #495057;
-}
-
-.progress-sm {
-    height: 4px;
-}
-
-.badge-sm {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.4rem;
-}
-
-.resource-item {
-    font-size: 0.875rem;
-}
-</style>
+<!-- styles moved to theme.css -->
 
 <script>
 // Docker management functions

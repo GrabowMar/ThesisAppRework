@@ -16,9 +16,9 @@
                             {{ batch.status.value if batch.status else 'unknown' }}
                         </span>
                         {% if batch.status.value == 'running' %}
-                        <div class="progress mt-1" style="width: 100px;">
+                        <div class="progress mt-1 w-100px">
                             <div class="progress-bar" role="progressbar" 
-                                 style="width: {{ ((batch.completed_tasks or 0) / (batch.total_tasks or 1)) * 100 }}%">
+                                 data-width="{{ ((batch.completed_tasks or 0) / (batch.total_tasks or 1)) * 100 }}%">
                             </div>
                         </div>
                         {% endif %}

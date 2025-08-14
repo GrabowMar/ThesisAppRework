@@ -1,6 +1,6 @@
 <!-- Models Table View -->
 <div class="table-responsive">
-    <table class="table table-hover table-striped">
+    <table class="table table-hover table-striped models-table">
         <thead class="table-dark">
             <tr>
                 <th>
@@ -91,9 +91,9 @@
                 </td>
                 <td>
                     <div class="efficiency-cell">
-                        <div class="progress" style="height: 8px;">
+                        <div class="progress h-8px">
                             <div class="progress-bar bg-info" 
-                                 style="width: {{ (model.cost_efficiency * 10) }}%"
+                                 data-width="{{ (model.cost_efficiency * 10) }}%"
                                  title="{{ (model.cost_efficiency * 10) | round(1) }}/10">
                             </div>
                         </div>
@@ -102,9 +102,9 @@
                 </td>
                 <td>
                     <div class="safety-cell">
-                        <div class="progress" style="height: 8px;">
+                        <div class="progress h-8px">
                             <div class="progress-bar bg-success" 
-                                 style="width: {{ (model.safety_score * 10) }}%"
+                                 data-width="{{ (model.safety_score * 10) }}%"
                                  title="{{ (model.safety_score * 10) | round(1) }}/10">
                             </div>
                         </div>
@@ -145,70 +145,9 @@
 </div>
 
 <!-- Results info for JavaScript -->
-<div id="results-info-data" style="display: none;">
+<div id="results-info-data" class="d-none">
     Showing {{ models|length }} of {{ total }} models
 </div>
-
-<style>
-.provider-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.provider-anthropic { background: #e3f2fd; color: #1565c0; }
-.provider-openai { background: #e8f5e8; color: #2e7d32; }
-.provider-google { background: #fff3e0; color: #ef6c00; }
-.provider-deepseek { background: #f3e5f5; color: #7b1fa2; }
-.provider-mistralai { background: #fce4ec; color: #c2185b; }
-
-.capabilities-cell {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
-
-.capability-icon {
-    font-size: 1.1rem;
-}
-
-.model-name-cell strong {
-    color: #2c3e50;
-}
-
-.efficiency-cell,
-.safety-cell {
-    min-width: 80px;
-}
-
-.action-buttons {
-    display: flex;
-    gap: 0.25rem;
-}
-
-.cost-cell {
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-}
-
-.context-window {
-    font-weight: 500;
-    color: #495057;
-}
-
-.model-row:hover {
-    background-color: rgba(0, 123, 255, 0.1) !important;
-}
-
-.table th {
-    border-top: none;
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.8rem;
-    letter-spacing: 0.5px;
-}
-</style>
 
 <script>
 function toggleAllModels(checkbox) {

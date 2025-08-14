@@ -4,29 +4,29 @@
         {% for activity in activities %}
         <div class="activity-item mb-3 pb-3 {% if not loop.last %}border-bottom{% endif %}">
             <div class="d-flex align-items-start">
-                <div class="activity-icon mr-3 mt-1" style="min-width: 20px;">
+                <div class="activity-icon mr-3 mt-1 min-w-20">
                     {% if activity.type == 'success' %}
-                        <i class="fas fa-check-circle text-success" style="font-size: 1.1rem;"></i>
+                        <i class="fas fa-check-circle text-success fs-0_9rem"></i>
                     {% elif activity.type == 'warning' %}
-                        <i class="fas fa-exclamation-triangle text-warning" style="font-size: 1.1rem;"></i>
+                        <i class="fas fa-exclamation-triangle text-warning fs-0_9rem"></i>
                     {% elif activity.type == 'error' %}
-                        <i class="fas fa-times-circle text-danger" style="font-size: 1.1rem;"></i>
+                        <i class="fas fa-times-circle text-danger fs-0_9rem"></i>
                     {% elif activity.type == 'info' %}
-                        <i class="fas fa-info-circle text-info" style="font-size: 1.1rem;"></i>
+                        <i class="fas fa-info-circle text-info fs-0_9rem"></i>
                     {% else %}
-                        <i class="fas fa-circle text-primary" style="font-size: 1.1rem;"></i>
+                        <i class="fas fa-circle text-primary fs-0_9rem"></i>
                     {% endif %}
                 </div>
-                <div class="activity-content flex-grow-1" style="min-width: 0;">
-                    <div class="activity-title font-weight-medium mb-1" style="font-size: 0.9rem; line-height: 1.3;">
+                <div class="activity-content flex-grow-1 min-w-0">
+                    <div class="activity-title font-weight-medium mb-1 fs-0_9rem">
                         {{ activity.title or activity.message or activity.description or 'System Activity' }}
                     </div>
                     {% if activity.description and activity.description != (activity.title or activity.message) %}
-                    <div class="activity-description text-muted mb-2" style="font-size: 0.85rem; line-height: 1.2;">
+                    <div class="activity-description text-muted mb-2 fs-0_85rem">
                         {{ activity.description }}
                     </div>
                     {% endif %}
-                    <div class="activity-meta d-flex align-items-center" style="font-size: 0.75rem;">
+                    <div class="activity-meta d-flex align-items-center fs-0_75rem">
                         <span class="text-muted mr-2">
                             <i class="fas fa-clock mr-1"></i>
                             {% if activity.timestamp %}
@@ -57,89 +57,19 @@
         {% endfor %}
     {% else %}
         <div class="text-center py-4">
-            <i class="fas fa-history text-muted mb-3" style="font-size: 2.5rem; opacity: 0.5;"></i>
-            <p class="text-muted mb-1" style="font-size: 0.9rem;">No recent activity</p>
-            <small class="text-muted" style="font-size: 0.8rem;">System events will appear here</small>
+            <i class="fas fa-history text-muted mb-3 fs-2_5rem opacity-50"></i>
+            <p class="text-muted mb-1 fs-0_9rem">No recent activity</p>
+            <small class="text-muted fs-0_8rem">System events will appear here</small>
         </div>
     {% endif %}
     
     <!-- View All Link -->
     {% if activities and activities|length > 0 %}
     <div class="text-center mt-3 pt-3 border-top">
-        <small class="text-muted" style="font-size: 0.75rem;">
+    <small class="text-muted fs-0_75rem">
             <i class="fas fa-info-circle mr-1"></i>Showing {{ activities|length }} recent activities
         </small>
     </div>
     {% endif %}
 </div>
 
-<style>
-.activity-timeline {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.activity-timeline .activity-item {
-    transition: background-color 0.2s ease;
-}
-
-.activity-timeline .activity-item:hover {
-    background-color: rgba(0,123,255,0.04);
-    border-radius: 6px;
-    margin: 0 -8px;
-    padding: 12px 12px 16px 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.activity-timeline .activity-icon {
-    line-height: 1;
-}
-
-.activity-timeline .activity-content {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-
-.activity-timeline .activity-title {
-    color: #495057;
-    font-weight: 500;
-}
-
-.activity-timeline .activity-description {
-    color: #6c757d;
-}
-
-.activity-timeline .activity-meta {
-    color: #868e96;
-}
-
-.badge-sm {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.4rem;
-    border-radius: 0.2rem;
-}
-
-.badge-outline-secondary {
-    color: #6c757d;
-    border: 1px solid #6c757d;
-    background-color: transparent;
-}
-
-.activity-timeline::-webkit-scrollbar {
-    width: 4px;
-}
-
-.activity-timeline::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 2px;
-}
-
-.activity-timeline::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 2px;
-}
-
-.activity-timeline::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-}
-</style>

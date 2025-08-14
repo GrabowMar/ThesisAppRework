@@ -218,7 +218,7 @@
             <!-- Action Buttons -->
             <div class="d-grid gap-2">
                 <button type="submit" class="btn btn-danger">
-                    <span id="securityTestSpinner" class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+                    <span id="securityTestSpinner" class="spinner-border spinner-border-sm me-2 d-none"></span>
                     <i class="fas fa-shield-alt me-2"></i>Start Security Analysis
                 </button>
                 <button type="button" class="btn btn-outline-secondary" onclick="resetSecurityForm()">
@@ -229,7 +229,7 @@
     </div>
     
     <!-- Results Section -->
-    <div class="card-footer bg-light border-0" id="security-test-result">
+    <div class="card-footer bg-light border-0 d-none" id="security-test-result">
         <!-- Results will be loaded here -->
     </div>
 </div>

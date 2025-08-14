@@ -4,7 +4,7 @@
     <div class="d-flex justify-content-between flex-wrap">
       <div>
         <h3 class="mb-2">
-          <span class="badge" style="background-color: {{ get_provider_color(model.provider) }}">{{ model.provider }}</span>
+          <span class="badge provider-dynamic" data-provider-color="{{ get_provider_color(model.provider) }}">{{ model.provider }}</span>
           {{ model.model_name }}
         </h3>
         <p class="text-muted mb-2">{{ model.canonical_slug }}</p>
@@ -15,7 +15,7 @@
           {% if model.supports_streaming %}<span class="badge bg-cyan">Streaming</span>{% endif %}
         </div>
       </div>
-      <div class="card bg-light mb-2" style="min-width:180px;">
+  <div class="card bg-light mb-2 min-w-180">
         <div class="card-body py-2">
           <h6 class="card-title mb-2">Quick Stats</h6>
           <div class="row text-center">
@@ -52,8 +52,8 @@
           <div class="col-md-6">
             <h6><i class="fas fa-chart-line text-success"></i> Performance Metrics</h6>
             <table class="table table-sm mb-3">
-              <tr><th width="30%">Cost Efficiency:</th><td>{% if model.cost_efficiency %}<div class="progress" style="height:18px;"><div class="progress-bar" style="width: {{ (model.cost_efficiency*100)|round }}%">{{ (model.cost_efficiency*100)|round }}%</div></div>{% else %}<span class="text-muted">N/A</span>{% endif %}</td></tr>
-              <tr><th>Safety Score:</th><td>{% if model.safety_score %}<div class="progress" style="height:18px;"><div class="progress-bar bg-success" style="width: {{ (model.safety_score*100)|round }}%">{{ (model.safety_score*100)|round }}%</div></div>{% else %}<span class="text-muted">N/A</span>{% endif %}</td></tr>
+              <tr><th width="30%">Cost Efficiency:</th><td>{% if model.cost_efficiency %}<div class="progress h-18px"><div class="progress-bar" data-width="{{ (model.cost_efficiency*100)|round }}%">{{ (model.cost_efficiency*100)|round }}%</div></div>{% else %}<span class="text-muted">N/A</span>{% endif %}</td></tr>
+              <tr><th>Safety Score:</th><td>{% if model.safety_score %}<div class="progress h-18px"><div class="progress-bar bg-success" data-width="{{ (model.safety_score*100)|round }}%">{{ (model.safety_score*100)|round }}%</div></div>{% else %}<span class="text-muted">N/A</span>{% endif %}</td></tr>
             </table>
             <h6><i class="fas fa-external-link-alt text-info"></i> Actions</h6>
             <a href="{{ url_for('models.applications') }}?model={{ model.canonical_slug }}" class="btn btn-outline-primary btn-sm mb-1"><i class="fas fa-cubes"></i> View Applications</a>

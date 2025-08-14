@@ -97,7 +97,7 @@
             <!-- Action Buttons -->
             <div class="d-grid gap-2">
                 <button type="submit" class="btn btn-info text-white">
-                    <span id="dynamicTestSpinner" class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+                    <span id="dynamicTestSpinner" class="spinner-border spinner-border-sm me-2 d-none"></span>
                     <i class="fas fa-bolt me-2"></i>Start Dynamic Scan
                 </button>
                 <button type="button" class="btn btn-outline-secondary" onclick="resetDynamicForm()">
@@ -108,7 +108,7 @@
     </div>
 
     <!-- Results Section -->
-    <div class="card-footer bg-light border-0" id="dynamic-test-result">
+    <div class="card-footer bg-light border-0 d-none" id="dynamic-test-result">
         <!-- Results will be loaded here -->
     </div>
 </div>

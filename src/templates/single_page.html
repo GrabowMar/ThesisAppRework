@@ -8,8 +8,11 @@
     {% if page_icon %}<i class="{{ page_icon }} text-muted mr-2"></i>{% endif %}
     <h1 class="h4 d-inline align-middle">{{ page_title }}</h1>
     {% if page_subtitle %}<p class="text-muted mb-0 small">{{ page_subtitle }}</p>{% endif %}
+    {% block page_badges %}{% endblock %}
   </div>
-  <div id="page-actions">{% if page_actions_partial %}{% include page_actions_partial %}{% endif %}</div>
+  <div id="page-actions">
+    {% block page_actions %}{% if page_actions_partial %}{% include page_actions_partial %}{% endif %}{% endblock %}
+  </div>
 </div>
 <div id="main-partial-wrapper" hx-get="{{ initial_hx_get or '' }}" hx-trigger="{{ 'load' if initial_hx_get }}" hx-target="#main-partial-wrapper" hx-swap="innerHTML">
   {% if main_partial %}

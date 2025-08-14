@@ -59,49 +59,49 @@
         <h6 class="mb-2">System Resources</h6>
         
         {% if system_health.resources.cpu_usage is defined %}
-        <div class="resource-item mb-2">
+    <div class="resource-item mb-2">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <small class="text-muted">CPU Usage</small>
                 <small class="font-weight-medium">{{ "%.1f"|format(system_health.resources.cpu_usage) }}%</small>
             </div>
-            <div class="progress progress-sm">
+        <div class="progress h-4px">
                 <div class="progress-bar 
                     {% if system_health.resources.cpu_usage > 80 %}bg-danger
                     {% elif system_health.resources.cpu_usage > 60 %}bg-warning
-                    {% else %}bg-success{% endif %}" 
-                     style="width: {{ system_health.resources.cpu_usage }}%"></div>
+            {% else %}bg-success{% endif %}"
+             data-width="{{ system_health.resources.cpu_usage }}%"></div>
             </div>
         </div>
         {% endif %}
 
         {% if system_health.resources.memory_usage is defined %}
-        <div class="resource-item mb-2">
+    <div class="resource-item mb-2">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <small class="text-muted">Memory Usage</small>
                 <small class="font-weight-medium">{{ "%.1f"|format(system_health.resources.memory_usage) }}%</small>
             </div>
-            <div class="progress progress-sm">
+        <div class="progress h-4px">
                 <div class="progress-bar 
                     {% if system_health.resources.memory_usage > 80 %}bg-danger
                     {% elif system_health.resources.memory_usage > 60 %}bg-warning
-                    {% else %}bg-success{% endif %}" 
-                     style="width: {{ system_health.resources.memory_usage }}%"></div>
+            {% else %}bg-success{% endif %}"
+             data-width="{{ system_health.resources.memory_usage }}%"></div>
             </div>
         </div>
         {% endif %}
 
         {% if system_health.resources.disk_usage is defined %}
-        <div class="resource-item mb-2">
+    <div class="resource-item mb-2">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <small class="text-muted">Disk Usage</small>
                 <small class="font-weight-medium">{{ "%.1f"|format(system_health.resources.disk_usage) }}%</small>
             </div>
-            <div class="progress progress-sm">
+        <div class="progress h-4px">
                 <div class="progress-bar 
                     {% if system_health.resources.disk_usage > 90 %}bg-danger
                     {% elif system_health.resources.disk_usage > 75 %}bg-warning
-                    {% else %}bg-success{% endif %}" 
-                     style="width: {{ system_health.resources.disk_usage }}%"></div>
+            {% else %}bg-success{% endif %}"
+             data-width="{{ system_health.resources.disk_usage }}%"></div>
             </div>
         </div>
         {% endif %}
@@ -131,31 +131,4 @@
     </div>
 {% endif %}
 
-<style>
-.health-component {
-    background-color: #f8f9fa;
-    transition: background-color 0.15s ease;
-}
 
-.health-component:hover {
-    background-color: #e9ecef;
-}
-
-.component-name {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #495057;
-}
-
-.progress-sm {
-    height: 4px;
-}
-
-.resource-item {
-    font-size: 0.875rem;
-}
-
-.badge {
-    font-size: 0.75rem;
-}
-</style>

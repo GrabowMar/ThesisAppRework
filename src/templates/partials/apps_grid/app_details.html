@@ -141,7 +141,7 @@
                 </div>
                 <div class="card-body">
                     {% if logs %}
-                    <pre class="container-logs">{{ logs | join('\n') }}</pre>
+                    <pre class="container-logs font-mono-sm scroll-box-200">{{ logs | join('\n') }}</pre>
                     {% else %}
                     <p class="text-muted">No logs available</p>
                     {% endif %}
@@ -175,38 +175,3 @@
     </div>
 </div>
 
-<style>
-.container-logs {
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-    padding: 1rem;
-    border-radius: 0.375rem;
-    max-height: 300px;
-    overflow-y: auto;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-}
-
-.app-details-container .card {
-    border: 1px solid #dee2e6;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.app-details-container .card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.app-details-container dl {
-    margin-bottom: 0;
-}
-
-.app-details-container dt {
-    font-weight: 600;
-    color: #495057;
-}
-
-.app-details-container dd {
-    color: #6c757d;
-}
-</style>

@@ -295,7 +295,7 @@
           </div>
 
           <!-- Enhanced Card View -->
-          <div id="cardViewContainer" class="view-content" style="display: none;">
+          <div id="cardViewContainer" class="view-content d-none">
             <div class="p-3">
               <div class="row" id="resultsCardsContainer">
                 <!-- Dynamic cards loaded here -->
@@ -311,7 +311,7 @@
           </div>
 
           <!-- Enhanced Chart View -->
-          <div id="chartViewContainer" class="view-content" style="display: none;">
+          <div id="chartViewContainer" class="view-content d-none">
             <div class="p-4">
               <div class="row mb-4">
                 <div class="col-md-6">
@@ -351,7 +351,7 @@
           </div>
 
           <!-- Timeline View -->
-          <div id="timelineViewContainer" class="view-content" style="display: none;">
+          <div id="timelineViewContainer" class="view-content d-none">
             <div class="p-3">
               <div class="timeline-container" id="analysisTimeline">
                 <!-- Dynamic timeline content will be loaded here -->
@@ -370,7 +370,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center">
               <span class="me-3 text-muted">Show:</span>
-              <select class="form-select form-select-sm" style="width: auto;" onchange="changePageSize(this.value)">
+              <select class="form-select form-select-sm w-auto" onchange="changePageSize(this.value)">
                 <option value="10">10</option>
                 <option value="25" selected>25</option>
                 <option value="50">50</option>
@@ -383,7 +383,7 @@
             
             <div class="d-flex align-items-center gap-2">
               <!-- Bulk Actions -->
-              <div class="btn-group btn-group-sm" id="bulkActions" style="display: none;">
+              <div class="btn-group btn-group-sm d-none" id="bulkActions">
                 <button type="button" class="btn btn-outline-danger" onclick="deleteSelectedResults()" data-bs-toggle="tooltip" title="Delete selected">
                   <i class="fas fa-trash"></i>
                 </button>
@@ -623,7 +623,7 @@
           </div>
           
           <!-- Dynamic comparison content will be loaded here -->
-          <div id="comparisonData" style="display: none;">
+          <div id="comparisonData" class="d-none">
             <!-- Side by side view -->
             <div id="sideByTimeView" class="comparison-view active">
               <div class="row" id="comparisonCards">
@@ -632,14 +632,14 @@
             </div>
             
             <!-- Stacked view -->
-            <div id="stackedComparisonView" class="comparison-view" style="display: none;">
+            <div id="stackedComparisonView" class="comparison-view d-none">
               <div id="stackedComparison">
                 <!-- Stacked comparison table will be generated here -->
               </div>
             </div>
             
             <!-- Chart view -->
-            <div id="chartComparisonView" class="comparison-view" style="display: none;">
+            <div id="chartComparisonView" class="comparison-view d-none">
               <div class="row">
                 <div class="col-md-6">
                   <div class="card border-0 shadow-sm">

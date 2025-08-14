@@ -1,0 +1,13 @@
+{# UI Macros for nav links and badges #}
+{% macro nav_link(label, endpoint, icon_class=None) -%}
+  {%- set href = url_for(endpoint) -%}
+  {%- set is_active = (request.path == href) or (request.endpoint and request.endpoint.startswith(endpoint.split('.')[0])) -%}
+  <a href="{{ href }}" class="nav-link {{ 'active' if is_active }}" aria-current="{{ 'page' if is_active }}">
+    {%- if icon_class %}<i class="{{ icon_class }} nav-icon"></i>{% endif -%}
+    <p>{{ label }}</p>
+  </a>
+{%- endmacro %}
+
+{% macro badge(text, color='secondary') -%}
+  <span class="badge badge-{{ color }}">{{ text }}</span>
+{%- endmacro %}

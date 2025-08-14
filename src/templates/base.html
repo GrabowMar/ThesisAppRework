@@ -14,6 +14,7 @@
     
     <!-- AdminLTE v3.2.0 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
     {% block extra_css %}{% endblock %}
     
     <!-- HTMX -->
@@ -36,6 +37,11 @@
             </ul>
             <ul class="navbar-nav ms-auto align-items-center">
                 {% block navbar_right %}{% endblock %}
+                <li class="nav-item">
+                    <a class="nav-link" href="#" title="Toggle theme" onclick="Theme && Theme.toggle(); return false;">
+                        <i class="fas fa-moon"></i>
+                    </a>
+                </li>
                 <li class="nav-item"><a class="nav-link" data-widget="fullscreen" href="#" role="button" title="Fullscreen"><i class="fas fa-expand"></i></a></li>
             </ul>
         </nav>
@@ -54,132 +60,7 @@
                 <nav class="mt-2">
                     <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
                         {% block sidebar_before %}{% endblock %}
-                        <!-- Dashboard -->
-                        <li class="nav-item">
-                            <a href="{{ url_for('main.dashboard') }}" class="nav-link">
-                                <i class="nav-icon fas fa-tachometer-alt"></i>
-                                <p>Dashboard</p>
-                            </a>
-                        </li>
-
-                        <!-- Models -->
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">
-                                <i class="nav-icon fas fa-brain"></i>
-                                <p>
-                                    Models & Apps
-                                    <i class="fas fa-angle-left end"></i>
-                                </p>
-                            </a>
-                            <ul class="nav nav-treeview">
-                                <li class="nav-item">
-                                    <a href="{{ url_for('models.models_overview') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Models Overview</p>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="{{ url_for('models.applications') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Applications</p>
-                                    </a>
-                                </li>
-                            </ul>
-                        </li>
-
-                        <!-- Analysis -->
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">
-                                <i class="nav-icon fas fa-chart-line"></i>
-                                <p>
-                                    Analysis
-                                    <i class="fas fa-angle-left end"></i>
-                                </p>
-                            </a>
-                            <ul class="nav nav-treeview">
-                                <li class="nav-item">
-                                    <a href="{{ url_for('analysis.analysis_hub') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Analysis Hub</p>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="{{ url_for('statistics.statistics_overview') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Statistics</p>
-                                    </a>
-                                </li>
-                            </ul>
-                        </li>
-
-                        <!-- Testing -->
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">
-                                <i class="nav-icon fas fa-flask"></i>
-                                <p>
-                                    Testing
-                                    <i class="fas fa-angle-left end"></i>
-                                </p>
-                            </a>
-                            <ul class="nav nav-treeview">
-                                <li class="nav-item">
-                                    <a href="{{ url_for('testing.testing_center') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Testing Center</p>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="{{ url_for('main.testing') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Testing Console</p>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="{{ url_for('testing.batch_testing') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Batch Testing</p>
-                                    </a>
-                                </li>
-                            </ul>
-                        </li>
-
-                        <!-- System -->
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">
-                                <i class="nav-icon fas fa-cogs"></i>
-                                <p>
-                                    System
-                                    <i class="fas fa-angle-left end"></i>
-                                </p>
-                            </a>
-                            <ul class="nav nav-treeview">
-                                <li class="nav-item">
-                                    <a href="{{ url_for('main.system_status') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>System Status</p>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="{{ url_for('main.about') }}" class="nav-link">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>About</p>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="#" class="nav-link disabled" title="Coming soon">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Logs</p>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="#" class="nav-link disabled" title="Coming soon">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Maintenance</p>
-                                    </a>
-                                </li>
-                            </ul>
-                        </li>
-
+                        {% include 'partials/common/sidebar_links.html' %}
                         {% block sidebar_after %}{% endblock %}
                     </ul>
                 </nav>
@@ -242,6 +123,11 @@
         </footer>
     </div>
 
+    <!-- Global HTMX indicator -->
+    <div id="globalSpinner" class="htmx-indicator position-fixed" style="right: 12px; top: 12px; z-index: 1051;">
+        <span class="badge badge-secondary"><i class="fas fa-spinner fa-spin mr-1"></i> Loading...</span>
+    </div>
+
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
@@ -250,6 +136,7 @@
     
     <!-- AdminLTE App -->
     <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+    <script src="{{ url_for('static', filename='js/theme_toggle.js') }}"></script>
     
         {% block core_scripts %}
         <script>
@@ -262,10 +149,81 @@
                 }
                 document.addEventListener('DOMContentLoaded', initComponents);
                 document.body.addEventListener('htmx:afterSwap', initComponents);
-                document.body.addEventListener('htmx:responseError', function(e){ console.error('HTMX error', e.detail); });
+        document.body.addEventListener('htmx:responseError', function(e){ console.error('HTMX error', e.detail); });
+
+                // Global spinner visibility for all HTMX requests
+                document.body.addEventListener('htmx:beforeRequest', function(e){
+                    var s = document.getElementById('globalSpinner');
+                    if (s) s.style.display = 'block';
+                    // If the requesting element specifies an hx-indicator, unhide it
+                    var reqEl = e && e.detail && e.detail.elt;
+                    if (reqEl && reqEl.getAttribute) {
+                        var indSel = reqEl.getAttribute('hx-indicator');
+                        if (indSel) {
+                            try {
+                                var ind = document.querySelector(indSel);
+                                if (ind && ind.classList) ind.classList.remove('d-none');
+                            } catch (err) { /* ignore invalid selector */ }
+                        }
+                    }
+                });
+                document.body.addEventListener('htmx:afterOnLoad', function(e){
+                    var s = document.getElementById('globalSpinner');
+                    if (s) s.style.display = 'none';
+                    // Hide any hx-indicator that was shown for this request
+                    var reqEl = e && e.detail && e.detail.elt;
+                    if (reqEl && reqEl.getAttribute) {
+                        var indSel = reqEl.getAttribute('hx-indicator');
+                        if (indSel) {
+                            try {
+                                var ind = document.querySelector(indSel);
+                                if (ind && ind.classList) ind.classList.add('d-none');
+                            } catch (err) { /* ignore invalid selector */ }
+                        }
+                    }
+                });
+                document.body.addEventListener('htmx:responseError', function(e){
+                    var s = document.getElementById('globalSpinner');
+                    if (s) s.style.display = 'none';
+                    // Also hide per-request indicator on error
+                    var reqEl = e && e.detail && e.detail.elt;
+                    if (reqEl && reqEl.getAttribute) {
+                        var indSel = reqEl.getAttribute('hx-indicator');
+                        if (indSel) {
+                            try {
+                                var ind = document.querySelector(indSel);
+                                if (ind && ind.classList) ind.classList.add('d-none');
+                            } catch (err) { /* ignore invalid selector */ }
+                        }
+                    }
+                });
+
+                // Apply data-width to progress bars and data-provider-color for badges
+                function applyDataWidths(ctx){
+                    var root = ctx || document;
+                    root.querySelectorAll('[data-width]')
+                        .forEach(function(el){
+                            var w = el.getAttribute('data-width');
+                            if (w != null) el.style.width = String(w).match(/%|px$/) ? w : (w + '%');
+                        });
+                    root.querySelectorAll('[data-provider-color]')
+                        .forEach(function(el){
+                            var c = el.getAttribute('data-provider-color');
+                            if (c) el.style.backgroundColor = c;
+                        });
+                }
+                document.addEventListener('DOMContentLoaded', function(){ applyDataWidths(); });
+                document.body.addEventListener('htmx:afterSwap', function(e){ 
+                    applyDataWidths(e.target); 
+                    // If the swap target is hidden via d-none, unhide it
+                    if (e && e.target && e.target.classList && e.target.classList.contains('d-none')) {
+                        e.target.classList.remove('d-none');
+                    }
+                });
             })();
         </script>
         {% endblock %}
+    {% block modals %}{% endblock %}
         {% block scripts %}{% endblock %}
         {% block extra_js %}{% endblock %}
 </body>

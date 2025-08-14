@@ -237,7 +237,7 @@
             <!-- Action Buttons -->
             <div class="d-grid gap-2">
                 <button type="submit" class="btn btn-warning">
-                    <span id="performanceTestSpinner" class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+                    <span id="performanceTestSpinner" class="spinner-border spinner-border-sm me-2 d-none"></span>
                     <i class="fas fa-tachometer-alt me-2"></i>Start Performance Test
                 </button>
                 <button type="button" class="btn btn-outline-secondary" onclick="resetPerformanceForm()">
@@ -248,7 +248,7 @@
     </div>
     
     <!-- Results Section -->
-    <div class="card-footer bg-light border-0" id="performance-test-result" style="display: none;">
+    <div class="card-footer bg-light border-0 d-none" id="performance-test-result">
         <!-- Results will be loaded here -->
     </div>
 </div>

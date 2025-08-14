@@ -161,6 +161,18 @@ pytest --cov=app tests/ --cov-report=html
 
 ### Code Example
 
+## 🎨 UI Styling Conventions
+
+- No inline CSS or embedded <style> blocks in templates/partials. All styles live in `src/static/css/theme.css`.
+- Use Bootstrap/AdminLTE utilities wherever possible (e.g., spacing, text colors, display, grid).
+- Visibility: use `d-none` to hide elements and show them by removing the class. Avoid `style.display` toggles.
+- Progress bars: set widths via `data-width` attribute. The base template applies widths on load and after HTMX swaps.
+- Provider badges: set `data-provider-color` where needed; base script applies background color.
+- Activity timelines: use shared styles in `theme.css` (no template-level CSS).
+- Logs: use `.container-logs` and `font-mono-sm` for consistent dark-themed log panes.
+- Font sizing: prefer provided `fs-*` utility classes (e.g., `fs-0_9rem`, `fs-0_85rem`, `fs-0_8rem`).
+
+
 ```python
 from typing import Dict, Any, Optional
 import logging
@@ -500,3 +512,51 @@ Brief description of changes
 - Create GitHub issue for bugs or feature requests
 - Follow established patterns and conventions
 - Ask questions in PR reviews
+
+---
+
+## 🧩 Partials & HTMX Conventions
+
+This project favors small, reusable Jinja partials and HTMX-driven updates. The goals are consistency, no inline JS where avoidable, and seamless progressive enhancement.
+
+Guidelines
+- File locations
+    - Keep reusable fragments under `src/templates/partials/**` grouped by domain (dashboard, analysis, testing, etc.).
+    - Alias partials can live as thin includes to preserve legacy paths (e.g., `partials/apps_grid/grid.html` → `partials/apps_grid/apps_grid.html`).
+- Page shell
+    - Prefer `{% extends 'single_page.html' %}` for simple pages.
+    - Use blocks in `single_page.html`:
+        - `page_badges`: right under the title for chips/states
+        - `page_actions`: right-aligned action buttons; legacy `page_actions_partial` still works inside
+- Sidebar & macros
+    - Use `templates/macros/ui.html` macros for nav links to ensure active state + aria-current.
+    - Centralize menu in `partials/common/sidebar_links.html` and include it from `base.html`.
+- HTMX usage
+    - Favor `hx-get` for idempotent updates; use `hx-post` for writes.
+    - Default indicator: global `#globalSpinner` is auto-toggled via `htmx:beforeRequest/afterOnLoad` hooks. You can still set `hx-indicator` locally for per-widget spinners.
+    - Default swap: prefer `hx-swap="innerHTML transition:true"` for main panels; `outerHTML` when replacing a container (cards/lists).
+    - Re-init JS after swaps: `base.html` binds an `htmx:afterSwap` hook to rewire tooltips and AdminLTE widgets.
+- Theming
+    - Light/dark toggle lives in `static/js/theme_toggle.js`; styles in `static/css/theme.css`.
+    - Add dark-mode overrides with `body.theme-dark ...` selectors.
+
+Examples
+```html
+<!-- Card that refreshes itself -->
+<div id="recentCombined"
+         hx-get="/analysis/api/recent/combined"
+         hx-trigger="load, every 60s"
+         hx-swap="outerHTML">
+    {% include 'partials/analysis/recent_combined.html' %}
+    <!-- global spinner is automatically shown; add hx-indicator for per-card spinner if needed -->
+    <!-- <div class="htmx-indicator small text-muted"><i class="fas fa-spinner fa-spin"></i> Loading…</div> -->
+  
+</div>
+```
+
+Acceptance checklist for a new partial
+- Lives under the correct `partials/**` folder
+- No blocking inline scripts; re-init via global hooks where possible
+- Works with HTMX (target, swap, indicator as needed)
+- Degrades gracefully without JS (static render is acceptable)
+- Accessible labels and semantics

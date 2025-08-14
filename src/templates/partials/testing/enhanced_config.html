@@ -71,13 +71,13 @@
           </div>
           
           <!-- Batch Selection (hidden by default) -->
-          <div id="batchSelectionPanel" style="display: none;">
+          <div id="batchSelectionPanel" class="d-none">
             <hr>
             <h6>Batch Selection</h6>
             <div class="row">
               <div class="col-md-6">
                 <label class="form-label">Selected Models</label>
-                <div class="form-check-container" style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; padding: 10px;">
+                <div class="form-check-container scroll-box-200">
                   <div id="modelCheckboxes">
                     <!-- Model checkboxes will be populated here -->
                   </div>
@@ -579,7 +579,7 @@
                       <i class="fas fa-upload me-1"></i>Import from JSON
                     </button>
                   </div>
-                  <input type="file" id="configImport" style="display: none;" accept=".json" onchange="handleConfigImport(event)" />
+                  <input type="file" id="configImport" class="d-none" accept=".json" onchange="handleConfigImport(event)" />
                 </div>
               </div>
             </div>
