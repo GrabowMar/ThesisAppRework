@@ -284,6 +284,28 @@ def api_application_logs_modal(app_id):
         return f'<div class="alert alert-danger">Error loading logs: {str(e)}</div>', 500
 
 
+@api_bp.route('/app/<model_slug>/<int:app_num>/logs')
+def api_application_logs_modal_by_slug(model_slug, app_num):
+    """API endpoint to get application logs modal by model slug and app number."""
+    try:
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
+        if not app:
+            return f'<div class="alert alert-warning">Application {model_slug}/app{app_num} not found</div>', 404
+
+        # Mock logs for now - in production, this would read actual log files or Docker logs
+        logs = [
+            {'timestamp': '2025-08-15 10:00:00', 'level': 'INFO', 'message': f'Application {app.id} initialized'},
+            {'timestamp': '2025-08-15 10:00:01', 'level': 'INFO', 'message': f'Model: {app.model_slug}'},
+            {'timestamp': '2025-08-15 10:00:02', 'level': 'INFO', 'message': f'Provider: {app.provider}'},
+            {'timestamp': '2025-08-15 10:00:03', 'level': 'INFO', 'message': 'Container event stream connected'},
+        ]
+
+        return render_template('partials/application_logs_modal.html', app=app, logs=logs)
+    except Exception as e:
+        logger.error(f"Error loading application logs modal by slug for {model_slug}/app{app_num}: {e}")
+        return f'<div class="alert alert-danger">Error loading logs: {str(e)}</div>', 500
+
+
 @api_bp.route('/logs/application/<int:app_id>')
 def api_application_logs(app_id):
     """API endpoint for application logs."""

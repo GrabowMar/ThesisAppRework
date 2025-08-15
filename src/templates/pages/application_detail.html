@@ -27,6 +27,7 @@
   <div class="btn-group">
     <a class="btn btn-sm btn-outline-secondary" href="/models"><i class="fas fa-robot me-1"></i> Models</a>
     <a class="btn btn-sm btn-outline-primary" href="/models/applications?model={{ app_data.model_slug }}"><i class="fas fa-cubes me-1"></i> Applications</a>
+    <a class="btn btn-sm btn-outline-success" href="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv"><i class="fas fa-file-csv me-1"></i> Export</a>
   </div>
 </div>
 
@@ -42,38 +43,67 @@
         <a href="#section-container" class="nav-link"><i class="fab fa-docker me-2"></i>Container</a>
         <a href="#section-analyses" class="nav-link"><i class="fas fa-flask me-2"></i>Analyses</a>
         <a href="#section-metadata" class="nav-link"><i class="fas fa-database me-2"></i>Metadata</a>
+  <a href="#section-artifacts" class="nav-link"><i class="fas fa-book me-2"></i>Artifacts</a>
+  <a href="#section-logs" class="nav-link"><i class="fas fa-file-lines me-2"></i>Logs</a>
+  <a href="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv" class="nav-link"><i class="fas fa-file-csv me-2"></i>Export CSV</a>
       </nav>
     </div>
   </div>
 
   <!-- Main content -->
   <div class="col-12 col-md-9 col-xl-10">
-    <section id="section-overview" class="mb-4">
-      {% include 'partials/applications/sections/overview.html' %}
+    <section id="section-overview" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/overview"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading overview…</div></div>
     </section>
 
-    <section id="section-prompts" class="mb-4">
-      {% include 'partials/applications/sections/prompts.html' %}
+    <section id="section-prompts" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/prompts"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading prompts…</div></div>
     </section>
 
-    <section id="section-files" class="mb-4">
-      {% include 'partials/applications/sections/files.html' %}
+    <section id="section-files" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/files"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading files…</div></div>
     </section>
 
-    <section id="section-ports" class="mb-4">
-      {% include 'partials/applications/sections/ports.html' %}
+    <section id="section-ports" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading ports…</div></div>
     </section>
 
-    <section id="section-container" class="mb-4">
-      {% include 'partials/applications/sections/container.html' %}
+    <section id="section-container" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/container"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading container controls…</div></div>
     </section>
 
-    <section id="section-analyses" class="mb-4">
-      {% include 'partials/applications/sections/analyses.html' %}
+    <section id="section-analyses" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/analyses"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading analyses…</div></div>
     </section>
 
-    <section id="section-metadata" class="mb-4">
-      {% include 'partials/applications/sections/metadata.html' %}
+    <section id="section-metadata" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/metadata"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading metadata…</div></div>
+    </section>
+
+    <section id="section-artifacts" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/artifacts"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading artifacts…</div></div>
+    </section>
+
+    <section id="section-logs" class="mb-4"
+             hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs"
+             hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+      <div class="card"><div class="card-body text-muted">Loading logs…</div></div>
     </section>
 
     <div id="modal-container"></div>

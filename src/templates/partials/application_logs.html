@@ -1,0 +1,32 @@
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <h6 class="mb-0"><i class="fas fa-file-alt me-2"></i>Application Logs</h6>
+    {% if app %}
+      <small class="text-muted">{{ app.model_slug }} / app{{ app.app_number }}</small>
+    {% endif %}
+  </div>
+  <div class="card-body p-0">
+    <div id="logs-container" class="bg-dark text-light p-3" style="max-height: 420px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px;">
+      {% if logs %}
+        {% for log in logs %}
+          <div class="log-entry mb-1">
+            <span class="text-muted">[{{ log.timestamp }}]</span>
+            <span class="badge rounded-pill ms-2
+                {% if log.level == 'ERROR' %} bg-danger
+                {% elif log.level == 'WARNING' %} bg-warning text-dark
+                {% elif log.level == 'INFO' %} bg-info text-dark
+                {% else %} bg-secondary {% endif %}">
+              {{ log.level }}
+            </span>
+            <span class="ms-2">{{ log.message }}</span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center text-muted p-4">
+          <i class="fas fa-file-alt fa-2x mb-2"></i>
+          <div>No logs available for this application.</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

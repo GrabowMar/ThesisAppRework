@@ -439,6 +439,11 @@ def application_detail(model_slug, app_number):
             'total_loc': 0,
             'by_language': {}
         }
+        artifacts = {
+            'project_index': (app_path / 'PROJECT_INDEX.md') if app_path.exists() else None,
+            'readme': (app_path / 'README.md') if app_path.exists() else None,
+            'compose_path': (app_path / 'docker-compose.yml') if app_path.exists() else None,
+        }
         
         if app_path.exists():
             # Scan for files
@@ -513,13 +518,17 @@ def application_detail(model_slug, app_number):
 
         # Prompt templates for this app number
         prompts = {'backend': '', 'frontend': ''}
+        # Initialize with empty strings to satisfy static typing (later populated with filenames)
+        template_files = {'backend_file': '', 'frontend_file': ''}
         try:
             tmpl_dir = Path('misc/app_templates')
             backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
             frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
             if backend_md:
+                template_files['backend_file'] = backend_md[0].name
                 prompts['backend'] = backend_md[0].read_text(encoding='utf-8', errors='ignore')
             if frontend_md:
+                template_files['frontend_file'] = frontend_md[0].name
                 prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
         except Exception as e:
             logger.warning(f"Failed to load prompts for app {app_number}: {e}")
@@ -533,9 +542,10 @@ def application_detail(model_slug, app_number):
             model=model,
             ports=ports,
             code_stats=code_stats,
-            prompts=prompts
+            prompts=prompts,
+            template_files=template_files,
+            artifacts=artifacts
         )
-        
     except Exception as e:
         logger.error(f"Error loading application details for {model_slug}/app{app_number}: {e}")
         flash(f"Error loading application details: {e}", "error")
@@ -547,6 +557,232 @@ def application_detail(model_slug, app_number):
             error_title='Application Not Found',
             error_message=f"Application '{model_slug}/app{app_number}' not found"
         )
+
+
+def _collect_app_context(model_slug: str, app_number: int):
+    """Internal helper to rebuild the detail context for section routes."""
+    # Reuse logic from application_detail compactly
+    app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+    model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
+    app_data = {
+        'model_slug': model_slug,
+        'app_number': app_number,
+        'exists_in_db': bool(app),
+        'app_type': getattr(app, 'app_type', 'unknown') if app else 'unknown',
+        'provider': getattr(app, 'provider', None) if app else None,
+        'generation_status': getattr(app, 'generation_status', 'pending') if app else 'pending',
+        'container_status': getattr(app, 'container_status', 'not_created') if app else 'not_created',
+        'has_backend': getattr(app, 'has_backend', False) if app else False,
+        'has_frontend': getattr(app, 'has_frontend', False) if app else False,
+        'has_docker_compose': getattr(app, 'has_docker_compose', False) if app else False,
+        'backend_framework': getattr(app, 'backend_framework', None) if app else None,
+        'frontend_framework': getattr(app, 'frontend_framework', None) if app else None,
+        'created_at': getattr(app, 'created_at', None) if app else None,
+        'metadata': app.get_metadata() if app and hasattr(app, 'get_metadata') else {}
+    }
+
+    app_path = Path('misc/models') / model_slug / f'app{app_number}'
+    ignore_dirs = {'.mypy_cache', '.pytest_cache', '__pycache__', 'node_modules', '.venv', '.git'}
+    files_info = {'app_exists': app_path.exists(), 'docker_compose': (app_path / 'docker-compose.yml').exists(), 'backend_files': [], 'frontend_files': [], 'other_files': []}
+    code_stats = {'total_files': 0, 'total_loc': 0, 'by_language': {}}
+    artifacts = {
+        'project_index': (app_path / 'PROJECT_INDEX.md') if app_path.exists() else None,
+        'readme': (app_path / 'README.md') if app_path.exists() else None,
+        'compose_path': (app_path / 'docker-compose.yml') if app_path.exists() else None,
+    }
+    if app_path.exists():
+        for item in app_path.rglob('*'):
+            # Skip ignored directories (cross-platform)
+            try:
+                parts = set(item.relative_to(app_path).parts)
+            except Exception:
+                parts = set()
+            if any(p in ignore_dirs for p in parts):
+                continue
+            if item.is_file():
+                rel_path = item.relative_to(app_path)
+                file_info = {'name': item.name, 'path': str(rel_path), 'size': item.stat().st_size, 'modified': item.stat().st_mtime}
+                lower = str(rel_path).lower()
+                if 'backend' in lower:
+                    files_info['backend_files'].append(file_info)
+                elif 'frontend' in lower:
+                    files_info['frontend_files'].append(file_info)
+                else:
+                    files_info['other_files'].append(file_info)
+                # stats
+                ext = item.suffix.lower()
+                lang = {
+                    '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.tsx': 'TypeScript',
+                    '.jsx': 'JavaScript', '.html': 'HTML', '.css': 'CSS', '.md': 'Markdown', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML'
+                }.get(ext, 'Other')
+                try:
+                    text = item.read_text(encoding='utf-8', errors='ignore')
+                    loc = text.count('\n') + 1 if text else 0
+                except Exception:
+                    loc = 0
+                code_stats['total_files'] += 1
+                code_stats['total_loc'] += loc
+                entry = code_stats['by_language'].setdefault(lang, {'files': 0, 'loc': 0})
+                entry['files'] += 1
+                entry['loc'] += loc
+
+    # analyses and stats
+    analyses = {'security': [], 'performance': [], 'zap': [], 'openrouter': []}
+    stats = {
+        'total_security_analyses': 0,
+        'total_performance_tests': 0,
+        'total_zap_analyses': 0,
+        'total_openrouter_analyses': 0
+    }
+    if app:
+        analyses = {
+            'security': SecurityAnalysis.query.filter_by(application_id=app.id).order_by(SecurityAnalysis.created_at.desc()).all(),
+            'performance': PerformanceTest.query.filter_by(application_id=app.id).order_by(PerformanceTest.created_at.desc()).all(),
+            'zap': ZAPAnalysis.query.filter_by(application_id=app.id).order_by(ZAPAnalysis.created_at.desc()).all(),
+            'openrouter': OpenRouterAnalysis.query.filter_by(application_id=app.id).order_by(OpenRouterAnalysis.created_at.desc()).all()
+        }
+        stats = {
+            'total_security_analyses': len(analyses['security']),
+            'total_performance_tests': len(analyses['performance']),
+            'total_zap_analyses': len(analyses['zap']),
+            'total_openrouter_analyses': len(analyses['openrouter'])
+        }
+
+    # ports
+    ports = None
+    try:
+        pc = db.session.query(PortConfiguration).filter_by(model=model_slug, app_num=app_number).first()
+        if pc:
+            ports = {'backend': pc.backend_port, 'frontend': pc.frontend_port}
+    except Exception as e:
+        logger.warning(f"Failed to query PortConfiguration for {model_slug}/app{app_number}: {e}")
+
+    # prompts + template files
+    prompts = {'backend': '', 'frontend': ''}
+    # Initialize with empty strings to satisfy static typing (later populated with filenames)
+    template_files = {'backend_file': '', 'frontend_file': ''}
+    try:
+        tmpl_dir = Path('misc/app_templates')
+        backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
+        frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
+        if backend_md:
+            template_files['backend_file'] = backend_md[0].name
+            prompts['backend'] = backend_md[0].read_text(encoding='utf-8', errors='ignore')
+        if frontend_md:
+            template_files['frontend_file'] = frontend_md[0].name
+            prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
+    except Exception as e:
+        logger.warning(f"Failed to load prompts for app {app_number}: {e}")
+
+    return {
+        'app_data': app_data,
+        'model': model,
+        'files_info': files_info,
+        'code_stats': code_stats,
+        'analyses': analyses,
+        'stats': stats,
+        'ports': ports,
+        'prompts': prompts,
+        'template_files': template_files,
+        'artifacts': artifacts,
+    }
+
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/<string:section>')
+def application_detail_section(model_slug, app_number, section):
+    """Data-on-demand partials for the application detail page."""
+    try:
+        ctx = _collect_app_context(model_slug, app_number)
+        template_map = {
+            'overview': 'partials/applications/sections/overview.html',
+            'prompts': 'partials/applications/sections/prompts.html',
+            'files': 'partials/applications/sections/files.html',
+            'ports': 'partials/applications/sections/ports.html',
+            'container': 'partials/applications/sections/container.html',
+            'analyses': 'partials/applications/sections/analyses.html',
+            'metadata': 'partials/applications/sections/metadata.html',
+            'artifacts': 'partials/applications/sections/artifacts.html',
+            'logs': 'partials/application_logs.html',
+        }
+        template = template_map.get(section)
+        if not template:
+            return f'<div class="alert alert-warning">Unknown section: {section}</div>', 404
+
+        # For logs, reuse existing API template expected context
+        if section == 'logs':
+            fake_app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+            logs = [
+                {'timestamp': '—', 'level': 'INFO', 'message': 'No logs available'}
+            ]
+            return render_template(template, app=fake_app, logs=logs)
+
+        return render_template(template, **ctx)
+    except Exception as e:
+        logger.error(f"Error loading section {section} for {model_slug}/app{app_number}: {e}")
+        return f'<div class="alert alert-danger">Error loading section: {str(e)}</div>', 500
+
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/export.csv')
+def export_application_csv(model_slug, app_number):
+    """Export a single application's file inventory and metadata as CSV."""
+    try:
+        # Load database app and ports
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+        ports = {'backend': None, 'frontend': None}
+        try:
+            pc = db.session.query(PortConfiguration).filter_by(model=model_slug, app_num=app_number).first()
+            if pc:
+                ports = {'backend': pc.backend_port, 'frontend': pc.frontend_port}
+        except Exception as e:
+            logger.warning(f"PortConfiguration lookup failed for {model_slug}/app{app_number}: {e}")
+
+        # Scan filesystem files under misc/models
+        app_path = Path('misc/models') / model_slug / f'app{app_number}'
+        rows = []
+        def add_row(kind: str, info: dict):
+            rows.append({
+                'model_slug': model_slug,
+                'app_number': app_number,
+                'file_kind': kind,
+                'path': info.get('path'),
+                'size_bytes': info.get('size'),
+                'modified_ts': info.get('modified'),
+                'backend_port': ports['backend'],
+                'frontend_port': ports['frontend'],
+                'exists_in_db': bool(app),
+                'has_backend': getattr(app, 'has_backend', False) if app else False,
+                'has_frontend': getattr(app, 'has_frontend', False) if app else False,
+                'generation_status': getattr(app, 'generation_status', 'pending') if app else 'pending',
+                'container_status': getattr(app, 'container_status', 'not_created') if app else 'not_created',
+            })
+
+        if app_path.exists():
+            # Mime scan replicate from application_detail
+            for item in app_path.rglob('*'):
+                if not item.is_file():
+                    continue
+                rel_path = item.relative_to(app_path)
+                info = {
+                    'path': str(rel_path),
+                    'size': item.stat().st_size,
+                    'modified': item.stat().st_mtime,
+                }
+                lower = str(rel_path).lower()
+                if 'backend' in lower:
+                    add_row('backend', info)
+                elif 'frontend' in lower:
+                    add_row('frontend', info)
+                else:
+                    add_row('other', info)
+
+        csv_content = dicts_to_csv(rows, fieldnames=(list(rows[0].keys()) if rows else [
+            'model_slug','app_number','file_kind','path','size_bytes','modified_ts','backend_port','frontend_port','exists_in_db','has_backend','has_frontend','generation_status','container_status'
+        ]))
+        filename = f"{model_slug}_app{app_number}_files.csv"
+        return Response(csv_content, mimetype='text/csv', headers={'Content-Disposition': f'attachment; filename={filename}'})
+    except Exception as e:
+        logger.error(f"Error exporting application CSV for {model_slug}/app{app_number}: {e}")
+    return Response('model_slug,app_number\n', mimetype='text/csv')
 
 
 @models_bp.route('/model_actions/<model_slug>')
