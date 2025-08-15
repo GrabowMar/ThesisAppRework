@@ -18,6 +18,8 @@ from ..extensions import db
 from ..services.openrouter_service import OpenRouterService
 from ..utils.helpers import deep_merge_dicts, dicts_to_csv
 from datetime import timedelta
+from pathlib import Path
+from ..models import PortConfiguration  # type: ignore[attr-defined]
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -263,6 +265,17 @@ def export_models_csv():
 def applications():
     """Applications overview page with grid layout and container management."""
     try:
+        # Build port map from database (PortConfiguration)
+        port_map = {}
+        try:
+            for pc in db.session.query(PortConfiguration).all():
+                key = (pc.model, pc.app_num)
+                port_map[key] = {
+                    'backend': pc.backend_port,
+                    'frontend': pc.frontend_port,
+                }
+        except Exception as e:
+            logger.warning(f"Failed to load PortConfiguration from DB: {e}")
         # Get filter parameters
         model_filter = request.args.get('model')
         provider_filter = request.args.get('provider')
@@ -307,7 +320,9 @@ def applications():
             model_apps = []
             for i in range(1, 31):  # Apps 1-30
                 app = next((a for a in apps if a.app_number == i), None)
+                ports = port_map.get((model.canonical_slug, i))
                 app_data = {
+                    'id': app.id if app else None,
                     'app_number': i,
                     'exists': bool(app),
                     'status': app.container_status if app else 'not_created',
@@ -315,7 +330,8 @@ def applications():
                     'has_backend': app.has_backend if app else False,
                     'has_frontend': app.has_frontend if app else False,
                     'has_docker_compose': app.has_docker_compose if app else False,
-                    'generation_status': app.generation_status if app else 'pending'
+                    'generation_status': app.generation_status if app else 'pending',
+                    'ports': ports
                 }
                 model_apps.append(app_data)
                 
@@ -410,9 +426,6 @@ def application_detail(model_slug, app_number):
                 'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {}
             }
         
-        # Remove unused import
-        from pathlib import Path
-        
         app_path = Path('misc/models') / model_slug / f'app{app_number}'
         files_info = {
             'app_exists': app_path.exists(),
@@ -420,6 +433,11 @@ def application_detail(model_slug, app_number):
             'backend_files': [],
             'frontend_files': [],
             'other_files': []
+        }
+        code_stats = {
+            'total_files': 0,
+            'total_loc': 0,
+            'by_language': {}
         }
         
         if app_path.exists():
@@ -440,6 +458,24 @@ def application_detail(model_slug, app_number):
                         files_info['frontend_files'].append(file_info)
                     else:
                         files_info['other_files'].append(file_info)
+                    # Basic LOC calculation
+                    ext = item.suffix.lower()
+                    lang_map = {
+                        '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
+                        '.tsx': 'TypeScript', '.jsx': 'JavaScript', '.html': 'HTML',
+                        '.css': 'CSS', '.md': 'Markdown', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML'
+                    }
+                    lang = lang_map.get(ext, 'Other')
+                    try:
+                        text = item.read_text(encoding='utf-8', errors='ignore')
+                        loc = text.count('\n') + 1 if text else 0
+                    except Exception:
+                        loc = 0
+                    code_stats['total_files'] += 1
+                    code_stats['total_loc'] += loc
+                    entry = code_stats['by_language'].setdefault(lang, {'files': 0, 'loc': 0})
+                    entry['files'] += 1
+                    entry['loc'] += loc
         
         # Get analysis history if app exists in DB
         analyses = {}
@@ -465,6 +501,28 @@ def application_detail(model_slug, app_number):
                 'total_zap_analyses': len(analyses['zap']),
                 'total_openrouter_analyses': len(analyses['openrouter'])
             }
+
+        # Resolve ports from database PortConfiguration
+        ports = None
+        try:
+            pc = db.session.query(PortConfiguration).filter_by(model=model_slug, app_num=app_number).first()
+            if pc:
+                ports = {'backend': pc.backend_port, 'frontend': pc.frontend_port}
+        except Exception as e:
+            logger.warning(f"Failed to query PortConfiguration for {model_slug}/app{app_number}: {e}")
+
+        # Prompt templates for this app number
+        prompts = {'backend': '', 'frontend': ''}
+        try:
+            tmpl_dir = Path('misc/app_templates')
+            backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
+            frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
+            if backend_md:
+                prompts['backend'] = backend_md[0].read_text(encoding='utf-8', errors='ignore')
+            if frontend_md:
+                prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
+        except Exception as e:
+            logger.warning(f"Failed to load prompts for app {app_number}: {e}")
         
         return render_template(
             'single_page.html',
@@ -475,7 +533,10 @@ def application_detail(model_slug, app_number):
             files_info=files_info,
             analyses=analyses,
             stats=stats,
-            model=model
+            model=model,
+            ports=ports,
+            code_stats=code_stats,
+            prompts=prompts
         )
         
     except Exception as e:

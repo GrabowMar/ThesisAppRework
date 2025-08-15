@@ -18,6 +18,9 @@ from ...models import GeneratedApplication
 from ...extensions import db
 from ...constants import AnalysisStatus  # noqa: F401 (may be referenced indirectly or kept for future use)
 from ...services import application_service as app_service
+from ...services.service_locator import ServiceLocator
+from ...utils.helpers import get_app_directory
+from pathlib import Path
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -315,7 +318,17 @@ def start_app_by_model(model_slug, app_num):
         app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
         if not app:
             return json_error(f'Application {model_slug}/{app_num} not found', status=404, error_type='NotFound')
-        result = app_service.start_application(app.id)
+        docker = ServiceLocator.get_docker_manager()
+        result = None
+        if docker is not None:  # type: ignore[truthy-bool]
+            # Attempt to start containers via docker-compose
+            result = docker.start_containers(model_slug, app_num)  # type: ignore[attr-defined]
+            if result.get('success'):
+                app.container_status = 'running'
+                db.session.commit()
+        else:
+            # Fallback to status-only if docker unavailable
+            result = app_service.start_application(app.id)
         return json_success(result, message=f'Started {model_slug} app {app_num}')
     except Exception as e:  # noqa: BLE001 broad for last-resort logging
         logger.error(f"Error starting app {model_slug}/{app_num}: {e}")
@@ -329,7 +342,14 @@ def stop_app_by_model(model_slug, app_num):
         app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
         if not app:
             return json_error(f'Application {model_slug}/{app_num} not found', status=404, error_type='NotFound')
-        result = app_service.stop_application(app.id)
+        docker = ServiceLocator.get_docker_manager()
+        if docker is not None:  # type: ignore[truthy-bool]
+            result = docker.stop_containers(model_slug, app_num)  # type: ignore[attr-defined]
+            if result.get('success'):
+                app.container_status = 'stopped'
+                db.session.commit()
+        else:
+            result = app_service.stop_application(app.id)
         return json_success(result, message=f'Stopped {model_slug} app {app_num}')
     except Exception as e:  # noqa: BLE001
         logger.error(f"Error stopping app {model_slug}/{app_num}: {e}")
@@ -343,10 +363,47 @@ def restart_app_by_model(model_slug, app_num):
         app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
         if not app:
             return json_error(f'Application {model_slug}/{app_num} not found', status=404, error_type='NotFound')
-        result = app_service.restart_application(app.id)
+        docker = ServiceLocator.get_docker_manager()
+        if docker is not None:  # type: ignore[truthy-bool]
+            result = docker.restart_containers(model_slug, app_num)  # type: ignore[attr-defined]
+            if result.get('success'):
+                app.container_status = 'running'
+                db.session.commit()
+        else:
+            result = app_service.restart_application(app.id)
         return json_success(result, message=f'Restarted {model_slug} app {app_num}')
     except Exception as e:  # noqa: BLE001
         logger.error(f"Error restarting app {model_slug}/{app_num}: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/app/<model_slug>/<int:app_num>/build', methods=['POST'])
+def build_app_by_model(model_slug, app_num):
+    """Build containers for application by model slug and app number using DockerManager."""
+    try:
+        # Verify app exists (optional: create placeholder if directory exists)
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
+        docker = ServiceLocator.get_docker_manager()
+        if docker is None:
+            return json_error('Docker manager unavailable', status=503, error_type='ServiceUnavailable')
+
+        # Ensure compose file exists before attempting build
+        app_dir = get_app_directory(model_slug, app_num, base_path=Path(__file__).resolve().parents[4] / 'misc' / 'models')
+        compose_path = app_dir / 'docker-compose.yml'
+        if not compose_path.exists():
+            return json_error(f'docker-compose.yml not found for {model_slug}/app{app_num}', status=404, error_type='NotFound')
+
+        result = docker.build_containers(model_slug, app_num, no_cache=True)  # type: ignore[attr-defined]
+
+        # Update DB status to 'stopped' after a successful build (not running yet)
+        if app and result.get('success'):
+            app.container_status = 'stopped'
+            db.session.commit()
+
+        message = 'Build started' if result.get('success') else 'Build failed'
+        return json_success(result, message=message)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error building app {model_slug}/{app_num}: {e}")
         return json_error(str(e), status=500, error_type='InternalError')
 
 
@@ -373,4 +430,42 @@ def stop_model_containers(model_slug):
         return json_success(result, message=f"Stopped {result['stopped']} containers for {model_slug}")
     except Exception as e:  # noqa: BLE001
         logger.error(f"Error stopping containers for model {model_slug}: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/model/<model_slug>/containers/build', methods=['POST'])
+def build_model_containers(model_slug):
+    """Build all containers (docker images) for a model's applications that have docker-compose.yml."""
+    try:
+        apps = db.session.query(GeneratedApplication).filter_by(model_slug=model_slug).all()
+        if not apps:
+            return json_error(f'No applications found for model {model_slug}', status=404, error_type='NotFound')
+
+        docker = ServiceLocator.get_docker_manager()
+        if docker is None:  # type: ignore[truthy-bool]
+            return json_error('Docker manager unavailable', status=503, error_type='ServiceUnavailable')
+
+        built = 0
+        skipped = 0
+        errors = 0
+        base_models_path = Path(__file__).resolve().parents[4] / 'misc' / 'models'
+
+        for app in apps:
+            app_dir = get_app_directory(model_slug, app.app_number, base_path=base_models_path)
+            compose_path = app_dir / 'docker-compose.yml'
+            if not compose_path.exists():
+                skipped += 1
+                continue
+            try:
+                result = docker.build_containers(model_slug, app.app_number, no_cache=False)  # type: ignore[attr-defined]
+                if result.get('success'):
+                    built += 1
+                else:
+                    errors += 1
+            except Exception:
+                errors += 1
+
+        return json_success({'built': built, 'skipped': skipped, 'errors': errors}, message=f'Build triggered for {model_slug}')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error building containers for model {model_slug}: {e}")
         return json_error(str(e), status=500, error_type='InternalError')

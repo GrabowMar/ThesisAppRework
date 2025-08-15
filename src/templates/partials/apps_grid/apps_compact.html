@@ -1,82 +1,36 @@
 {% from 'partials/common/_module_wrapper.html' import module_card %}
 
 {% call module_card(title='Apps Compact', classes='module-apps-compact') %}
-<div class="apps-compact-container">
-    {% for app in apps %}
-    <div class="app-card app-compact-item" data-app-id="{{ app.id }}">
-        <input type="checkbox" class="app-select-checkbox" value="{{ app.id }}">
-        <div class="app-status-indicator {{ app.container_status }}"></div>
-        
-        <div class="app-card-header p-2">
-            <div class="app-provider-badge small">{{ app.provider.title() }}</div>
-            <h6 class="app-title mb-1">{{ app.model_slug.split('_')[-1] if '_' in app.model_slug else app.model_slug }}</h6>
-            <small class="text-muted">App #{{ app.app_number }}</small>
-        </div>
-        
-        <div class="app-card-body p-2">
-            <div class="app-compact-stats">
-                <div class="stat-item">
-                    <span class="stat-value">{{ app.stats.security_analyses or 0 }}</span>
-                    <span class="stat-label">Sec</span>
+<div class="apps-grid">
+    {% for entry in application_grid %}
+        {% for app in entry.apps %}
+            <div class="app-card {{ 'app-exists' if app.exists else 'app-missing' }}" data-model="{{ entry.model.canonical_slug }}" data-app="{{ app.app_number }}" data-status="{{ app.status }}">
+                <div>
+                    <div class="app-number">#{{ app.app_number }}</div>
+                    <div class="status-badge">
+                        <span class="badge bg-{{ 'success' if app.status=='running' else 'secondary' }}">{{ app.status.replace('_',' ').title() }}</span>
+                    </div>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-value">{{ app.stats.performance_tests or 0 }}</span>
-                    <span class="stat-label">Perf</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">{{ app.file_stats.files or 0 }}</span>
-                    <span class="stat-label">Files</span>
+                <div class="app-actions">
+                    <button class="btn btn-sm btn-outline-primary" title="Open details" onclick="viewAppDetails('{{ entry.model.canonical_slug }}', {{ app.app_number }})"><i class="fas fa-external-link-alt"></i></button>
+                                {% if app.ports and app.ports.frontend %}
+                                    <a class="btn btn-sm btn-success" title="Visit website" target="_blank" href="http://localhost:{{ app.ports.frontend }}"><i class="fas fa-globe"></i></a>
+                                {% endif %}
+                    {% if app.exists %}
+                        {% if app.status == 'running' %}
+                            <button class="btn btn-sm btn-warning" title="Stop" onclick="stopApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})"><i class="fas fa-stop"></i></button>
+                        {% else %}
+                            <button class="btn btn-sm btn-primary" title="Start" onclick="startApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})"><i class="fas fa-play"></i></button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-info" title="Restart" onclick="restartApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})"><i class="fas fa-redo"></i></button>
+                                    {% if app.has_docker_compose %}
+                                        <button class="btn btn-sm btn-outline-secondary" title="Build" onclick="fetch('/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build', {method:'POST'}).then(r=>r.json()).then(d=>{ if(window.showOperationStatus){ showOperationStatus(d.message||'Build requested','info'); } else { alert(d.message||'Build requested'); } }).catch(e=>{ if(window.showOperationStatus){ showOperationStatus('Build error: '+e.message,'error'); } else { alert('Build error: '+e.message); } })"><i class="fas fa-hammer"></i></button>
+                                    {% endif %}
+                    {% endif %}
                 </div>
             </div>
-            
-            <div class="app-status-compact">
-                <span class="badge bg-{{ 'success' if app.container_status == 'running' else 'secondary' }} small">
-                    {{ app.container_status.title() }}
-                </span>
-            </div>
-        </div>
-        
-        <div class="app-card-footer p-2">
-            <div class="app-actions-compact">
-                {% if app.container_status == 'running' %}
-                <button class="btn btn-xs btn-success btn-view" data-app-id="{{ app.id }}" title="Open">
-                    <i class="fas fa-external-link-alt"></i>
-                </button>
-                <button class="btn btn-xs btn-warning btn-stop" data-app-id="{{ app.id }}" title="Stop">
-                    <i class="fas fa-stop"></i>
-                </button>
-                {% else %}
-                <button class="btn btn-xs btn-primary btn-start" data-app-id="{{ app.id }}" title="Start">
-                    <i class="fas fa-play"></i>
-                </button>
-                {% endif %}
-                
-                <button class="btn btn-xs btn-info btn-restart" data-app-id="{{ app.id }}" title="Restart">
-                    <i class="fas fa-redo"></i>
-                </button>
-                
-                <button class="btn btn-xs btn-secondary btn-analyze" data-app-id="{{ app.id }}" title="Analyze">
-                    <i class="fas fa-search"></i>
-                </button>
-                
-                <button class="btn btn-xs btn-outline-secondary btn-details" data-app-id="{{ app.id }}" title="Details">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-            </div>
-        </div>
-    </div>
+        {% endfor %}
     {% endfor %}
-    
-    {% if not apps %}
-    <div class="apps-empty col-12 text-center py-4">
-        <i class="fas fa-search fa-2x text-muted mb-3"></i>
-        <h5>No Applications Found</h5>
-        <p class="text-muted small">No applications match your criteria.</p>
-        <button class="btn btn-sm btn-primary" onclick="clearAllFilters()">
-            Clear Filters
-        </button>
-    </div>
-    {% endif %}
 </div>
 {% endcall %}
 

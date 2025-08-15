@@ -49,6 +49,40 @@ def _map_service_error(exc: Exception):  # returns Flask response tuple
     return json_error(str(exc), status=status, error_type=exc.__class__.__name__)
 
 
+@api_bp.route('/analysis/model/<model_slug>/security', methods=['POST'])
+@handle_exceptions(logger_override=logger)
+def api_model_security_batch(model_slug):
+    """Create+start security analyses for all apps under a model."""
+    try:
+        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+        created_ids = []
+        for app in apps:
+            created = create_comprehensive_security_analysis(app.id, {"application_id": app.id})
+            created_ids.append(created.get('id'))
+            try:
+                start_security_analysis(created['id'])
+            except Exception as _:
+                pass
+        return json_success({'count': len(created_ids), 'analysis_ids': created_ids}, message='Security analyses started')
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
+
+
+@api_bp.route('/analysis/model/<model_slug>/performance', methods=['POST'])
+@handle_exceptions(logger_override=logger)
+def api_model_performance_batch(model_slug):
+    """Create performance test records for all apps under a model."""
+    try:
+        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
+        created_ids = []
+        for app in apps:
+            created = create_performance_test({"application_id": app.id})
+            created_ids.append(created.get('id'))
+        return json_success({'count': len(created_ids), 'test_ids': created_ids}, message='Performance tests created')
+    except (AnalysisServiceError,) as exc:
+        return _map_service_error(exc)
+
+
 @api_bp.route('/analysis/security')
 @handle_exceptions(logger_override=logger)
 def api_list_security_analyses():
