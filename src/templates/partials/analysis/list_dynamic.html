@@ -1,0 +1,33 @@
+<div class="card">
+  <div class="card-header"><i class="fas fa-bolt me-1"></i> Dynamic analyses</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>App</th>
+          <th>Status</th>
+          <th>Scan</th>
+          <th>Started</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in items %}
+        <tr>
+          <td>#{{ a.id }}</td>
+          <td>{{ a.application_id }}</td>
+          <td><span class="badge bg-secondary">{{ a.status }}</span></td>
+          <td>{{ a.scan_type }}</td>
+          <td>{{ a.created_at }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="/analysis/dynamic/{{ a.id }}">Open</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted">No items</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

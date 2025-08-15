@@ -2,8 +2,6 @@
 {% call module_card(title='Dynamic Security Scan', classes='module-testing-dynamic-scan') %}
 <!-- Dynamic (ZAP) Security Test Form -->
 <div class="card border-0 shadow-sm h-100">
-<!-- Dynamic (ZAP) Security Test Form -->
-<div class="card border-0 shadow-sm h-100">
     <div class="card-header bg-info text-white border-0">
         <div class="d-flex align-items-center">
             <div class="bg-white bg-opacity-25 rounded-circle p-2 me-3">
@@ -17,21 +15,25 @@
     </div>
 
     <div class="card-body">
-        <form id="dynamicTestForm" hx-post="{{ url_for('analysis.start_dynamic_analysis') }}"
-              hx-target="#dynamic-test-result" hx-indicator="#dynamicTestSpinner">
+    <form id="dynamicTestForm" hx-boost="false" hx-post="{{ url_for('analysis.start_dynamic_analysis') }}"
+          hx-target="#dynamic-test-result" hx-indicator="#dynamicTestSpinner">
 
             <!-- Model Selection -->
             <div class="mb-3">
                 <label for="dynamic_model_select" class="form-label fw-medium">
                     <i class="fas fa-robot me-1 text-primary"></i>AI Model
                 </label>
-                <select class="form-select" id="dynamic_model_select" name="model_slug" required
-                        hx-get="{{ url_for('analysis.get_model_apps') }}"
-                        hx-target="#dynamic_app_select_container"
-                        hx-trigger="change">
+    <select class="form-select" id="dynamic_model_select" name="model_slug" required
+        hx-get="{{ url_for('analysis.get_model_apps') }}"
+        hx-target="#dynamic_app_select"
+        hx-trigger="change"
+        hx-include="#dynamic_model_select"
+        hx-swap="outerHTML"
+        hx-indicator="#dynamicAppsSpinner"
+        hx-on="htmx:config-request: event.detail.parameters.model_slug = this.value; event.detail.parameters.select_id = 'dynamic_app_select'">
                     <option value="">Choose a model...</option>
                     {% for model in models %}
-                    <option value="{{ model.model_slug }}"
+                    <option value="{{ model.canonical_slug }}"
                             data-provider="{{ model.provider }}"
                             data-capabilities="{{ model.capabilities }}">
                         {{ model.model_name }} ({{ model.provider }})
@@ -45,18 +47,25 @@
             </div>
 
             <!-- Application Selection -->
-            <div class="mb-3" id="dynamic_app_select_container">
+                        <div class="mb-3 app-select-container" id="dynamic_app_select_container">
                 <label for="dynamic_app_select" class="form-label fw-medium">
                     <i class="fas fa-code me-1 text-success"></i>Application
                 </label>
-                <select class="form-select" id="dynamic_app_select" name="app_number" disabled>
-                    <option value="">Choose a model first...</option>
-                </select>
+                                                <div class="position-relative">
+                                      <select class="form-select" id="dynamic_app_select" name="app_number" disabled>
+                                            <option value="">Choose a model first...</option>
+                                    </select>
+                                                    <span class="position-absolute end-0 top-50 translate-middle-y me-3 htmx-indicator" id="dynamicAppsSpinner">
+                                                        <span class="spinner-border spinner-border-sm text-secondary"></span>
+                                    </span>
+                                </div>
                 <div class="form-text">
                     <i class="fas fa-info-circle me-1"></i>
                     Select the application to scan
                 </div>
             </div>
+
+            
 
             <!-- Target and Scan Options -->
             <div class="mb-3">
@@ -112,7 +121,7 @@
     </div>
 
     <!-- Results Section -->
-    <div class="card-footer bg-light border-0 d-none" id="dynamic-test-result" hx-on="htmx:afterSwap: this.classList.remove('d-none')">
+    <div class="card-footer bg-light border-0 d-none result-container" id="dynamic-test-result" hx-on="htmx:afterSwap: this.classList.remove('d-none')">
         <!-- Results will be loaded here -->
     </div>
 </div>

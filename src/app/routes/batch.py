@@ -7,8 +7,7 @@ Provides endpoints for creating, monitoring, and managing bulk analysis jobs.
 """
 
 import logging
-import uuid
-from datetime import datetime
+from datetime import datetime  # noqa: F401 (may be used by remaining endpoints)
 
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
 from sqlalchemy import desc
@@ -18,8 +17,7 @@ from ..models import (
     BatchAnalysis, GeneratedApplication, SecurityAnalysis, 
     PerformanceTest, ZAPAnalysis, OpenRouterAnalysis, ModelCapability
 )
-from ..constants import JobStatus, JobPriority, AnalysisStatus
-from ..services.service_locator import ServiceLocator
+from ..constants import JobStatus, AnalysisStatus
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -30,182 +28,16 @@ batch_bp = Blueprint('batch', __name__, url_prefix='/batch')
 
 @batch_bp.route('/')
 def batch_overview():
-    """Main batch testing dashboard."""
-    try:
-        # Get batch job statistics
-        total_batches = db.session.query(BatchAnalysis).count()
-        active_batches = db.session.query(BatchAnalysis).filter(
-            BatchAnalysis.status.in_([JobStatus.PENDING, JobStatus.RUNNING])
-        ).count()
-        completed_batches = db.session.query(BatchAnalysis).filter(
-            BatchAnalysis.status == JobStatus.COMPLETED
-        ).count()
-        failed_batches = db.session.query(BatchAnalysis).filter(
-            BatchAnalysis.status == JobStatus.FAILED
-        ).count()
-        
-        # Get recent batch jobs
-        recent_batches = db.session.query(BatchAnalysis).order_by(
-            desc(BatchAnalysis.created_at)
-        ).limit(10).all()
-        
-        # Get analyzer service status
-        analyzer_service = ServiceLocator.get_analyzer_service()
-        analyzer_status = {}
-        if analyzer_service:
-            try:
-                analyzer_status = {'services': []}  # Placeholder
-            except Exception as e:
-                logger.error(f"Error getting analyzer status: {e}")
-                analyzer_status = {'services': []}
-        
-        # Get available models for filtering
-        available_models = db.session.query(
-            ModelCapability.canonical_slug,
-            ModelCapability.provider,
-            ModelCapability.model_name
-        ).distinct().all()
-        
-        # Calculate statistics
-        stats = {
-            'total_batches': total_batches,
-            'active_batches': active_batches,
-            'completed_batches': completed_batches,
-            'failed_batches': failed_batches,
-            'success_rate': (completed_batches / max(total_batches, 1)) * 100,
-            'analyzer_services': len(analyzer_status.get('services', [])),
-            'healthy_services': len([
-                s for s in analyzer_status.get('services', [])
-                if s.get('status') == 'healthy'
-            ])
-        }
-        
-        return render_template(
-            'pages/batch.html',
-            stats=stats,
-            recent_batches=recent_batches,
-            analyzer_status=analyzer_status,
-            available_models=available_models
-        )
-    
-    except Exception as e:
-        logger.error(f"Error loading batch overview: {e}")
-        flash(f"Error loading batch overview: {str(e)}", 'error')
-        return render_template(
-            'single_page.html',
-            page_title='Batch Overview Error',
-            main_partial='partials/common/error.html',
-            error=str(e)
-        )
+    """Deprecated: Redirect batch page to Analysis Hub."""
+    flash('Batch testing is now handled in the Analysis Hub.', 'info')
+    return redirect(url_for('analysis.analyses_list_page'))
 
 
 @batch_bp.route('/create', methods=['GET', 'POST'])
 def create_batch():
-    """Create a new batch analysis job."""
-    if request.method == 'GET':
-        # Get available models and analysis types
-        available_models = db.session.query(
-            ModelCapability.canonical_slug,
-            ModelCapability.provider,
-            ModelCapability.model_name
-        ).distinct().all()
-        
-        analysis_types = [
-            {'id': 'security', 'name': 'Security Analysis', 'description': 'Static security scanning'},
-            {'id': 'performance', 'name': 'Performance Testing', 'description': 'Load and stress testing'},
-            {'id': 'zap', 'name': 'ZAP Security Scan', 'description': 'Dynamic security scanning'},
-            {'id': 'ai_analysis', 'name': 'AI Code Analysis', 'description': 'AI-powered code review'}
-        ]
-        
-        return render_template(
-            'single_page.html',
-            page_title='Create Batch',
-            page_icon='fas fa-plus-circle',
-            main_partial='partials/batch/create.html',
-            available_models=available_models,
-            analysis_types=analysis_types
-        )
-    
-    try:
-        # Parse form data
-        batch_name = request.form.get('batch_name', f'Batch_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
-        description = request.form.get('description', '')
-        priority = JobPriority(request.form.get('priority', 'normal'))
-        
-        # Analysis configuration
-        analysis_types = request.form.getlist('analysis_types')
-        model_filter = request.form.getlist('model_filter')
-        app_range_start = int(request.form.get('app_range_start', 1))
-        app_range_end = int(request.form.get('app_range_end', 30))
-        
-        # Validation
-        if not analysis_types:
-            flash('At least one analysis type must be selected', 'error')
-            return redirect(url_for('batch.create_batch'))
-        
-        if not model_filter:
-            flash('At least one model must be selected', 'error')
-            return redirect(url_for('batch.create_batch'))
-        
-        # Create app filter range
-        app_filter = list(range(app_range_start, app_range_end + 1))
-        
-        # Generate batch ID
-        batch_id = str(uuid.uuid4())[:8]
-        
-        # Calculate total tasks
-        total_tasks = len(model_filter) * len(app_filter) * len(analysis_types)
-        
-        # Create batch analysis record
-        batch_analysis = BatchAnalysis()
-        batch_analysis.batch_id = batch_id
-        batch_analysis.status = JobStatus.PENDING
-        batch_analysis.total_tasks = total_tasks
-        batch_analysis.completed_tasks = 0
-        batch_analysis.failed_tasks = 0
-        batch_analysis.progress_percentage = 0.0
-        
-        # Set filters and config
-        batch_analysis.set_analysis_types(analysis_types)
-        batch_analysis.set_model_filter(model_filter)
-        batch_analysis.set_app_filter(app_filter)
-        
-        # Set configuration
-        config = {
-            'batch_name': batch_name,
-            'description': description,
-            'priority': priority.value,
-            'analysis_types': analysis_types,
-            'model_filter': model_filter,
-            'app_filter': app_filter,
-            'app_range': {'start': app_range_start, 'end': app_range_end},
-            'options': {
-                'timeout': int(request.form.get('timeout', 300)),
-                'parallel_jobs': int(request.form.get('parallel_jobs', 3)),
-                'retry_failed': request.form.get('retry_failed') == 'on',
-                'continue_on_error': request.form.get('continue_on_error') == 'on'
-            }
-        }
-        batch_analysis.set_config(config)
-        
-        # Save to database
-        db.session.add(batch_analysis)
-        db.session.commit()
-        
-        # Start batch processing (async)
-        from ..services.batch_service import batch_service
-        success = batch_service.start_job(batch_id)
-        if success:
-            flash(f'Batch analysis "{batch_name}" started successfully', 'success')
-        else:
-            flash(f'Failed to start batch analysis "{batch_name}"', 'error')
-        
-        return redirect(url_for('batch.batch_detail', batch_id=batch_id))
-    
-    except Exception as e:
-        logger.error(f"Error creating batch: {e}")
-        flash(f"Error creating batch: {str(e)}", 'error')
-        return redirect(url_for('batch.create_batch'))
+    """Deprecated: Redirect to Analysis Create page; programmatic batch handled via API."""
+    flash('Batch creation moved to Analysis → Create.', 'info')
+    return redirect(url_for('analysis.analyses_create_page'))
 
 
 @batch_bp.route('/<batch_id>')

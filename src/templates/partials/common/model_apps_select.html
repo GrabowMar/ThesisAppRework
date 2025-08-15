@@ -1,20 +1,17 @@
-{% from 'partials/common/_module_wrapper.html' import module_card %}
-
-{% call module_card(title='Select Application', classes='module-model-apps-select body-compact', body_classes='p-2') %}
-    {% if apps %}
-    <select class="form-select" name="app_number" required>
-        <option value="">Choose an application...</option>
-        {% for app in apps %}
-        <option value="{{ app.app_number }}">App {{ app.app_number }}</option>
-        {% endfor %}
-    </select>
-    {% elif model_slug %}
-    <select class="form-select" name="app_number" disabled>
-        <option value="">No applications found for this model</option>
-    </select>
-    {% else %}
-    <select class="form-select" name="app_number" disabled>
-        <option value="">Choose a model first...</option>
-    </select>
-    {% endif %}
-{% endcall %}
+{% set _id = select_id or None %}
+{% if apps %}
+<select class="form-select" name="app_number" {% if _id %}id="{{ _id }}"{% endif %} required>
+    <option value="">Choose an application...</option>
+    {% for app in apps %}
+    <option value="{{ app.app_number }}">App {{ app.app_number }}</option>
+    {% endfor %}
+</select>
+{% elif model_slug %}
+<select class="form-select" name="app_number" {% if _id %}id="{{ _id }}"{% endif %} disabled>
+    <option value="">No applications found for this model</option>
+</select>
+{% else %}
+<select class="form-select" name="app_number" {% if _id %}id="{{ _id }}"{% endif %} disabled>
+    <option value="">Choose a model first...</option>
+</select>
+{% endif %}

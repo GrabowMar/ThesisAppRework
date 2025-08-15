@@ -239,6 +239,58 @@ def security_analysis_task(self, model_slug: str, app_number: int,
         # Non-transient: raise without retry so status stays FAILED
         raise
 
+
+@celery.task(bind=True, name='app.tasks.run_security_analysis')
+def run_security_analysis(self, analysis_id: int):
+    """Compatibility wrapper used by analysis_service.start_security_analysis.
+
+    Looks up the SecurityAnalysis and forwards to security_analysis_task with
+    the proper parameters derived from the DB record. Returns the Celery async
+    result id for traceability.
+    """
+    try:
+        # Import here to avoid circular dependencies
+        from app.extensions import get_session
+        from app.models import SecurityAnalysis as _Sec, GeneratedApplication as _GA
+
+        with get_session() as session:
+            analysis = session.query(_Sec).get(analysis_id)
+            if not analysis:
+                raise ValueError(f"SecurityAnalysis {analysis_id} not found")
+            app = session.query(_GA).get(analysis.application_id)
+            if not app:
+                raise ValueError("Associated application not found")
+
+            # Build tools list from flags on the analysis record
+            tools: List[str] = []
+            if getattr(analysis, 'bandit_enabled', False):
+                tools.append('bandit')
+            if getattr(analysis, 'safety_enabled', False):
+                tools.append('safety')
+            if getattr(analysis, 'pylint_enabled', False):
+                tools.append('pylint')
+            if getattr(analysis, 'eslint_enabled', False):
+                tools.append('eslint')
+            if getattr(analysis, 'npm_audit_enabled', False):
+                tools.append('npm_audit')
+            if getattr(analysis, 'semgrep_enabled', False):
+                tools.append('semgrep')
+            # ZAP treated as part of dynamic; include only if your analyzer supports it inline
+            if getattr(analysis, 'zap_enabled', False):
+                tools.append('zap')
+
+            options: Dict[str, Optional[object]] = {
+                'analysis_id': analysis_id,
+                'batch_job_id': None,
+            }
+
+            # Dispatch underlying task
+            async_result = security_analysis_task.delay(app.model_slug, app.app_number, tools, options)  # type: ignore[call-arg]
+            return {'task_id': getattr(async_result, 'id', None), 'analysis_id': analysis_id}
+    except Exception as e:
+        # Surface a clear error; the caller will mark FAILED appropriately
+        raise e
+
 @celery.task(bind=True, name='app.tasks.performance_test_task')
 def performance_test_task(self, model_slug: str, app_number: int, 
                          test_config: Optional[Dict] = None):

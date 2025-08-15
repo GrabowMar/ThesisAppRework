@@ -32,12 +32,20 @@ This document enumerates the Flask routes defined under `src/app/routes/` and `s
 
 - analysis (prefix: /analysis)
   - GET /analysis/ — Analysis hub page
+  - GET /analysis/list — Analyses list page (combined)
+  - GET /analysis/create — Create new analyses (security, dynamic)
+  - GET /analysis/preview/<model_slug>/<int:app_number> — App-centric preview
   - HTMX partials
     - GET /analysis/api/stats — Stats cards
     - GET /analysis/api/trends — Trends card
     - GET /analysis/api/recent/security — Recent security list
     - GET /analysis/api/recent/performance — Recent performance list
     - GET /analysis/api/recent/combined — Combined recent activity
+  - GET /analysis/api/list/combined — Combined list (security/dynamic/perf)
+  - GET /analysis/api/list/security — Security analyses table
+  - GET /analysis/api/list/dynamic — Dynamic (ZAP) analyses table
+  - GET /analysis/api/list/performance — Performance tests table
+  - GET /analysis/api/active-tasks — Active Celery tasks table
   - Actions
     - POST /analysis/security/start — Start security analysis
     - POST /analysis/performance/start — Start performance test

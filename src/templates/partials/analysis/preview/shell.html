@@ -1,0 +1,58 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Analysis preview', subtitle=application.model_slug ~ ' / app ' ~ application.app_number, classes='module-analyses-preview') %}
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-shield-alt me-1"></i> Latest security</span>
+          {% if latest_security %}
+            <a class="small" href="/analysis/security/{{ latest_security.id }}/results/view">open</a>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          {% if latest_security %}
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="fw-semibold">#{{ latest_security.id }}</div>
+                <div class="small text-muted">{{ latest_security.status }}</div>
+              </div>
+              <div class="text-end">
+                <div class="fw-bold">Issues: {{ latest_security.total_issues or 0 }}</div>
+                <div class="small text-muted">High: {{ latest_security.high_severity_count or 0 }}</div>
+              </div>
+            </div>
+          {% else %}
+            <div class="text-muted">No security analyses yet.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-bolt me-1"></i> Latest dynamic</span>
+          {% if latest_dynamic %}
+            <a class="small" href="/analysis/dynamic/{{ latest_dynamic.id }}">open</a>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          {% if latest_dynamic %}
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="fw-semibold">#{{ latest_dynamic.id }}</div>
+                <div class="small text-muted">{{ latest_dynamic.status }} · {{ latest_dynamic.scan_type }}</div>
+              </div>
+              <div class="text-end">
+                <div class="fw-bold">High: {{ latest_dynamic.high_risk_alerts or 0 }}</div>
+                <div class="small text-muted">Med: {{ latest_dynamic.medium_risk_alerts or 0 }} · Low: {{ latest_dynamic.low_risk_alerts or 0 }}</div>
+              </div>
+            </div>
+          {% else %}
+            <div class="text-muted">No dynamic analyses yet.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endcall %}

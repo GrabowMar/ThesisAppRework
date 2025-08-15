@@ -78,7 +78,6 @@ src/
 │   │   ├── analysis.html         # ✅ Analysis hub screen
 │   │   ├── applications.html     # ✅ Generated apps explorer
 │   │   ├── models.html           # ✅ Model registry overview
-│   │   ├── batch.html            # ✅ Batch operations page
 │   │   ├── statistics.html       # ✅ Metrics & trends page
 │   │   ├── testing.html          # ✅ Testing tools page
 │   │   ├── system_status.html    # ✅ System/container status page

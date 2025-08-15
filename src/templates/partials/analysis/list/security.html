@@ -1,0 +1,33 @@
+<div class="card">
+  <div class="card-header"><i class="fas fa-shield-alt me-1"></i> Security analyses</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>App</th>
+          <th>Status</th>
+          <th>Total issues</th>
+          <th>Started</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in items %}
+        <tr>
+          <td>#{{ a.id }}</td>
+          <td>{{ a.application_id }}</td>
+          <td><span class="badge bg-secondary">{{ a.status }}</span></td>
+          <td>{{ a.total_issues or 0 }}</td>
+          <td>{{ a.created_at }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="/analysis/security/{{ a.id }}/results/view">Open</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted">No items</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

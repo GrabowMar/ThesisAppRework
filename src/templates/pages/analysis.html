@@ -1,7 +1,22 @@
-{% extends 'single_page.html' %}
-{% block title %}Analysis Hub | AI Research Platform{% endblock %}
-{% block page_title %}Analysis Hub{% endblock %}
+{% extends 'base.html' %}
 {% block content %}
-  {# Consolidated hub: single partial handles layout and sub-includes #}
-  {% include 'partials/analysis/hub_overview.html' %}
+  <div class="container py-4">
+    {% include 'partials/analysis/hub_overview.html' %}
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-8">
+        <div id="combined-list"
+             hx-get="/analysis/api/list/combined"
+             hx-trigger="load, every 45s"
+             hx-swap="innerHTML">
+          <div class="card">
+            <div class="card-body text-muted">Loading analyses…</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        {% include 'partials/analysis/quick_actions.html' %}
+      </div>
+    </div>
+  </div>
 {% endblock %}

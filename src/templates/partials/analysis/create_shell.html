@@ -1,0 +1,26 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Create analysis', subtitle='Start new security or dynamic analysis', classes='module-analyses-create') %}
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-header"><i class="fas fa-shield-alt me-1"></i> Security analysis</div>
+        <div class="card-body">
+          <div hx-get="/analysis/security_test_form" hx-trigger="load" hx-swap="innerHTML">
+            <div class="text-muted">Loading form…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-header"><i class="fas fa-bolt me-1"></i> Dynamic analysis</div>
+        <div class="card-body">
+          <div hx-get="/analysis/dynamic_test_form" hx-trigger="load" hx-swap="innerHTML">
+            <div class="text-muted">Loading form…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endcall %}

@@ -7,20 +7,35 @@
     <p class="text-muted mb-0">Unified security & performance analysis overview</p>
   </div>
   <div class="btn-group">
-    <a href="{{ url_for('testing.security_testing') }}" class="btn btn-primary"><i class="fas fa-shield-alt"></i> Security</a>
-    <a href="{{ url_for('testing.performance_testing') }}" class="btn btn-info"><i class="fas fa-tachometer-alt"></i> Performance</a>
-    <a href="{{ url_for('testing.batch_testing') }}" class="btn btn-warning"><i class="fas fa-layer-group"></i> Batch</a>
+    <a href="/analysis/create/security" class="btn btn-primary"><i class="fas fa-shield-alt"></i> Security</a>
+    <a href="/analysis/create/performance" class="btn btn-info"><i class="fas fa-tachometer-alt"></i> Performance</a>
+    <a href="/analysis/create/batch" class="btn btn-warning"><i class="fas fa-layer-group"></i> Batch</a>
+    <a href="/analysis/list" class="btn btn-outline-secondary"><i class="fas fa-list"></i> List</a>
+    <a href="/analysis/create" class="btn btn-outline-success"><i class="fas fa-plus"></i> Create</a>
   </div>
 </div>
 {% include 'partials/analysis/stats_cards.html' %}
 <div class="row mb-4">
-  <div class="col-md-6 mb-3 mb-md-0">{% include 'partials/analysis/trends.html' %}</div>
+  <div class="col-md-6 mb-3 mb-md-0" id="trends-card"
+       hx-get="/analysis/api/trends"
+       hx-trigger="load, every 60s"
+       hx-swap="innerHTML">
+    <div class="card">
+      <div class="card-body text-muted">Loading trends…</div>
+    </div>
+  </div>
   <div class="col-md-6">{% include 'partials/analysis/quick_actions.html' %}</div>
+
 </div>
 <div class="row" id="recentCombined"
      hx-get="/analysis/api/recent/combined"
      hx-trigger="load, every 60s"
      hx-swap="outerHTML">
-  <div class="col-12">{% include 'partials/analysis/recent_combined.html' %}</div>
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body text-muted">Loading recent activity…</div>
+    </div>
+  </div>
+  
 </div>
 {% endcall %}
