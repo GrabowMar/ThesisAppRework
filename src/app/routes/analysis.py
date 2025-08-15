@@ -798,3 +798,33 @@ def htmx_recent_combined():
     except Exception as e:  # pragma: no cover - defensive
         logger.error(f"HTMX recent combined error: {e}")
         return render_template('partials/common/error.html', error='Failed to load recent activity'), 500
+
+
+# ============================================================================
+# Lightweight preview endpoints for embedding in Application detail page
+# ============================================================================
+
+@analysis_bp.get('/security/<int:analysis_id>/preview')
+def security_analysis_preview(analysis_id: int):
+    """TODO stub: compact preview for a SecurityAnalysis (to be implemented).
+
+    This endpoint will render a concise, inline preview of a specific
+    security analysis suitable for embedding in application pages.
+    """
+    # TODO: Implement compact preview rendering once Analysis Hub UX is finalized.
+    return render_template('partials/common/todo_stub.html',
+                           title='Security Analysis Preview',
+                           message='Inline preview is coming soon. Open the full results instead.',
+                           action_url=f"/analysis/security/{analysis_id}/results/view",
+                           action_label='Open full results'), 200
+
+
+@analysis_bp.get('/dynamic/<int:analysis_id>/preview')
+def dynamic_analysis_preview(analysis_id: int):
+    """TODO stub: compact preview for a Dynamic (ZAP) analysis (to be implemented)."""
+    # TODO: Implement compact preview rendering once Analysis Hub UX is finalized.
+    return render_template('partials/common/todo_stub.html',
+                           title='Dynamic Analysis Preview',
+                           message='Inline preview is coming soon. Open the full results instead.',
+                           action_url=f"/analysis/dynamic/{analysis_id}",
+                           action_label='Open full results'), 200
