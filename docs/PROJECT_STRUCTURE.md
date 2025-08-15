@@ -79,7 +79,6 @@ src/
 │   │   ├── applications.html     # ✅ Generated apps explorer
 │   │   ├── models.html           # ✅ Model registry overview
 │   │   ├── statistics.html       # ✅ Metrics & trends page
-│   │   ├── testing.html          # ✅ Testing tools page
 │   │   ├── system_status.html    # ✅ System/container status page
 │   │   └── about.html            # ✅ About / info
 │   └── partials/                 # HTMX-fragment & component templates
@@ -100,11 +99,8 @@ src/
 │   │   ├── adminlte.css          # ✅ Theme overrides
 │   │   └── security-analysis.css # ✅ Security analysis styling
 │   └── js/
-│       ├── testing-dashboard.js  # ✅ Testing page polling dashboard logic
-│       ├── realtime-dashboard.js # ✅ Optional Socket.IO realtime glue (flag-gated)
-│       ├── testing-forms.js      # ✅ Testing forms helpers & UX
-│       ├── enhanced-results.js   # ✅ Results table, filters, charts
-│       └── analyzer-integration.js # ✅ Analyzer services WS integration (optional)
+│       ├── dashboard.js          # ✅ Dashboard interactions
+│       └── theme_toggle.js       # ✅ Theme toggle handling
 │
 ├── config/                       # Configuration modules
 │   ├── __init__.py               # ✅ Config package init
@@ -167,7 +163,7 @@ Pattern:
 - Service Locator centralizes lazy instantiation & reuse
 
 ### Route Layer (Web Interface)
-- Modular Blueprints: UI pages separated by domain (dashboard, analysis, models, batch, testing, statistics, advanced)
+- Modular Blueprints: UI pages separated by domain (dashboard, analysis, models, batch, statistics, advanced)
 - Fine-Grained API Subpackage: The `routes/api/` folder decomposes endpoints for maintainability & discoverability
 - HTMX + Progressive Enhancement: Partial templates return fragment responses for dynamic updates
 - Separate WebSocket REST helper blueprint mounted at `/api/websocket` (see `app/routes/api/websocket.py`) for starting/canceling analyses and querying WS service state

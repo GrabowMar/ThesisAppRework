@@ -2,17 +2,10 @@
 
 This document enumerates the Flask routes defined under `src/app/routes/` and `src/app/routes/api/`.
 
-- WebSocket HTTP fallback: `/ws/analysis` (426 Upgrade Required)
-
-Polling behavior (HTMX):
-- Preview page cards auto-refresh: security every ~15s, dynamic/performance every ~20s.
-- Active tasks widget auto-refreshes every ~10s via `/analysis/api/active-tasks`.
-# Routes Reference (src)
-
-This document enumerates the Flask routes defined under `src/app/routes/` and `src/app/routes/api/`.
-
 - UI blueprints serve HTML (often as HTMX partials) under dedicated prefixes.
 - API endpoints live under the `/api` prefix (plus a separate `/api/websocket` blueprint) and return JSON unless noted as template/HTMX.
+ - WebSocket HTTP fallback: `/ws/analysis` (426 Upgrade Required)
+ - Polling behavior (HTMX): Preview cards refresh every ~15–20s; Active tasks refresh every ~10s via `/analysis/api/active-tasks`.
 
 ## UI Blueprints (server-rendered pages)
 

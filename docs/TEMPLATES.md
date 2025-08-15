@@ -70,13 +70,15 @@ The `single_page.html` shell handles page header, actions, and includes `main_pa
 
 - Avoid duplicate alias files that mirror a canonical namespaced file.
 - Removed duplicates in this cleanup (examples):
-  - `partials/analysis/list_security.html` → use `partials/analysis/list/security.html`
-  - `partials/analysis/list_dynamic.html` → use `partials/analysis/list/dynamic.html`
-  - `partials/analysis/list_performance.html` → use `partials/analysis/list/performance.html`
-  - `partials/analysis/list_combined.html` → use `partials/analysis/list/combined.html`
-  - `partials/analysis/list_shell.html` → use `partials/analysis/list/shell.html`
-  - `partials/analysis/preview_shell.html` → use `partials/analysis/preview/shell.html`
-  - `partials/analysis/active_tasks.html` → use `partials/analysis/list/active_tasks.html`
+  - Flat alias templates under `partials/analysis/` have been removed. Use the namespaced versions only:
+    - `partials/analysis/list/security.html`
+    - `partials/analysis/list/dynamic.html`
+    - `partials/analysis/list/performance.html`
+    - `partials/analysis/list/combined.html`
+    - `partials/analysis/list/shell.html`
+    - `partials/analysis/preview/shell.html`
+    - `partials/analysis/create/shell.html`
+    - `partials/analysis/list/active_tasks.html`
   - `partials/testing/start_result.html` → use `partials/analysis/create/start_result.html`
 
 New: Prefer macros for repeated UI patterns (badges, rows, summary cards) to avoid drift across templates.
@@ -103,5 +105,5 @@ This document reflects the current structure after the partials cleanup. When in
 
 ## Changelog
 
-- 2025-08-15: Removed flat alias duplicates under `partials/analysis` (`*_shell.html`, `list_*.html`, `active_tasks.html`) and `partials/testing/start_result.html`. Canonical names remain under `partials/analysis/list/`, `partials/analysis/preview/`, and `partials/analysis/create/`.
+- 2025-08-15: Removed flat alias duplicates under `partials/analysis` (`*_shell.html`, `list_*.html`, `active_tasks.html`) and removed the entire `partials/testing/` folder. Canonical names remain under `partials/analysis/list/`, `partials/analysis/preview/`, and `partials/analysis/create/`.
 This document reflects the current structure after the partials cleanup. When in doubt, look for an existing example in the closest namespace and follow the same pattern.

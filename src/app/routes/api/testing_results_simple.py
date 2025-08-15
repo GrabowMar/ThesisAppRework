@@ -239,3 +239,13 @@ def export_multiple_results():
 def get_results_comparison():
     """Get comparison data for multiple results."""
     return jsonify({'success': False, 'error': 'Comparison functionality not implemented yet'}), 501
+
+
+"""
+Deprecated legacy
+
+This module previously exposed /api/testing/results (simple) endpoints.
+It is intentionally left empty. Deprecated legacy
+"""
+
+# No routes here.
