@@ -491,3 +491,67 @@ def build_model_containers(model_slug):
     except Exception as e:  # noqa: BLE001
         logger.error(f"Error building containers for model {model_slug}: {e}")
         return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/model/<model_slug>/containers/restart', methods=['POST'])
+def restart_model_containers(model_slug):
+    """Restart all containers for a model (best-effort)."""
+    try:
+        apps = db.session.query(GeneratedApplication).filter_by(model_slug=model_slug).all()
+        if not apps:
+            return json_error(f'No applications found for model {model_slug}', status=404, error_type='NotFound')
+
+        docker = ServiceLocator.get_docker_manager()
+        restarted = 0
+        errors = 0
+        for app in apps:
+            try:
+                if docker is not None:  # type: ignore[truthy-bool]
+                    result = docker.restart_containers(model_slug, app.app_number)  # type: ignore[attr-defined]
+                    if result.get('success'):
+                        app.container_status = 'running'
+                        restarted += 1
+                    else:
+                        errors += 1
+                else:
+                    # Fallback via service
+                    res = app_service.restart_application(app.id)
+                    if res.get('success'):
+                        restarted += 1
+                    else:
+                        errors += 1
+            except Exception:
+                errors += 1
+        db.session.commit()
+        return json_success({'restarted': restarted, 'errors': errors}, message=f'Restarted containers for {model_slug}')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error restarting containers for model {model_slug}: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/model/<model_slug>/containers/sync-status', methods=['POST'])
+def sync_model_status(model_slug):
+    """Return HTML fragment with up-to-date app cards for a model (used by htmx)."""
+    try:
+        from ...models import ModelCapability, PortConfiguration
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
+        apps = db.session.query(GeneratedApplication).filter_by(model_slug=model_slug).all()
+        ports_by_app = {pc.app_num: {'backend': pc.backend_port, 'frontend': pc.frontend_port}
+                        for pc in db.session.query(PortConfiguration).filter_by(model=model_slug).all()}
+
+        # Build the object the mini-fragment expects
+        app_list = []
+        for i in range(1, 31):
+            app = next((a for a in apps if a.app_number == i), None)
+            app_list.append({
+                'app_number': i,
+                'status': app.container_status if app else 'not_created',
+                'app_type': app.app_type if app else 'unknown',
+                'ports': ports_by_app.get(i),
+                'exists': bool(app),
+                'has_docker_compose': app.has_docker_compose if app else False
+            })
+        return render_template('partials/apps_grid/model_apps_inline.html', model=model, apps=app_list)
+    except Exception as e:
+        logger.error(f"Error syncing model status for {model_slug}: {e}")
+        return f'<div class="alert alert-danger">Error loading status: {str(e)}</div>', 500

@@ -1,0 +1,27 @@
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <div>
+      <i class="fas fa-file-code me-2"></i><strong>{{ file.rel_path }}</strong>
+      <small class="text-muted ms-2">{{ file.size }} bytes</small>
+    </div>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary" onclick="copyPreviewText(this)"><i class="fas fa-copy me-1"></i>Copy</button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    {% if truncated %}
+      <div class="alert alert-warning m-3 py-2 px-3">Large file — showing first 200 KB.</div>
+    {% endif %}
+  <pre id="file-preview-pre" class="m-0 p-3 font-mono-sm" style="white-space: pre-wrap; max-height: 90vh; overflow: auto;">{{ content }}</pre>
+  </div>
+</div>
+<script>
+function copyPreviewText(btn){
+  const pre = document.getElementById('file-preview-pre');
+  if(!pre) return;
+  navigator.clipboard.writeText(pre.innerText).then(()=>{
+    btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied';
+    setTimeout(()=>{ btn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy'; }, 1200);
+  });
+}
+</script>

@@ -785,6 +785,53 @@ def export_application_csv(model_slug, app_number):
     return Response('model_slug,app_number\n', mimetype='text/csv')
 
 
+@models_bp.route('/application/<model_slug>/<int:app_number>/file')
+def application_file_preview(model_slug, app_number):
+    """Preview a file from the generated application directory (safe, size-limited)."""
+    try:
+        rel_path = request.args.get('path')
+        if not rel_path:
+            return '<div class="alert alert-warning">Missing path</div>', 400
+
+        base = Path('misc/models') / model_slug / f'app{app_number}'
+        # Normalize and ensure the target is inside base
+        target = (base / rel_path).resolve()
+        if not str(target).startswith(str(base.resolve())):
+            return '<div class="alert alert-danger">Invalid path</div>', 400
+        if not target.exists() or not target.is_file():
+            return '<div class="alert alert-warning">File not found</div>', 404
+
+        # Read with size cap
+        size = target.stat().st_size
+        max_bytes = 200 * 1024  # 200 KB
+        truncated = False
+        content = ''
+        try:
+            if size <= max_bytes:
+                content = target.read_text(encoding='utf-8', errors='replace')
+            else:
+                with target.open('rb') as f:
+                    data = f.read(max_bytes)
+                content = data.decode('utf-8', errors='replace')
+                truncated = True
+        except Exception as e:
+            content = f"<binary or unreadable content: {e}>"
+
+        return render_template(
+            'partials/applications/file_preview.html',
+            file={
+                'rel_path': str(Path(rel_path)),
+                'abs_path': str(target),
+                'size': size,
+            },
+            content=content,
+            truncated=truncated
+        )
+    except Exception as e:
+        logger.error(f"Error previewing file for {model_slug}/app{app_number}: {e}")
+        return f'<div class="alert alert-danger">Error: {str(e)}</div>', 500
+
+
 @models_bp.route('/model_actions/<model_slug>')
 @models_bp.route('/model_actions')  # Support both with and without model_slug
 def model_actions(model_slug=None):
