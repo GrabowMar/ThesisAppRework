@@ -292,15 +292,39 @@ def api_application_logs_modal_by_slug(model_slug, app_num):
         if not app:
             return f'<div class="alert alert-warning">Application {model_slug}/app{app_num} not found</div>', 404
 
-        # Mock logs for now - in production, this would read actual log files or Docker logs
-        logs = [
-            {'timestamp': '2025-08-15 10:00:00', 'level': 'INFO', 'message': f'Application {app.id} initialized'},
-            {'timestamp': '2025-08-15 10:00:01', 'level': 'INFO', 'message': f'Model: {app.model_slug}'},
-            {'timestamp': '2025-08-15 10:00:02', 'level': 'INFO', 'message': f'Provider: {app.provider}'},
-            {'timestamp': '2025-08-15 10:00:03', 'level': 'INFO', 'message': 'Container event stream connected'},
-        ]
+        # Try real Docker logs via DockerManager
+        docker = ServiceLocator.get_docker_manager()
+        backend_logs = "Docker manager unavailable"
+        frontend_logs = "Docker manager unavailable"
+        backend_port = None
+        frontend_port = None
+        try:
+            if docker is not None:  # type: ignore[truthy-bool]
+                backend_logs = docker.get_container_logs(model_slug, app_num, 'backend', tail=200)  # type: ignore[attr-defined]
+                frontend_logs = docker.get_container_logs(model_slug, app_num, 'frontend', tail=200)  # type: ignore[attr-defined]
+        except Exception as log_err:  # noqa: BLE001
+            logger.warning(f"Failed to fetch docker logs for {model_slug}/app{app_num}: {log_err}")
 
-        return render_template('partials/application_logs_modal.html', app=app, logs=logs)
+        # Resolve ports from database if available
+        try:
+            from ...models import PortConfiguration  # local import to avoid circulars
+            pc = db.session.query(PortConfiguration).filter_by(model=model_slug, app_num=app_num).first()
+            if pc:
+                backend_port = pc.backend_port
+                frontend_port = pc.frontend_port
+        except Exception as e:
+            logger.debug(f"Port lookup failed for {model_slug}/app{app_num}: {e}")
+
+        # Render rich modal with split backend/frontend panes
+        return render_template(
+            'partials/app_logs_modal.html',
+            model_slug=model_slug,
+            app_num=app_num,
+            backend_logs=backend_logs or 'No backend logs available',
+            frontend_logs=frontend_logs or 'No frontend logs available',
+            backend_port=backend_port,
+            frontend_port=frontend_port
+        )
     except Exception as e:
         logger.error(f"Error loading application logs modal by slug for {model_slug}/app{app_num}: {e}")
         return f'<div class="alert alert-danger">Error loading logs: {str(e)}</div>', 500

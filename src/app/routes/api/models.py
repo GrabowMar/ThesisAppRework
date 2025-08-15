@@ -180,28 +180,36 @@ def app_status(model_slug, app_num):
         return jsonify({'error': str(e)}), 500
 
 
-@api_bp.route('/app/<model_slug>/<int:app_num>/logs')
+@api_bp.route('/app/<model_slug>/<int:app_num>/logs.json')
 def app_logs(model_slug, app_num):
-    """Get logs for specific application."""
+    """Get logs for specific application (JSON variant).
+
+    Note: The HTML modal for logs is served by
+    /api/app/<model_slug>/<int:app_num>/logs in api/applications.py.
+    This JSON endpoint avoids a route collision and can be used by API clients.
+    """
     try:
-        app = GeneratedApplication.query.filter_by(
-            model_slug=model_slug,
-            app_number=app_num
-        ).first()
-        
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_num).first()
         if not app:
             return jsonify({'error': 'Application not found'}), 404
-        
-        # For now, return placeholder logs
-        # In production, this would interface with docker/container logging
-        logs = {
-            'backend_logs': f"Backend logs for {model_slug} app {app_num}...",
-            'frontend_logs': f"Frontend logs for {model_slug} app {app_num}...",
-            'docker_logs': f"Docker logs for {model_slug} app {app_num}...",
+
+        # Fetch real logs via DockerManager if available
+        backend_logs = None
+        frontend_logs = None
+        try:
+            from ...services.service_locator import ServiceLocator
+            docker = ServiceLocator.get_docker_manager()
+            if docker is not None:  # type: ignore[truthy-bool]
+                backend_logs = docker.get_container_logs(model_slug, app_num, 'backend', tail=200)  # type: ignore[attr-defined]
+                frontend_logs = docker.get_container_logs(model_slug, app_num, 'frontend', tail=200)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        return jsonify({
+            'backend_logs': backend_logs or '',
+            'frontend_logs': frontend_logs or '',
             'last_updated': app.updated_at.isoformat() if app.updated_at else None
-        }
-        
-        return jsonify(logs)
+        })
     except Exception as e:
         logger.error(f"Error getting logs for app {model_slug}/{app_num}: {e}")
         return jsonify({'error': str(e)}), 500

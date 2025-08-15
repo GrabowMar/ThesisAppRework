@@ -159,23 +159,64 @@ class DockerManager:
             compose_path, cmd, model, app_num, timeout=600  # 10 minutes for build
         )
     
-    def get_container_logs(self, model: str, app_num: int, 
+    def get_container_logs(self, model: str, app_num: int,
                           container_type: str = 'backend', tail: int = 100) -> str:
-        """Get logs from a specific container."""
+        """Get logs from a specific Compose container for an app.
+
+        Tries multiple strategies to find the container:
+        - Compose labels (project + service)
+        - Name prefix match (handles _1 / -1 suffix differences)
+        - Direct name (legacy)
+        """
         if not self.client:
             return "Docker client unavailable"
-        
+
         project_name = self._get_project_name(model, app_num)
-        container_name = f"{project_name}_{container_type}"
-        
+        desired_service = container_type
+
         try:
-            container = self.client.containers.get(container_name)
-            logs = container.logs(tail=tail).decode("utf-8", errors="replace")
+            # 1) Prefer label-based lookup (most reliable across Compose versions)
+            containers = self.client.containers.list(
+                all=True,
+                filters={'label': [
+                    f'com.docker.compose.project={project_name}',
+                    f'com.docker.compose.service={desired_service}'
+                ]}
+            )
+            target = containers[0] if containers else None
+
+            # 2) Fallback: name prefix search (handles -1/_1 suffix)
+            if target is None:
+                name_prefixes = [
+                    f"{project_name}_{desired_service}",  # e.g., proj_backend
+                    f"{project_name}-{desired_service}",  # e.g., proj-backend
+                ]
+                for c in self.client.containers.list(all=True):
+                    try:
+                        nm = c.name
+                        if any(nm.startswith(pref) for pref in name_prefixes):
+                            target = c
+                            break
+                    except Exception:
+                        continue
+
+            # 3) Legacy direct get (may fail depending on suffix differences)
+            if target is None:
+                try:
+                    target = self.client.containers.get(f"{project_name}_{desired_service}")
+                except Exception:
+                    try:
+                        target = self.client.containers.get(f"{project_name}-{desired_service}")
+                    except Exception:
+                        target = None
+
+            if target is None:
+                return f"Container for {project_name}/{desired_service} not found"
+
+            logs = target.logs(tail=tail).decode("utf-8", errors="replace")
             return logs
-        except DockerNotFound:
-            return f"Container {container_name} not found"
         except Exception as e:
-            self.logger.error(f"Error getting logs: {e}")
+            self.logger.error(f"Error getting logs for {project_name}/{desired_service}: {e}")
             return f"Error getting logs: {e}"
     
     def _get_compose_path(self, model: str, app_num: int) -> Path:
@@ -192,15 +233,27 @@ class DockerManager:
                                 model: str, app_num: int, timeout: int = 300) -> Dict[str, Any]:
         """Execute a docker-compose command."""
         import subprocess
+        import shutil
         
         cmd = []  # Initialize cmd variable
         
         try:
             project_name = self._get_project_name(model, app_num)
             
+            # Prefer modern 'docker compose', fallback to legacy 'docker-compose'
+            if shutil.which('docker'):
+                base_cmd = ['docker', 'compose']
+            elif shutil.which('docker-compose'):
+                base_cmd = ['docker-compose']
+            else:
+                return {
+                    'success': False,
+                    'error': 'Neither docker nor docker-compose CLI is available in PATH',
+                    'command': ''
+                }
+
             # Build the full command
-            cmd = [
-                'docker-compose',
+            cmd = base_cmd + [
                 '-f', str(compose_path),
                 '-p', project_name
             ] + command

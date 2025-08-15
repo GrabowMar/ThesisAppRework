@@ -190,24 +190,43 @@ class AnalyzerIntegration:
             # Try to get real status from analyzer manager
             try:
                 result = self.run_analyzer_command(['health'], timeout=10)
-                
+
                 if result.get('returncode') == 0:
-                    # Parse health output to extract service status
-                    output = result.get('stdout', '')
-                    
-                    # Look for service health in output
-                    services_status = {}
-                    lines = output.split('\n')
-                    
-                    for line in lines:
-                        if '✅' in line and ':' in line:
-                            # Extract service name and status from lines like "✅ static-analyzer: healthy"
-                            parts = line.split(':')
-                            if len(parts) >= 2:
-                                service_name = parts[0].replace('✅', '').replace('❌', '').strip()
-                                status = parts[1].strip()
-                                services_status[service_name] = {'status': status}
-                    
+                    output = (result.get('stdout') or '').strip()
+                    services_status: Dict[str, Any] = {}
+
+                    # Prefer JSON if available
+                    if output.startswith('{'):
+                        try:
+                            parsed = json.loads(output)
+                            # Expect shape: { "services": { name: {status:..} } }
+                            if isinstance(parsed, dict) and isinstance(parsed.get('services'), dict):
+                                services_status = parsed['services']  # type: ignore[index]
+                        except Exception:
+                            pass
+
+                    if not services_status and output:
+                        # Parse plain text variants
+                        lines = output.split('\n')
+                        for line in lines:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            # Accept forms like:
+                            #   ✅ static-analyzer: healthy
+                            #   static-analyzer ... healthy
+                            #   service: static-analyzer status: healthy
+                            if ':' in line and ('✅' in line or '-' in line or 'service' in line.lower()):
+                                parts = line.replace('✅', '').replace('❌', '').split(':')
+                                if len(parts) >= 2:
+                                    name_part = parts[0].strip()
+                                    status_part = parts[1].strip()
+                                    # Normalize name (left-most token)
+                                    service_name = name_part.split()[0]
+                                    status = status_part.split()[0]
+                                    if service_name:
+                                        services_status[service_name] = {'status': status}
+
                     if services_status:
                         status_info = {
                             'services': services_status,
@@ -217,9 +236,10 @@ class AnalyzerIntegration:
                         self.services_status = status_info
                         self.last_health_check = datetime.now(timezone.utc)
                         return status_info
-                
-                # Fallback to simplified status if parsing failed
-                logger.warning("Failed to parse analyzer health output, using simplified status")
+
+                # Fallback to simplified status only if no output or parse failed
+                if not result.get('stdout'):
+                    logger.warning("Analyzer health returned no output; using simplified status")
                 
             except Exception as e:
                 logger.warning(f"Failed to get real analyzer status: {e}, using simplified status")
