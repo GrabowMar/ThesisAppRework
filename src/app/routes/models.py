@@ -525,10 +525,7 @@ def application_detail(model_slug, app_number):
             logger.warning(f"Failed to load prompts for app {app_number}: {e}")
         
         return render_template(
-            'single_page.html',
-            page_title=f"Application {app_number}",
-            page_icon='fas fa-cube',
-            main_partial='partials/applications/detail.html',
+            'pages/application_detail.html',
             app_data=app_data,
             files_info=files_info,
             analyses=analyses,

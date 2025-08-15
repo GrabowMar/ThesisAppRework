@@ -15,7 +15,7 @@
     {% block page_actions %}{% if page_actions_partial %}{% include page_actions_partial %}{% endif %}{% endblock %}
   </div>
 </div>
-<div id="main-partial-wrapper" hx-get="{{ initial_hx_get or '' }}" hx-trigger="{{ 'load' if initial_hx_get }}" hx-target="#main-partial-wrapper" hx-swap="innerHTML">
+<div id="main-partial-wrapper" hx-boost="false" hx-get="{{ initial_hx_get or '' }}" hx-trigger="{{ 'load' if initial_hx_get }}" hx-target="#main-partial-wrapper" hx-swap="innerHTML">
   {% if main_partial %}
     {% include main_partial %}
   {% elif self.main_content %}

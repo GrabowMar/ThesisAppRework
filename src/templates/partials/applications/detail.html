@@ -10,7 +10,7 @@
 {% set app_number = app_data.app_number %}
 
 {% call module_card(title='Application ' ~ app_number ~ ' — ' ~ model.display_name, classes='module-application-detail', body_classes='p-0') %}
-<div class="row g-0">
+<div class="row g-0" hx-boost="false">
 	<!-- Sidebar -->
 	<div class="col-12 col-md-3 col-xl-2 border-end bg-body-tertiary">
 		{% include 'partials/applications/tabs/sidebar.html' %}
@@ -46,26 +46,28 @@
 </div>
 
 <script>
-// Activate tab from hash on load and update hash on change
-(function() {
+// Initialize tabs after DOM and also after any HTMX swaps
+function initAppTabs(root){
+	const scope = root || document;
 	const hash = window.location.hash || '#section-overview';
-	const triggerEl = document.querySelector(`a[href="${hash}"]`);
-	if (triggerEl) {
-		new bootstrap.Tab(triggerEl).show();
+	const triggerEl = scope.querySelector(`a[href="${hash}"][data-bs-toggle="tab"]`);
+	if (window.bootstrap && bootstrap.Tab && triggerEl) {
+		try { new bootstrap.Tab(triggerEl).show(); } catch(e) { /* noop */ }
 	}
-	document.querySelectorAll('#app-sidebar a[data-bs-toggle="tab"]').forEach(el => {
+	scope.querySelectorAll('#app-sidebar a[data-bs-toggle="tab"]').forEach(el => {
 		el.addEventListener('shown.bs.tab', function (event) {
 			const id = event.target.getAttribute('href');
-			if (id) {
-				history.replaceState(null, '', id);
-			}
-		});
+			if (id) { history.replaceState(null, '', id); }
+		}, { once: false });
 	});
-})();
+}
+
+document.addEventListener('DOMContentLoaded', function(){ initAppTabs(document); });
+document.body.addEventListener('htmx:load', function(evt){ initAppTabs(evt.target); });
 
 // Copy to clipboard helper
 function copyAdjacentPre(btn){
-	const pre = btn.closest('.card, .mb-3').querySelector('pre');
+	const pre = btn.closest('.card, .mb-3')?.querySelector('pre');
 	if(!pre) return;
 	const text = pre.innerText;
 	navigator.clipboard.writeText(text).then(()=>{

@@ -155,6 +155,33 @@
 	})();
 	</script>
 
+	<script>
+	// Guard: avoid swapping a full HTML document into a partial HTMX target
+	// Safer version: skips when the trigger explicitly uses hx-select or opts out via data-allow-full-document
+	(function(){
+		document.body.addEventListener('htmx:beforeSwap', function(evt) {
+			try {
+				var xhr = evt.detail && evt.detail.xhr;
+				var triggerEl = evt.detail && evt.detail.elt;
+				if (!xhr) return;
+				// Opt-out: allow full doc if the triggering element requests it or uses hx-select to pick a fragment
+				if (triggerEl && (triggerEl.hasAttribute('data-allow-full-document') || triggerEl.hasAttribute('hx-select'))) return;
+				var contentType = xhr.getResponseHeader && xhr.getResponseHeader('Content-Type');
+				var text = xhr.responseText || '';
+				var isHtml = contentType && contentType.indexOf('text/html') !== -1;
+				var looksLikeFullDoc = text.indexOf('<html') !== -1 && text.indexOf('<body') !== -1;
+				if (isHtml && looksLikeFullDoc) {
+					// Only redirect if the swap target isn't the whole document
+					if (evt.target && evt.target.id !== 'document') {
+						evt.preventDefault();
+						window.location.href = xhr.responseURL || window.location.href;
+					}
+				}
+			} catch(e) { /* no-op */ }
+		});
+	})();
+	</script>
+
 	{% block scripts %}{% endblock %}
 </body>
 </html>
