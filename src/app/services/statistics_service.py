@@ -16,7 +16,7 @@ Future Enhancements:
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from sqlalchemy import func, desc
 
@@ -51,7 +51,7 @@ def get_application_statistics() -> Dict[str, Any]:
         {"type": app_type, "count": count} for app_type, count in by_type_rows
     ]
 
-    week_ago = datetime.utcnow() - timedelta(days=7)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
     recent_count = (
         db.session.query(func.count(GeneratedApplication.id))
         .filter(GeneratedApplication.created_at >= week_ago)
@@ -129,12 +129,12 @@ def get_analysis_statistics() -> Dict[str, Any]:
     }
 
 def get_recent_statistics() -> Dict[str, Any]:
-    day_ago = datetime.utcnow() - timedelta(days=1)
+    day_ago = datetime.now(timezone.utc) - timedelta(days=1)
     recent_apps = db.session.query(func.count(GeneratedApplication.id)).filter(GeneratedApplication.created_at >= day_ago).scalar() or 0
     recent_security = db.session.query(func.count(SecurityAnalysis.id)).filter(SecurityAnalysis.created_at >= day_ago).scalar() or 0
     recent_perf = db.session.query(func.count(PerformanceTest.id)).filter(PerformanceTest.created_at >= day_ago).scalar() or 0
 
-    week_ago = datetime.utcnow() - timedelta(days=7)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
     popular_models_rows = (
         db.session.query(
             GeneratedApplication.model_slug,
@@ -182,7 +182,7 @@ def get_model_distribution() -> Dict[str, Any]:
     }
 
 def get_generation_trends(days: int = 30) -> Dict[str, Any]:
-    end_date = datetime.utcnow().date()
+    end_date = datetime.now(timezone.utc).date()
     start_date = end_date - timedelta(days=days)
     daily_data: List[Dict[str, Any]] = []
     current = start_date
@@ -221,12 +221,12 @@ def get_analysis_summary() -> Dict[str, Any]:
     }
 
 def export_statistics(days: int = 30) -> Dict[str, Any]:
-    start_date = datetime.utcnow() - timedelta(days=days)
+    start_date = datetime.now(timezone.utc) - timedelta(days=days)
     return {
         'export_info': {
-            'generated_at': datetime.utcnow().isoformat(),
+            'generated_at': datetime.now(timezone.utc).isoformat(),
             'period_start': start_date.isoformat(),
-            'period_end': datetime.utcnow().isoformat(),
+            'period_end': datetime.now(timezone.utc).isoformat(),
         },
         'models': {
             'total': db.session.query(func.count(ModelCapability.id)).scalar() or 0,

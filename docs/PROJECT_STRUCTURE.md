@@ -55,9 +55,9 @@ src/
 │   │   ├── docker_manager.py     # ✅ Implemented low-level Docker/compose orchestration
 │   │   ├── background_service.py # ✅ Background maintenance / cleanup helpers
 │   │   ├── openrouter_service.py # ✅ OpenRouter model capability integration
-│   │   ├── container_service.py  # 🚧 High-level app container orchestration (STUB)
 │   │   ├── port_service.py       # 🚧 Dynamic port allocation (PARTIAL stub)
-│   │   └── analyzer_service.py   # 🚧 Unified multi-tool analysis coordination (STUB)
+│   │   ├── websocket_integration.py  # ✅ Active WebSocket/HTMX bridge
+│   │   └── celery_websocket_service.py # ✅ Celery + WS utility wrapper
 │   │
 │   ├── utils/                    # Utility helpers
 │   │   ├── __init__.py
@@ -155,10 +155,12 @@ Implemented:
 - OpenRouterService (external model metadata)
 Partial / In Progress:
 - PortService (basic port check + stub allocation logic)
-Planned / Stub:
-- ContainerService (compose lifecycle w/ PortService & DB updates)
-- AnalyzerService (unified multi-tool scheduling layer)
 - Higher-fidelity BackgroundService tasks (periodic cleanup, health scans)
+Removed (legacy/unused):
+- AnalyzerService (replaced by AnalyzerIntegration + Celery tasks)
+- WebSocket Integration v2 shim
+- ContainerService (unused stub)
+- HuggingFace service stub
 Pattern:
 - Service Locator centralizes lazy instantiation & reuse
 
