@@ -309,20 +309,18 @@ def batch_list():
     """HTMX endpoint for batch list."""
     try:
         status_filter = request.args.get('status')
-        
+
         query = BatchAnalysis.query
         if status_filter:
             query = query.filter_by(status=status_filter)
-        
+
         batches = query.order_by(
             BatchAnalysis.created_at.desc()
         ).limit(10).all()
-        
-        return render_template('partials/testing/batch_list.html', batches=batches)
+        return render_template('partials/analysis/create/batch_list.html', batches=batches)
     except Exception as e:
         logger.error(f"Error loading batch list: {e}")
-        return render_template('partials/common/error.html', 
-                             error=f"Error loading batch list: {str(e)}")
+        return render_template('partials/common/error.html', error=f"Error loading batch list: {str(e)}")
 
 
 @batch_bp.route('/form')
@@ -330,11 +328,10 @@ def batch_form():
     """HTMX endpoint for batch form."""
     try:
         models = ModelCapability.query.all()
-        return render_template('partials/testing/batch_form.html', models=models)
+        return render_template('partials/analysis/create/batch_form.html', models=models)
     except Exception as e:
         logger.error(f"Error loading batch form: {e}")
-        return render_template('partials/common/error.html', 
-                             error=f"Error loading batch form: {str(e)}")
+        return render_template('partials/common/error.html', error=f"Error loading batch form: {str(e)}")
 
 
 # Import logger

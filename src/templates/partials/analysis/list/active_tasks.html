@@ -1,29 +1,43 @@
-<div class="card">
+<div class="card" id="active-tasks"
+  hx-get="{{ url_for('analysis.htmx_active_tasks') }}"
+  hx-trigger="load, every 10s"
+  hx-target="#active-tasks"
+  hx-swap="outerHTML">
   <div class="card-header"><i class="fas fa-tasks me-1"></i> Active Celery tasks</div>
+  {% set is_list = active and (active.items is not defined) %}
+  {% set has_items = (active and active|length) %}
+  {% if has_items %}
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead>
         <tr>
-          <th>Task ID</th>
-          <th>Type</th>
-          <th>Model/App</th>
+          <th>Task</th>
           <th>Status</th>
           <th>Started</th>
         </tr>
       </thead>
       <tbody>
-        {% for tid, t in active.items() %}
-        <tr>
-          <td class="text-truncate" style="max-width: 240px;">{{ tid }}</td>
-          <td>{{ t.get('type', 'unknown') }}</td>
-          <td>{{ t.get('model_slug', '-') }} / {{ t.get('app_number', '-') }}</td>
-          <td>{{ t.get('status', 'PENDING') }}</td>
-          <td>{{ t.get('started_at', '') }}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="5" class="text-muted">No active tasks</td></tr>
+        {% if is_list %}
+        {% for t in active %}
+          <tr>
+            <td>{{ t.name or t.task_name or t.id }}</td>
+            <td><span class="badge bg-secondary">{{ t.status or t.state }}</span></td>
+            <td>{{ t.started_at or t.start_time }}</td>
+          </tr>
         {% endfor %}
+        {% else %}
+        {% for _id, t in active.items() %}
+          <tr>
+            <td>{{ t.name or t.task_name or t.id or _id }}</td>
+            <td><span class="badge bg-secondary">{{ t.status or t.state }}</span></td>
+            <td>{{ t.started_at or t.start_time }}</td>
+          </tr>
+        {% endfor %}
+        {% endif %}
       </tbody>
     </table>
   </div>
+  {% else %}
+    {% include 'partials/common/empty_state.html' with context %}
+  {% endif %}
 </div>

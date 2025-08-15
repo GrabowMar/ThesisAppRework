@@ -28,7 +28,7 @@ src/
 │   │   ├── analysis.py           # ✅ Analysis hub views
 │   │   ├── batch.py              # ✅ Batch operations UI
 │   │   ├── statistics.py         # ✅ Metrics & statistics views
-│   │   ├── testing.py            # ✅ Testing & validation views
+│   │   ├── testing.py            # ❌ Removed (consolidated into analysis)
 │   │   ├── advanced.py           # ✅ Advanced / experimental views
 │   │   ├── errors.py             # ✅ Error handlers
 │   │   ├── api/                  # ✅ REST/HTMX JSON endpoints (fine‑grained)
@@ -92,7 +92,7 @@ src/
 │       ├── dashboard/            # ✅ Dashboard stats/health widgets
 │       ├── models/               # ✅ Model catalog components
 │       ├── statistics/           # ✅ Statistics section fragments
-│       ├── testing/              # ✅ Security/performance test forms & results
+│       ├── testing/              # ❌ Removed (use analysis/create/* and analysis/list/*)
 │       └── system_status.html    # ✅ System status summary block
 │
 ├── static/                       # Consolidated static assets
@@ -237,7 +237,7 @@ Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Fo
 ---
 
 **Structure Status**: ✅ Stable modular layout  
-**Legacy Artifacts**: 🗃️ Contained / documented (api.py.backup, route_* docs)  
+**Legacy Artifacts**: 🗃️ Contained / documented (api.py.backup, route_* docs); testing blueprint and partials removed in favor of analysis-only  
 **Services**: Mixed (core implemented, orchestration stubs pending)  
 **Documentation**: Up-to-date (reflects refactor phases)  
 **Test Coverage**: Growing (needs expansion for new services)  

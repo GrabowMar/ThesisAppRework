@@ -2,6 +2,15 @@
 
 This document enumerates the Flask routes defined under `src/app/routes/` and `src/app/routes/api/`.
 
+- WebSocket HTTP fallback: `/ws/analysis` (426 Upgrade Required)
+
+Polling behavior (HTMX):
+- Preview page cards auto-refresh: security every ~15s, dynamic/performance every ~20s.
+- Active tasks widget auto-refreshes every ~10s via `/analysis/api/active-tasks`.
+# Routes Reference (src)
+
+This document enumerates the Flask routes defined under `src/app/routes/` and `src/app/routes/api/`.
+
 - UI blueprints serve HTML (often as HTMX partials) under dedicated prefixes.
 - API endpoints live under the `/api` prefix (plus a separate `/api/websocket` blueprint) and return JSON unless noted as template/HTMX.
 
@@ -11,7 +20,7 @@ This document enumerates the Flask routes defined under `src/app/routes/` and `s
   - GET / — Dashboard page
   - GET /about — About page
   - GET /system-status — System status page
-  - GET /test-platform — Testing platform overview
+  - GET /test-platform — Redirects to Analysis Hub (/analysis/)
   - GET /models_overview — Redirects to models overview
   - JSON utilities (scoped under main, not API blueprint):
     - GET /api/stats — Dashboard stats
@@ -82,18 +91,7 @@ This document enumerates the Flask routes defined under `src/app/routes/` and `s
 - statistics (prefix: /statistics)
   - GET /statistics/ — Statistics dashboard
 
-- testing (prefix: /testing)
-  - GET /testing/ — Testing center
-  - GET /testing/security — Security testing config
-  - GET /testing/performance — Performance testing config
-  - GET /testing/batch — Batch testing operations
-  - GET /testing/results — Testing results page
-  - Enhanced testing API (scoped under testing)
-    - POST /testing/api/run-with-config — Run enhanced analysis
-    - GET /testing/api/results/enhanced — Paginated/filterable results
-    - GET /testing/api/results/<int:result_id>/detail — Result detail
-    - GET /testing/api/results/<int:result_id>/download — Download result JSON
-    - GET /testing/api/results/export — Export multiple results
+  
 
 - advanced (prefix: /advanced)
   - GET /advanced/apps — Apps grid page shell
@@ -113,7 +111,7 @@ This document enumerates the Flask routes defined under `src/app/routes/` and `s
     - GET /advanced/api/models/<int:model_id>/details — Model details partial
 
 - websocket fallbacks (registered globally)
-  - GET /ws/testing — Placeholder WS endpoint (426 upgrade required)
+  - GET /ws/analysis — Placeholder WS endpoint (426 upgrade required)
   - GET /socket.io/ — Socket.IO fallback JSON
 
 ## API Blueprints (JSON-first)
@@ -245,11 +243,7 @@ All paths below are prefixed with `/api` unless otherwise noted.
   - GET /api/results/<int:result_id> — Result detail
   - GET /api/results/<int:result_id>/export — Export single result
 
-- testing
-  - GET /api/testing/dashboard/stats — Testing stats
-  - GET /api/testing/analyzer/status — Analyzer status
-  - GET /api/testing/system/events — System events
-  - GET /api/testing/performance/metrics — Perf metrics
+  
 
 - websocket API (separate blueprint; prefix: /api/websocket)
   - GET /api/websocket/status — WebSocket service status

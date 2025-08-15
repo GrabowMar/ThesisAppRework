@@ -1,0 +1,19 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+{% call module_card(title='Models Overview Summary') %}
+  {% if summary %}
+    <div class="d-flex gap-4">
+      <div>Total Models: <strong>{{ summary.total_models }}</strong></div>
+      <div>Total Apps: <strong>{{ summary.total_apps }}</strong></div>
+    </div>
+    <div class="mt-2">
+      <div class="text-muted small">Providers</div>
+      <ul class="list-inline mb-0">
+        {% for p in summary.providers %}
+        <li class="list-inline-item"><span class="badge bg-secondary">{{ p.name }}: {{ p.count }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% else %}
+    <div class="text-muted">No summary available.</div>
+  {% endif %}
+{% endcall %}

@@ -1,0 +1,25 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Batch List', classes='module-analysis-batch-list') %}
+<div class="batch-list-container">
+  {% if batches %}
+    <div class="list-group list-group-flush">
+      {% for batch in batches %}
+      <div class="list-group-item">
+        <div class="d-flex justify-content-between">
+          <div>
+            <strong>{{ batch.name or ('Batch ' ~ batch.batch_id) }}</strong>
+            <div class="text-muted small">Created {{ batch.created_at.strftime('%Y-%m-%d %H:%M') if batch.created_at else '' }}</div>
+          </div>
+          <div>
+            <span class="badge bg-secondary">{{ batch.status.value if hasattr(batch, 'status') else batch.status }}</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="text-center text-muted py-4">No batches yet</div>
+  {% endif %}
+</div>
+{% endcall %}

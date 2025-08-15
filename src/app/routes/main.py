@@ -7,9 +7,9 @@ Core application routes including dashboard and basic pages.
 
 import logging
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from flask import Blueprint, render_template, flash, current_app, jsonify, request
+from flask import Blueprint, render_template, flash, current_app, jsonify, redirect, url_for
 
 from ..models import (
     ModelCapability, GeneratedApplication,
@@ -117,42 +117,12 @@ def system_status():
 
 @main_bp.route('/test-platform')
 def testing():
-    """Testing platform overview page."""
+    """Legacy testing platform route -> redirect to Analysis Hub."""
     try:
-        # Get testing statistics
-        stats = {
-            'active_tests': SecurityAnalysis.query.filter_by(status=JobStatus.RUNNING).count() +
-                           PerformanceTest.query.filter_by(status=JobStatus.RUNNING).count(),
-            'completed_tests': SecurityAnalysis.query.filter_by(status=JobStatus.COMPLETED).count() +
-                              PerformanceTest.query.filter_by(status=JobStatus.COMPLETED).count(),
-            'failed_tests': SecurityAnalysis.query.filter_by(status=JobStatus.FAILED).count() +
-                           PerformanceTest.query.filter_by(status=JobStatus.FAILED).count(),
-            'queue_length': SecurityAnalysis.query.filter_by(status=JobStatus.PENDING).count() +
-                           PerformanceTest.query.filter_by(status=JobStatus.PENDING).count()
-        }
-        
-        # Get available models for testing
-        available_models = ModelCapability.query.all()
-        
-        # Get active sessions (mock data for now)
-        active_sessions = []
-        
-        # Get recent results
-        recent_results = []
-        
-        return render_template(
-            'single_page.html',
-            page_title='Testing Platform',
-            page_icon='fas fa-flask',
-            page_subtitle='System testing and validation',
-            main_partial='partials/testing/platform_overview.html',
-            stats=stats,
-            available_models=available_models,
-            active_sessions=active_sessions,
-            recent_results=recent_results
-        )
+        flash('Testing has moved to Analysis Hub.', 'info')
+        return redirect(url_for('analysis.analysis_hub'))
     except Exception as e:
-        logger.error(f"Error loading testing page: {e}")
+        logger.error(f"Error redirecting testing page: {e}")
         flash('Error loading testing page', 'error')
         return render_template(
             'single_page.html',
@@ -219,34 +189,33 @@ def api_data_status():
 def api_system_health():
     """API endpoint for system health status."""
     try:
-        from ..services.docker_manager import DockerManager
         from ..services.service_locator import ServiceLocator
-        
+
         # Check Docker status
         docker_manager = ServiceLocator.get_docker_manager()
         docker_status = {
             'available': False,
             'containers_running': 0,
-            'error': None
+            'error': None,
         }
-        
+
         try:
-            client = docker_manager.client
+            client = getattr(docker_manager, 'client', None)
             if client:
                 containers = client.containers.list()
                 docker_status['available'] = True
                 docker_status['containers_running'] = len(containers)
         except Exception as e:
             docker_status['error'] = str(e)
-        
-        # Check analyzer services
+
+        # Check analyzer services (placeholder values)
         analyzer_status = {
             'security': {'status': 'unknown', 'port': 2001},
             'performance': {'status': 'unknown', 'port': 2002},
             'dynamic': {'status': 'unknown', 'port': 2003},
-            'ai': {'status': 'unknown', 'port': 2004}
+            'ai': {'status': 'unknown', 'port': 2004},
         }
-        
+
         # Check database connection
         db_status = {'available': True, 'error': None}
         try:
@@ -255,14 +224,13 @@ def api_system_health():
         except Exception as e:
             db_status['available'] = False
             db_status['error'] = str(e)
-        
+
         return jsonify({
             'docker': docker_status,
             'analyzers': analyzer_status,
             'database': db_status,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.utcnow().isoformat(),
         })
-        
     except Exception as e:
         logger.error(f"Error getting system health: {e}")
         return jsonify({'error': str(e)}), 500

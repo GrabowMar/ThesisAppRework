@@ -22,7 +22,7 @@ This document describes how Celery orchestrates asynchronous, container-backed a
 - Models
   - `src/app/models.py`: `SecurityAnalysis`, `ZAPAnalysis`, `PerformanceTest`; JSON fields for flexible results/metadata.
 - UI Partials
-  - `src/templates/partials/testing/*.html`, `src/templates/partials/analysis/*.html` for HTMX forms and results views.
+  - `src/templates/partials/analysis/*` for HTMX forms and results views (testing namespace removed)
 
 ## End-to-End Flow
 
@@ -94,7 +94,7 @@ This document describes how Celery orchestrates asynchronous, container-backed a
 ## Progress/Status Reporting
 
 - Tasks call progress hooks; task IDs are returned at enqueue time.
-- Minimal HTMX partial (`partials/testing/start_result.html`) shows the task ID and links to results.
+- Minimal HTMX partial (`partials/analysis/create/start_result.html`) shows the task ID and links to results.
 - Optional: poll an API endpoint or integrate with websocket status events.
 
 ## Analyzer Integration
@@ -123,4 +123,4 @@ This document describes how Celery orchestrates asynchronous, container-backed a
 - Services: `src/app/services/analysis_service.py`, `src/app/services/task_manager.py`, `src/app/services/analyzer_integration.py`
 - Tasks: `src/app/tasks.py`
 - Models: `src/app/models.py`
-- Templates: `src/templates/partials/testing/*`, `src/templates/partials/analysis/*`
+- Templates: `src/templates/partials/analysis/*`

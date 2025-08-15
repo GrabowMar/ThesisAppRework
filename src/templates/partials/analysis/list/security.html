@@ -1,3 +1,5 @@
+{% from 'partials/analysis/list/_row_macros.html' import security_row %}
+
 <div class="card">
   <div class="card-header"><i class="fas fa-shield-alt me-1"></i> Security analyses</div>
   <div class="table-responsive">
@@ -14,18 +16,9 @@
       </thead>
       <tbody>
         {% for a in items %}
-        <tr>
-          <td>#{{ a.id }}</td>
-          <td>{{ a.application_id }}</td>
-          <td><span class="badge bg-secondary">{{ a.status }}</span></td>
-          <td>{{ a.total_issues or 0 }}</td>
-          <td>{{ a.created_at }}</td>
-          <td class="text-end">
-            <a class="btn btn-sm btn-outline-primary" href="/analysis/security/{{ a.id }}/results/view">Open</a>
-          </td>
-        </tr>
+          {{ security_row(a) }}
         {% else %}
-        <tr><td colspan="6" class="text-muted">No items</td></tr>
+          <tr><td colspan="6" class="text-muted">No items</td></tr>
         {% endfor %}
       </tbody>
     </table>

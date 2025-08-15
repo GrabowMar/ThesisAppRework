@@ -1,0 +1,19 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Recent Models') %}
+  {% if models_data and models_data|length > 0 %}
+    <ul class="list-group list-group-flush">
+    {% for item in models_data %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          <strong>{{ item.model.model_name or item.model.canonical_slug }}</strong>
+          <div class="text-muted small">Provider: {{ item.model.provider }}</div>
+        </div>
+        <span class="badge bg-secondary">{{ item.app_count }} apps</span>
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <div class="text-muted">No recent models found.</div>
+  {% endif %}
+{% endcall %}

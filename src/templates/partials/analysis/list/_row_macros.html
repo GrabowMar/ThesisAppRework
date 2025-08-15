@@ -1,0 +1,42 @@
+{% macro status_badge(status) -%}
+  <span class="badge bg-secondary text-uppercase">{{ status }}</span>
+{%- endmacro %}
+
+{% macro security_row(a) -%}
+  <tr>
+    <td>#{{ a.id }}</td>
+    <td>{{ a.application_id }}</td>
+    <td>{{ status_badge(a.status) }}</td>
+    <td>{{ a.total_issues or 0 }}</td>
+    <td>{{ a.created_at }}</td>
+    <td class="text-end">
+      <a class="btn btn-sm btn-outline-primary" href="/analysis/security/{{ a.id }}/results/view">Open</a>
+    </td>
+  </tr>
+{%- endmacro %}
+
+{% macro dynamic_row(a) -%}
+  <tr>
+    <td>#{{ a.id }}</td>
+    <td>{{ a.application_id }}</td>
+    <td>{{ status_badge(a.status) }}</td>
+    <td>{{ a.scan_type }}</td>
+    <td>{{ a.created_at }}</td>
+    <td class="text-end">
+      <a class="btn btn-sm btn-outline-primary" href="/analysis/dynamic/{{ a.id }}">Open</a>
+    </td>
+  </tr>
+{%- endmacro %}
+
+{% macro performance_row(t) -%}
+  <tr>
+    <td>#{{ t.id }}</td>
+    <td>{{ t.application_id }}</td>
+    <td>{{ status_badge(t.status) }}</td>
+    <td>{{ t.test_type }}</td>
+    <td>{{ t.created_at }}</td>
+    <td class="text-end">
+      <a class="btn btn-sm btn-outline-secondary disabled" href="#">Open</a>
+    </td>
+  </tr>
+{%- endmacro %}

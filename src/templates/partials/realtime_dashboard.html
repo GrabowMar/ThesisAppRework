@@ -1,0 +1,26 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+{% call module_card(title='Real-time Dashboard') %}
+  {% if data %}
+    <div class="row g-3">
+      <div class="col">
+        <div class="text-muted small">Total Models</div>
+        <div class="h4 mb-0">{{ data.stats.total_models }}</div>
+      </div>
+      <div class="col">
+        <div class="text-muted small">Running Containers</div>
+        <div class="h4 mb-0">{{ data.stats.running_containers }}</div>
+      </div>
+      <div class="col">
+        <div class="text-muted small">Pending Tests</div>
+        <div class="h4 mb-0">{{ data.stats.pending_tests }}</div>
+      </div>
+      <div class="col">
+        <div class="text-muted small">Completed Tests</div>
+        <div class="h4 mb-0">{{ data.stats.completed_tests }}</div>
+      </div>
+    </div>
+    <div class="text-muted small mt-3">System health: {{ data.system_health }} · Updated {{ data.timestamp }}</div>
+  {% else %}
+    <div class="text-muted">No data</div>
+  {% endif %}
+{% endcall %}

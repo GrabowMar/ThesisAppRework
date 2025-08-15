@@ -495,12 +495,10 @@ def api_model_details(model_id):
             'capabilities_parsed': parse_capabilities(model.capabilities),
             'provider_info': get_provider_info(model.provider)
         }
-
-        return render_template('partials/model_details.html', **details)
-
+        return render_template('partials/models/details.html', **details)
     except Exception as e:
         logger.error(f"Error getting model details for {model_id}: {str(e)}")
-        return render_template('partials/error.html', 
+        return render_template('partials/common/error.html', 
                              error="Failed to load model details"), 500
 
 # Helper Functions
@@ -530,8 +528,8 @@ def get_app_ports(app):
     """Get port configuration for an application."""
     try:
         port_config = PortConfiguration.query.filter_by(
-            model_name=app.model_slug,
-            app_number=app.app_number
+            model=app.model_slug,
+            app_num=app.app_number
         ).first()
 
         if port_config:

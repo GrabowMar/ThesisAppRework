@@ -1,3 +1,5 @@
+{% from 'partials/analysis/list/_row_macros.html' import performance_row %}
+
 <div class="card">
   <div class="card-header"><i class="fas fa-tachometer-alt me-1"></i> Performance tests</div>
   <div class="table-responsive">
@@ -14,18 +16,9 @@
       </thead>
       <tbody>
         {% for t in items %}
-        <tr>
-          <td>#{{ t.id }}</td>
-          <td>{{ t.application_id }}</td>
-          <td><span class="badge bg-secondary">{{ t.status }}</span></td>
-          <td>{{ t.test_type }}</td>
-          <td>{{ t.created_at }}</td>
-          <td class="text-end">
-            <a class="btn btn-sm btn-outline-secondary disabled" href="#">Open</a>
-          </td>
-        </tr>
+          {{ performance_row(t) }}
         {% else %}
-        <tr><td colspan="6" class="text-muted">No items</td></tr>
+          <tr><td colspan="6" class="text-muted">No items</td></tr>
         {% endfor %}
       </tbody>
     </table>

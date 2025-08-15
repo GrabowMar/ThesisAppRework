@@ -139,7 +139,7 @@ def notifications_count():
 # TESTING ENDPOINTS
 # =================================================================
 
-@api_bp.route('/testing/active-tests')
+@api_bp.route('/analysis/active-tests')
 def testing_active_tests():
     """Get active test information."""
     try:
@@ -162,7 +162,7 @@ def testing_active_tests():
         return jsonify({'error': str(e)}), 500
 
 
-@api_bp.route('/testing/service-status')
+@api_bp.route('/analysis/service-status')
 def testing_service_status():
     """Get testing service status."""
     try:
@@ -181,7 +181,7 @@ def testing_service_status():
         return jsonify({'error': str(e)}), 500
 
 
-@api_bp.route('/testing/templates')
+@api_bp.route('/analysis/templates')
 def testing_templates():
     """Get available testing templates."""
     try:
@@ -211,7 +211,7 @@ def testing_templates():
         return jsonify({'error': str(e)}), 500
 
 
-@api_bp.route('/testing/test-history')
+@api_bp.route('/analysis/test-history')
 def testing_test_history():
     """Get testing history summary."""
     try:

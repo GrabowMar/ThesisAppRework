@@ -1,0 +1,29 @@
+{% macro security_item_li(a) -%}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <div>
+      <div class="fw-semibold">#{{ a.id }} · App {{ a.application_id }}</div>
+      <div class="small text-muted">{{ a.status }}</div>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="/analysis/security/{{ a.id }}/results/view">Open</a>
+  </li>
+{%- endmacro %}
+
+{% macro dynamic_item_li(a) -%}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <div>
+      <div class="fw-semibold">#{{ a.id }} · App {{ a.application_id }}</div>
+      <div class="small text-muted">{{ a.status }}</div>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="/analysis/dynamic/{{ a.id }}">Open</a>
+  </li>
+{%- endmacro %}
+
+{% macro performance_item_li(t) -%}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <div>
+      <div class="fw-semibold">#{{ t.id }} · App {{ t.application_id }}</div>
+      <div class="small text-muted">{{ t.status }} · {{ t.test_type }}</div>
+    </div>
+    <a class="btn btn-sm btn-outline-primary disabled" href="#">Open</a>
+  </li>
+{%- endmacro %}

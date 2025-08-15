@@ -1,5 +1,5 @@
 """
-Basic WebSocket endpoint for /ws/testing
+Basic WebSocket endpoint for /ws/analysis
 """
 
 from flask import jsonify
@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 def register_websocket_routes(app):
     """Register basic WebSocket routes."""
     
-    @app.route('/ws/testing')
-    def websocket_testing():
-        """Basic WebSocket endpoint for testing dashboard."""
+    @app.route('/ws/analysis')
+    def websocket_analysis():
+        """Basic WebSocket endpoint for analysis dashboard."""
         try:
             # This is a placeholder for WebSocket connection
             # In production, this would handle WebSocket upgrades
@@ -23,7 +23,7 @@ def register_websocket_routes(app):
                 'hint': 'Use Socket.IO client if enabled, or REST API at /api/websocket/* for polling',
             }), 426
         except Exception as e:
-            logger.error(f"WebSocket testing endpoint error: {e}")
+            logger.error(f"WebSocket analysis endpoint error: {e}")
             return jsonify({'error': str(e)}), 500
     
     @app.route('/socket.io/')
