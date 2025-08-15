@@ -7,7 +7,7 @@ from flask import Blueprint, render_template, request, jsonify, abort
 from sqlalchemy import and_, or_, func, desc, cast, String
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import docker.errors
 import logging
 
@@ -356,7 +356,9 @@ def api_models_stats_last_updated():
     try:
         latest = db.session.query(func.max(ModelCapability.updated_at)).scalar()
         if latest:
-            delta = datetime.utcnow() - latest
+            now_utc = datetime.now(timezone.utc)
+            latest_dt = latest if (getattr(latest, 'tzinfo', None) is not None) else latest.replace(tzinfo=timezone.utc)
+            delta = now_utc - latest_dt
             if delta.days > 0:
                 return f"{delta.days}d ago"
             elif delta.seconds > 3600:
@@ -889,7 +891,9 @@ def get_last_test_date(app):
     try:
         latest = get_last_analysis_time(app)
         if latest:
-            delta = datetime.utcnow() - latest
+            now_utc = datetime.now(timezone.utc)
+            latest_dt = latest if (getattr(latest, 'tzinfo', None) is not None) else latest.replace(tzinfo=timezone.utc)
+            delta = now_utc - latest_dt
             if delta.days > 0:
                 return f"{delta.days}d ago"
             elif delta.seconds > 3600:

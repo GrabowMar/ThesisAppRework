@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import Lock, Thread
 from typing import Any, Dict, List, Optional, cast
 
@@ -55,7 +55,7 @@ class CeleryWebSocketService:
             return {
                 'active_analyses': len(self.active_analyses),
                 'connected': True,  # service available
-                'last_update': datetime.utcnow().isoformat(),
+                'last_update': datetime.now(timezone.utc).isoformat(),
                 'service': 'celery_websocket',
             }
 
@@ -117,7 +117,7 @@ class CeleryWebSocketService:
                     'app_number': app_number,
                     'status': 'queued',
                     'progress': 0,
-                    'created_at': datetime.utcnow().isoformat(),
+                    'created_at': datetime.now(timezone.utc).isoformat(),
                 }
 
             self._emit('analysis_started', {'analysis_id': task_id, 'status': 'started'})
@@ -126,7 +126,7 @@ class CeleryWebSocketService:
 
         except Exception as e:
             logger.error(f"Failed to start analysis: {e}")
-            self._emit('analysis_error', {'error': str(e), 'timestamp': datetime.utcnow().isoformat()})
+            self._emit('analysis_error', {'error': str(e), 'timestamp': datetime.now(timezone.utc).isoformat()})
             return None
 
     def cancel_analysis(self, analysis_id: str) -> bool:
@@ -157,7 +157,7 @@ class CeleryWebSocketService:
             'event': event,
             'data': data,
             'room': room,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
         with self._lock:
             self.event_log.append(entry)
@@ -205,7 +205,7 @@ class CeleryWebSocketService:
                                 'status': state.lower(),
                                 'progress': progress if progress is not None else 0,
                                 'stage': stage,
-                                'timestamp': datetime.utcnow().isoformat(),
+                                'timestamp': datetime.now(timezone.utc).isoformat(),
                             }
                             self._emit('analysis_progress', payload, room=f"analysis_{task_id}")
 
@@ -219,7 +219,7 @@ class CeleryWebSocketService:
                             self._emit('analysis_completed', {
                                 'analysis_id': task_id,
                                 'result': result,
-                                'timestamp': datetime.utcnow().isoformat(),
+                                'timestamp': datetime.now(timezone.utc).isoformat(),
                             })
                             with self._lock:
                                 self.active_analyses.pop(task_id, None)
@@ -229,7 +229,7 @@ class CeleryWebSocketService:
                             self._emit('analysis_error', {
                                 'analysis_id': task_id,
                                 'error': err_msg,
-                                'timestamp': datetime.utcnow().isoformat(),
+                                'timestamp': datetime.now(timezone.utc).isoformat(),
                             })
                             with self._lock:
                                 self.active_analyses.pop(task_id, None)

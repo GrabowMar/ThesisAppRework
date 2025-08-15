@@ -8,7 +8,7 @@ and analysis results.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any
 
 from flask import Blueprint, render_template
@@ -32,23 +32,23 @@ def statistics_overview():
     """Main statistics dashboard."""
     try:
         # Calculate time ranges
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         last_30_days = now - timedelta(days=30)
         last_7_days = now - timedelta(days=7)
-        
+
         # Get basic model statistics
         total_models = db.session.query(ModelCapability).count()
         total_applications = db.session.query(GeneratedApplication).count()
-        
+
         # Get provider distribution
         provider_stats = db.session.query(
             ModelCapability.provider,
             func.count(ModelCapability.id).label('count')
         ).group_by(ModelCapability.provider).all()
-        
+
         # Get advanced model statistics
         model_stats = _get_comprehensive_model_stats()
-        
+
         # Get generation statistics with enhanced metrics
         generation_stats = {
             'total_models': total_models,
@@ -62,13 +62,13 @@ def statistics_overview():
             'avg_apps_per_model': total_applications / max(total_models, 1),
             'total_providers': len(provider_stats)
         }
-        
+
         # Get comprehensive analysis statistics
         security_analyses = db.session.query(SecurityAnalysis).count()
         performance_tests = db.session.query(PerformanceTest).count()
         zap_analyses = db.session.query(ZAPAnalysis).count()
         ai_analyses = db.session.query(OpenRouterAnalysis).count()
-        
+
         analysis_stats = {
             'total_security_analyses': security_analyses,
             'total_performance_tests': performance_tests,
@@ -80,39 +80,39 @@ def statistics_overview():
             'critical_vulnerabilities': _get_critical_vulnerabilities_count(),
             'high_performance_apps': _get_high_performance_apps_count()
         }
-        
+
         # Get batch job statistics
         batch_stats = _get_batch_statistics()
-        
+
         # Get recent activity (last 15 applications for more data)
         recent_activity = db.session.query(GeneratedApplication).order_by(
             desc(GeneratedApplication.created_at)
         ).limit(15).all()
-        
+
         # Get top performing models with enhanced metrics
         top_models = _get_top_performing_models()
-        
+
         # Get daily statistics for the last 30 days
         daily_stats = _get_daily_statistics(last_30_days)
-        
+
         # Get error analysis with more detail
         error_analysis = _get_error_analysis()
-        
+
         # Get capability distribution
         capability_stats = _get_capability_distribution()
-        
+
         # Get cost analysis
         cost_analysis = _get_cost_analysis()
-        
+
         # Get framework distribution
         framework_stats = _get_framework_distribution()
-        
+
         # Get analysis trends
         analysis_trends = _get_analysis_trends()
-        
+
         # Load external data from misc folder
         external_data = _load_external_statistics()
-        
+
         # Render new wrapper page which includes the partial
         return render_template(
             'pages/statistics.html',
@@ -131,7 +131,6 @@ def statistics_overview():
             analysis_trends=analysis_trends,
             external_data=external_data
         )
-    
     except Exception as e:
         logger.error(f"Error loading statistics overview: {e}")
         return render_template(
@@ -273,78 +272,78 @@ def _get_daily_statistics(start_date: datetime) -> List[Dict[str, Any]]:
     try:
         daily_data = []
         current_date = start_date.date()
-        end_date = datetime.utcnow().date()
-        
+        end_date = datetime.now(timezone.utc).date()
+
         while current_date <= end_date:
-            day_start = datetime.combine(current_date, datetime.min.time())
-            day_end = datetime.combine(current_date, datetime.max.time())
-            
+            day_start = datetime.combine(current_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            day_end = datetime.combine(current_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+
             # Count generations for this day
             generations = db.session.query(GeneratedApplication).filter(
                 GeneratedApplication.created_at.between(day_start, day_end)
             ).count()
-            
+
             # Count analyses for this day
             analyses = db.session.query(SecurityAnalysis).filter(
                 SecurityAnalysis.created_at.between(day_start, day_end)
             ).count()
-            
+
             daily_data.append({
                 'date': current_date.isoformat(),
                 'generations': generations,
                 'analyses': analyses
             })
-            
+
             current_date += timedelta(days=1)
-        
+
         return daily_data
     except Exception as e:
         logger.error(f"Error getting daily statistics: {e}")
         return []
 
 def _get_error_analysis() -> Dict[str, Any]:
-    """Get error analysis data."""
+    """Get analysis trends over time."""
     try:
-        # Count failed generations
-        failed_generations = db.session.query(GeneratedApplication).filter(
-            GeneratedApplication.generation_status == AnalysisStatus.FAILED
-        ).count()
-        
-        # Count failed analyses
-        failed_security = db.session.query(SecurityAnalysis).filter(
-            SecurityAnalysis.status == AnalysisStatus.FAILED
-        ).count()
-        
-        failed_performance = db.session.query(PerformanceTest).filter(
-            PerformanceTest.status == AnalysisStatus.FAILED
-        ).count()
-        
+        last_30_days = datetime.now(timezone.utc) - timedelta(days=30)
+
+        # Weekly trend
+        weekly_security = db.session.query(
+            func.count(SecurityAnalysis.id)
+        ).filter(
+            SecurityAnalysis.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
+        ).scalar() or 0
+
+        weekly_performance = db.session.query(
+            func.count(PerformanceTest.id)
+        ).filter(
+            PerformanceTest.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
+        ).scalar() or 0
+
+        # Monthly trend
+        monthly_security = db.session.query(
+            func.count(SecurityAnalysis.id)
+        ).filter(
+            SecurityAnalysis.created_at >= last_30_days
+        ).scalar() or 0
+
+        monthly_performance = db.session.query(
+            func.count(PerformanceTest.id)
+        ).filter(
+            PerformanceTest.created_at >= last_30_days
+        ).scalar() or 0
+
         return {
-            'failed_generations': failed_generations,
-            'failed_security_analyses': failed_security,
-            'failed_performance_tests': failed_performance,
-            'total_failures': failed_generations + failed_security + failed_performance
+            'weekly_security_analyses': weekly_security,
+            'weekly_performance_tests': weekly_performance,
+            'monthly_security_analyses': monthly_security,
+            'monthly_performance_tests': monthly_performance
         }
     except Exception as e:
-        logger.error(f"Error getting error analysis: {e}")
-        return {'failed_generations': 0, 'failed_security_analyses': 0, 'failed_performance_tests': 0, 'total_failures': 0}
-
-def _get_model_export_data() -> List[Dict[str, Any]]:
-    """Get model data for export."""
-    try:
-        models = db.session.query(ModelCapability).all()
-        return [model.to_dict() for model in models]
-    except Exception:
-        return []
-
-def _get_application_export_data(start_date: datetime) -> List[Dict[str, Any]]:
-    """Get application data for export."""
-    try:
-        apps = db.session.query(GeneratedApplication).filter(
-            GeneratedApplication.created_at >= start_date
-        ).all()
-        return [app.to_dict() for app in apps]
-    except Exception:
+        logger.error(f"Error getting analysis trends: {e}")
+        return {
+            'weekly_security_analyses': 0, 'weekly_performance_tests': 0,
+            'monthly_security_analyses': 0, 'monthly_performance_tests': 0
+        }
         return []
 
 def _get_analysis_export_data(start_date: datetime) -> Dict[str, List[Dict[str, Any]]]:
@@ -617,19 +616,19 @@ def _get_framework_distribution() -> Dict[str, Any]:
 def _get_analysis_trends() -> Dict[str, Any]:
     """Get analysis trends over time."""
     try:
-        last_30_days = datetime.utcnow() - timedelta(days=30)
+        last_30_days = datetime.now(timezone.utc) - timedelta(days=30)
         
         # Weekly trend
         weekly_security = db.session.query(
             func.count(SecurityAnalysis.id)
         ).filter(
-            SecurityAnalysis.created_at >= datetime.utcnow() - timedelta(days=7)
+            SecurityAnalysis.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
         ).scalar() or 0
         
         weekly_performance = db.session.query(
             func.count(PerformanceTest.id)
         ).filter(
-            PerformanceTest.created_at >= datetime.utcnow() - timedelta(days=7)
+            PerformanceTest.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
         ).scalar() or 0
         
         # Monthly trend

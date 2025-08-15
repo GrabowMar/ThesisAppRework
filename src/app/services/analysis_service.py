@@ -24,7 +24,7 @@ Future Enhancements:
 from __future__ import annotations
 
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..extensions import db
 from ..models import SecurityAnalysis, PerformanceTest, GeneratedApplication, ZAPAnalysis
@@ -118,7 +118,7 @@ def start_dynamic_analysis(analysis_id: int, *, enqueue: bool = True) -> Dict[st
         raise InvalidStateError(f"Cannot start analysis in state {analysis.status}")
 
     analysis.status = AnalysisStatus.RUNNING
-    analysis.started_at = datetime.utcnow()
+    analysis.started_at = datetime.now(timezone.utc)
     db.session.commit()
 
     task_id = None
@@ -239,7 +239,7 @@ def start_security_analysis(analysis_id: int, *, enqueue: bool = True) -> Dict[s
         raise InvalidStateError(f"Cannot start analysis in state {analysis.status}")
 
     analysis.status = AnalysisStatus.RUNNING
-    analysis.started_at = datetime.utcnow()
+    analysis.started_at = datetime.now(timezone.utc)
     db.session.commit()
 
     task_id = None
@@ -247,7 +247,7 @@ def start_security_analysis(analysis_id: int, *, enqueue: bool = True) -> Dict[s
         try:
             # Lazy import to avoid circulars
             from ..tasks import run_security_analysis  # type: ignore
-            celery_result = run_security_analysis.delay(analysis_id)
+            celery_result = run_security_analysis.delay(analysis_id)  # type: ignore[attr-defined]
             task_id = getattr(celery_result, 'id', None)
         except Exception as e:  # noqa: BLE001
             raise TaskEnqueueError(f"Failed to enqueue security analysis task: {e}")
@@ -340,7 +340,7 @@ def start_performance_test(test_id: int) -> Dict[str, Any]:
         raise InvalidStateError(f"Cannot start test in state {test.status}")
 
     test.status = AnalysisStatus.RUNNING
-    test.started_at = datetime.utcnow()
+    test.started_at = datetime.now(timezone.utc)
     db.session.commit()
 
     # Placeholder for enqueue (future)

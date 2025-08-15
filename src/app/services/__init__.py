@@ -15,24 +15,21 @@ from .batch_service import BatchAnalysisService, batch_service
 from .security_service import SecurityService, security_service
 from .task_manager import TaskManager
 from .analyzer_integration import AnalyzerIntegration
-
-# Import existing services
 from .model_service import ModelService
-from .analyzer_service import AnalyzerService
-from .container_service import ContainerService
-from .port_service import PortService
+
+# Note on legacy services:
+# - AnalyzerService: removed in favor of AnalyzerIntegration + Celery tasks
+# - ContainerService: removed (unused stub)
+# - PortService: internal only (not exported)
 
 __all__ = [
     'ServiceLocator',
     'DockerManager',
     'BatchAnalysisService',
     'batch_service',
-    'SecurityService', 
+    'SecurityService',
     'security_service',
     'TaskManager',
     'AnalyzerIntegration',
     'ModelService',
-    'AnalyzerService',
-    'ContainerService',
-    'PortService'
 ]

@@ -35,46 +35,28 @@ class ServiceLocator:
         """Register all core application services."""
         # Import services here to avoid circular imports
         from .model_service import ModelService
-        
-        try:
-            from .analyzer_service import AnalyzerService
-        except ImportError:
-            AnalyzerService = None
-            
-        try:
-            from .container_service import ContainerService
-        except ImportError:
-            ContainerService = None
-            
-        try:
-            from .port_service import PortService
-        except ImportError:
-            PortService = None
-            
+
+        # Legacy services removed: AnalyzerService, ContainerService, PortService
+
         try:
             from .docker_manager import DockerManager
         except ImportError:
             DockerManager = None
-            
+
         try:
             from .batch_service import BatchAnalysisService
         except ImportError:
             BatchAnalysisService = None
-            
+
         try:
             from .security_service import SecurityService
         except ImportError:
             SecurityService = None
-        
+
         # Register available services
         cls.register('model_service', ModelService(app))
-        
-        if AnalyzerService:
-            cls.register('analyzer_service', AnalyzerService(app))
-        if ContainerService:
-            cls.register('container_service', ContainerService(app))
-        if PortService:
-            cls.register('port_service', PortService(app))
+
+        # No registrations for removed legacy services
         if DockerManager:
             cls.register('docker_manager', DockerManager())
         if BatchAnalysisService:
@@ -96,21 +78,6 @@ class ServiceLocator:
     def get_model_service(cls):
         """Get the model service."""
         return cls.get('model_service')
-    
-    @classmethod
-    def get_analyzer_service(cls):
-        """Get the analyzer service."""
-        return cls.get('analyzer_service')
-    
-    @classmethod
-    def get_container_service(cls):
-        """Get the container service."""
-        return cls.get('container_service')
-    
-    @classmethod
-    def get_port_service(cls):
-        """Get the port service."""
-        return cls.get('port_service')
     
     @classmethod
     def get_docker_manager(cls):

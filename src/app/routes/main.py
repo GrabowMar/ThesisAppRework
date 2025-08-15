@@ -7,7 +7,7 @@ Core application routes including dashboard and basic pages.
 
 import logging
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, render_template, flash, current_app, jsonify, redirect, url_for
 
@@ -229,7 +229,7 @@ def api_system_health():
             'docker': docker_status,
             'analyzers': analyzer_status,
             'database': db_status,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         })
     except Exception as e:
         logger.error(f"Error getting system health: {e}")
@@ -279,7 +279,7 @@ def api_dashboard_stats():
             'frameworks': [{'name': f[0] or 'Unknown', 'count': f[1]} for f in framework_stats],
             'recent_models': [m.to_dict() for m in recent_models],
             'recent_apps': [a.to_dict() for a in recent_apps],
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
         
     except Exception as e:

@@ -6,7 +6,7 @@ Modern WebSocket-based communication protocol for real-time testing infrastructu
 Built with asyncio and type hints for robust, scalable analysis services.
 """
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 import json
@@ -121,7 +121,7 @@ class WebSocketMessage:
             id=data.get('id', str(uuid.uuid4())),
             service=ServiceType(data['service']) if data.get('service') else None,
             data=data.get('data'),
-            timestamp=datetime.fromisoformat(data['timestamp']) if 'timestamp' in data else datetime.utcnow(),
+            timestamp=datetime.fromisoformat(data['timestamp']) if 'timestamp' in data else datetime.now(timezone.utc),
             client_id=data.get('client_id'),
             correlation_id=data.get('correlation_id')
         )
@@ -353,7 +353,7 @@ class ErrorMessage:
     suggestion: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
-        result = {
+        result: Dict[str, Any] = {
             'code': self.code,
             'message': self.message
         }
@@ -409,7 +409,7 @@ def create_progress_update_message(
     stage: str,
     progress: float,
     message: str = "",
-    client_id: str = None,
+    client_id: Optional[str] = None,
     **kwargs
 ) -> WebSocketMessage:
     """Create a progress update message."""
@@ -431,7 +431,7 @@ def create_progress_update_message(
 
 def create_result_message(
     result: AnalysisResult,
-    client_id: str = None
+    client_id: Optional[str] = None
 ) -> WebSocketMessage:
     """Create an analysis result message."""
     return WebSocketMessage(
@@ -445,10 +445,10 @@ def create_result_message(
 def create_error_message(
     code: str,
     message: str,
-    details: Dict[str, Any] = None,
-    client_id: str = None,
-    correlation_id: str = None,
-    suggestion: str = None
+    details: Optional[Dict[str, Any]] = None,
+    client_id: Optional[str] = None,
+    correlation_id: Optional[str] = None,
+    suggestion: Optional[str] = None
 ) -> WebSocketMessage:
     """Create an error message."""
     error = ErrorMessage(

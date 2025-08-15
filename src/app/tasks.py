@@ -242,11 +242,9 @@ def security_analysis_task(self, model_slug: str, app_number: int,
 
 @celery.task(bind=True, name='app.tasks.run_security_analysis')
 def run_security_analysis(self, analysis_id: int):
-    """Compatibility wrapper used by analysis_service.start_security_analysis.
+    """Lookup SecurityAnalysis and dispatch security_analysis_task.
 
-    Looks up the SecurityAnalysis and forwards to security_analysis_task with
-    the proper parameters derived from the DB record. Returns the Celery async
-    result id for traceability.
+    Returns the Celery async result id for traceability.
     """
     try:
         # Import here to avoid circular dependencies

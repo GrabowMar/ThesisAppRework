@@ -297,8 +297,8 @@ def htmx_analysis_trends():
     """HTMX endpoint for refreshing trends card."""
     try:
         from ..models import SecurityAnalysis, PerformanceTest
-        from datetime import datetime, timedelta
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        from datetime import datetime, timedelta, timezone
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         trends = {
             'security_this_week': SecurityAnalysis.query.filter(SecurityAnalysis.created_at >= week_ago).count(),
             'performance_this_week': PerformanceTest.query.filter(PerformanceTest.created_at >= week_ago).count()

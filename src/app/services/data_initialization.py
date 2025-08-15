@@ -8,12 +8,11 @@ Service for loading initial data from JSON files and misc folder into the databa
 import json
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from ..extensions import db
 from ..models import ModelCapability, GeneratedApplication
-from ..constants import AnalysisStatus
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ class DataInitializationService:
             'applications_loaded': 0,
             'errors': [],
             'success': True,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         }
         
         try:
@@ -201,24 +200,25 @@ class DataInitializationService:
                 output_price = float(pricing['completion'])
         except (ValueError, TypeError):
             output_price = 0.0
-        
-        model = ModelCapability(
-            model_id=model_info.get('model_id', ''),
-            canonical_slug=model_info['canonical_slug'],
-            provider=model_info.get('provider', 'unknown'),
-            model_name=model_info.get('model_name', ''),
-            is_free=model_info.get('is_free', False),
-            context_window=model_info.get('context_window', 0),
-            max_output_tokens=model_info.get('max_output_tokens', 0),
-            supports_function_calling=model_info.get('supports_function_calling', False),
-            supports_vision=model_info.get('supports_vision', False),
-            supports_streaming=model_info.get('supports_streaming', False),
-            supports_json_mode=model_info.get('supports_json_mode', False),
-            input_price_per_token=input_price,
-            output_price_per_token=output_price,
-            capabilities_json=json.dumps(model_info)
-        )
-        
+
+        # Create then set attributes to avoid constructor signature issues in static analysis
+        model = ModelCapability()
+        model.model_id = model_info.get('model_id', '')
+        model.canonical_slug = model_info.get('canonical_slug', '')
+        model.provider = model_info.get('provider', 'unknown')
+        model.model_name = model_info.get('model_name', '')
+        model.is_free = bool(model_info.get('is_free', False))
+        model.context_window = int(model_info.get('context_window', 0) or 0)
+        model.max_output_tokens = int(model_info.get('max_output_tokens', 0) or 0)
+        model.supports_function_calling = bool(model_info.get('supports_function_calling', False))
+        model.supports_vision = bool(model_info.get('supports_vision', False))
+        model.supports_streaming = bool(model_info.get('supports_streaming', False))
+        model.supports_json_mode = bool(model_info.get('supports_json_mode', False))
+        model.input_price_per_token = float(input_price)
+        model.output_price_per_token = float(output_price)
+        model.capabilities_json = json.dumps(model_info)
+        model.updated_at = datetime.now(timezone.utc)
+
         db.session.add(model)
     
     def _update_model_capability(self, model: ModelCapability, model_info: Dict[str, Any]) -> None:
@@ -232,45 +232,67 @@ class DataInitializationService:
         model.supports_function_calling = model_info.get('supports_function_calling', model.supports_function_calling)
         model.supports_vision = model_info.get('supports_vision', model.supports_vision)
         model.supports_streaming = model_info.get('supports_streaming', model.supports_streaming)
-        model.input_price_per_token = float(model_info.get('pricing', {}).get('prompt', model.input_price_per_token or 0))
-        model.output_price_per_token = float(model_info.get('pricing', {}).get('completion', model.output_price_per_token or 0))
+
+        # Update pricing with flexible key handling
+        pricing = model_info.get('pricing', {}) or {}
+        try:
+            prompt_price = pricing.get('prompt')
+            if prompt_price is None:
+                prompt_price = pricing.get('prompt_tokens')
+            if prompt_price is not None:
+                model.input_price_per_token = float(prompt_price)
+        except (TypeError, ValueError):
+            # Keep existing value on parse error
+            pass
+
+        try:
+            completion_price = pricing.get('completion')
+            if completion_price is None:
+                completion_price = pricing.get('completion_tokens')
+            if completion_price is not None:
+                model.output_price_per_token = float(completion_price)
+        except (TypeError, ValueError):
+            # Keep existing value on parse error
+            pass
+
         model.capabilities_json = json.dumps(model_info)
-        model.updated_at = datetime.utcnow()
+        model.updated_at = datetime.now(timezone.utc)
     
     def _create_generated_application(self, model_slug: str, app_number: int, app_folder: Path) -> None:
         """Create a new GeneratedApplication record."""
         # Analyze folder structure to determine frameworks and capabilities
         analysis = self._analyze_app_folder(app_folder)
-        
+
         # Get model info for provider
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         provider = model.provider if model else model_slug.split('_')[0]
-        
-        app = GeneratedApplication(
-            model_slug=model_slug,
-            app_number=app_number,
-            app_type='web_application',  # Default type
-            provider=provider,
-            has_backend=analysis['has_backend'],
-            has_frontend=analysis['has_frontend'],
-            has_docker_compose=analysis['has_docker_compose'],
-            backend_framework=analysis['backend_framework'],
-            frontend_framework=analysis['frontend_framework'],
-            container_status='unknown'
-        )
-        
-        db.session.add(app)
-    
-    def _update_generated_application(self, app: GeneratedApplication, app_folder: Path) -> None:
-        """Update an existing GeneratedApplication record."""
-        analysis = self._analyze_app_folder(app_folder)
-        
+
+        # Create then set attributes to avoid constructor signature issues
+        app = GeneratedApplication()
+        app.model_slug = model_slug
+        app.app_number = app_number
+        app.app_type = 'web_application'
+        app.provider = provider
         app.has_backend = analysis['has_backend']
         app.has_frontend = analysis['has_frontend']
         app.has_docker_compose = analysis['has_docker_compose']
         app.backend_framework = analysis['backend_framework']
         app.frontend_framework = analysis['frontend_framework']
-        app.updated_at = datetime.utcnow()
+        app.container_status = 'unknown'
+        app.updated_at = datetime.now(timezone.utc)
+
+        db.session.add(app)
+    
+    def _update_generated_application(self, app: GeneratedApplication, app_folder: Path) -> None:
+        """Update an existing GeneratedApplication record."""
+        analysis = self._analyze_app_folder(app_folder)
+
+        app.has_backend = analysis['has_backend']
+        app.has_frontend = analysis['has_frontend']
+        app.has_docker_compose = analysis['has_docker_compose']
+        app.backend_framework = analysis['backend_framework']
+        app.frontend_framework = analysis['frontend_framework']
+        app.updated_at = datetime.now(timezone.utc)
     
     def _analyze_app_folder(self, app_folder: Path) -> Dict[str, Any]:
         """Analyze app folder structure to determine capabilities."""

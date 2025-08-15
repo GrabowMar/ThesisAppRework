@@ -33,22 +33,22 @@ def api_dashboard_overview():
         total_models = db.session.query(func.count(ModelCapability.id)).scalar()
         total_security = db.session.query(func.count(SecurityAnalysis.id)).scalar()
         total_performance = db.session.query(func.count(PerformanceTest.id)).scalar()
-        
+
         # Recent activity (last 7 days)
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         recent_apps = (
             db.session.query(func.count(GeneratedApplication.id))
             .filter(GeneratedApplication.created_at >= week_ago)
             .scalar()
         )
-        
+
         # Active applications
         active_apps = (
             db.session.query(func.count(GeneratedApplication.id))
             .filter(GeneratedApplication.container_status == 'running')
             .scalar()
         )
-        
+
         # Success rates
         completed_security = (
             db.session.query(func.count(SecurityAnalysis.id))
@@ -56,14 +56,14 @@ def api_dashboard_overview():
             .scalar()
         )
         security_rate = (completed_security / total_security * 100) if total_security > 0 else 0
-        
+
         completed_performance = (
             db.session.query(func.count(PerformanceTest.id))
             .filter(PerformanceTest.status == 'completed')
             .scalar()
         )
         performance_rate = (completed_performance / total_performance * 100) if total_performance > 0 else 0
-        
+
         return jsonify({
             'totals': {
                 'applications': total_apps,
@@ -80,7 +80,7 @@ def api_dashboard_overview():
                 'performance': round(performance_rate, 2)
             }
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting dashboard overview: {e}")
         return jsonify({'error': str(e)}), 500
@@ -91,7 +91,7 @@ def api_dashboard_activity():
     """API endpoint: Get recent activity for dashboard."""
     try:
         # Last 30 days of application creation
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
         
         daily_apps = (
             db.session.query(
@@ -214,7 +214,7 @@ def api_dashboard_charts():
             .group_by(GeneratedApplication.generation_status)
             .all()
         )
-        
+
         # Application type distribution
         type_data = (
             db.session.query(
@@ -224,7 +224,7 @@ def api_dashboard_charts():
             .group_by(GeneratedApplication.app_type)
             .all()
         )
-        
+
         # Model usage distribution
         model_usage = (
             db.session.query(
@@ -236,10 +236,10 @@ def api_dashboard_charts():
             .limit(10)
             .all()
         )
-        
+
         # Analysis success rates over time (last 12 weeks)
-        twelve_weeks_ago = datetime.utcnow() - timedelta(weeks=12)
-        
+        twelve_weeks_ago = datetime.now(timezone.utc) - timedelta(weeks=12)
+
         weekly_security = (
             db.session.query(
                 func.date_trunc('week', SecurityAnalysis.created_at).label('week'),
@@ -251,7 +251,7 @@ def api_dashboard_charts():
             .order_by('week')
             .all()
         )
-        
+
         return jsonify({
             'status_distribution': [
                 {'status': str(status), 'count': count}
@@ -275,7 +275,7 @@ def api_dashboard_charts():
                 for week, total, completed in weekly_security
             ]
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting dashboard charts: {e}")
         return jsonify({'error': str(e)}), 500
@@ -286,8 +286,8 @@ def api_dashboard_health():
     """API endpoint: Get system health metrics for dashboard."""
     try:
         # Check for failed applications in last 24 hours
-        day_ago = datetime.utcnow() - timedelta(days=1)
-        
+        day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+
         failed_apps = (
             db.session.query(func.count(GeneratedApplication.id))
             .filter(
@@ -296,10 +296,10 @@ def api_dashboard_health():
             )
             .scalar()
         )
-        
+
         # Check for stuck analyses (created more than 1 hour ago but still pending)
-        hour_ago = datetime.utcnow() - timedelta(hours=1)
-        
+        hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+
         stuck_security = (
             db.session.query(func.count(SecurityAnalysis.id))
             .filter(
@@ -308,7 +308,7 @@ def api_dashboard_health():
             )
             .scalar()
         )
-        
+
         stuck_performance = (
             db.session.query(func.count(PerformanceTest.id))
             .filter(
@@ -317,11 +317,11 @@ def api_dashboard_health():
             )
             .scalar()
         )
-        
+
         # Calculate overall health score
         health_issues = failed_apps + stuck_security + stuck_performance
         health_score = max(0, 100 - (health_issues * 10))  # Deduct 10 points per issue
-        
+
         # Determine health status
         if health_score >= 90:
             health_status = 'excellent'
@@ -331,7 +331,7 @@ def api_dashboard_health():
             health_status = 'warning'
         else:
             health_status = 'critical'
-        
+
         return jsonify({
             'health_score': health_score,
             'health_status': health_status,
@@ -340,9 +340,9 @@ def api_dashboard_health():
                 'stuck_security_analyses': stuck_security,
                 'stuck_performance_tests': stuck_performance
             },
-            'last_updated': datetime.utcnow().isoformat()
+            'last_updated': datetime.now(timezone.utc).isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting dashboard health: {e}")
         return jsonify({'error': str(e)}), 500
@@ -532,10 +532,10 @@ def activity_export():
             if b.created_at:
                 status = b.status.value if getattr(b, 'status', None) and hasattr(b.status, 'value') else str(getattr(b, 'status', 'unknown'))
                 rows.append(f"batch,Batch analysis #{b.id},{fmt_ts(b.created_at)},{status}")
-
+        
         csv_data = "\n".join(rows)
 
-        filename = f"activity_log_{datetime.utcnow().date().isoformat()}.csv"
+        filename = f"activity_log_{datetime.now(timezone.utc).date().isoformat()}.csv"
         return Response(
             csv_data,
             mimetype='text/csv',
@@ -581,11 +581,11 @@ def performance_chart_data():
     """HTMX endpoint for performance chart data."""
     try:
         # Get performance test data for the last 30 days
-        thirty_days_ago = datetime.now() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
         performance_tests = db.session.query(PerformanceTest).filter(
             PerformanceTest.created_at >= thirty_days_ago
         ).all()
-        
+
         # Group by date and calculate averages
         chart_data = []
         for test in performance_tests:
@@ -595,7 +595,7 @@ def performance_chart_data():
                     'response_time': float(test.average_response_time),
                     'requests_per_second': float(test.requests_per_second) if test.requests_per_second else 0
                 })
-        
+
         return render_template('partials/performance_chart.html', chart_data=chart_data)
     except Exception as e:
         logger.error(f"Error getting performance chart data: {e}")
@@ -859,7 +859,7 @@ def dashboard_system_health_fragment():
                 'memory_usage': memory_percent,
                 'disk_usage': disk_percent,
             },
-            'last_check': datetime.utcnow().strftime('%H:%M:%S')
+            'last_check': datetime.now(timezone.utc).strftime('%H:%M:%S')
         }
 
         return render_template('partials/dashboard/_system_health_inner.html', system_health=system_health)
