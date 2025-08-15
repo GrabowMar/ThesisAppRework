@@ -30,20 +30,21 @@
                 <div class="btn-group">
                     <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="fas fa-layer-group me-1"></i>Batch</button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="#" hx-post="/api/analysis/model/{{ entry.model.canonical_slug }}/security" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-shield-alt me-2"></i>Security analyses</a></li>
-                        <li><a class="dropdown-item" href="#" hx-post="/api/analysis/model/{{ entry.model.canonical_slug }}/performance" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-tachometer-alt me-2"></i>Performance tests</a></li>
+                        <li><a class="dropdown-item" href="#" hx-post="/api/analysis/model/{{ entry.model.canonical_slug }}/security" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-shield-alt me-2"></i>Security analyses</a></li>
+                        <li><a class="dropdown-item" href="#" hx-post="/api/analysis/model/{{ entry.model.canonical_slug }}/performance" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-tachometer-alt me-2"></i>Performance tests</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="#" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/build" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-hammer me-2"></i>Build all</a></li>
                     </ul>
                 </div>
-                <button class="btn btn-sm btn-outline-success" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/start" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-play me-1"></i>Start all</button>
-                <button class="btn btn-sm btn-outline-warning" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/restart" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-redo me-1"></i>Restart all</button>
-                <button class="btn btn-sm btn-outline-danger" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/stop" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-stop me-1"></i>Stop all</button>
+                <button class="btn btn-sm btn-outline-success" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/start" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-play me-1"></i>Start all</button>
+                <button class="btn btn-sm btn-outline-warning" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/restart" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-redo me-1"></i>Restart all</button>
+                <button class="btn btn-sm btn-outline-danger" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/stop" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-stop me-1"></i>Stop all</button>
             </div>
         </div>
 
-        <div id="{{ collapse_id }}" class="collapse">
-            <div class="row g-3 mt-2">
+        <div id="{{ collapse_id }}" class="collapse" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/sync-status?format=html" hx-trigger="revealed" hx-target="#{{ collapse_id }} .model-apps" hx-indicator="#operation-status">
+            <div class="model-apps">
+                <div class="row g-3 mt-2">
                         {% for app in entry.apps %}
                         <div class="col-12 col-md-6 col-lg-4 col-xxl-3">
                             <div class="card shadow-sm h-100" data-model="{{ entry.model.canonical_slug }}" data-app="{{ app.app_number }}" data-status="{{ app.status }}">
@@ -65,13 +66,13 @@
                                                     {% endif %}
                                                     {% if app.exists %}
                                                         {% if app.status == 'running' %}
-                                                            <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-stop me-2"></i>Stop</a></li>
+                                                            <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-stop me-2"></i>Stop</a></li>
                                                         {% else %}
-                                                            <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-play me-2"></i>Start</a></li>
+                                                            <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-play me-2"></i>Start</a></li>
                                                         {% endif %}
-                                                        <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-redo me-2"></i>Restart</a></li>
+                                                        <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-redo me-2"></i>Restart</a></li>
                                                         {% if app.has_docker_compose %}
-                                                            <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-hammer me-2"></i>Build</a></li>
+                                                            <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-hammer me-2"></i>Build</a></li>
                                                         {% endif %}
                                                     {% else %}
                                                         <li><span class="dropdown-item-text text-muted"><i class="fas fa-ban me-2"></i>Not created</span></li>
@@ -114,6 +115,7 @@
                             </div>
                         </div>
                         {% endfor %}
+                </div>
             </div>
         </div>
     </div>

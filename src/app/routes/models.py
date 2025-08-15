@@ -600,7 +600,7 @@ def model_apps(model_slug):
             page_title=f"{model.display_name} Applications",
             page_icon='fa-cubes',
             page_subtitle=f"All generated apps for {model.display_name}",
-            main_partial='partials/applications/overview.html',  # reuse existing apps overview partial
+            main_partial='partials/overview.html',  # reuse existing apps overview partial
             model=model,
             apps=apps
         )

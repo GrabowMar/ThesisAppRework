@@ -1,163 +1,78 @@
-<div class="container-fluid">
-  <div class="row g-3">
-    <div class="col-12 col-lg-4">
-      <div class="card">
-        <div class="card-header d-flex align-items-center justify-content-between">
-          <div>
-            <div class="fw-bold">{{ app_data.model_slug }} • App #{{ app_data.app_number }}</div>
-            <small class="text-muted">{{ app_data.app_type or 'unknown' }} • {{ app_data.provider or 'n/a' }}</small>
-          </div>
-          <span class="badge bg-{{ 'success' if app_data.container_status=='running' else 'secondary' }}">{{ app_data.container_status|title }}</span>
-        </div>
-        <div class="card-body">
-          <div class="mb-3">
-            <div class="text-muted mb-1">Ports</div>
-            {% if ports %}
-            <div class="d-flex gap-2 flex-wrap">
-              {% if ports.frontend %}
-                <a class="btn btn-sm btn-outline-primary" target="_blank" href="http://localhost:{{ ports.frontend }}">
-                  <i class="fas fa-globe me-1"></i> Frontend {{ ports.frontend }}
-                </a>
-              {% endif %}
-              {% if ports.backend %}
-                <a class="btn btn-sm btn-outline-secondary" target="_blank" href="http://localhost:{{ ports.backend }}">
-                  <i class="fas fa-plug me-1"></i> Backend {{ ports.backend }}
-                </a>
-              {% endif %}
-            </div>
-            {% else %}
-            <div class="text-muted">No port config found</div>
-            {% endif %}
-          </div>
+{% from 'partials/common/_module_wrapper.html' import module_card %}
 
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-primary" onclick="fetch('/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start',{method:'POST'}).then(()=>location.reload())">
-              <i class="fas fa-play me-1"></i> Start
-            </button>
-            <button class="btn btn-sm btn-warning" onclick="fetch('/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop',{method:'POST'}).then(()=>location.reload())">
-              <i class="fas fa-stop me-1"></i> Stop
-            </button>
-            <button class="btn btn-sm btn-info" onclick="fetch('/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart',{method:'POST'}).then(()=>location.reload())">
-              <i class="fas fa-redo me-1"></i> Restart
-            </button>
-            <button class="btn btn-sm btn-outline-secondary" onclick="fetch('/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/build',{method:'POST'}).then(res=>res.json()).then(d=>alert((d.message||'Build triggered')))">
-              <i class="fas fa-hammer me-1"></i> Build
-            </button>
-          </div>
-        </div>
-      </div>
+{#
+	Application Detail Page
+	Expects context from models.application_detail:
+	- app_data, model, ports, code_stats, files_info, analyses, stats, prompts
+#}
 
-      <div class="card mt-3">
-        <div class="card-header"><i class="fas fa-chart-bar me-2"></i>Code stats</div>
-        <div class="card-body">
-          <div class="d-flex flex-wrap gap-3">
-            <div><div class="fw-bold">{{ code_stats.total_files }}</div><small class="text-muted">files</small></div>
-            <div><div class="fw-bold">{{ code_stats.total_loc }}</div><small class="text-muted">lines</small></div>
-          </div>
-          <hr>
-          {% for lang, s in code_stats.by_language.items() %}
-            <div class="d-flex justify-content-between small">
-              <span>{{ lang }}</span>
-              <span>{{ s.files }} files • {{ s.loc }} loc</span>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
+{% set model_slug = app_data.model_slug %}
+{% set app_number = app_data.app_number %}
 
-    <div class="col-12 col-lg-8">
-      <ul class="nav nav-tabs" role="tablist">
-        <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#files" role="tab">Files</a></li>
-        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#prompts" role="tab">Prompts</a></li>
-        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#analyzer" role="tab">Analyzer</a></li>
-      </ul>
-      <div class="tab-content border-start border-end border-bottom p-3">
-        <div class="tab-pane fade show active" id="files" role="tabpanel">
-          {% if files_info.app_exists %}
-          <div class="row">
-            <div class="col-md-4">
-              <h6>Backend</h6>
-              <ul class="small">
-                {% for f in files_info.backend_files %}
-                  <li><code>{{ f.path }}</code></li>
-                {% endfor %}
-              </ul>
-            </div>
-            <div class="col-md-4">
-              <h6>Frontend</h6>
-              <ul class="small">
-                {% for f in files_info.frontend_files %}
-                  <li><code>{{ f.path }}</code></li>
-                {% endfor %}
-              </ul>
-            </div>
-            <div class="col-md-4">
-              <h6>Other</h6>
-              <ul class="small">
-                {% for f in files_info.other_files %}
-                  <li><code>{{ f.path }}</code></li>
-                {% endfor %}
-              </ul>
-            </div>
-          </div>
-          {% else %}
-            <div class="text-muted">This application folder was not found on disk.</div>
-          {% endif %}
-        </div>
+{% call module_card(title='Application ' ~ app_number ~ ' — ' ~ model.display_name, classes='module-application-detail', body_classes='p-0') %}
+<div class="row g-0">
+	<!-- Sidebar -->
+	<div class="col-12 col-md-3 col-xl-2 border-end bg-body-tertiary">
+		{% include 'partials/applications/tabs/sidebar.html' %}
+	</div>
 
-        <div class="tab-pane fade" id="prompts" role="tabpanel">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <h6>Backend prompt</h6>
-              <pre class="small border rounded p-2" style="max-height:300px;overflow:auto">{{ prompts.backend }}</pre>
-            </div>
-            <div class="col-md-6">
-              <h6>Frontend prompt</h6>
-              <pre class="small border rounded p-2" style="max-height:300px;overflow:auto">{{ prompts.frontend }}</pre>
-            </div>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="analyzer" role="tabpanel">
-          <div class="d-flex flex-wrap gap-2 mb-3">
-            {% if app_data.exists_in_db %}
-              <button class="btn btn-sm btn-outline-dark" onclick="startAnalysis({{ app_data.id }}, 'security')"><i class="fas fa-shield-alt me-1"></i> Security</button>
-              <button class="btn btn-sm btn-outline-dark" onclick="startAnalysis({{ app_data.id }}, 'performance')"><i class="fas fa-tachometer-alt me-1"></i> Performance</button>
-              <button class="btn btn-sm btn-outline-dark" onclick="startAnalysis({{ app_data.id }}, 'comprehensive')"><i class="fas fa-flask me-1"></i> Comprehensive</button>
-            {% else %}
-              <div class="text-muted">Save this app to DB to enable analysis.</div>
-            {% endif %}
-          </div>
-          <div id="analysis-results" class="small text-muted">No recent results.</div>
-        </div>
-      </div>
-    </div>
-  </div>
+	<!-- Content -->
+	<div class="col-12 col-md-9 col-xl-10 p-3">
+		<div class="tab-content" id="app-sections">
+			<div class="tab-pane fade show active" id="section-overview" role="tabpanel">
+				{% include 'partials/applications/sections/overview.html' %}
+			</div>
+			<div class="tab-pane fade" id="section-prompts" role="tabpanel">
+				{% include 'partials/applications/sections/prompts.html' %}
+			</div>
+			<div class="tab-pane fade" id="section-files" role="tabpanel">
+				{% include 'partials/applications/sections/files.html' %}
+			</div>
+			<div class="tab-pane fade" id="section-ports" role="tabpanel">
+				{% include 'partials/applications/sections/ports.html' %}
+			</div>
+			<div class="tab-pane fade" id="section-container" role="tabpanel">
+				{% include 'partials/applications/sections/container.html' %}
+			</div>
+			<div class="tab-pane fade" id="section-analyses" role="tabpanel">
+				{% include 'partials/applications/sections/analyses.html' %}
+			</div>
+			<div class="tab-pane fade" id="section-metadata" role="tabpanel">
+				{% include 'partials/applications/sections/metadata.html' %}
+			</div>
+		</div>
+		<div id="modal-container"></div>
+	</div>
 </div>
 
 <script>
-function startAnalysis(appId, type){
-  let url;
-  if(type==='security') url = '/api/analysis/security/start';
-  else if(type==='performance') url = '/api/analysis/performance';
-  else url = '/api/analysis/start/'+appId;
-  const payload = type==='performance' ? { application_id: appId } : { application_id: appId };
-  fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
-    .then(r=>r.json()).then(d=>{
-      const el = document.getElementById('analysis-results');
-      el.textContent = (d.message || 'Requested') + ' • ' + new Date().toLocaleTimeString();
-    }).catch(err=>{
-      alert('Analysis error: '+err);
-    });
+// Activate tab from hash on load and update hash on change
+(function() {
+	const hash = window.location.hash || '#section-overview';
+	const triggerEl = document.querySelector(`a[href="${hash}"]`);
+	if (triggerEl) {
+		new bootstrap.Tab(triggerEl).show();
+	}
+	document.querySelectorAll('#app-sidebar a[data-bs-toggle="tab"]').forEach(el => {
+		el.addEventListener('shown.bs.tab', function (event) {
+			const id = event.target.getAttribute('href');
+			if (id) {
+				history.replaceState(null, '', id);
+			}
+		});
+	});
+})();
+
+// Copy to clipboard helper
+function copyAdjacentPre(btn){
+	const pre = btn.closest('.card, .mb-3').querySelector('pre');
+	if(!pre) return;
+	const text = pre.innerText;
+	navigator.clipboard.writeText(text).then(()=>{
+		btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied';
+		setTimeout(()=>{ btn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy'; }, 1200);
+	});
 }
 </script>
-{% from 'partials/common/_module_wrapper.html' import module_card %}
-
-{% call module_card(title='Application ' ~ app_data.app_number ~ ' (' ~ app_data.model_slug ~ ')', classes='module-app-detail') %}
-<dl class="row mb-0">
-  <dt class="col-sm-3">Exists</dt><dd class="col-sm-9">{{ 'Yes' if app_data.exists_in_db else 'No' }}</dd>
-  <dt class="col-sm-3">Status</dt><dd class="col-sm-9">{{ app_data.container_status }}</dd>
-  <dt class="col-sm-3">Type</dt><dd class="col-sm-9">{{ app_data.app_type }}</dd>
-  <dt class="col-sm-3">Generation</dt><dd class="col-sm-9">{{ app_data.generation_status }}</dd>
-</dl>
 {% endcall %}
+
