@@ -6,7 +6,13 @@
 param(
     [Parameter(Position=0)]
     [ValidateSet("start", "stop", "restart", "status", "worker-only", "beat-only", "flask-only")]
-    [string]$Action = "start"
+    [string]$Action = "start",
+    # Optional: path to a log file. Defaults to logs/start.ps1.log under repo root
+    [string]$LogPath,
+    # Optional: skip starting analyzer services
+    [switch]$NoAnalyzer,
+    # Optional: maximum seconds to wait for DB init phase
+    [int]$DbInitTimeoutSeconds = 30
 )
 
 # Configuration
@@ -22,6 +28,13 @@ $UseSoloPool = if ($env:CELERY_POOL -and $env:CELERY_POOL.Trim() -ne '') { $env:
 $ScriptRoot = $PSScriptRoot
 $RepoRoot = Split-Path -Parent $ScriptRoot
 
+# Logging setup
+$LogsDir = Join-Path $RepoRoot "logs"
+if (-not (Test-Path $LogsDir)) {
+    try { New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null } catch {}
+}
+$Global:LogFile = if ($PSBoundParameters.ContainsKey('LogPath') -and $LogPath) { $LogPath } else { Join-Path $LogsDir "start.ps1.log" }
+
 # Colors for output
 $ColorMap = @{
     'Red' = 'Red'
@@ -31,39 +44,125 @@ $ColorMap = @{
     'Cyan' = 'Cyan'
 }
 
+# Utility: get Flask process IDs (by PID file, command line, and port)
+function Get-FlaskPids {
+    $pids = @()
+    try {
+        if (Test-Path "flask_app_pid.txt") {
+            $pidFromFile = Get-Content "flask_app_pid.txt" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[0-9]+$' }
+            foreach ($p in $pidFromFile) {
+                $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
+                if ($proc) { $pids += $proc.Id }
+            }
+        }
+    } catch {}
+    # Match on command line containing src\main.py (Windows path)
+    try {
+        $mainPath = [Regex]::Escape((Join-Path $ScriptRoot "main.py"))
+        $procs = Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe'" | Where-Object { $_.CommandLine -match $mainPath }
+        foreach ($p in $procs) { $pids += $p.ProcessId }
+    } catch {}
+    # Processes listening on port 5000 (default Flask dev port)
+    try {
+        $listeners = Get-NetTCPConnection -State Listen -LocalPort 5000 -ErrorAction SilentlyContinue
+        foreach ($l in $listeners) { if ($l.OwningProcess) { $pids += $l.OwningProcess } }
+    } catch {}
+    $pids | Sort-Object -Unique
+}
+
+function Stop-FlaskApp {
+    Write-Log "Stopping Flask application (if running)..." "Blue"
+    try {
+        $flaskPids = Get-FlaskPids
+        if ($flaskPids -and $flaskPids.Count -gt 0) {
+            foreach ($pidToKill in $flaskPids) {
+                try { Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue; Write-Log "Stopped Flask process PID: $pidToKill" } catch {}
+            }
+        } else {
+            Write-Info-Log "No Flask processes found"
+        }
+        Remove-Item "flask_app_pid.txt" -ErrorAction SilentlyContinue
+    } catch {
+        Write-Warning-Log "Error stopping Flask app: $_"
+    }
+}
+
 function Write-Log {
-    param([string]$Message, [string]$Color = 'Green')
+    param(
+        [string]$Message,
+        [string]$Color = 'Green',
+        [string]$Level = 'INFO'
+    )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Write-Host "[$timestamp] $Message" -ForegroundColor $ColorMap[$Color]
+    $line = "[$timestamp] [$Level] $Message"
+    Write-Host $line -ForegroundColor $ColorMap[$Color]
+    try { Add-Content -Path $Global:LogFile -Value $line } catch {}
 }
 
 function Write-Error-Log {
     param([string]$Message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Write-Host "[$timestamp] ERROR: $Message" -ForegroundColor Red
+    $line = "[$timestamp] [ERROR] $Message"
+    Write-Host $line -ForegroundColor Red
+    try { Add-Content -Path $Global:LogFile -Value $line } catch {}
 }
 
 function Write-Warning-Log {
     param([string]$Message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Write-Host "[$timestamp] WARNING: $Message" -ForegroundColor Yellow
+    $line = "[$timestamp] [WARN] $Message"
+    Write-Host $line -ForegroundColor Yellow
+    try { Add-Content -Path $Global:LogFile -Value $line } catch {}
 }
 
 function Write-Info-Log {
     param([string]$Message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Write-Host "[$timestamp] INFO: $Message" -ForegroundColor Blue
+    $line = "[$timestamp] [INFO] $Message"
+    Write-Host $line -ForegroundColor Blue
+    try { Add-Content -Path $Global:LogFile -Value $line } catch {}
+}
+
+# Generic TCP port test with timeout
+function Test-TcpPort {
+    param(
+        [string]$TargetHost,
+        [int]$Port,
+        [int]$TimeoutMs = 1000
+    )
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $iar = $client.BeginConnect($TargetHost, $Port, $null, $null)
+        $ok = $iar.AsyncWaitHandle.WaitOne($TimeoutMs, $false)
+        if ($ok -and $client.Connected) { try { $client.EndConnect($iar) } catch {}; $client.Close(); return $true }
+        try { $client.Close() } catch {}
+        return $false
+    } catch { return $false }
+}
+
+function Test-AnalyzerPorts {
+    param([string]$HostName = '127.0.0.1')
+    $ports = 2001..2005
+    foreach ($p in $ports) {
+        if (Test-TcpPort -TargetHost $HostName -Port $p -TimeoutMs 400) { return $true }
+    }
+    return $false
 }
 
 # Check if Redis is running
 function Test-Redis {
     Write-Log "Checking Redis connection at ${RedisHost}:${RedisPort}..." "Blue"
     try {
-        $tcp = Test-NetConnection -ComputerName $RedisHost -Port ([int]$RedisPort) -WarningAction SilentlyContinue -InformationLevel Quiet
-        if ($tcp) {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $iar = $client.BeginConnect($RedisHost, [int]$RedisPort, $null, $null)
+        $connected = $iar.AsyncWaitHandle.WaitOne(1500, $false)
+        if ($connected -and $client.Connected) {
+            try { $client.EndConnect($iar) } catch {}
+            $client.Close()
             Write-Log "Redis TCP port reachable"
             return $true
         } else {
+            try { $client.Close() } catch {}
             Write-Error-Log "Redis not reachable at ${RedisHost}:${RedisPort}"
             return $false
         }
@@ -106,19 +205,15 @@ function Start-Redis {
 function Test-Dependencies {
     Write-Log "Checking dependencies..." "Blue"
     
-    # Check Python
-    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-        Write-Error-Log "Python not found"
-        return $false
-    }
+    # Check Python (prefer venv)
+    $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+    $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { (Get-Command python -ErrorAction SilentlyContinue)?.Source }
+    if (-not $pythonExe) { Write-Error-Log "Python not found (checked .venv and PATH)"; return $false }
     
     # Check pip packages
     try {
-        python -c "import flask, celery, redis, sqlalchemy" 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error-Log "Required Python packages not found. Run: pip install -r requirements.txt"
-            return $false
-        }
+    & $pythonExe -c "import flask, celery, redis, sqlalchemy" 2>$null
+    if ($LASTEXITCODE -ne 0) { Write-Error-Log "Required Python packages not found. Run: pip install -r src/requirements.txt"; return $false }
     }
     catch {
         Write-Error-Log "Error checking Python packages: $_"
@@ -158,14 +253,20 @@ with app.app_context():
         [void]$p.Start()
         $p.StandardInput.WriteLine($initScript)
         $p.StandardInput.Close()
+        # Wait with timeout to avoid hangs
+        $exited = $p.WaitForExit(1000 * [Math]::Max(5, $DbInitTimeoutSeconds))
         $stdout = $p.StandardOutput.ReadToEnd()
         $stderr = $p.StandardError.ReadToEnd()
-        $p.WaitForExit()
-        if ($p.ExitCode -eq 0) {
+        if (-not $exited) {
+            try { $p.Kill() } catch {}
+            Write-Warning-Log "Database initialization timed out after $DbInitTimeoutSeconds seconds. Continuing startup."
+        } elseif ($p.ExitCode -eq 0) {
             Write-Log "Database initialization completed"
         } else {
             Write-Warning-Log "Database initialization had issues, continuing... ($stderr)"
         }
+        if ($stdout) { try { Add-Content -Path $Global:LogFile -Value ("DB INIT STDOUT:" + [Environment]::NewLine + $stdout) } catch {} }
+        if ($stderr) { try { Add-Content -Path $Global:LogFile -Value ("DB INIT STDERR:" + [Environment]::NewLine + $stderr) } catch {} }
     }
     catch {
         Write-Warning-Log "Database initialization error: $_"
@@ -180,16 +281,16 @@ function Start-CeleryWorker {
         $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
         $celeryExe = Join-Path $venvScripts "celery.exe"
         $pythonExe = Join-Path $venvScripts "python.exe"
-        $args = @("-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log")
-        if ($UseSoloPool) { $args = @("-A", $CeleryApp, "worker", "--loglevel=info", "-P", "solo", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log") }
+        $workerArgs = @("-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log")
+        if ($UseSoloPool) { $workerArgs = @("-A", $CeleryApp, "worker", "--loglevel=info", "-P", "solo", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log") }
 
         if (Test-Path $celeryExe) {
-            $workerProcess = Start-Process -FilePath $celeryExe -ArgumentList $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+            $workerProcess = Start-Process -FilePath $celeryExe -ArgumentList $workerArgs -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         } elseif (Test-Path $pythonExe) {
-            $workerProcess = Start-Process -FilePath $pythonExe -ArgumentList @("-m", "celery") + $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+            $workerProcess = Start-Process -FilePath $pythonExe -ArgumentList @("-m", "celery") + $workerArgs -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         } else {
             # Fallback to PATH celery
-            $workerProcess = Start-Process -FilePath "celery" -ArgumentList $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+            $workerProcess = Start-Process -FilePath "celery" -ArgumentList $workerArgs -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         }
         
         if ($workerProcess) {
@@ -217,14 +318,14 @@ function Start-CeleryBeat {
         $celeryExe = Join-Path $venvScripts "celery.exe"
         $pythonExe = Join-Path $venvScripts "python.exe"
 
-        $args = @("-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule")
+        $beatArgs = @("-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule")
         if (Test-Path $celeryExe) {
-            $beatProcess = Start-Process -FilePath $celeryExe -ArgumentList $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+            $beatProcess = Start-Process -FilePath $celeryExe -ArgumentList $beatArgs -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         } elseif (Test-Path $pythonExe) {
-            $beatProcess = Start-Process -FilePath $pythonExe -ArgumentList @("-m", "celery") + $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+            $beatProcess = Start-Process -FilePath $pythonExe -ArgumentList @("-m", "celery") + $beatArgs -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         } else {
             # Fallback to PATH celery
-            $beatProcess = Start-Process -FilePath "celery" -ArgumentList $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+            $beatProcess = Start-Process -FilePath "celery" -ArgumentList $beatArgs -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         }
         
         if ($beatProcess) {
@@ -252,6 +353,9 @@ function Start-FlaskApp {
     if (-not $env:ANALYZER_AUTO_START -or $env:ANALYZER_AUTO_START.Trim() -eq '') { $env:ANALYZER_AUTO_START = "false" }
     
     try {
+    # Restart if already running
+    $existing = Get-FlaskPids
+    if ($existing -and $existing.Count -gt 0) { Write-Info-Log "Flask already running (PIDs: $($existing -join ', ')). Restarting..."; Stop-FlaskApp }
     # Prefer venv Python
     $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
     $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
@@ -281,29 +385,87 @@ function Start-AnalyzerServices {
     $analyzerManager = Join-Path $analyzerDir "analyzer_manager.py"
     if (Test-Path $analyzerManager) {
         try {
-            Push-Location $analyzerDir
+            if (Test-AnalyzerPorts) { Write-Info-Log "Analyzer services already running"; return }
+
             # Prefer venv Python
             $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
             $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+            Write-Info-Log "Attempting to start analyzer services via analyzer_manager.py"
+            Push-Location $analyzerDir
             & $pythonExe "analyzer_manager.py" start 2>$null
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Log "Analyzer services started successfully"
-            }
-            else {
-                Write-Warning-Log "Failed to start analyzer services automatically"
-            }
+            $startExit = $LASTEXITCODE
+            Pop-Location
+            if ($startExit -ne 0) { Write-Warning-Log "analyzer_manager.py start returned code $startExit" }
+
+            Start-Sleep -Seconds 2
+            if (Test-AnalyzerPorts) { Write-Log "Analyzer services started successfully"; return }
+
+            Write-Warning-Log "Analyzer services not detected on ports 2001-2005. Attempting to build the analyzer stack (this may take several minutes)."
+            Build-AnalyzerStack
+            # Try start again after build
+            Push-Location $analyzerDir
+            & $pythonExe "analyzer_manager.py" start 2>$null
+            $startExit2 = $LASTEXITCODE
+            Pop-Location
+            if ($startExit2 -ne 0) { Write-Warning-Log "analyzer_manager.py start after build returned code $startExit2" }
+            Start-Sleep -Seconds 2
+            if (Test-AnalyzerPorts) { Write-Log "Analyzer services started after build" } else { Write-Warning-Log "Analyzer ports still not reachable after build/start. Check Docker and analyzer logs." }
         }
         catch {
             Write-Warning-Log "Error starting analyzer services: $_"
-        }
-        finally {
-            Pop-Location
         }
     }
     else {
         Write-Warning-Log "Analyzer manager not found, skipping analyzer services"
     }
+}
+
+function Build-AnalyzerStack {
+    Write-Log "Building analyzer stack..." "Blue"
+    $analyzerDir = Join-Path $RepoRoot "analyzer"
+    $analyzerManager = Join-Path $analyzerDir "analyzer_manager.py"
+    # Prefer venv Python
+    $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+    $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+
+    $built = $false
+    try {
+        if (Test-Path $analyzerManager) {
+            Write-Info-Log "Trying: analyzer_manager.py build"
+            Push-Location $analyzerDir
+            & $pythonExe "analyzer_manager.py" build 2>$null
+            if ($LASTEXITCODE -eq 0) { $built = $true }
+            Pop-Location
+        }
+    } catch { Write-Warning-Log "analyzer_manager.py build failed: $_" }
+
+    if (-not $built) {
+        $composeFile = Join-Path $analyzerDir "docker-compose.yml"
+        if (Test-Path $composeFile) {
+            if (Get-Command docker -ErrorAction SilentlyContinue) {
+                try {
+                    Write-Info-Log "Trying: docker compose build"
+                    $p = Start-Process -FilePath "docker" -ArgumentList @("compose", "-f", "docker-compose.yml", "build") -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                    if ($p.ExitCode -eq 0) { $built = $true } else { Write-Warning-Log "docker compose build exited with code $($p.ExitCode)" }
+                } catch {
+                    Write-Warning-Log "docker compose build failed: $_"
+                }
+                if (-not $built) {
+                    try {
+                        Write-Info-Log "Trying: docker-compose build"
+                        $p2 = Start-Process -FilePath "docker-compose" -ArgumentList @("-f", "docker-compose.yml", "build") -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        if ($p2.ExitCode -eq 0) { $built = $true } else { Write-Warning-Log "docker-compose build exited with code $($p2.ExitCode)" }
+                    } catch { Write-Warning-Log "docker-compose build failed: $_" }
+                }
+            } else {
+                Write-Warning-Log "Docker not found in PATH. Please install/start Docker Desktop."
+            }
+        } else {
+            Write-Warning-Log "docker-compose.yml not found in analyzer directory."
+        }
+    }
+
+    if ($built) { Write-Log "Analyzer stack build completed" } else { Write-Warning-Log "Analyzer stack build did not complete successfully" }
 }
 
 # Stop all services
@@ -332,18 +494,18 @@ function Stop-Services {
             $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
             $celeryExe = Join-Path $venvScripts "celery.exe"
             $pythonExe = Join-Path $venvScripts "python.exe"
-            $args = @("-A", $CeleryApp, "control", "shutdown")
+            $ctlArgs = @("-A", $CeleryApp, "control", "shutdown")
             if (Test-Path $celeryExe) {
-                & $celeryExe @args 2>$null
+                & $celeryExe @ctlArgs 2>$null
             } elseif (Test-Path $pythonExe) {
-                & $pythonExe -m celery @args 2>$null
+                & $pythonExe -m celery @ctlArgs 2>$null
             } else {
-                & celery @args 2>$null
+                & celery @ctlArgs 2>$null
             }
-            $workerPid = Get-Content "celery_worker_pid.txt"
-            $workerProcess = Get-Process -Id $workerPid -ErrorAction SilentlyContinue
+            $workerPidTxt = Get-Content "celery_worker_pid.txt"
+            $workerProcess = Get-Process -Id $workerPidTxt -ErrorAction SilentlyContinue
             if ($workerProcess) {
-                Stop-Process -Id $workerPid -Force
+                Stop-Process -Id $workerPidTxt -Force
             }
             Remove-Item "celery_worker_pid.txt" -ErrorAction SilentlyContinue
             Remove-Item "celery_worker.pid" -ErrorAction SilentlyContinue
@@ -373,11 +535,21 @@ function Stop-Services {
     }
     
     # Stop analyzer services
-    if (Test-Path "..\analyzer\analyzer_manager.py") {
+    $analyzerDir = Join-Path $RepoRoot "analyzer"
+    $analyzerManager = Join-Path $analyzerDir "analyzer_manager.py"
+    if (Test-Path $analyzerManager) {
         try {
-            Push-Location "..\analyzer"
-            python analyzer_manager.py stop 2>$null
-            Pop-Location
+            $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+            $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+        & $pythonExe $analyzerManager stop 2>$null
+            if (Test-Path "analyzer_manager_pid.txt") {
+                try {
+            $analyzerPid = Get-Content "analyzer_manager_pid.txt"
+            $proc = Get-Process -Id $analyzerPid -ErrorAction SilentlyContinue
+            if ($proc) { Stop-Process -Id $analyzerPid -Force }
+                    Remove-Item "analyzer_manager_pid.txt" -ErrorAction SilentlyContinue
+                } catch {}
+            }
             Write-Log "Analyzer services stopped"
         }
         catch {
@@ -389,26 +561,17 @@ function Stop-Services {
 # Check status of services
 function Get-ServiceStatus {
     Write-Log "Checking service status..." "Blue"
+    Write-Info-Log "Log file: $Global:LogFile"
     
-    # Flask app
-    if (Test-Path "flask_app_pid.txt") {
-        try {
-            $flaskPid = Get-Content "flask_app_pid.txt"
-            $flaskProcess = Get-Process -Id $flaskPid -ErrorAction SilentlyContinue
-            if ($flaskProcess) {
-                Write-Info-Log "Flask app: RUNNING (PID: $flaskPid)"
-            }
-            else {
-                Write-Warning-Log "Flask app: STOPPED (stale PID file)"
-            }
+    # Flask app (robust detection)
+    try {
+        $flaskPids = Get-FlaskPids
+        if ($flaskPids -and $flaskPids.Count -gt 0) {
+            Write-Info-Log "Flask app: RUNNING (PIDs: $($flaskPids -join ', '))"
+        } else {
+            if (Test-Path "flask_app_pid.txt") { Write-Warning-Log "Flask app: STOPPED (stale PID file)" } else { Write-Warning-Log "Flask app: STOPPED" }
         }
-        catch {
-            Write-Warning-Log "Flask app: STOPPED"
-        }
-    }
-    else {
-        Write-Warning-Log "Flask app: STOPPED"
-    }
+    } catch { Write-Warning-Log "Flask app: UNKNOWN" }
     
     # Celery worker
     if (Test-Path "celery_worker_pid.txt") {
@@ -440,6 +603,8 @@ function Get-ServiceStatus {
             }
             else {
                 Write-Warning-Log "Celery beat: STOPPED (stale PID file)"
+                # Auto-clean stale pid
+                try { Remove-Item "celery_beat_pid.txt" -ErrorAction SilentlyContinue } catch {}
             }
         }
         catch {
@@ -457,6 +622,13 @@ function Get-ServiceStatus {
     else {
         Write-Warning-Log "Redis: NOT ACCESSIBLE"
     }
+
+    # Analyzer services
+    if (Test-AnalyzerPorts) {
+        Write-Info-Log "Analyzer services: RUNNING (ports 2001-2005)"
+    } else {
+        Write-Warning-Log "Analyzer services: NOT RUNNING"
+    }
 }
 
 # Main function
@@ -466,6 +638,7 @@ function Invoke-Main {
     switch ($Action) {
         "start" {
             Write-Log "Starting Thesis App with Celery integration..." "Cyan"
+            Write-Info-Log "Log file: $Global:LogFile"
             
             if (-not (Test-Dependencies)) {
                 exit 1
@@ -481,10 +654,10 @@ function Invoke-Main {
             Initialize-Database
             Start-CeleryWorker
             Start-CeleryBeat
-            Start-AnalyzerServices
+            if (-not $NoAnalyzer) { Start-AnalyzerServices } else { Write-Info-Log "Skipping analyzer services (NoAnalyzer flag set)" }
             Start-FlaskApp
             
-            Write-Log "All services started successfully!" "Green"
+            Write-Log "All services start sequence triggered." "Green"
             Write-Log "Flask app available at: http://127.0.0.1:5000" "Cyan"
             Write-Log "Use 'powershell .\start.ps1 stop' to stop all services" "Cyan"
             Write-Log "Use 'powershell .\start.ps1 status' to check service status" "Cyan"
@@ -542,9 +715,24 @@ function Invoke-Main {
             Start-FlaskApp
             Write-Log "Flask app started" "Green"
         }
+        "flask-restart" {
+            Write-Log "Restarting Flask app..." "Cyan"
+            Stop-FlaskApp
+            Start-FlaskApp
+            Write-Log "Flask app restarted" "Green"
+        }
+        "flask-stop" {
+            Write-Log "Stopping Flask app..." "Cyan"
+            Stop-FlaskApp
+            Write-Log "Flask app stopped" "Green"
+        }
+        "analyzer-build" {
+            Write-Log "Building analyzer stack (manual trigger)..." "Cyan"
+            Build-AnalyzerStack
+        }
         
         default {
-            Write-Host "Usage: powershell .\start.ps1 [start|stop|restart|status|worker-only|beat-only|flask-only]" -ForegroundColor Yellow
+            Write-Host "Usage: powershell .\start.ps1 [start|stop|restart|status|worker-only|beat-only|flask-only|flask-restart|flask-stop]" -ForegroundColor Yellow
             Write-Host ""
             Write-Host "Commands:" -ForegroundColor Yellow
             Write-Host "  start       - Start all services (default)" -ForegroundColor White
@@ -553,7 +741,14 @@ function Invoke-Main {
             Write-Host "  status      - Check service status" -ForegroundColor White
             Write-Host "  worker-only - Start only Celery worker" -ForegroundColor White
             Write-Host "  beat-only   - Start only Celery beat" -ForegroundColor White
-            Write-Host "  flask-only  - Start only Flask app" -ForegroundColor White
+            Write-Host "  flask-only    - Start only Flask app (restarts if already running)" -ForegroundColor White
+            Write-Host "  flask-restart - Force-restart Flask app" -ForegroundColor White
+            Write-Host "  flask-stop    - Stop only Flask app" -ForegroundColor White
+            Write-Host "" -ForegroundColor Yellow
+            Write-Host "Options:" -ForegroundColor Yellow
+            Write-Host "  -NoAnalyzer               Skip starting analyzer services" -ForegroundColor White
+            Write-Host "  -LogPath <path>           Write script logs to the specified file (default: .\\logs\\start.ps1.log)" -ForegroundColor White
+            Write-Host "  -DbInitTimeoutSeconds N   Timeout for DB init phase (default: 30)" -ForegroundColor White
             exit 1
         }
     }

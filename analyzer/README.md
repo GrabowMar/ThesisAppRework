@@ -235,6 +235,26 @@ async def main():
 asyncio.run(main())
 ```
 
+## Build Script (Windows)
+
+You can build all analyzer images with the included PowerShell script (tries analyzer_manager.py build first, then Docker Compose):
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& .\build.ps1"
+```
+
+Options:
+- `-NoCache` Build images without cache
+- `-Pull` Always attempt to pull newer base images
+- `-LogPath` Custom log file path (default: logs/analyzer-build.log)
+
+Example:
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& .\build.ps1 -NoCache -Pull"
+```
+
+The build log is saved to `../logs/analyzer-build.log` (repo root logs folder).
+
 ## Support
 
 For issues or questions:
