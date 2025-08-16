@@ -12,8 +12,8 @@ param(
 # Configuration
 $FlaskApp = "main.py"
 $CeleryApp = "app.tasks"
-$RedisHost = $env:REDIS_HOST -or "127.0.0.1"
-$RedisPort = $env:REDIS_PORT -or "6379"
+$RedisHost = if ($env:REDIS_HOST -and $env:REDIS_HOST.Trim() -ne '') { $env:REDIS_HOST } else { '127.0.0.1' }
+$RedisPort = if ($env:REDIS_PORT -and $env:REDIS_PORT.Trim() -ne '') { $env:REDIS_PORT } else { '6379' }
 $WorkerConcurrency = $env:WORKER_CONCURRENCY -or "4"
 
 # Colors for output
@@ -51,22 +51,20 @@ function Write-Info-Log {
 
 # Check if Redis is running
 function Test-Redis {
-    Write-Log "Checking Redis connection..." "Blue"
-    
+    Write-Log "Checking Redis connection at ${RedisHost}:${RedisPort}..." "Blue"
     try {
-        $redisTest = redis-cli -h $RedisHost -p $RedisPort ping 2>$null
-        if ($redisTest -eq "PONG") {
-            Write-Log "Redis is running and accessible"
+        $tcp = Test-NetConnection -ComputerName $RedisHost -Port ([int]$RedisPort) -WarningAction SilentlyContinue -InformationLevel Quiet
+        if ($tcp) {
+            Write-Log "Redis TCP port reachable"
             return $true
+        } else {
+            Write-Error-Log "Redis not reachable at ${RedisHost}:${RedisPort}"
+            return $false
         }
-    }
-    catch {
-        Write-Error-Log "Redis is not accessible at ${RedisHost}:${RedisPort}"
+    } catch {
+        Write-Error-Log "Redis check error: $_"
         return $false
     }
-    
-    Write-Error-Log "Redis connection failed"
-    return $false
 }
 
 # Start Redis if not running
@@ -164,7 +162,20 @@ function Start-CeleryWorker {
     Write-Log "Starting Celery worker..." "Blue"
     
     try {
-        $workerProcess = Start-Process celery -ArgumentList "-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log" -PassThru -WindowStyle Hidden
+        $venvScripts = Join-Path (Split-Path -Parent $PSScriptRoot) ".venv\Scripts"
+        $celeryExe = Join-Path $venvScripts "celery.exe"
+        $pythonExe = Join-Path $venvScripts "python.exe"
+
+        if (Test-Path $celeryExe) {
+            $workerProcess = Start-Process -FilePath $celeryExe -ArgumentList "-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+        }
+        elseif (Test-Path $pythonExe) {
+            $workerProcess = Start-Process -FilePath $pythonExe -ArgumentList "-m", "celery", "-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+        }
+        else {
+            # Fallback to PATH celery
+            $workerProcess = Start-Process -FilePath "celery" -ArgumentList "-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+        }
         
         if ($workerProcess) {
             $workerProcess.Id | Out-File -FilePath "celery_worker_pid.txt"
@@ -187,7 +198,20 @@ function Start-CeleryBeat {
     Write-Log "Starting Celery beat scheduler..." "Blue"
     
     try {
-        $beatProcess = Start-Process celery -ArgumentList "-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule" -PassThru -WindowStyle Hidden
+        $venvScripts = Join-Path (Split-Path -Parent $PSScriptRoot) ".venv\Scripts"
+        $celeryExe = Join-Path $venvScripts "celery.exe"
+        $pythonExe = Join-Path $venvScripts "python.exe"
+
+        if (Test-Path $celeryExe) {
+            $beatProcess = Start-Process -FilePath $celeryExe -ArgumentList "-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+        }
+        elseif (Test-Path $pythonExe) {
+            $beatProcess = Start-Process -FilePath $pythonExe -ArgumentList "-m", "celery", "-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+        }
+        else {
+            # Fallback to PATH celery
+            $beatProcess = Start-Process -FilePath "celery" -ArgumentList "-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+        }
         
         if ($beatProcess) {
             $beatProcess.Id | Out-File -FilePath "celery_beat_pid.txt"

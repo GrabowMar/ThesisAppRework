@@ -43,23 +43,33 @@ class DockerManager:
         self.models_dir = self.project_root / "misc" / "models"
     
     def _create_docker_client(self) -> Optional[docker.DockerClient]:
-        """Create Docker client with Windows support."""
-        try:
-            # Try Windows named pipe first
-            client = docker.DockerClient(base_url='npipe:////./pipe/docker_engine')
-            client.ping()
-            self.logger.info("Connected to Docker via Windows named pipe")
-            return client
-        except Exception:
+        """Create Docker client with Windows support.
+
+        On Windows, Docker Desktop may expose either 'docker_engine' or
+        'dockerDesktopLinuxEngine' named pipes. Try both before falling back
+        to environment-based client.
+        """
+        base_urls = [
+            'npipe:////./pipe/docker_engine',
+            'npipe:////./pipe/dockerDesktopLinuxEngine',
+        ]
+        for url in base_urls:
             try:
-                # Fallback to default
-                client = docker.from_env()
+                client = docker.DockerClient(base_url=url)
                 client.ping()
-                self.logger.info("Connected to Docker via default client")
+                self.logger.info(f"Connected to Docker via Windows named pipe: {url}")
                 return client
-            except Exception as e:
-                self.logger.error(f"Failed to connect to Docker: {e}")
-                return None
+            except Exception:
+                continue
+        try:
+            # Fallback to default env client (TCP or other)
+            client = docker.from_env()
+            client.ping()
+            self.logger.info("Connected to Docker via default client")
+            return client
+        except Exception as e:
+            self.logger.error(f"Failed to connect to Docker via any method: {e}")
+            return None
     
     def get_container_status(self, container_name: str) -> DockerStatus:
         """Get status of a specific container."""
@@ -346,8 +356,27 @@ class DockerManager:
     def get_docker_info(self) -> Dict[str, Any]:
         """Get Docker system information."""
         if not self.client:
+            # As a fallback, attempt CLI to provide some signal
+            try:
+                import subprocess
+                result = subprocess.run(['docker', 'info', '--format', '{{json .}}'], capture_output=True, text=True, timeout=10)
+                if result.returncode == 0 and result.stdout.strip():
+                    import json
+                    info = json.loads(result.stdout)
+                    return {
+                        'containers': info.get('Containers', 0),
+                        'containers_running': info.get('ContainersRunning', 0),
+                        'containers_paused': info.get('ContainersPaused', 0),
+                        'containers_stopped': info.get('ContainersStopped', 0),
+                        'images': info.get('Images', 0),
+                        'server_version': info.get('ServerVersion', 'unknown'),
+                        'memory_total': info.get('MemTotal', 0),
+                        'cpus': info.get('NCPU', 0)
+                    }
+            except Exception as e:
+                self.logger.warning(f"Docker client unavailable and CLI info failed: {e}")
             return {'error': 'Docker client unavailable'}
-        
+
         try:
             info = self.client.info()
             return {

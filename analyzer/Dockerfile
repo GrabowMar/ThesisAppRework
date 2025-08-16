@@ -1,4 +1,4 @@
-# Gateway Dockerfile with modern 2025 best practices
+# Analyzer WebSocket Gateway Dockerfile with modern 2025 best practices
 FROM python:3.12-slim AS build
 
 # Install build dependencies

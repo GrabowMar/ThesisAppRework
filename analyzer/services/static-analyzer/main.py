@@ -21,8 +21,6 @@ import json
 import logging
 import os
 import subprocess
-import tempfile
-import yaml
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -468,7 +466,30 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
     
-    async def analyze_model_code(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _progress(self, stage: str, message: str = "", analysis_id: Optional[str] = None, **kwargs):
+        """Send a PROGRESS_UPDATE to the gateway if configured."""
+        gw = os.getenv('GATEWAY_URL', 'ws://localhost:8765')
+        # Best-effort fire-and-forget; avoid blocking service on progress
+        try:
+            payload = {
+                'type': 'progress_update',
+                'correlation_id': analysis_id or kwargs.get('analysis_id') or '',
+                'stage': stage,
+                'message': message,
+                'service': self.service_name,
+                'data': {
+                    'stage': stage,
+                    'message': message,
+                    **kwargs
+                }
+            }
+            async with websockets.connect(gw, open_timeout=1, close_timeout=1, ping_interval=None) as ws:
+                await ws.send(json.dumps(payload))
+        except Exception:
+            # Swallow errors - progress is optional
+            pass
+
+    async def analyze_model_code(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
         """Perform comprehensive static analysis on AI model code with custom configuration."""
         try:
             model_path = Path('/app/sources') / model_slug / f'app{app_number}'
@@ -480,6 +501,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 }
             
             logger.info(f"Static analysis of {model_slug} app {app_number}")
+            await self._progress('starting', f"Starting static analysis for {model_slug} app {app_number}", analysis_id=analysis_id,
+                                 model_slug=model_slug, app_number=app_number)
             
             results = {
                 'model_slug': model_slug,
@@ -492,15 +515,41 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             
             # Run analysis for different file types with configuration
             logger.info("Analyzing Python files...")
-            results['results']['python'] = await self.analyze_python_files(model_path, config)
+            await self._progress('scanning_python', 'Scanning Python files', analysis_id=analysis_id)
+            py_res = await self.analyze_python_files(model_path, config)
+            results['results']['python'] = py_res
+            try:
+                count = 0
+                if isinstance(py_res, dict):
+                    if 'bandit' in py_res and isinstance(py_res['bandit'], dict):
+                        count += int(py_res['bandit'].get('total_issues', 0))
+                    if 'pylint' in py_res and isinstance(py_res['pylint'], dict):
+                        count += int(py_res['pylint'].get('total_issues', 0))
+                await self._progress('python_completed', f"Python analysis complete ({count} findings)", analysis_id=analysis_id,
+                                     issues_found=count)
+            except Exception:
+                pass
             
             logger.info("Analyzing JavaScript files...")
-            results['results']['javascript'] = await self.analyze_javascript_files(model_path, config)
+            await self._progress('scanning_js', 'Scanning JavaScript/TypeScript files', analysis_id=analysis_id)
+            js_res = await self.analyze_javascript_files(model_path, config)
+            results['results']['javascript'] = js_res
+            try:
+                count = 0
+                if isinstance(js_res, dict) and 'eslint' in js_res and isinstance(js_res['eslint'], dict):
+                    count += int(js_res['eslint'].get('total_issues', 0))
+                await self._progress('js_completed', f"JS/TS analysis complete ({count} findings)", analysis_id=analysis_id,
+                                     issues_found=count)
+            except Exception:
+                pass
             
             logger.info("Analyzing CSS files...")
-            results['results']['css'] = await self.analyze_css_files(model_path, config)
+            await self._progress('scanning_css', 'Scanning CSS files', analysis_id=analysis_id)
+            css_res = await self.analyze_css_files(model_path, config)
+            results['results']['css'] = css_res
             
             logger.info("Analyzing project structure...")
+            await self._progress('analyzing_structure', 'Analyzing project structure', analysis_id=analysis_id)
             results['results']['structure'] = await self.analyze_project_structure(model_path)
             
             # Calculate enhanced summary
@@ -527,11 +576,16 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 'analysis_status': 'completed',
                 'configuration_preset': config.get('preset_name', 'custom') if config else 'default'
             }
+            await self._progress('reporting', 'Compiling report', analysis_id=analysis_id,
+                                 total_issues=total_issues, tools_run=tools_run)
+            await self._progress('completed', 'Static analysis completed', analysis_id=analysis_id,
+                                 total_issues=total_issues)
             
             return results
             
         except Exception as e:
             logger.error(f"Static analysis failed: {e}")
+            await self._progress('failed', f"Static analysis failed: {e}", analysis_id=analysis_id)
             return {
                 'status': 'error',
                 'error': str(e),
@@ -571,12 +625,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
                 config = message_data.get("config", None)
+                analysis_id = message_data.get("id")
                 
                 logger.info(f"Starting static analysis for {model_slug} app {app_number}")
                 if config:
                     logger.info(f"Using custom configuration: {list(config.keys())}")
                 
-                analysis_results = await self.analyze_model_code(model_slug, app_number, config)
+                analysis_results = await self.analyze_model_code(model_slug, app_number, config, analysis_id=analysis_id)
                 
                 response = {
                     "type": "static_analysis_result",

@@ -8,6 +8,7 @@ seamless integration between Celery tasks and containerized analyzers.
 
 import json
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -60,6 +61,11 @@ class AnalyzerIntegration:
             logger.info(f"Running analyzer command: {' '.join(command)}")
             
             # Run command with proper encoding handling for Windows
+            # Ensure UTF-8 mode in the child process so Windows consoles don't choke on emojis
+            env = os.environ.copy()
+            env.setdefault('PYTHONUTF8', '1')
+            env.setdefault('PYTHONIOENCODING', 'utf-8')
+
             result = subprocess.run(
                 full_command,
                 capture_output=True,
@@ -67,7 +73,8 @@ class AnalyzerIntegration:
                 timeout=timeout,
                 cwd=self.analyzer_manager_path.parent,
                 encoding='utf-8',
-                errors='replace'  # Replace problematic characters instead of failing
+                errors='replace',  # Replace problematic characters instead of failing
+                env=env
             )
             
             return {
@@ -141,6 +148,27 @@ class AnalyzerIntegration:
         except Exception as e:
             logger.error(f"Error stopping analyzer services: {e}")
             return False
+
+    # Compatibility wrappers used by some API routes
+    def start_all_services(self) -> Dict[str, Any]:
+        """Start services and return command result payload."""
+        result = self.run_analyzer_command(['start'])
+        if result.get('success'):
+            try:
+                self._update_services_status()
+            except Exception:
+                pass
+        return result
+
+    def stop_all_services(self) -> Dict[str, Any]:
+        """Stop services and return command result payload."""
+        result = self.run_analyzer_command(['stop'])
+        if result.get('success'):
+            try:
+                self._update_services_status()
+            except Exception:
+                pass
+        return result
     
     def restart_analyzer_services(self) -> bool:
         """
@@ -206,26 +234,52 @@ class AnalyzerIntegration:
                             pass
 
                     if not services_status and output:
-                        # Parse plain text variants
+                        # Parse plain text variants (robust against various formats)
                         lines = output.split('\n')
-                        for line in lines:
-                            line = line.strip()
-                            if not line:
+                        for raw_line in lines:
+                            try:
+                                line = raw_line.strip()
+                                if not line:
+                                    continue
+                                # Skip headers
+                                if 'SERVICE HEALTH' in line.upper():
+                                    continue
+                                if ':' not in line:
+                                    continue
+                                # Examples handled:
+                                #   ✅ static-analyzer: healthy
+                                #   OK static-analyzer: healthy
+                                #   FAIL dynamic-analyzer: unhealthy
+                                #   static-analyzer ... healthy
+                                #   service: static-analyzer status: healthy
+                                left, right = line.replace('✅', '').replace('❌', '').split(':', 1)
+                                left = left.strip()
+                                right = right.strip()
+
+                                # Remove leading indicator like OK/FAIL if present
+                                tokens = left.split()
+                                if tokens and tokens[0].upper() in ("OK", "FAIL"):
+                                    tokens = tokens[1:]
+                                service_name = ' '.join(tokens).strip()
+                                # In cases like "service static-analyzer status"
+                                if not service_name and 'service' in left.lower():
+                                    # try last token as name
+                                    service_name = left.split()[-1]
+
+                                status = (right.split()[0] if right else 'unknown').strip()
+                                # Normalize common words
+                                if status.lower() in ('healthy', 'reachable', 'running'):
+                                    norm_status = 'running'
+                                elif status.lower() in ('unhealthy', 'unreachable', 'stopped', 'down', 'error'):
+                                    norm_status = 'stopped'
+                                else:
+                                    norm_status = status
+
+                                if service_name:
+                                    services_status[service_name] = {'status': norm_status}
+                            except Exception:
+                                # Ignore individual line parse errors
                                 continue
-                            # Accept forms like:
-                            #   ✅ static-analyzer: healthy
-                            #   static-analyzer ... healthy
-                            #   service: static-analyzer status: healthy
-                            if ':' in line and ('✅' in line or '-' in line or 'service' in line.lower()):
-                                parts = line.replace('✅', '').replace('❌', '').split(':')
-                                if len(parts) >= 2:
-                                    name_part = parts[0].strip()
-                                    status_part = parts[1].strip()
-                                    # Normalize name (left-most token)
-                                    service_name = name_part.split()[0]
-                                    status = status_part.split()[0]
-                                    if service_name:
-                                        services_status[service_name] = {'status': status}
 
                     if services_status:
                         status_info = {

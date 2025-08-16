@@ -57,12 +57,12 @@
     </td>
     <td>
       <div class="btn-group btn-group-sm">
-        <a href="/analysis/{{ item.analysis_type }}/{{ item.id }}" 
+  <a href="/analysis/{{ 'security/' ~ item.id ~ '/results/view' if item.analysis_type == 'security' else 'performance/' ~ item.id }}" 
            class="btn btn-outline-secondary btn-xs">
           <i class="bi bi-eye"></i>
         </a>
         {% if item.status == 'completed' %}
-        <a href="/analysis/{{ item.analysis_type }}/{{ item.id }}/export" 
+  <a href="/analysis/{{ item.analysis_type }}/{{ item.id }}/export" 
            class="btn btn-outline-primary btn-xs">
           <i class="bi bi-download"></i>
         </a>
@@ -75,8 +75,8 @@
   <tr>
     <td colspan="9" class="text-center text-muted py-3">
       No analyses found. 
-      <a href="/analysis/create/security" class="link-primary">Start a security scan</a> or 
-      <a href="/analysis/create/performance" class="link-success">run a performance test</a>.
+  <a href="/analysis/create#security" class="link-primary">Start a security scan</a> or 
+  <a href="/analysis/create#performance" class="link-success">run a performance test</a>.
     </td>
   </tr>
 {% endif %}

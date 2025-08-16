@@ -10,6 +10,7 @@ import time
 from functools import wraps
 
 from flask import Blueprint, request, jsonify, render_template
+from flask import Response
 
 from ..services.task_manager import TaskManager
 from ..models import GeneratedApplication
@@ -112,11 +113,15 @@ def analyses_list_page():
 def analyses_create_page():
     """Create new analyses page (unified forms for security and dynamic)."""
     try:
+        # Unified: use the improved batch form for all creation
+        from ..models import ModelCapability
+        models = ModelCapability.query.all()
         return render_template(
             'single_page.html',
-            page_title='Create Analysis',
-            page_icon='fa-plus',
-            main_partial='partials/analysis/create/shell.html'
+            page_title='Create Batch Task',
+            page_icon='fa-layer-group',
+            main_partial='partials/analysis/create/batch_form.html',
+            models=models
         )
     except Exception as e:  # pragma: no cover
         logger.error(f"Error loading create analysis page: {e}")
@@ -127,15 +132,9 @@ def analyses_create_page():
 def analyses_create_security_page():
     """Create page focused on Security form only."""
     try:
-        from ..models import ModelCapability
-        models = ModelCapability.query.all()
-        return render_template(
-            'single_page.html',
-            page_title='Create Security Analysis',
-            page_icon='fa-shield-alt',
-            main_partial='partials/analysis/create/security_test_form.html',
-            models=models
-        )
+        # Deprecated: redirect to unified batch creator
+        from flask import redirect, url_for
+        return redirect(url_for('analysis.analyses_create_page'))
     except Exception as e:
         logger.error(f"Error loading security create page: {e}")
         return render_template('partials/common/error.html', error=str(e)), 500
@@ -145,15 +144,8 @@ def analyses_create_security_page():
 def analyses_create_dynamic_page():
     """Create page focused on Dynamic (ZAP) form only."""
     try:
-        from ..models import ModelCapability
-        models = ModelCapability.query.all()
-        return render_template(
-            'single_page.html',
-            page_title='Create Dynamic Scan',
-            page_icon='fa-bolt',
-            main_partial='partials/analysis/create/dynamic_test_form.html',
-            models=models
-        )
+        from flask import redirect, url_for
+        return redirect(url_for('analysis.analyses_create_page'))
     except Exception as e:
         logger.error(f"Error loading dynamic create page: {e}")
         return render_template('partials/common/error.html', error=str(e)), 500
@@ -163,15 +155,8 @@ def analyses_create_dynamic_page():
 def analyses_create_performance_page():
     """Create page focused on Performance test form only."""
     try:
-        from ..models import ModelCapability
-        models = ModelCapability.query.all()
-        return render_template(
-            'single_page.html',
-            page_title='Create Performance Test',
-            page_icon='fa-tachometer-alt',
-            main_partial='partials/analysis/create/performance_test_form.html',
-            models=models
-        )
+        from flask import redirect, url_for
+        return redirect(url_for('analysis.analyses_create_page'))
     except Exception as e:
         logger.error(f"Error loading performance create page: {e}")
         return render_template('partials/common/error.html', error=str(e)), 500
@@ -305,6 +290,33 @@ def htmx_active_tasks():
     except Exception as e:
         logger.error(f"HTMX active tasks error: {e}")
         return render_template('partials/common/error.html', error='Failed to load active tasks'), 500
+
+
+@analysis_bp.get('/tasks')
+def tasks_page():
+    """Tasks management page with Active + History panels."""
+    try:
+        return render_template(
+            'single_page.html',
+            page_title='Tasks',
+            page_icon='fa-tasks',
+            main_partial='partials/tasks/shell.html'
+        )
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error loading tasks page: {e}")
+        return render_template('partials/common/error.html', error=str(e)), 500
+
+
+@analysis_bp.get('/api/list/task-history')
+@rate_limited(2.5)
+def htmx_task_history():
+    """HTMX: Load recent task history from TaskManager."""
+    try:
+        history = task_manager.get_task_history(limit=100)
+        return render_template('partials/analysis/list/task_history.html', history=history)
+    except Exception as e:
+        logger.error(f"HTMX task history error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load task history'), 500
 
 @analysis_bp.get('/api/trends')
 def htmx_analysis_trends():
@@ -597,6 +609,29 @@ def start_batch_analysis():
             analysis_types = payload_json.get('analysis_types', [])
             priority = payload_json.get('priority', 'normal')
             options = payload_json.get('options', {}) or {}
+            # Normalize nested options if passed flat
+            if 'security_tools' in payload_json and isinstance(payload_json.get('security_tools'), list):
+                options['security_tools'] = payload_json.get('security_tools')
+            if 'static_tools' in payload_json and isinstance(payload_json.get('static_tools'), list):
+                options['static_tools'] = payload_json.get('static_tools')
+            # Performance config
+            perf = options.get('performance_config', {}) or {}
+            for k_json, k_opt in [('perf_users','users'),('perf_spawn_rate','spawn_rate'),('perf_duration','duration'),('perf_type','test_type')]:
+                if k_json in payload_json:
+                    perf[k_opt] = payload_json.get(k_json)
+            if perf:
+                options['performance_config'] = perf
+            # Dynamic options
+            dyn = options.get('dynamic_options', {}) or {}
+            if 'dynamic_scan_type' in payload_json:
+                dyn['scan_type'] = payload_json.get('dynamic_scan_type')
+            if 'dynamic_target_url' in payload_json:
+                dyn['target_url'] = payload_json.get('dynamic_target_url')
+            if dyn:
+                options['dynamic_options'] = dyn
+            # AI
+            if 'ai_types' in payload_json and isinstance(payload_json.get('ai_types'), list):
+                options['ai_types'] = payload_json.get('ai_types')
         else:
             # Form data path
             form = request.form
@@ -644,6 +679,52 @@ def start_batch_analysis():
                 except ValueError:
                     pass
             options['priority'] = priority
+
+            # Type-specific options
+            # Security tools (multi checkbox named security_tools)
+            sec_tools = form.getlist('security_tools')
+            if sec_tools:
+                options['security_tools'] = sec_tools
+            # Optional severity threshold
+            if form.get('security_severity'):
+                options.setdefault('security_options', {})['severity_threshold'] = form.get('security_severity')
+            # Static tools
+            static_tools = form.getlist('static_tools')
+            if static_tools:
+                options['static_tools'] = static_tools
+            # Performance config
+            perf_cfg = {}
+            if form.get('perf_users'):
+                try:
+                    perf_cfg['users'] = int(form.get('perf_users'))
+                except Exception:
+                    pass
+            if form.get('perf_spawn_rate'):
+                try:
+                    perf_cfg['spawn_rate'] = float(form.get('perf_spawn_rate'))
+                except Exception:
+                    pass
+            if form.get('perf_duration'):
+                try:
+                    perf_cfg['duration'] = int(form.get('perf_duration'))
+                except Exception:
+                    pass
+            if form.get('perf_type'):
+                perf_cfg['test_type'] = form.get('perf_type')
+            if perf_cfg:
+                options['performance_config'] = perf_cfg
+            # Dynamic options
+            dyn_opts = {}
+            if form.get('dynamic_scan_type'):
+                dyn_opts['scan_type'] = form.get('dynamic_scan_type')
+            if form.get('dynamic_target_url'):
+                dyn_opts['target_url'] = form.get('dynamic_target_url')
+            if dyn_opts:
+                options['dynamic_options'] = dyn_opts
+            # AI types
+            ai_types = form.getlist('ai_types')
+            if ai_types:
+                options['ai_types'] = ai_types
 
         # Validation
         if not analysis_types:
@@ -858,6 +939,17 @@ def dynamic_analysis_results_view(analysis_id: int):
         flash(f'Error loading dynamic analysis results: {str(e)}', 'error')
         return redirect(url_for('analysis.analysis_hub'))
 
+@analysis_bp.route('/security/<int:analysis_id>')
+def security_analysis_short_redirect(analysis_id: int):
+    """Short URL to view security results; redirects to the canonical results view."""
+    try:
+        from flask import redirect, url_for
+        return redirect(url_for('analysis.security_analysis_results_view', analysis_id=analysis_id))
+    except Exception:
+        # Fallback to hub if url_for fails for any reason
+        from flask import redirect, url_for
+        return redirect(url_for('analysis.analysis_hub'))
+
 
 @analysis_bp.route('/security/<int:analysis_id>/results/view')
 def security_analysis_results_view(analysis_id):
@@ -1037,6 +1129,84 @@ def security_analysis_results_view(analysis_id):
         from flask import flash, redirect, url_for
         flash(f'Error loading results: {str(e)}', 'error')
         return redirect(url_for('analysis.analysis_hub'))
+
+
+@analysis_bp.route('/performance/<int:analysis_id>')
+def performance_test_results_view(analysis_id: int):
+    """HTML view for performance test results."""
+    try:
+        from flask import render_template, flash, redirect, url_for
+        from ..models import PerformanceTest
+
+        test = PerformanceTest.query.get(analysis_id)
+        if not test:
+            flash('Performance test not found', 'error')
+            return redirect(url_for('analysis.analysis_hub'))
+
+        results = test.get_results() if hasattr(test, 'get_results') else {}
+        metadata = test.get_metadata() if hasattr(test, 'get_metadata') else {}
+
+        return render_template(
+            'single_page.html',
+            page_title='Performance Test Results',
+            page_icon='fa-tachometer-alt',
+            page_subtitle=f"Test #{test.id}",
+            main_partial='partials/analysis/performance_complete.html',
+            test=test,
+            results=results,
+            metadata=metadata
+        )
+    except Exception as e:
+        logger.error(f"Error rendering performance test results for {analysis_id}: {e}")
+        from flask import flash, redirect, url_for
+        flash(f'Error loading performance results: {str(e)}', 'error')
+        return redirect(url_for('analysis.analysis_hub'))
+
+
+@analysis_bp.route('/security/<int:analysis_id>/export')
+def export_security_analysis(analysis_id: int):
+    """Export security analysis results as JSON."""
+    try:
+        from flask import jsonify
+        from ..models import SecurityAnalysis
+        analysis = SecurityAnalysis.query.get(analysis_id)
+        if not analysis:
+            return jsonify({'success': False, 'error': 'Security analysis not found'}), 404
+        return jsonify({
+            'success': True,
+            'id': analysis.id,
+            'application_id': analysis.application_id,
+            'status': analysis.status,
+            'results': analysis.get_results(),
+            'metadata': analysis.get_metadata(),
+        })
+    except Exception as e:
+        logger.error(f"Error exporting security analysis {analysis_id}: {e}")
+        from flask import jsonify
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@analysis_bp.route('/performance/<int:analysis_id>/export')
+def export_performance_test(analysis_id: int):
+    """Export performance test results as JSON."""
+    try:
+        from flask import jsonify
+        from ..models import PerformanceTest
+        test = PerformanceTest.query.get(analysis_id)
+        if not test:
+            return jsonify({'success': False, 'error': 'Performance test not found'}), 404
+        return jsonify({
+            'success': True,
+            'id': test.id,
+            'application_id': test.application_id,
+            'status': test.status,
+            'results': test.get_results(),
+            'metadata': test.get_metadata(),
+        })
+    except Exception as e:
+        logger.error(f"Error exporting performance test {analysis_id}: {e}")
+        from flask import jsonify
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @analysis_bp.get('/api/security/<int:analysis_id>/tools-status')
@@ -1232,6 +1402,102 @@ def htmx_recent_table():
     except Exception as e:  # pragma: no cover - defensive
         logger.error(f"HTMX recent table error: {e}")
         return render_template('partials/common/error.html', error='Failed to load recent table'), 500
+
+
+# ============================================================================
+# Server-Sent Events (SSE) stream for gateway activity feed
+# ============================================================================
+@analysis_bp.get('/events/stream')
+def sse_events_stream():
+    """SSE endpoint that bridges WebSocket gateway events to the browser.
+
+    This endpoint connects to the gateway as a subscriber and forwards progress
+    updates as text/event-stream. Optional query params:
+      - correlation_id: filter to a specific analysis
+    """
+    import asyncio
+    import json
+    import threading
+    import queue
+    import websockets
+    import uuid
+    from datetime import datetime
+
+    correlation_id = request.args.get('correlation_id')
+
+    event_queue: "queue.Queue[str]" = queue.Queue(maxsize=1000)
+    stop_flag = '__STOP__'
+
+    async def ws_subscriber():
+        uri = 'ws://localhost:8765'
+        try:
+            async with websockets.connect(uri, ping_interval=20, ping_timeout=10, close_timeout=5) as ws:
+                # Subscribe with replay using raw protocol dict to avoid tight coupling
+                sub = {
+                    'type': 'status_request',
+                    'id': str(uuid.uuid4()),
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'data': {'subscribe': 'events', 'replay': True}
+                }
+                await ws.send(json.dumps(sub))
+                while True:
+                    raw = await ws.recv()
+                    try:
+                        data = json.loads(raw)
+                    except Exception:
+                        continue
+                    # Basic filter by correlation_id when provided
+                    cid = data.get('correlation_id') or ((data.get('data') or {}).get('correlation_id') if isinstance(data.get('data'), dict) else None)
+                    if correlation_id and cid and str(cid) != str(correlation_id):
+                        continue
+                    evt = f"data: {json.dumps(data)}\n\n"
+                    try:
+                        event_queue.put_nowait(evt)
+                    except queue.Full:
+                        # Drop oldest to keep UI responsive
+                        try:
+                            _ = event_queue.get_nowait()
+                        except Exception:
+                            pass
+                        try:
+                            event_queue.put_nowait(evt)
+                        except Exception:
+                            pass
+        except Exception as e:  # pragma: no cover - network errors
+            try:
+                event_queue.put_nowait(f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n")
+            except Exception:
+                pass
+        finally:
+            try:
+                event_queue.put_nowait(stop_flag)  # signal generator to finish
+            except Exception:
+                pass
+
+    # Run the websocket subscriber in a thread with its own loop
+    def start_async_loop(loop):
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(ws_subscriber())
+
+    loop = asyncio.new_event_loop()
+    t = threading.Thread(target=start_async_loop, args=(loop,), daemon=True)
+    t.start()
+
+    def gen():
+        yield 'event: open\ndata: {"status":"listening"}\n\n'
+        while True:
+            item = event_queue.get()
+            if item == stop_flag:
+                break
+            yield item
+
+    headers = {
+        'Cache-Control': 'no-cache',
+        'Content-Type': 'text/event-stream',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+    }
+    return Response(gen(), headers=headers)
 
 
 # ============================================================================

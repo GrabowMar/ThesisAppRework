@@ -24,6 +24,7 @@ import statistics
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 import websockets
+from websockets import connect as ws_connect
 from websockets.asyncio.server import serve
 import aiohttp
 
@@ -78,11 +79,33 @@ class PerformanceTester:
         logger.info("✅ aiohttp available (built-in)")
         
         return tools
+
+    async def _progress(self, stage: str, message: str = "", analysis_id: Optional[str] = None, **kwargs):
+        """Send a PROGRESS_UPDATE to the gateway if configured."""
+        gw = os.getenv('GATEWAY_URL', 'ws://localhost:8765')
+        try:
+            payload = {
+                'type': 'progress_update',
+                'correlation_id': analysis_id or kwargs.get('analysis_id') or '',
+                'stage': stage,
+                'message': message,
+                'service': self.service_name,
+                'data': {
+                    'stage': stage,
+                    'message': message,
+                    **kwargs
+                }
+            }
+            async with ws_connect(gw, open_timeout=1, close_timeout=1, ping_interval=None) as ws:
+                await ws.send(json.dumps(payload))
+        except Exception:
+            pass
     
     async def measure_response_time(self, url: str, num_requests: int = 10) -> Dict[str, Any]:
         """Measure response times using aiohttp."""
         try:
             logger.info(f"Measuring response time for {url} ({num_requests} requests)")
+            await self._progress('measuring', f'Measuring response time: {url}', url=url, requests=num_requests)
             
             response_times = []
             successful_requests = 0
@@ -107,6 +130,8 @@ class PerformanceTester:
                         logger.debug(f"Request {i+1} failed: {e}")
             
             if response_times:
+                await self._progress('measured', f'Response time measured: {url}', url=url,
+                                     avg_ms=statistics.mean(response_times))
                 return {
                     'status': 'success',
                     'url': url,
@@ -125,6 +150,7 @@ class PerformanceTester:
                     'success_rate': (successful_requests / num_requests) * 100
                 }
             else:
+                await self._progress('failed', f'No successful requests: {url}', url=url)
                 return {
                     'status': 'failed',
                     'url': url,
@@ -132,6 +158,7 @@ class PerformanceTester:
                 }
                 
         except Exception as e:
+            await self._progress('error', f'Error measuring response time: {e}', url=url)
             return {'status': 'error', 'error': str(e)}
     
     def _percentile(self, data: List[float], percentile: int) -> float:
@@ -162,6 +189,8 @@ class PerformanceTester:
             timelimit = ab_config.get('timelimit')
             
             logger.info(f"Load testing {url} with ab ({num_requests} requests, {concurrency} concurrent)")
+            await self._progress('ab_start', f'AB load test start: {url}', url=url,
+                                 requests=num_requests, concurrency=concurrency)
             
             # Build Apache Bench command
             cmd = ['ab']
@@ -303,6 +332,8 @@ class PerformanceTester:
                             }
                             break
                 
+                await self._progress('ab_done', f'AB test completed: {url}', url=url,
+                                     rps=metrics.get('requests_per_second', 0.0))
                 return {
                     'status': 'success',
                     'tool': 'apache_bench',
@@ -319,6 +350,7 @@ class PerformanceTester:
                     'config_used': ab_config
                 }
             else:
+                await self._progress('ab_error', f'AB test error: {url}', url=url, exit_code=result.returncode)
                 return {
                     'status': 'error',
                     'tool': 'apache_bench',
@@ -328,14 +360,18 @@ class PerformanceTester:
                 }
                 
         except subprocess.TimeoutExpired:
+            await self._progress('timeout', f'AB test timed out: {url}', url=url)
             return {'status': 'timeout', 'tool': 'apache_bench', 'error': 'Load test timed out'}
         except Exception as e:
+            await self._progress('error', f'AB test error: {e}', url=url)
             return {'status': 'error', 'tool': 'apache_bench', 'error': str(e)}
     
     async def concurrent_load_test(self, url: str, num_requests: int = 50, concurrency: int = 5) -> Dict[str, Any]:
         """Perform concurrent load testing using aiohttp."""
         try:
             logger.info(f"Concurrent load testing {url} ({num_requests} requests, {concurrency} concurrent)")
+            await self._progress('load_start', f'Concurrent load test start: {url}', url=url,
+                                 requests=num_requests, concurrency=concurrency)
             
             semaphore = asyncio.Semaphore(concurrency)
             results = []
@@ -376,6 +412,8 @@ class PerformanceTester:
                 status_codes = [r['status_code'] for r in successful_results]
                 content_lengths = [r['content_length'] for r in successful_results]
                 
+                await self._progress('load_done', f'Concurrent load test completed: {url}', url=url,
+                                     success=len(successful_results), failed=len(failed_results))
                 return {
                     'status': 'success',
                     'tool': 'aiohttp_concurrent',
@@ -400,6 +438,8 @@ class PerformanceTester:
                     }
                 }
             else:
+                await self._progress('failed', f'Load test failed: {url}', url=url,
+                                     failed=len(failed_results))
                 return {
                     'status': 'failed',
                     'url': url,
@@ -408,6 +448,7 @@ class PerformanceTester:
                 }
                 
         except Exception as e:
+            await self._progress('error', f'Concurrent load test error: {e}', url=url)
             return {'status': 'error', 'error': str(e)}
     
     async def test_application_performance(self, model_slug: str, app_number: int, target_urls: List[str], config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -531,6 +572,10 @@ class PerformanceTester:
                     ]
                 
                 logger.info(f"Starting performance test for {model_slug} app {app_number}")
+                analysis_id = message_data.get('id')
+                await self._progress('starting', f'Starting performance test {model_slug} app {app_number}',
+                                     analysis_id=analysis_id, model_slug=model_slug, app_number=app_number,
+                                     targets=len(target_urls))
                 if config:
                     logger.info(f"Using custom configuration: {list(config.keys())}")
                 
@@ -545,6 +590,8 @@ class PerformanceTester:
                 }
                 
                 await websocket.send(json.dumps(response))
+                await self._progress('completed', f'Performance test completed {model_slug} app {app_number}',
+                                     analysis_id=analysis_id)
                 logger.info(f"Performance test completed for {model_slug} app {app_number}")
                 
             else:

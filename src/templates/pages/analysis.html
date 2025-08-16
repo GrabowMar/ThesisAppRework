@@ -1,9 +1,19 @@
-{# Research-Oriented Analysis Hub - Compact PC Layout #}
+{# Task-centric Analysis Center #}
 {% extends 'single_page.html' %}
-{% block title %}Analysis Research Hub | AI Research Platform{% endblock %}
+{% block title %}Analysis Task Center | AI Research Platform{% endblock %}
 
 {% block head %}
 <link href="{{ url_for('static', filename='css/research-theme.css') }}" rel="stylesheet">
+<style>
+  .task-center .card { border-radius: .6rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .task-center .card-header { font-weight: 600; background: var(--bs-body-bg); }
+  .stats-inline .stat-item { margin-left: 1rem; }
+  .list-tight li { padding: .45rem .75rem; }
+  .kbd { padding: 0 .35rem; background:#2b2f33; border-radius:.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  .toolbar-gap { gap: .5rem; }
+  .badge-dot { width:.5rem; height:.5rem; border-radius:50%; display:inline-block; margin-right:.4rem; }
+  .muted-label { color: var(--bs-secondary-color); }
+</style>
 {% endblock %}
 
 {% block page_title %}
@@ -11,401 +21,239 @@
   <div class="container-fluid">
     <div class="row align-items-center py-2">
       <div class="col-md-6">
-        <h4 class="mb-0">Analysis Research Hub</h4>
+        <h4 class="mb-0">Analysis Task Center</h4>
+        <div class="text-muted small">Manage running jobs, review history, and monitor live activity</div>
       </div>
       <div class="col-md-6 text-md-end">
-        {# Safely derive stats with sane defaults when not provided by the route #}
         {% set _total_security = (stats.get('total_security', 0) if stats is defined else 0) %}
         {% set _total_performance = (stats.get('total_performance', 0) if stats is defined else 0) %}
         {% set _running_analyses_count = (stats.get('running_analyses', 0) if stats is defined else 0) %}
         {% set _total_models = (stats.get('total_models', 0) if stats is defined else 0) %}
-        <div class="d-inline-flex gap-3 text-sm">
-          <span><strong>{{ _total_security }}</strong> Security</span>
-          <span><strong>{{ _total_performance }}</strong> Performance</span>
-          <span><strong>{{ _running_analyses_count }}</strong> Running</span>
-          <span><strong>{{ _total_models }}</strong> Models</span>
+        <div class="stats-inline">
+          <span class="stat-item"><strong>{{ _total_security }}</strong> <span class="text-muted">Security</span></span>
+          <span class="stat-item"><strong>{{ _total_performance }}</strong> <span class="text-muted">Performance</span></span>
+          <span class="stat-item"><strong>{{ _running_analyses_count }}</strong> <span class="text-muted">Running</span></span>
+          <span class="stat-item"><strong>{{ _total_models }}</strong> <span class="text-muted">Models</span></span>
         </div>
       </div>
     </div>
   </div>
-</div>
+  </div>
 {% endblock %}
 
 {% block content %}
-<style>
-/* Compact Research Interface Styles */
-.research-container { padding: 8px 16px; }
-.table-research { font-size: 0.85rem; }
-.table-research th { 
-  font-weight: 600; 
-  background: #f8f9fa; 
-  border-top: 0; 
-  padding: 8px 12px; 
-}
-.table-research td { 
-  padding: 6px 12px; 
-  vertical-align: middle; 
-}
-.analysis-id { 
-  font-family: 'Courier New', monospace; 
-  font-size: 0.8rem; 
-  color: #495057; 
-}
-.model-cell { font-weight: 500; max-width: 200px; }
-.status-compact {
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 12px;
-}
-.toolbar-research {
-  background: #fff;
-  border-bottom: 1px solid #dee2e6;
-  padding: 6px 0;
-}
-.btn-research {
-  font-size: 0.8rem;
-  padding: 4px 12px;
-}
-.nav-research .nav-link {
-  font-size: 0.9rem;
-  padding: 8px 16px;
-}
-.card-research {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  margin-bottom: 16px;
-}
-.card-research .card-header {
-  background: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-.utility-badge {
-  font-size: 0.7rem;
-  padding: 1px 6px;
-}
-.time-cell { color: #6c757d; font-size: 0.8rem; }
-.duration-cell { font-family: 'Courier New', monospace; font-size: 0.8rem; }
-</style>
+<div class="app-content task-center">
+  <div class="container-fluid">
 
-<div class="app-content">
-  <div class="container-fluid research-container">
-    
-    <!-- Research Navigation Tabs -->
-    <ul class="nav nav-tabs nav-research bg-white" role="tablist">
-      <li class="nav-item">
-        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#recent-tab">
-          <i class="bi bi-table me-1"></i>Recent Analyses
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#security-tab">
-          <i class="bi bi-shield-check me-1"></i>Security Results
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#performance-tab">
-          <i class="bi bi-speedometer me-1"></i>Performance Data
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#models-tab">
-          <i class="bi bi-cpu me-1"></i>Model Performance
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tools-tab">
-          <i class="bi bi-tools me-1"></i>Tool Status
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#system-tab">
-          <i class="bi bi-server me-1"></i>System Monitor
-        </button>
-      </li>
-    </ul>
+    <!-- Dashboard stats -->
+    {% include 'partials/analysis/stats_cards.html' %}
 
-    <!-- Tab Content -->
-    <div class="tab-content">
-      
-      <!-- Recent Analyses Tab -->
-      <div class="tab-pane fade show active" id="recent-tab">
-        <div class="card card-research">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span>Combined Analysis Results (Last 50)</span>
-            <div>
-        <button class="btn btn-outline-primary btn-research me-2" 
-          hx-get="/analysis/api/recent/table" 
-          hx-target="#recent-tbody" 
-          hx-swap="innerHTML">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
-              </button>
-              <a href="/analysis/create/security" class="btn btn-primary btn-research me-1">
-                <i class="bi bi-shield-plus"></i> Security
-              </a>
-              <a href="/analysis/create/performance" class="btn btn-success btn-research">
-                <i class="bi bi-speedometer"></i> Performance
-              </a>
-            </div>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-research table-hover mb-0" id="recent-table">
-              <thead>
-                <tr>
-                  <th width="70">ID</th>
-                  <th width="90">Type</th>
-                  <th width="110">Status</th>
-                  <th>Model</th>
-                  <th width="60">App</th>
-                  <th width="110">Created</th>
-                  <th width="90">Duration</th>
-                  <th width="120">Results</th>
-                  <th width="70">Action</th>
-                </tr>
-              </thead>
-              <tbody id="recent-tbody"
-                     hx-get="/analysis/api/recent/table"
-                     hx-trigger="load, every 30s, refresh"
-                     hx-swap="innerHTML">
-                <tr>
-                  <td colspan="9" class="text-center text-muted py-3">Loading…</td>
-                </tr>
-              </tbody>
-            </table>
+    <div class="row g-3">
+    <!-- Left column: Active tasks (delegates to partial card) -->
+  <div class="col-lg-8">
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <div class="fw-semibold muted-label">Tasks</div>
+          <div>
+            <button class="btn btn-secondary btn-sm" type="button"
+                    hx-get="/analysis/batch_test_form"
+                    hx-target="#analysis-modal-body"
+                    hx-swap="innerHTML"
+                    data-open-analysis-modal>
+              <i class="bi bi-collection me-1"></i> New Batch Task
+            </button>
           </div>
         </div>
+  {# Include the self-refreshing Active Tasks card. The partial has its own hx-get/hx-trigger. #}
+  {% include 'partials/analysis/list/active_tasks.html' %}
       </div>
 
-      <!-- Security Results Tab -->
-      <div class="tab-pane fade" id="security-tab">
-        <div class="card card-research">
-          <div class="card-header">Security Analysis Results</div>
-          <div class="card-body">
-            <div class="text-center text-muted py-4">
-              <i class="bi bi-shield-check display-4 mb-3 opacity-25"></i>
-              <h6>Security Analysis Results</h6>
-              <p class="small">Security analysis results and detailed findings will appear here.</p>
-              <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                <a href="/analysis/create/security" class="btn btn-primary btn-sm">
-                  <i class="bi bi-shield-plus me-1"></i>Run Security Scan
-                </a>
-                <a href="/analysis/security" class="btn btn-outline-secondary btn-sm">
-                  <i class="bi bi-list me-1"></i>View All Security Results
-                </a>
-              </div>
+      <!-- Right column: Live activity + Filters -->
+  <div class="col-lg-4">
+        <div class="card card-research h-100">
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <span>Live Activity</span>
+            <div class="small text-muted" id="activity-status">connecting…</div>
+          </div>
+          <div class="card-body p-0 d-flex flex-column" style="max-height: 420px;">
+    <div class="p-2 border-bottom d-flex align-items-center toolbar-gap">
+              <input type="text" class="form-control form-control-sm" style="max-width: 260px;" id="activity-correlation" placeholder="Filter by correlation_id (optional)"/>
+              <button class="btn btn-outline-secondary btn-sm" id="activity-apply">Apply</button>
+      <button class="btn btn-outline-secondary btn-sm" id="activity-pause" aria-pressed="false">Pause</button>
+      <button class="btn btn-outline-secondary btn-sm" id="activity-clear">Clear</button>
+              <span class="ms-auto small text-muted">Tip: paste task <span class="kbd">correlation_id</span></span>
+            </div>
+            <div class="flex-grow-1 overflow-auto" id="activity-scroll">
+              <ul class="list-group list-group-flush small list-tight" id="activity-feed">
+                <li class="list-group-item text-muted">Waiting for events…</li>
+              </ul>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- Performance Data Tab -->
-      <div class="tab-pane fade" id="performance-tab">
-        <div class="card card-research">
-          <div class="card-header">Performance Test Results</div>
-          <div class="card-body">
-            <div class="text-center text-muted py-4">
-              <i class="bi bi-speedometer2 display-4 mb-3 opacity-25"></i>
-              <h6>Performance Test Data</h6>
-              <p class="small">Performance test results and metrics will appear here.</p>
-              <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                <a href="/analysis/create/performance" class="btn btn-success btn-sm">
-                  <i class="bi bi-speedometer me-1"></i>Run Performance Test
-                </a>
-                <a href="/analysis/performance" class="btn btn-outline-secondary btn-sm">
-                  <i class="bi bi-list me-1"></i>View All Performance Results
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Model Performance Tab -->
-      <div class="tab-pane fade" id="models-tab">
-        <div class="row">
-          <div class="col-md-8">
-            <div class="card card-research">
-              <div class="card-header">Model Performance Statistics</div>
-              <div class="card-body">
-                {% if performance_rows is defined and performance_rows %}
-                  {% include "partials/statistics/model_performance.html" %}
-                {% else %}
-                  <div class="text-center text-muted py-3">
-                    <i class="bi bi-cpu opacity-25 display-6 d-block mb-2"></i>
-                    <div class="small">No model performance data yet.</div>
-                    <div class="small">Run analyses and check back to compare model stats.</div>
-                  </div>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card card-research">
-              <div class="card-header">Analysis Trends</div>
-              <div class="card-body">
-                {% if trends is defined %}
-                  {% include "partials/analysis/trends.html" %}
-                {% else %}
-                  <div class="text-center text-muted py-3">
-                    <i class="bi bi-graph-up opacity-25 display-6 d-block mb-2"></i>
-                    <div class="small">No trend data available.</div>
-                    <div class="small">Run more analyses to populate weekly trends.</div>
-                  </div>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tool Status Tab -->
-      <div class="tab-pane fade" id="tools-tab">
-        <div class="row">
-          <div class="col-md-6">
-            <div class="card card-research">
-              <div class="card-header">Security Tools Status</div>
-              <div class="card-body">
-                <div class="text-center text-muted py-4">
-                  <i class="bi bi-tools display-4 mb-3 opacity-25"></i>
-                  <h6>Tool Status Monitor</h6>
-                  <p class="small">Security analysis tools status will appear here when an analysis is running.</p>
-                  <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                    <a href="/analysis/create/security" class="btn btn-primary btn-sm">
-                      <i class="bi bi-shield-check me-1"></i>Start Security Analysis
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="card card-research">
-              <div class="card-header">Container Status</div>
-              <div class="card-body">
-                {% include "partials/common/container_status.html" %}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- System Monitor Tab -->
-      <div class="tab-pane fade" id="system-tab">
-        <div class="row">
-          <div class="col-md-6">
-            <div class="card card-research">
-              <div class="card-header">System Status</div>
-              <div class="card-body">
-                <div class="text-center text-muted py-4">
-                  <i class="bi bi-server display-4 mb-3 opacity-25"></i>
-                  <h6>System Status Monitor</h6>
-                  <p class="small">Real-time system health and resource monitoring will appear here.</p>
-                  <div class="row text-center mt-3">
-                    <div class="col-4">
-                      <div class="text-success">
-                        <i class="bi bi-check-circle fs-4"></i>
-                        <div class="small mt-1">Services</div>
-                      </div>
-                    </div>
-                    <div class="col-4">
-                      <div class="text-info">
-                        <i class="bi bi-cpu fs-4"></i>
-                        <div class="small mt-1">CPU</div>
-                      </div>
-                    </div>
-                    <div class="col-4">
-                      <div class="text-warning">
-                        <i class="bi bi-memory fs-4"></i>
-                        <div class="small mt-1">Memory</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="card card-research">
-              <div class="card-header">Active Tasks</div>
-              <div class="card-body">
-                <div class="text-center text-muted py-4">
-                  <i class="bi bi-list-task display-4 mb-3 opacity-25"></i>
-                  <h6>Background Tasks</h6>
-                  <p class="small">Active analysis tasks and job queue status will appear here.</p>
-                  <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                    <a href="/analysis/queue" class="btn btn-outline-primary btn-sm">
-                      <i class="bi bi-list-ul me-1"></i>View Queue
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div>
+
+    <!-- Task history (delegates to partial card) -->
+    <div id="task-history"
+         class="mt-3"
+         hx-get="/analysis/api/list/task-history"
+         hx-trigger="load, every 30s"
+         hx-swap="outerHTML">
+      <div class="card"><div class="card-body p-3 text-muted">Loading task history…</div></div>
+    </div>
+
+    <!-- Modal for Create forms -->
+    <div class="modal fade" id="analysisModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Start New Analysis</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="analysis-modal-body">
+            <div class="text-muted">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
-<!-- Research Helper Scripts -->
+<!-- Live Activity SSE Script (compact) -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Auto-refresh for running analyses
-  const hasRunning = {{ ((stats is defined) and (stats.get('running_analyses', 0) > 0)) | tojson }};
-  if (hasRunning) {
-    setInterval(function() {
-      const activeTab = document.querySelector('.nav-research .nav-link.active');
-      if (activeTab && activeTab.textContent.includes('Recent')) {
-        const tbody = document.getElementById('recent-tbody');
-        if (tbody && window.htmx && typeof htmx.trigger === 'function') {
-          htmx.trigger(tbody, 'refresh');
+  document.addEventListener('DOMContentLoaded', function() {
+    try {
+      // Modal orchestration
+      const modalEl = document.getElementById('analysisModal');
+      let bsModal = null;
+      const ensureModal = () => {
+        if (!modalEl) return null;
+        if (!bsModal) bsModal = bootstrap && bootstrap.Modal ? new bootstrap.Modal(modalEl) : null;
+        return bsModal;
+      };
+      document.addEventListener('click', (e) => {
+        const opener = e.target.closest('[data-open-analysis-modal]');
+        if (opener) {
+          const m = ensureModal();
+          if (m) m.show();
         }
-      }
-    }, 15000); // More frequent for research
-  }
-  
-  // Table sorting functionality
-  function sortTable(table, column, asc = true) {
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    
-    rows.sort((a, b) => {
-      const aVal = a.cells[column].textContent.trim();
-      const bVal = b.cells[column].textContent.trim();
-      
-      if (asc) {
-        return aVal > bVal ? 1 : -1;
-      } else {
-        return aVal < bVal ? 1 : -1;
-      }
-    });
-    
-    tbody.append(...rows);
-  }
-  
-  // Add click handlers for sortable headers
-  document.querySelectorAll('.table-research th').forEach((th, index) => {
-    th.style.cursor = 'pointer';
-    th.title = 'Click to sort';
-    th.addEventListener('click', function() {
-      const table = this.closest('table');
-      const currentSort = this.dataset.sort || 'asc';
-      const newSort = currentSort === 'asc' ? 'desc' : 'asc';
-      this.dataset.sort = newSort;
-      
-      // Clear other sort indicators
-      table.querySelectorAll('th').forEach(header => {
-        if (header !== this) delete header.dataset.sort;
       });
-      
-      sortTable(table, index, newSort === 'asc');
-      
-      // Visual indicator
-      this.innerHTML = this.innerHTML.replace(/[↑↓]/g, '') + (newSort === 'asc' ? ' ↑' : ' ↓');
-    });
+      document.body.addEventListener('htmx:afterSwap', (e) => {
+        const tgt = e.target || e.detail && e.detail.elt;
+        if (tgt && tgt.id === 'analysis-modal-body') {
+          const m = ensureModal();
+          if (m) m.show();
+        }
+      });
+
+      const feed = document.getElementById('activity-feed');
+      const status = document.getElementById('activity-status');
+      const scroller = document.getElementById('activity-scroll');
+      const input = document.getElementById('activity-correlation');
+      const apply = document.getElementById('activity-apply');
+      const pauseBtn = document.getElementById('activity-pause');
+      const clearBtn = document.getElementById('activity-clear');
+
+      let es = null;
+      let reconnectDelay = 1000; // backoff up to 30s
+      let currentCid = '';
+      let paused = false;
+
+      const startStream = () => {
+        if (!feed || typeof EventSource === 'undefined') {
+          if (status) status.textContent = 'SSE not supported';
+          return;
+        }
+        if (es) { try { es.close(); } catch (e) {} es = null; }
+        if (paused) { if (status) status.textContent = 'paused'; return; }
+        const url = currentCid ? `/analysis/events/stream?correlation_id=${encodeURIComponent(currentCid)}` : '/analysis/events/stream';
+        es = new EventSource(url);
+        if (status) status.textContent = 'connecting…';
+        es.addEventListener('open', () => { if (status) status.textContent = 'live'; reconnectDelay = 1000; });
+        es.addEventListener('error', () => {
+          if (status) status.textContent = 'disconnected';
+          try { es.close(); } catch (e) {}
+          es = null;
+          setTimeout(startStream, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+        });
+        es.onmessage = (evt) => {
+          try {
+            const data = JSON.parse(evt.data);
+            const corr = data.correlation_id || (data.data && data.data.correlation_id) || '';
+            const d = data.data || data;
+            const stage = d.stage || (d.details && d.details.stage) || 'event';
+            const msg = d.message || (d.details && d.details.message) || (data.message || '');
+            const service = (d.service || data.service || '').toString();
+            const ts = (data.timestamp || new Date().toISOString()).replace('T',' ').replace('Z','');
+
+            if (feed.firstElementChild && feed.firstElementChild.classList.contains('text-muted')) {
+              feed.innerHTML = '';
+            }
+
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.dataset.correlationId = corr;
+            const stageClass = {
+              'subscriber_added': 'bg-secondary',
+              'received': 'bg-info',
+              'progress_update': 'bg-primary',
+              'status_update': 'bg-warning text-dark',
+              'event': 'bg-secondary'
+            }[stage] || 'bg-secondary';
+            li.innerHTML = `<span><span class=\"badge ${stageClass} me-2\">${stage}</span>${msg || ''}</span>` +
+                           `<span class=\"text-muted\">${service || ''} <span class=\"ms-2\">${ts}</span></span>`;
+            if (currentCid && corr !== currentCid) li.classList.add('d-none');
+            feed.appendChild(li);
+            scroller.scrollTop = scroller.scrollHeight;
+            while (feed.children.length > 200) feed.removeChild(feed.firstChild);
+          } catch (e) { /* ignore */ }
+        };
+      };
+
+      const applyFilter = () => {
+        currentCid = (input && input.value || '').trim();
+        if (feed) {
+          Array.from(feed.children).forEach((li) => {
+            if (!currentCid) { li.classList.remove('d-none'); return; }
+            const cid = li.dataset.correlationId || '';
+            li.classList.toggle('d-none', cid !== currentCid);
+          });
+        }
+        startStream();
+      };
+
+      if (apply && input) {
+        apply.addEventListener('click', applyFilter);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyFilter(); });
+      }
+
+      if (pauseBtn) {
+        pauseBtn.addEventListener('click', () => {
+          paused = !paused;
+          pauseBtn.setAttribute('aria-pressed', String(paused));
+          pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+          startStream();
+        });
+      }
+
+      if (clearBtn && feed) {
+        clearBtn.addEventListener('click', () => {
+          feed.innerHTML = '<li class="list-group-item text-muted">Waiting for events…</li>';
+        });
+      }
+
+      // Delegate: copy-to-filter buttons
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-copy-to-filter]');
+        if (!btn) return;
+        const cid = btn.getAttribute('data-correlation-id') || '';
+        if (input) input.value = cid;
+        applyFilter();
+      });
+
+      startStream();
+    } catch (e) { /* non-fatal */ }
   });
-});
 </script>
 {% endblock %}

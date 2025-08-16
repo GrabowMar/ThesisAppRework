@@ -37,6 +37,12 @@
   background-color: #f8f9fa;
 }
 
+/* Zebra striping */
+.table-research.table-striped > tbody > tr:nth-of-type(odd) > * {
+  --bs-table-accent-bg: rgba(0, 0, 0, 0.015);
+  color: inherit;
+}
+
 /* Analysis ID Styling */
 .analysis-id {
   font-family: 'Courier New', 'Monaco', monospace;
@@ -111,6 +117,7 @@
   color: #0d6efd;
   background: #fff;
   border-bottom-color: #0d6efd;
+  box-shadow: inset 0 -2px 0 #0d6efd;
 }
 
 /* Compact Cards */
@@ -118,10 +125,11 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   margin-bottom: 16px;
   border: 1px solid #e9ecef;
+  border-radius: 8px;
 }
 
 .card-research .card-header {
-  background: #f8f9fa;
+  background: linear-gradient(180deg, #fbfcfd 0%, #f8f9fa 100%);
   border-bottom: 1px solid #dee2e6;
   padding: 8px 16px;
   font-size: 0.9rem;
@@ -146,6 +154,7 @@
   padding: 4px 12px;
   font-weight: 500;
   border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.08);
 }
 
 .btn-xs {
@@ -251,6 +260,41 @@
   background: #fafbfc;
   border: 1px dashed #dee2e6;
   border-radius: 6px;
+}
+
+/* Dark mode adjustments */
+[data-bs-theme="dark"] .card-research {
+  border-color: #343a40;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+[data-bs-theme="dark"] .card-research .card-header {
+  background: linear-gradient(180deg, #222 0%, #2a2a2a 100%);
+  color: #e9ecef;
+  border-bottom-color: #343a40;
+}
+[data-bs-theme="dark"] .table-research th {
+  background: #2a2a2a;
+  color: #e9ecef;
+}
+[data-bs-theme="dark"] .table-research tbody tr:hover {
+  background: #1f1f1f;
+}
+[data-bs-theme="dark"] .nav-research {
+  background: #1f1f1f;
+  border-bottom-color: #343a40;
+}
+[data-bs-theme="dark"] .nav-research .nav-link {
+  color: #ced4da;
+}
+[data-bs-theme="dark"] .nav-research .nav-link.active {
+  color: #66b2ff;
+  background: #1f1f1f;
+  box-shadow: inset 0 -2px 0 #66b2ff;
+}
+[data-bs-theme="dark"] .research-empty {
+  background: #1f1f1f;
+  border-color: #343a40;
+  color: #adb5bd;
 }
 
 /* Sort Indicators */

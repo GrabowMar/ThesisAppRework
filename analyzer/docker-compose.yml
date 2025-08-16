@@ -2,6 +2,40 @@
 # Uses 2025 best practices: no version field, health checks, non-root users
 
 services:
+  # WebSocket Gateway
+  gateway:
+    build: .
+    ports:
+      - "8765:8765"
+    environment:
+      - GATEWAY_HOST=0.0.0.0
+      - GATEWAY_PORT=8765
+      - STATIC_ANALYZER_URL=ws://static-analyzer:2001
+      - PERF_TESTER_URL=ws://performance-tester:2003
+      - AI_ANALYZER_URL=ws://ai-analyzer:2004
+      - PYTHONPATH=/app
+    depends_on:
+      - static-analyzer
+      - performance-tester
+      - ai-analyzer
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio, websockets; asyncio.run(websockets.connect('ws://localhost:8765')).__aenter__()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
   # Static Security & Quality Analyzer
   static-analyzer:
     build: ./services/static-analyzer

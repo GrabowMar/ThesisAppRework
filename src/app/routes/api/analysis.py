@@ -49,6 +49,87 @@ def _map_service_error(exc: Exception):  # returns Flask response tuple
     return json_error(str(exc), status=status, error_type=exc.__class__.__name__)
 
 
+# ---------------------------------------------------------------------------
+# Task Management Endpoints (status, history, cancel)
+# ---------------------------------------------------------------------------
+
+@api_bp.route('/tasks/status')
+def api_tasks_status():
+    """Return current active tasks from TaskManager."""
+    try:
+        from ...services.task_manager import TaskManager
+        tm = TaskManager()
+        active = tm.get_active_tasks()
+        # Normalize for JSON
+        def _ser(v):
+            if isinstance(v, dict):
+                out = {}
+                for k, val in v.items():
+                    try:
+                        out[k] = val.isoformat() if hasattr(val, 'isoformat') else val
+                    except Exception:
+                        out[k] = str(val)
+                return out
+            return v
+        response = {tid: {k: _ser(v) for k, v in info.items()} for tid, info in active.items()}
+        return jsonify(response)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error getting active tasks: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/tasks/history')
+def api_tasks_history():
+    """Return recent task history from TaskManager."""
+    try:
+        from ...services.task_manager import TaskManager
+        tm = TaskManager()
+        hist = tm.get_task_history(limit=100)
+        def _ser(v):
+            if isinstance(v, dict):
+                out = {}
+                for k, val in v.items():
+                    try:
+                        out[k] = val.isoformat() if hasattr(val, 'isoformat') else val
+                    except Exception:
+                        out[k] = str(val)
+                return out
+            return v
+        response = {tid: {k: _ser(v) for k, v in info.items()} for tid, info in hist.items()}
+        return jsonify(response)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error getting task history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/tasks/<task_id>/cancel', methods=['POST'])
+def api_tasks_cancel(task_id):
+    """Cancel a running task by id."""
+    try:
+        from ...services.task_manager import TaskManager
+        tm = TaskManager()
+        ok = tm.cancel_task(task_id)
+        return jsonify({'success': bool(ok)})
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error cancelling task {task_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/tasks/cleanup', methods=['POST'])
+def api_tasks_cleanup():
+    """Cleanup historical tasks older than N days (default 7)."""
+    try:
+        from ...services.task_manager import TaskManager
+        tm = TaskManager()
+        from flask import request
+        days = request.args.get('days', type=int) or 7
+        removed = tm.cleanup_old_tasks(days=days)
+        return jsonify({'success': True, 'removed': removed, 'days': days})
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Error cleaning up tasks: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @api_bp.route('/analysis/model/<model_slug>/security', methods=['POST'])
 @handle_exceptions(logger_override=logger)
 def api_model_security_batch(model_slug):

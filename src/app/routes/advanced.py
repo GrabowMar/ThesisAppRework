@@ -16,6 +16,7 @@ from ..models import (
     PerformanceTest, ZAPAnalysis, PortConfiguration
 )
 from ..extensions import db
+from ..services.service_locator import ServiceLocator
 
 # Create blueprint
 advanced = Blueprint('advanced', __name__, url_prefix='/advanced')
@@ -226,7 +227,11 @@ def api_bulk_container_action():
             'errors': []
         }
 
-        docker_client = docker.from_env()
+        # Use centralized DockerManager to avoid DOCKER_HOST pipe issues
+        dm = ServiceLocator.get_docker_manager()
+        docker_client = getattr(dm, 'client', None)
+        if docker_client is None:
+            return jsonify({'error': 'Docker client unavailable'}), 503
 
         for app_id in app_ids:
             try:
@@ -507,8 +512,11 @@ def api_model_details(model_id):
 def get_container_status(app):
     """Get current container status for an application."""
     try:
-        import docker
-        docker_client = docker.from_env()
+        # Use centralized DockerManager client
+        dm = ServiceLocator.get_docker_manager()
+        docker_client = getattr(dm, 'client', None)
+        if docker_client is None:
+            return 'unknown'
         container_name = f"{app.model_slug}_app{app.app_number}"
         
         containers = docker_client.containers.list(
