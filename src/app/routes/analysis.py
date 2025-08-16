@@ -64,7 +64,21 @@ def analysis_hub():
     with HTMX-driven sections for stats, trends and recent activity.
     """
     try:
-        return render_template('pages/analysis.html')
+        stats = {}
+        try:
+            from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis, ModelCapability
+            stats = {
+                'total_security': SecurityAnalysis.query.count(),
+                'total_performance': PerformanceTest.query.count(),
+                'total_zap': ZAPAnalysis.query.count(),
+                'total_ai': OpenRouterAnalysis.query.count(),
+                'total_models': ModelCapability.query.count(),
+                # Running analyses optional; kept conservative to avoid heavy scans
+                'running_analyses': 0,
+            }
+        except Exception:
+            stats = {}
+        return render_template('pages/analysis.html', stats=stats)
     except Exception as e:  # pragma: no cover - defensive catch
         logger.error(f"Error loading analysis page: {e}")
         return render_template(
@@ -1197,6 +1211,27 @@ def htmx_recent_combined():
     except Exception as e:  # pragma: no cover - defensive
         logger.error(f"HTMX recent combined error: {e}")
         return render_template('partials/common/error.html', error='Failed to load recent activity'), 500
+
+
+# New: table rows endpoint used by the Research Hub table
+@analysis_bp.get('/api/recent/table')
+@rate_limited(2.5)
+def htmx_recent_table():
+    """Return only the <tr> rows for the combined recent analyses table.
+
+    Enables safe initial render with HTMX and lightweight periodic refreshes.
+    """
+    try:
+        from ..models import SecurityAnalysis, PerformanceTest
+        from sqlalchemy import desc
+        security_items = SecurityAnalysis.query.order_by(desc(SecurityAnalysis.created_at)).limit(50).all()
+        performance_items = PerformanceTest.query.order_by(desc(PerformanceTest.created_at)).limit(50).all()
+        return render_template('partials/analysis/recent_table_rows.html',
+                               recent_security=security_items,
+                               recent_performance=performance_items)
+    except Exception as e:  # pragma: no cover - defensive
+        logger.error(f"HTMX recent table error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load recent table'), 500
 
 
 # ============================================================================

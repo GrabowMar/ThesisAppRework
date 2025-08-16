@@ -1,50 +1,129 @@
-{# AdminLTE (dist) integration note #}
-{% from 'partials/common/_module_wrapper.html' import module_card %}
-
-{% call module_card(title='Analysis Hub', subtitle='Unified security & performance overview', classes='module-hub-overview') %}
-<div class="row mb-3 align-items-center">
-  <div class="col-md-8">
-    <h1 class="h3 mb-0">
-      <i class="fas fa-chart-pie text-primary me-2"></i> Analysis Hub
-    </h1>
-    <p class="text-muted mb-0 small">Unified security & performance analysis overview</p>
-  </div>
-  <div class="col-md-4 text-md-end mt-2 mt-md-0">
-    <div class="btn-group" role="group" aria-label="Quick actions">
-      <a href="/analysis/create/security" class="btn btn-sm btn-primary"><i class="fas fa-shield-alt me-1"></i> Security</a>
-      <a href="/analysis/create/performance" class="btn btn-sm btn-info"><i class="fas fa-tachometer-alt me-1"></i> Performance</a>
-      <a href="/analysis/create/batch" class="btn btn-sm btn-warning"><i class="fas fa-layer-group me-1"></i> Batch</a>
-      <a href="/analysis/list" class="btn btn-sm btn-outline-secondary"><i class="fas fa-list me-1"></i> List</a>
-      <a href="/analysis/create" class="btn btn-sm btn-outline-success"><i class="fas fa-plus me-1"></i> Create</a>
-    </div>
-  </div>
-</div>
-
-{% include 'partials/analysis/stats_cards.html' %}
-
-<div class="row mb-4">
-  <div class="col-md-6 mb-3 mb-md-0" id="trends-card"
-       hx-get="/analysis/api/trends"
-       hx-trigger="load, every 60s"
-       hx-swap="innerHTML">
+{# AdminLTE (dist) integration note - Compact PC Layout #}
+<!--begin::Stats Row-->
+<div class="row mb-3">
+  <div class="col-12">
     <div class="card">
-      <div class="card-header d-flex align-items-center">
-        <i class="fas fa-chart-line me-2 text-warning"></i>
-        <h6 class="mb-0">Trends</h6>
+      <div class="card-header py-2">
+        <h3 class="card-title mb-0">
+          <i class="bi bi-graph-up text-primary me-2"></i> Analysis Overview
+        </h3>
+        <div class="card-tools">
+          <div class="btn-group btn-group-sm" role="group">
+            <a href="/analysis/create/security" class="btn btn-primary">
+              <i class="bi bi-shield-check me-1"></i> Security
+            </a>
+            <a href="/analysis/create/performance" class="btn btn-info">
+              <i class="bi bi-speedometer2 me-1"></i> Performance
+            </a>
+            <a href="/analysis/create/batch" class="btn btn-warning">
+              <i class="bi bi-layers me-1"></i> Batch
+            </a>
+            <a href="/analysis/list" class="btn btn-outline-secondary">
+              <i class="bi bi-list-ul me-1"></i> List
+            </a>
+          </div>
+        </div>
       </div>
-      <div class="card-body text-muted">Loading trends…</div>
+      <div class="card-body py-2">
+        {% include 'partials/analysis/stats_cards.html' %}
+      </div>
     </div>
   </div>
-  <div class="col-md-6">{% include 'partials/analysis/quick_actions.html' %}</div>
-
 </div>
-<div class="row" id="recentCombined"
+<!--end::Stats Row-->
+
+<!--begin::Content Row-->
+<div class="row g-2">
+  <div class="col-xl-6 col-lg-12 mb-2">
+    <div id="trends-card"
+         hx-get="/analysis/api/trends"
+         hx-trigger="load, every 60s"
+         hx-swap="innerHTML">
+      <div class="card h-100">
+        <div class="card-header py-2">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-graph-up-arrow text-warning me-2"></i>
+            Trends
+          </h6>
+        </div>
+        <div class="card-body text-muted">Loading trends…</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6 col-lg-12 mb-2">
+    <div class="card h-100">
+      <div class="card-header py-2">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-lightning-charge text-success me-2"></i>
+          Quick Actions
+        </h6>
+        <div class="card-tools">
+          <button type="button" class="btn btn-tool btn-sm" data-lte-toggle="card-collapse">
+            <i data-lte-icon="expand" class="bi bi-plus-lg"></i>
+            <i data-lte-icon="collapse" class="bi bi-dash-lg"></i>
+          </button>
+        </div>
+      </div>
+      <div class="card-body py-2">
+        <div class="row g-1">
+          <div class="col-6">
+            <a href="/analysis/create#security" class="btn btn-outline-primary btn-sm w-100 text-start p-2">
+              <i class="bi bi-shield-check me-2"></i>
+              <div class="d-block">
+                <strong>Security</strong>
+                <small class="d-block text-muted">Comprehensive scans</small>
+              </div>
+            </a>
+          </div>
+          <div class="col-6">
+            <a href="/analysis/create#performance" class="btn btn-outline-info btn-sm w-100 text-start p-2">
+              <i class="bi bi-speedometer2 me-2"></i>
+              <div class="d-block">
+                <strong>Performance</strong>
+                <small class="d-block text-muted">Load & speed tests</small>
+              </div>
+            </a>
+          </div>
+          <div class="col-6">
+            <a href="/analysis/create#batch" class="btn btn-outline-warning btn-sm w-100 text-start p-2">
+              <i class="bi bi-layers me-2"></i>
+              <div class="d-block">
+                <strong>Batch Ops</strong>
+                <small class="d-block text-muted">Bulk analyses</small>
+              </div>
+            </a>
+          </div>
+          <div class="col-6">
+            <a href="/analysis/create#dynamic" class="btn btn-outline-secondary btn-sm w-100 text-start p-2">
+              <i class="bi bi-lightning me-2"></i>
+              <div class="d-block">
+                <strong>Dynamic</strong>
+                <small class="d-block text-muted">Runtime analysis</small>
+              </div>
+            </a>
+          </div>
+        </div>
+        <div class="text-center mt-2">
+          <a href="/analysis/create" class="btn btn-success btn-sm me-1">
+            <i class="bi bi-plus-circle me-1"></i> New Analysis
+          </a>
+          <a href="/analysis/list" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-list-ul me-1"></i> View All
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!--end::Content Row-->
+
+<!--begin::Recent Activity Row-->
+<div class="row mt-2" id="recentCombined"
      hx-get="/analysis/api/recent/combined"
      hx-trigger="load, every 60s"
      hx-swap="outerHTML">
   <div class="col-12">
     {% include 'partials/analysis/recent_combined.html' %}
   </div>
-  
 </div>
-{% endcall %}
+<!--end::Recent Activity Row-->

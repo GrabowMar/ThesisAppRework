@@ -1,56 +1,123 @@
 {# AdminLTE (dist) integration note #}
 {% from 'partials/analysis/list/_item_macros.html' import security_item_li, dynamic_item_li, performance_item_li %}
 
+<!--begin::Row-->
 <div class="row g-3">
   <div class="col-12 col-lg-4">
     <div class="card h-100">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-shield-alt me-1"></i> Security</span>
-        <a class="small" href="#" hx-get="/analysis/api/list/security" hx-target="#analyses-list" hx-swap="innerHTML">view more</a>
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="bi bi-shield-check text-primary me-2"></i>
+          Security
+        </h3>
+        <div class="card-tools">
+          <span class="badge text-bg-primary">{{ security|length if security else 0 }}</span>
+          <button type="button" class="btn btn-tool" 
+                  hx-get="/analysis/api/list/security" 
+                  hx-target="#analyses-list" 
+                  hx-swap="innerHTML">
+            <i class="bi bi-arrow-right"></i>
+          </button>
+        </div>
       </div>
       {% if security %}
-        <ul class="list-group list-group-flush">
-          {% for a in security %}
-            {{ security_item_li(a) }}
-          {% endfor %}
-        </ul>
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush">
+            {% for a in security %}
+              {{ security_item_li(a) }}
+            {% endfor %}
+          </ul>
+        </div>
       {% else %}
-        <div class="p-3"><div class="text-muted">No security analyses</div></div>
+        <div class="card-body">
+          <div class="text-center text-muted py-3">
+            <i class="bi bi-shield-x fs-1 opacity-50"></i>
+            <div class="mt-2">No security analyses</div>
+            <a href="/analysis/create/security" class="btn btn-sm btn-primary mt-2">
+              <i class="bi bi-plus"></i> Start Security Scan
+            </a>
+          </div>
+        </div>
       {% endif %}
     </div>
   </div>
+  
   <div class="col-12 col-lg-4">
     <div class="card h-100">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-bolt me-1"></i> Dynamic</span>
-        <a class="small" href="#" hx-get="/analysis/api/list/dynamic" hx-target="#analyses-list" hx-swap="innerHTML">view more</a>
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="bi bi-lightning text-warning me-2"></i>
+          Dynamic
+        </h3>
+        <div class="card-tools">
+          <span class="badge text-bg-warning">{{ dynamic|length if dynamic else 0 }}</span>
+          <button type="button" class="btn btn-tool" 
+                  hx-get="/analysis/api/list/dynamic" 
+                  hx-target="#analyses-list" 
+                  hx-swap="innerHTML">
+            <i class="bi bi-arrow-right"></i>
+          </button>
+        </div>
       </div>
       {% if dynamic %}
-        <ul class="list-group list-group-flush">
-          {% for a in dynamic %}
-            {{ dynamic_item_li(a) }}
-          {% endfor %}
-        </ul>
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush">
+            {% for a in dynamic %}
+              {{ dynamic_item_li(a) }}
+            {% endfor %}
+          </ul>
+        </div>
       {% else %}
-        <div class="p-3"><div class="text-muted">No dynamic analyses</div></div>
+        <div class="card-body">
+          <div class="text-center text-muted py-3">
+            <i class="bi bi-lightning-fill fs-1 opacity-50"></i>
+            <div class="mt-2">No dynamic analyses</div>
+            <a href="/analysis/create/dynamic" class="btn btn-sm btn-warning mt-2">
+              <i class="bi bi-plus"></i> Start Dynamic Test
+            </a>
+          </div>
+        </div>
       {% endif %}
     </div>
   </div>
+  
   <div class="col-12 col-lg-4">
     <div class="card h-100">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-tachometer-alt me-1"></i> Performance</span>
-        <a class="small" href="#" hx-get="/analysis/api/list/performance" hx-target="#analyses-list" hx-swap="innerHTML">view more</a>
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="bi bi-speedometer2 text-info me-2"></i>
+          Performance
+        </h3>
+        <div class="card-tools">
+          <span class="badge text-bg-info">{{ performance|length if performance else 0 }}</span>
+          <button type="button" class="btn btn-tool" 
+                  hx-get="/analysis/api/list/performance" 
+                  hx-target="#analyses-list" 
+                  hx-swap="innerHTML">
+            <i class="bi bi-arrow-right"></i>
+          </button>
+        </div>
       </div>
       {% if performance %}
-        <ul class="list-group list-group-flush">
-          {% for t in performance %}
-            {{ performance_item_li(t) }}
-          {% endfor %}
-        </ul>
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush">
+            {% for t in performance %}
+              {{ performance_item_li(t) }}
+            {% endfor %}
+          </ul>
+        </div>
       {% else %}
-        <div class="p-3"><div class="text-muted">No performance tests</div></div>
+        <div class="card-body">
+          <div class="text-center text-muted py-3">
+            <i class="bi bi-speedometer fs-1 opacity-50"></i>
+            <div class="mt-2">No performance tests</div>
+            <a href="/analysis/create/performance" class="btn btn-sm btn-info mt-2">
+              <i class="bi bi-plus"></i> Start Performance Test
+            </a>
+          </div>
+        </div>
       {% endif %}
     </div>
   </div>
 </div>
+<!--end::Row-->

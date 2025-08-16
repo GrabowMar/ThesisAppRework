@@ -2,26 +2,47 @@
 {% from 'partials/analysis/list/_row_macros.html' import security_row %}
 
 <div class="card">
-  <div class="card-header"><i class="fas fa-shield-alt me-1"></i> Security analyses</div>
-  <div class="table-responsive">
-    <table class="table table-sm align-middle mb-0">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>App</th>
-          <th>Status</th>
-          <th>Total issues</th>
-          <th>Started</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for a in items %}
-          {{ security_row(a) }}
-        {% else %}
-          <tr><td colspan="6" class="text-muted">No items</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="bi bi-shield-check text-primary me-2"></i> Security Analyses
+    </h3>
+    <div class="card-tools">
+      <span class="badge text-bg-primary">{{ items|length }}</span>
+      <button type="button" class="btn btn-tool" data-lte-toggle="card-collapse">
+        <i data-lte-icon="expand" class="bi bi-plus-lg"></i>
+        <i data-lte-icon="collapse" class="bi bi-dash-lg"></i>
+      </button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    {% if items %}
+      <div class="table-responsive">
+        <table class="table table-striped table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>App</th>
+              <th>Status</th>
+              <th>Total Issues</th>
+              <th>Started</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in items %}
+              {{ security_row(a) }}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-center text-muted py-5">
+        <i class="bi bi-shield-x fs-1 opacity-50"></i>
+        <div class="mt-3">No security analyses found</div>
+        <a href="/analysis/create/security" class="btn btn-primary mt-3">
+          <i class="bi bi-plus-circle me-1"></i> Start Security Analysis
+        </a>
+      </div>
+    {% endif %}
   </div>
 </div>

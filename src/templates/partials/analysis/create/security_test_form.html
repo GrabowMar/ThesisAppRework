@@ -1,184 +1,135 @@
 {# AdminLTE (dist) integration note #}
-{% from 'partials/common/_module_wrapper.html' import module_card %}
-
-{% call module_card(title='Security Test Form', classes='module-testing-security-form') %}
-<!-- Enhanced Security Test Form -->
-<div class="card border-0 shadow-sm h-100">
-    <div class="card-header bg-danger text-white border-0">
-        <div class="d-flex align-items-center">
-            <div class="bg-white bg-opacity-25 rounded-circle p-2 me-3">
-                <i class="fas fa-shield-alt text-white"></i>
-            </div>
-            <div>
-                <h6 class="mb-0 text-white">Security Analysis</h6>
-                <small class="text-white-50">Comprehensive security testing</small>
-            </div>
+<!--begin::Security Test Form Card-->
+<div class="card card-outline card-danger">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="bi bi-shield-check text-danger me-2"></i>
+            Security Analysis
+        </h3>
+        <div class="card-tools">
+            <button type="button" class="btn btn-tool" data-lte-toggle="card-collapse">
+                <i data-lte-icon="expand" class="bi bi-plus-lg"></i>
+                <i data-lte-icon="collapse" class="bi bi-dash-lg"></i>
+            </button>
         </div>
     </div>
     
     <div class="card-body">
-      <form id="securityTestForm" hx-boost="false" hx-post="{{ url_for('analysis.start_security_analysis') }}" 
-          hx-target="#security-test-result" hx-indicator="#securityTestSpinner">
-            
+        <div class="mb-3">
+            <div class="text-muted">Comprehensive security testing for your AI-generated applications</div>
+        </div>
+        
+        <form id="securityTestForm" hx-boost="false" hx-post="{{ url_for('analysis.start_security_analysis') }}" 
+            hx-target="#security-test-result" hx-indicator="#securityTestSpinner">
+                
             <!-- Model Selection -->
             <div class="mb-3">
-                <label for="security_model_select" class="form-label fw-medium">
-                    <i class="fas fa-robot me-1 text-primary"></i>AI Model
+                <label for="security_model_select" class="form-label">
+                    <i class="bi bi-robot me-1"></i>AI Model
                 </label>
-    <select class="form-select" id="security_model_select" name="model_slug" required
-        hx-get="{{ url_for('analysis.get_model_apps') }}"
-        hx-target="#security_app_select"
-        hx-trigger="change"
-        hx-include="#security_model_select"
-        hx-swap="outerHTML"
-        hx-indicator="#securityAppsSpinner"
-        hx-on="htmx:config-request: event.detail.parameters.model_slug = this.value; event.detail.parameters.select_id = 'security_app_select'">
-                    <option value="">Choose a model...</option>
-                    {% for model in models %}
-                    <option value="{{ model.canonical_slug }}" 
-                            data-provider="{{ model.provider }}"
-                            data-capabilities="{{ model.capabilities }}">
-                        {{ model.model_name }} ({{ model.provider }})
-                    </option>
-                    {% endfor %}
-                </select>
-                <div class="form-text">
-                    <i class="fas fa-info-circle me-1"></i>
-                    Select the AI model to analyze
-                </div>
+                <select class="form-select" id="security_model_select" name="model_slug" required
+                    hx-get="{{ url_for('analysis.get_model_apps') }}"
+                    hx-target="#security_app_select"
+                    hx-trigger="change"
+                    hx-include="#security_model_select"
+                    hx-swap="outerHTML"
+                    hx-indicator="#securityAppsSpinner"
+                    hx-on="htmx:config-request: event.detail.parameters.model_slug = this.value; event.detail.parameters.select_id = 'security_app_select'">
+                        <option value="">Choose a model...</option>
+                        {% for model in models %}
+                        <option value="{{ model.canonical_slug }}" 
+                                data-provider="{{ model.provider }}"
+                                data-capabilities="{{ model.capabilities }}">
+                            {{ model.model_name }} ({{ model.provider }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Select the AI model to analyze</div>
             </div>
             
             <!-- Application Selection -->
-                        <div class="mb-3 app-select-container" id="security_app_select_container">
-                <label for="security_app_select" class="form-label fw-medium">
-                    <i class="fas fa-code me-1 text-success"></i>Application
+            <div class="mb-3">
+                <label for="security_app_select" class="form-label">
+                    <i class="bi bi-code-slash me-1"></i>Application
                 </label>
-                                                <div class="position-relative">
-                                      <select class="form-select" id="security_app_select" name="app_number" disabled>
-                                            <option value="">Choose a model first...</option>
-                                    </select>
-                                                    <span class="position-absolute end-0 top-50 translate-middle-y me-3 htmx-indicator" id="securityAppsSpinner">
-                                                        <span class="spinner-border spinner-border-sm text-secondary"></span>
-                                    </span>
-                                </div>
-                <div class="form-text">
-                    <i class="fas fa-info-circle me-1"></i>
-                    Select the application to test
+                <div class="position-relative">
+                    <select class="form-select" id="security_app_select" name="app_number" disabled>
+                        <option value="">Choose a model first...</option>
+                    </select>
+                    <span class="position-absolute end-0 top-50 translate-middle-y me-3 htmx-indicator" id="securityAppsSpinner">
+                        <span class="spinner-border spinner-border-sm text-secondary"></span>
+                    </span>
                 </div>
+                <div class="form-text">Select the application to test</div>
             </div>
 
-            
-            
             <!-- Security Tools Configuration -->
             <div class="mb-3">
-                <label class="form-label fw-medium">
-                    <i class="fas fa-tools me-1 text-warning"></i>Security Tools
+                <label class="form-label">
+                    <i class="bi bi-tools me-1"></i>Security Tools
                 </label>
                 
                 <!-- Static Analysis Tools -->
-                <div class="border rounded p-3 mb-2 bg-light">
-                    <h6 class="text-muted mb-2">
-                        <i class="fas fa-search me-1"></i>Static Analysis
-                    </h6>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="bandit_enabled" 
-                                       name="bandit_enabled" value="true" checked>
-                                <label class="form-check-label" for="bandit_enabled">
-                                    <i class="fab fa-python text-primary me-1"></i>Bandit
-                                    <small class="text-muted d-block">Python Security Linter</small>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="pylint_enabled" 
-                                       name="pylint_enabled" value="true" checked>
-                                <label class="form-check-label" for="pylint_enabled">
-                                    <i class="fas fa-code text-success me-1"></i>Pylint
-                                    <small class="text-muted d-block">Code Quality Analysis</small>
-                                </label>
-                            </div>
-                        </div>
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="bi bi-search me-1"></i>Static Analysis
+                        </h6>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="eslint_enabled" 
-                                       name="eslint_enabled" value="true" checked>
-                                <label class="form-check-label" for="eslint_enabled">
-                                    <i class="fab fa-js-square text-warning me-1"></i>ESLint
-                                    <small class="text-muted d-block">JavaScript Linter</small>
-                                </label>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="bandit_enabled" 
+                                           name="bandit_enabled" value="true" checked>
+                                    <label class="form-check-label" for="bandit_enabled">
+                                        <i class="bi bi-shield-check text-primary me-1"></i>Bandit
+                                        <small class="text-muted d-block">Python Security Linter</small>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="sonarjs_enabled" 
-                                       name="sonarjs_enabled" value="true">
-                                <label class="form-check-label" for="sonarjs_enabled">
-                                    <i class="fas fa-bug text-danger me-1"></i>SonarJS
-                                    <small class="text-muted d-block">JavaScript Security</small>
-                                </label>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="pylint_enabled" 
+                                           name="pylint_enabled" value="true" checked>
+                                    <label class="form-check-label" for="pylint_enabled">
+                                        <i class="bi bi-code-square text-success me-1"></i>Pylint
+                                        <small class="text-muted d-block">Code Quality Analysis</small>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Dependency Analysis Tools -->
-                <div class="border rounded p-3 mb-2 bg-light">
-                    <h6 class="text-muted mb-2">
-                        <i class="fas fa-cubes me-1"></i>Dependency Analysis
-                    </h6>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="safety_enabled" 
-                                       name="safety_enabled" value="true" checked>
-                                <label class="form-check-label" for="safety_enabled">
-                                    <i class="fas fa-shield-virus text-info me-1"></i>Safety
-                                    <small class="text-muted d-block">Python Dependencies</small>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="npm_audit_enabled" 
-                                       name="npm_audit_enabled" value="true" checked>
-                                <label class="form-check-label" for="npm_audit_enabled">
-                                    <i class="fab fa-npm text-danger me-1"></i>NPM Audit
-                                    <small class="text-muted d-block">Node.js Dependencies</small>
-                                </label>
-                            </div>
-                        </div>
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="bi bi-boxes me-1"></i>Dependency Analysis
+                        </h6>
                     </div>
-                </div>
-                
-                <!-- Advanced Security Tools -->
-                <div class="border rounded p-3 bg-light">
-                    <h6 class="text-muted mb-2">
-                        <i class="fas fa-user-shield me-1"></i>Advanced Security
-                    </h6>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="snyk_enabled" 
-                                       name="snyk_enabled" value="true">
-                                <label class="form-check-label" for="snyk_enabled">
-                                    <i class="fas fa-eye text-primary me-1"></i>Snyk
-                                    <small class="text-muted d-block">Vulnerability Scanner</small>
-                                </label>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="safety_enabled" 
+                                           name="safety_enabled" value="true" checked>
+                                    <label class="form-check-label" for="safety_enabled">
+                                        <i class="bi bi-shield-fill-check text-info me-1"></i>Safety
+                                        <small class="text-muted d-block">Python Dependencies</small>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="semgrep_enabled" 
-                                       name="semgrep_enabled" value="true">
-                                <label class="form-check-label" for="semgrep_enabled">
-                                    <i class="fas fa-search-plus text-success me-1"></i>Semgrep
-                                    <small class="text-muted d-block">Pattern-based Analysis</small>
-                                </label>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="npm_audit_enabled" 
+                                           name="npm_audit_enabled" value="true" checked>
+                                    <label class="form-check-label" for="npm_audit_enabled">
+                                        <i class="bi bi-npm text-danger me-1"></i>NPM Audit
+                                        <small class="text-muted d-block">Node.js Dependencies</small>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -187,18 +138,14 @@
             
             <!-- Advanced Options -->
             <div class="mb-3">
-                <div class="d-flex align-items-center justify-content-between">
-                    <label class="form-label fw-medium mb-0">
-                        <i class="fas fa-cog me-1 text-secondary"></i>Advanced Options
-                    </label>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" 
-                            data-bs-toggle="collapse" data-bs-target="#securityAdvancedOptions">
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
-                </div>
-                
-                <div class="collapse mt-2" id="securityAdvancedOptions">
-                    <div class="border rounded p-3 bg-light">
+                <div class="card">
+                    <div class="card-header" data-bs-toggle="collapse" data-bs-target="#securityAdvancedOptions" style="cursor: pointer;">
+                        <h6 class="mb-0">
+                            <i class="bi bi-gear me-1"></i>Advanced Options
+                            <i class="bi bi-chevron-down float-end"></i>
+                        </h6>
+                    </div>
+                    <div class="collapse card-body" id="securityAdvancedOptions">
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-check">
@@ -234,18 +181,18 @@
             <div class="d-grid gap-2">
                 <button type="submit" class="btn btn-danger">
                     <span id="securityTestSpinner" class="spinner-border spinner-border-sm me-2 d-none"></span>
-                    <i class="fas fa-shield-alt me-2"></i>Start Security Analysis
+                    <i class="bi bi-shield-check me-2"></i>Start Security Analysis
                 </button>
                 <button type="button" class="btn btn-outline-secondary" onclick="resetSecurityForm()">
-                    <i class="fas fa-undo me-2"></i>Reset Form
+                    <i class="bi bi-arrow-clockwise me-2"></i>Reset Form
                 </button>
             </div>
         </form>
     </div>
     
     <!-- Results Section -->
-    <div class="card-footer bg-light border-0 d-none result-container" id="security-test-result" hx-on="htmx:afterSwap: this.classList.remove('d-none')">
+    <div class="card-footer d-none result-container" id="security-test-result" hx-on="htmx:afterSwap: this.classList.remove('d-none')">
         <!-- Results will be loaded here -->
     </div>
 </div>
-{% endcall %}
+<!--end::Security Test Form Card-->
