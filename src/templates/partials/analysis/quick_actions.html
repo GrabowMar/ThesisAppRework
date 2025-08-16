@@ -2,15 +2,26 @@
 {% from 'partials/common/_module_wrapper.html' import module_card %}
 
 {% call module_card(title='Quick Actions', classes='module-quick-actions') %}
-<div class="d-grid gap-2">
-  <a href="/analysis/create#security" class="btn btn-outline-primary">
-    <i class="fas fa-shield-alt"></i> Security Testing
-  </a>
-  <a href="/analysis/create#performance" class="btn btn-outline-info">
-    <i class="fas fa-tachometer-alt"></i> Performance Testing
-  </a>
-  <a href="/analysis/create#batch" class="btn btn-outline-warning">
-    <i class="fas fa-layer-group"></i> Batch Operations
-  </a>
+<div class="card">
+  <div class="card-header d-flex align-items-center">
+    <i class="fas fa-bolt me-2 text-success"></i>
+    <h6 class="mb-0">Quick Actions</h6>
+  </div>
+  <div class="card-body">
+    <div class="d-grid gap-2">
+      <a href="/analysis/create#security" class="btn btn-sm btn-outline-primary text-start">
+        <i class="fas fa-shield-alt me-2"></i>
+        <div class="d-inline-block">Security Testing <div class="small text-muted">Run a security scan</div></div>
+      </a>
+      <a href="/analysis/create#performance" class="btn btn-sm btn-outline-info text-start">
+        <i class="fas fa-tachometer-alt me-2"></i>
+        <div class="d-inline-block">Performance Testing <div class="small text-muted">Run performance tests</div></div>
+      </a>
+      <a href="/analysis/create#batch" class="btn btn-sm btn-outline-warning text-start">
+        <i class="fas fa-layer-group me-2"></i>
+        <div class="d-inline-block">Batch Operations <div class="small text-muted">Create or schedule batches</div></div>
+      </a>
+    </div>
+  </div>
 </div>
 {% endcall %}
