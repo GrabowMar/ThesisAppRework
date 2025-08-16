@@ -2,29 +2,31 @@
 {% macro security_item_li(a) -%}
   <li class="list-group-item d-flex justify-content-between align-items-center">
     <div>
-      <div class="fw-semibold">#{{ a.id }} · App {{ a.application_id }}</div>
+      <div class="fw-semibold">#{{ a.id }} · {% if a.model_slug and a.app_number %}<code>{{ a.model_slug }}</code> / app {{ a.app_number }}{% else %}App {{ a.application_id }}{% endif %}</div>
       <div class="small text-muted">{{ a.status }}</div>
     </div>
-    <a class="btn btn-sm btn-outline-primary" href="/analysis/security/{{ a.id }}/results/view">Open</a>
+    <a class="btn btn-sm btn-outline-primary" href="{% if a.model_slug and a.app_number %}/analysis/results/{{ a.model_slug }}/{{ a.app_number }}{% else %}/analysis/security/{{ a.id }}/results/view{% endif %}">Open</a>
   </li>
 {%- endmacro %}
 
 {% macro dynamic_item_li(a) -%}
   <li class="list-group-item d-flex justify-content-between align-items-center">
     <div>
-      <div class="fw-semibold">#{{ a.id }} · App {{ a.application_id }}</div>
+      <div class="fw-semibold">#{{ a.id }} · {% if a.model_slug and a.app_number %}<code>{{ a.model_slug }}</code> / app {{ a.app_number }}{% else %}App {{ a.application_id }}{% endif %}</div>
       <div class="small text-muted">{{ a.status }}</div>
     </div>
-    <a class="btn btn-sm btn-outline-primary" href="/analysis/dynamic/{{ a.id }}">Open</a>
+    <a class="btn btn-sm btn-outline-primary" href="{% if a.model_slug and a.app_number %}/analysis/results/{{ a.model_slug }}/{{ a.app_number }}{% else %}/analysis/dynamic/{{ a.id }}{% endif %}">Open</a>
   </li>
 {%- endmacro %}
 
 {% macro performance_item_li(t) -%}
   <li class="list-group-item d-flex justify-content-between align-items-center">
     <div>
-      <div class="fw-semibold">#{{ t.id }} · App {{ t.application_id }}</div>
+      <div class="fw-semibold">#{{ t.id }} · {% if t.model_slug and t.app_number %}<code>{{ t.model_slug }}</code> / app {{ t.app_number }}{% else %}App {{ t.application_id }}{% endif %}</div>
       <div class="small text-muted">{{ t.status }} · {{ t.test_type }}</div>
     </div>
-    <a class="btn btn-sm btn-outline-primary disabled" href="#">Open</a>
+    <a class="btn btn-sm btn-outline-primary {% if not (t.model_slug and t.app_number) %}disabled{% endif %}"
+       href="{% if t.model_slug and t.app_number %}/analysis/results/{{ t.model_slug }}/{{ t.app_number }}{% else %}#
+       {% endif %}">Open</a>
   </li>
 {%- endmacro %}

@@ -1,0 +1,61 @@
+<div class="card" id="completed-tasks" hx-get="/analysis/api/completed-tasks" hx-trigger="load, every 20s" hx-swap="outerHTML">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="fas fa-check-circle me-2"></i>Completed tasks</span>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-outline-primary btn-sm" hx-get="/analysis/api/completed-tasks" hx-target="#completed-tasks" hx-swap="outerHTML"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+  </div>
+  {% set has_items = history and history|length %}
+  {% if has_items %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Task ID</th>
+          <th>Type</th>
+          <th>App</th>
+          <th>Status</th>
+          <th>Completed</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task_id, info in history.items() %}
+        <tr>
+          <td class="text-truncate" style="max-width: 240px;" title="{{ task_id }}">{{ task_id }}</td>
+          <td class="text-capitalize">{{ info.type }}</td>
+          <td>
+            {% if info.model_slug %}
+              <code>{{ info.model_slug }}</code> / app {{ info.app_number or (info.apps|first if info.apps) }}
+            {% elif info.models %}
+              <span class="small text-muted">batch ({{ info.models|length }} models)</span>
+            {% else %}
+              <span class="text-muted">n/a</span>
+            {% endif %}
+          </td>
+          <td>
+            {% set state = info.status or 'unknown' %}
+            <span class="badge {{ 'bg-success' if state=='SUCCESS' else ('bg-danger' if state=='FAILURE' else ('bg-secondary' if state=='REVOKED' else 'bg-info') ) }}">{{ state }}</span>
+          </td>
+          <td>{{ info.completed_at }}</td>
+          <td class="text-end">
+            {% if info.model_slug and (info.app_number or (info.apps|first if info.apps)) %}
+              {% set appn = info.app_number or (info.apps|first if info.apps) %}
+              <a class="btn btn-sm btn-outline-secondary" href="/analysis/results/{{ info.model_slug }}/{{ appn }}">View</a>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="card-body text-center text-muted py-5">
+      <i class="bi bi-check2-square display-6 opacity-25 d-block mb-2"></i>
+      <div class="mb-1">No completed tasks yet</div>
+      <div class="small">They will appear here as they finish.</div>
+    </div>
+  {% endif %}
+</div>

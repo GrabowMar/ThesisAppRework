@@ -361,6 +361,7 @@ class TaskManager:
                 # Move to history
                 if task_id in self.active_tasks:
                     self.task_history[task_id] = self.active_tasks.pop(task_id)
+                    self.task_history[task_id]['status'] = TaskStatus.SUCCESS
                     self.task_history[task_id]['completed_at'] = status_info['completed_at']
             elif result.status == TaskStatus.FAILURE:
                 status_info['error'] = str(result.info)
@@ -368,6 +369,7 @@ class TaskManager:
                 # Move to history
                 if task_id in self.active_tasks:
                     self.task_history[task_id] = self.active_tasks.pop(task_id)
+                    self.task_history[task_id]['status'] = TaskStatus.FAILURE
                     self.task_history[task_id]['completed_at'] = status_info['completed_at']
                     self.task_history[task_id]['error'] = status_info['error']
             
@@ -399,6 +401,7 @@ class TaskManager:
             # Remove from active tasks
             if task_id in self.active_tasks:
                 self.task_history[task_id] = self.active_tasks.pop(task_id)
+                self.task_history[task_id]['status'] = TaskStatus.REVOKED
                 self.task_history[task_id]['cancelled_at'] = datetime.now(timezone.utc)
             
             logger.info(f"Cancelled task {task_id}")

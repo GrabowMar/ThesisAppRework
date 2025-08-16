@@ -13,6 +13,7 @@ from flask import Blueprint, request, jsonify, render_template
 from flask import Response
 
 from ..services.task_manager import TaskManager
+from ..services import results_loader
 from ..models import GeneratedApplication
 from ..constants import AnalysisStatus
 
@@ -317,6 +318,18 @@ def htmx_task_history():
     except Exception as e:
         logger.error(f"HTMX task history error: {e}")
         return render_template('partials/common/error.html', error='Failed to load task history'), 500
+
+
+@analysis_bp.get('/api/completed-tasks')
+@rate_limited(3.0)
+def htmx_completed_tasks():
+    """HTMX: Render completed tasks with quick links to result details."""
+    try:
+        history = task_manager.get_task_history(limit=100)
+        return render_template('partials/analysis/list/completed_tasks.html', history=history)
+    except Exception as e:
+        logger.error(f"HTMX completed tasks error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load completed tasks'), 500
 
 @analysis_bp.get('/api/trends')
 def htmx_analysis_trends():
@@ -726,12 +739,28 @@ def start_batch_analysis():
             if ai_types:
                 options['ai_types'] = ai_types
 
+        # --- Normalize & validate inputs ---
+        # Sanitize models: drop blanks/whitespace and de-duplicate
+        try:
+            models = [str(m).strip() for m in (models or []) if str(m).strip()]
+            # Sort for determinism
+            models = sorted(set(models))
+        except Exception:
+            models = []
+
         # Validation
         if not analysis_types:
             # Decide response type based on HTMX
             if is_htmx:
                 return render_template('partials/common/error.html', error='Select at least one analysis type'), 400
             return jsonify({'error': 'At least one analysis type required'}), 400
+
+        # Require at least one model. Apps alone are ambiguous for source path resolution.
+        if not models:
+            msg = 'Select at least one model to run analyses.'
+            if is_htmx:
+                return render_template('partials/common/error.html', error=msg), 400
+            return jsonify({'error': msg}), 400
 
         # If apps empty but models provided, include all apps for those models
         if (not apps) and models:
@@ -756,7 +785,7 @@ def start_batch_analysis():
                     continue
             apps = cleaned
 
-        # Start batch analysis (returns task id)
+    # Start batch analysis (returns task id)
         task_id = task_manager.start_batch_analysis(
             models=models or [],
             apps=apps or [],
@@ -1402,6 +1431,39 @@ def htmx_recent_table():
     except Exception as e:  # pragma: no cover - defensive
         logger.error(f"HTMX recent table error: {e}")
         return render_template('partials/common/error.html', error='Failed to load recent table'), 500
+
+
+# ============================================================================
+# Results detail: expanded preview sourced from analyzer/results artifacts
+# ============================================================================
+
+@analysis_bp.get('/results/<model_slug>/<int:app_number>')
+def analysis_results_detail(model_slug: str, app_number: int):
+    """Rich results view combining latest artifacts for the given app."""
+    try:
+        latest = results_loader.find_latest_results(model_slug, app_number)
+        summaries = {k: results_loader.summarize_result(k, v) for k, v in latest.items()}
+        return render_template(
+            'pages/analysis_result.html',
+            model_slug=model_slug,
+            app_number=app_number,
+            latest=latest,
+            summaries=summaries
+        )
+    except Exception as e:
+        logger.error(f"Error rendering results detail for {model_slug} app {app_number}: {e}")
+        return render_template('partials/common/error.html', error='Failed to render results detail'), 500
+
+
+@analysis_bp.get('/results/<model_slug>/<int:app_number>/export')
+def analysis_results_export(model_slug: str, app_number: int):
+    """Export merged latest results across types as JSON."""
+    try:
+        latest = results_loader.find_latest_results(model_slug, app_number)
+        return jsonify({k: v.get('data') for k, v in latest.items()})
+    except Exception as e:
+        logger.error(f"Export error for {model_slug} app {app_number}: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # ============================================================================

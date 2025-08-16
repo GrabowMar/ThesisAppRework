@@ -14,7 +14,13 @@ $FlaskApp = "main.py"
 $CeleryApp = "app.tasks"
 $RedisHost = if ($env:REDIS_HOST -and $env:REDIS_HOST.Trim() -ne '') { $env:REDIS_HOST } else { '127.0.0.1' }
 $RedisPort = if ($env:REDIS_PORT -and $env:REDIS_PORT.Trim() -ne '') { $env:REDIS_PORT } else { '6379' }
-$WorkerConcurrency = $env:WORKER_CONCURRENCY -or "4"
+# Default to Windows-safe Celery worker settings unless explicitly overridden
+$WorkerConcurrency = if ($env:WORKER_CONCURRENCY -and $env:WORKER_CONCURRENCY.Trim() -ne '') { $env:WORKER_CONCURRENCY } else { "1" }
+$UseSoloPool = if ($env:CELERY_POOL -and $env:CELERY_POOL.Trim() -ne '') { $env:CELERY_POOL -eq 'solo' } else { $true }
+
+# Paths
+$ScriptRoot = $PSScriptRoot
+$RepoRoot = Split-Path -Parent $ScriptRoot
 
 # Colors for output
 $ColorMap = @{
@@ -126,34 +132,43 @@ function Test-Dependencies {
 # Initialize database
 function Initialize-Database {
     Write-Log "Initializing database..." "Blue"
-    
-    if (Test-Path "app\models.py") {
-        try {
-            $initScript = @"
+    try {
+        # Prefer venv python when available
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+        $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+
+        $initScript = @"
 from app.factory import create_cli_app
-from app.models import init_db
+from app.extensions import init_db
 
 app = create_cli_app()
 with app.app_context():
     init_db()
     print('Database initialized successfully')
 "@
-            
-            $initScript | python 2>$null
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Log "Database initialization completed"
-            }
-            else {
-                Write-Warning-Log "Database initialization had issues, continuing..."
-            }
-        }
-        catch {
-            Write-Warning-Log "Database initialization error: $_"
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = $pythonExe
+        $pinfo.RedirectStandardInput = $true
+        $pinfo.RedirectStandardOutput = $true
+        $pinfo.RedirectStandardError = $true
+        $pinfo.UseShellExecute = $false
+        $pinfo.WorkingDirectory = $ScriptRoot
+        $p = New-Object System.Diagnostics.Process
+        $p.StartInfo = $pinfo
+        [void]$p.Start()
+        $p.StandardInput.WriteLine($initScript)
+        $p.StandardInput.Close()
+        $stdout = $p.StandardOutput.ReadToEnd()
+        $stderr = $p.StandardError.ReadToEnd()
+        $p.WaitForExit()
+        if ($p.ExitCode -eq 0) {
+            Write-Log "Database initialization completed"
+        } else {
+            Write-Warning-Log "Database initialization had issues, continuing... ($stderr)"
         }
     }
-    else {
-        Write-Warning-Log "Models file not found, skipping database initialization"
+    catch {
+        Write-Warning-Log "Database initialization error: $_"
     }
 }
 
@@ -162,19 +177,19 @@ function Start-CeleryWorker {
     Write-Log "Starting Celery worker..." "Blue"
     
     try {
-        $venvScripts = Join-Path (Split-Path -Parent $PSScriptRoot) ".venv\Scripts"
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
         $celeryExe = Join-Path $venvScripts "celery.exe"
         $pythonExe = Join-Path $venvScripts "python.exe"
+        $args = @("-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log")
+        if ($UseSoloPool) { $args = @("-A", $CeleryApp, "worker", "--loglevel=info", "-P", "solo", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log") }
 
         if (Test-Path $celeryExe) {
-            $workerProcess = Start-Process -FilePath $celeryExe -ArgumentList "-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
-        }
-        elseif (Test-Path $pythonExe) {
-            $workerProcess = Start-Process -FilePath $pythonExe -ArgumentList "-m", "celery", "-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
-        }
-        else {
+            $workerProcess = Start-Process -FilePath $celeryExe -ArgumentList $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+        } elseif (Test-Path $pythonExe) {
+            $workerProcess = Start-Process -FilePath $pythonExe -ArgumentList @("-m", "celery") + $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+        } else {
             # Fallback to PATH celery
-            $workerProcess = Start-Process -FilePath "celery" -ArgumentList "-A", $CeleryApp, "worker", "--loglevel=info", "--concurrency=$WorkerConcurrency", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+            $workerProcess = Start-Process -FilePath "celery" -ArgumentList $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         }
         
         if ($workerProcess) {
@@ -198,19 +213,18 @@ function Start-CeleryBeat {
     Write-Log "Starting Celery beat scheduler..." "Blue"
     
     try {
-        $venvScripts = Join-Path (Split-Path -Parent $PSScriptRoot) ".venv\Scripts"
+    $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
         $celeryExe = Join-Path $venvScripts "celery.exe"
         $pythonExe = Join-Path $venvScripts "python.exe"
 
+        $args = @("-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule")
         if (Test-Path $celeryExe) {
-            $beatProcess = Start-Process -FilePath $celeryExe -ArgumentList "-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
-        }
-        elseif (Test-Path $pythonExe) {
-            $beatProcess = Start-Process -FilePath $pythonExe -ArgumentList "-m", "celery", "-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
-        }
-        else {
+            $beatProcess = Start-Process -FilePath $celeryExe -ArgumentList $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+        } elseif (Test-Path $pythonExe) {
+            $beatProcess = Start-Process -FilePath $pythonExe -ArgumentList @("-m", "celery") + $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
+        } else {
             # Fallback to PATH celery
-            $beatProcess = Start-Process -FilePath "celery" -ArgumentList "-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule" -PassThru -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+            $beatProcess = Start-Process -FilePath "celery" -ArgumentList $args -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         }
         
         if ($beatProcess) {
@@ -234,11 +248,14 @@ function Start-FlaskApp {
     Write-Log "Starting Flask application..." "Blue"
     
     $env:FLASK_APP = $FlaskApp
-    $env:FLASK_ENV = $env:FLASK_ENV -or "development"
-    $env:ANALYZER_AUTO_START = $env:ANALYZER_AUTO_START -or "false"
+    if (-not $env:FLASK_ENV -or $env:FLASK_ENV.Trim() -eq '') { $env:FLASK_ENV = "development" }
+    if (-not $env:ANALYZER_AUTO_START -or $env:ANALYZER_AUTO_START.Trim() -eq '') { $env:ANALYZER_AUTO_START = "false" }
     
     try {
-        $flaskProcess = Start-Process python -ArgumentList $FlaskApp -PassThru -WindowStyle Hidden
+    # Prefer venv Python
+    $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+    $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+    $flaskProcess = Start-Process $pythonExe -ArgumentList $FlaskApp -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         
         if ($flaskProcess) {
             $flaskProcess.Id | Out-File -FilePath "flask_app_pid.txt"
@@ -260,10 +277,15 @@ function Start-FlaskApp {
 function Start-AnalyzerServices {
     Write-Log "Starting analyzer services..." "Blue"
     
-    if (Test-Path "..\analyzer\analyzer_manager.py") {
+    $analyzerDir = Join-Path $RepoRoot "analyzer"
+    $analyzerManager = Join-Path $analyzerDir "analyzer_manager.py"
+    if (Test-Path $analyzerManager) {
         try {
-            Push-Location "..\analyzer"
-            python analyzer_manager.py start 2>$null
+            Push-Location $analyzerDir
+            # Prefer venv Python
+            $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+            $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+            & $pythonExe "analyzer_manager.py" start 2>$null
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Log "Analyzer services started successfully"
@@ -307,7 +329,17 @@ function Stop-Services {
     # Stop Celery worker
     if (Test-Path "celery_worker_pid.txt") {
         try {
-            celery -A $CeleryApp control shutdown 2>$null
+            $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+            $celeryExe = Join-Path $venvScripts "celery.exe"
+            $pythonExe = Join-Path $venvScripts "python.exe"
+            $args = @("-A", $CeleryApp, "control", "shutdown")
+            if (Test-Path $celeryExe) {
+                & $celeryExe @args 2>$null
+            } elseif (Test-Path $pythonExe) {
+                & $pythonExe -m celery @args 2>$null
+            } else {
+                & celery @args 2>$null
+            }
             $workerPid = Get-Content "celery_worker_pid.txt"
             $workerProcess = Get-Process -Id $workerPid -ErrorAction SilentlyContinue
             if ($workerProcess) {
@@ -527,7 +559,8 @@ function Invoke-Main {
     }
 }
 
-# Handle script interruption
+# Handle script interruption and avoid ErrorAction restore warnings
+$hadErrorActionDefault = $PSDefaultParameterValues.ContainsKey('*:ErrorAction')
 $originalAction = $PSDefaultParameterValues['*:ErrorAction']
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
@@ -541,5 +574,9 @@ catch {
     exit 130
 }
 finally {
-    $PSDefaultParameterValues['*:ErrorAction'] = $originalAction
+    if ($hadErrorActionDefault) {
+        $PSDefaultParameterValues['*:ErrorAction'] = $originalAction
+    } else {
+        [void]$PSDefaultParameterValues.Remove('*:ErrorAction')
+    }
 }

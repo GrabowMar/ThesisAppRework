@@ -1,0 +1,58 @@
+{% set has_any = latest and latest|length %}
+<div class="container-fluid">
+  <div class="d-flex align-items-baseline justify-content-between mb-3">
+    <div>
+      <h4 class="mb-0">Results for <code>{{ model_slug }}</code> / app {{ app_number }}</h4>
+      <div class="text-muted small">Aggregated from latest analyzer artifacts</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-outline-primary" href="/analysis/results/{{ model_slug }}/{{ app_number }}/export">
+        <i class="bi bi-download"></i> Export JSON
+      </a>
+      <a class="btn btn-sm btn-outline-secondary" href="/analysis/">Back to dashboard</a>
+    </div>
+  </div>
+
+  {% if not has_any %}
+  <div class="alert alert-info">No analyzer artifacts were found yet for this app.</div>
+  {% endif %}
+
+  <ul class="nav nav-tabs nav-research" id="resultTabs" role="tablist">
+    {% for t in ['security','performance','static','dynamic','ai'] %}
+      <li class="nav-item" role="presentation">
+        <button class="nav-link {% if loop.first %}active{% endif %}" id="tab-{{ t }}" data-bs-toggle="tab" data-bs-target="#pane-{{ t }}" type="button" role="tab">{{ t|title }}
+          {% if latest.get(t) %}
+            <span class="badge bg-secondary ms-1">{{ summaries.get(t,{}).issues_total or summaries.get(t,{}).alerts or summaries.get(t,{}).insights or summaries.get(t,{}).rps or '' }}</span>
+          {% endif %}
+        </button>
+      </li>
+    {% endfor %}
+  </ul>
+  <div class="tab-content border border-top-0 p-3 bg-body-tertiary card-research" id="resultTabsContent">
+    {% for t in ['security','performance','static','dynamic','ai'] %}
+      {% set item = latest.get(t) %}
+      <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ t }}" role="tabpanel">
+        {% if not item %}
+          <div class="text-muted small">No {{ t }} results yet.</div>
+        {% else %}
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="small text-muted">File: {{ item.file }} | {{ item.timestamp }}</div>
+            <div>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#json-{{ t }}">Toggle JSON</button>
+            </div>
+          </div>
+          {% if t == 'security' %}
+            <div class="row g-3 mb-3">
+              <div class="col-auto"><span class="badge bg-danger">Bandit {{ summaries.get('security',{}).bandit or 0 }}</span></div>
+              <div class="col-auto"><span class="badge bg-warning text-dark">Safety {{ summaries.get('security',{}).safety or 0 }}</span></div>
+              <div class="col-auto"><span class="badge bg-info text-dark">ZAP {{ summaries.get('security',{}).zap or 0 }}</span></div>
+            </div>
+          {% endif %}
+          <div class="collapse show" id="json-{{ t }}">
+            <pre class="small bg-dark text-light p-2 rounded" style="max-height: 50vh; overflow: auto;">{{ item.data | tojson(indent=2) }}</pre>
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>

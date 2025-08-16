@@ -24,12 +24,12 @@
         <label class="form-label">
           <i class="bi bi-robot me-1"></i> Models
         </label>
-        <select class="form-select" name="models" id="batch_models" multiple size="6">
+  <select class="form-select" name="models" id="batch_models" multiple size="6" required>
           {% for m in models %}
           <option value="{{ m.model_slug }}">{{ m.model_name }} ({{ m.provider }})</option>
           {% endfor %}
         </select>
-        <div class="form-text">Choose one or more models. If no apps are specified below, all apps for those models will be included.</div>
+  <div class="form-text">Choose one or more models. If no apps are specified below, all apps for those models will be included.</div>
       </div>
 
       <!-- App filters -->
@@ -317,7 +317,11 @@
       const total = m * a * t;
       summary && (summary.textContent = `${total} task${total===1?'':'s'}`);
       // Basic validation
-      validation && (validation.textContent = t === 0 ? 'Select at least one analysis type.' : '');
+      const modelCount = selectedModels().length;
+      let vmsg = '';
+      if (t === 0) vmsg = 'Select at least one analysis type.';
+      else if (modelCount === 0) vmsg = 'Select at least one model.';
+      validation && (validation.textContent = vmsg);
     }
 
     ['change','keyup'].forEach(evt => {
@@ -327,7 +331,9 @@
 
     if (form) {
       form.addEventListener('submit', (e) => {
-        if (selectedTypes().length === 0) {
+        const typesOk = selectedTypes().length > 0;
+        const modelsOk = selectedModels().length > 0;
+        if (!typesOk || !modelsOk) {
           e.preventDefault();
           updateSummary();
           return false;
