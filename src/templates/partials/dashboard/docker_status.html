@@ -1,6 +1,12 @@
 {% from 'partials/common/_module_wrapper.html' import module_card %}
 
-{% call module_card(title='Docker Status', classes='module-docker-status') %}
+{% call module_card(title='Docker Status', classes='module-docker-status', header_actions='\
+    <div class="btn-group btn-group-sm" role="group">\
+        <button class="btn btn-outline-primary" onclick="dashboard.refreshDockerStatus()"><i class=\'fas fa-sync me-1\'></i>Refresh</button>\
+        <button class="btn btn-outline-success" onclick="dashboard.startAnalyzerServices()"><i class=\'fas fa-play me-1\'></i>Start</button>\
+        <button class="btn btn-outline-danger" onclick="dashboard.stopAnalyzerServices()"><i class=\'fas fa-stop me-1\'></i>Stop</button>\
+    </div>\
+') %}
 <div id="docker-status-content"
          data-refresh-interval="30s"
          hx-get="{{ url_for('api.dashboard_docker_status') }}"

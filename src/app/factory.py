@@ -83,6 +83,8 @@ def create_app(config_name: str = 'default') -> Flask:
     app = Flask(__name__, 
                 template_folder=template_folder,
                 static_folder=static_folder)
+
+    # Note: No /dist static route to avoid dependency on repo-level 'dist' folder
     
     # Configuration
     # Create data directory if it doesn't exist

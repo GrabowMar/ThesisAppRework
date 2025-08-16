@@ -1,0 +1,174 @@
+/* AdminLTE + Bootstrap 5 glue and project utilities */
+
+/* Map AdminLTE v3/v4 badge classes to Bootstrap 5 */
+.badge-primary { background-color: var(--bs-primary) !important; }
+.badge-secondary { background-color: var(--bs-secondary) !important; }
+.badge-success { background-color: var(--bs-success) !important; }
+.badge-danger { background-color: var(--bs-danger) !important; }
+.badge-warning { background-color: var(--bs-warning) !important; color: #000 !important; }
+.badge-info { background-color: var(--bs-info) !important; }
+.badge-light { background-color: var(--bs-light) !important; color: #000 !important; }
+.badge-dark { background-color: var(--bs-dark) !important; }
+
+/* Small variants */
+.badge.badge-sm { font-size: 0.7rem; padding: .2em .45em; }
+
+/* Info Box (AdminLTE style) */
+.info-box { display: flex; align-items: center; background: var(--bs-body-bg); border-radius: .5rem; box-shadow: var(--bs-box-shadow-sm); min-height: 80px; }
+.info-box .info-box-icon { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: .5rem; color: #fff; margin: .75rem; }
+.info-box .info-box-content { flex: 1; padding: .75rem .75rem .75rem 0; }
+.info-box .info-box-text { font-size: .85rem; color: var(--bs-secondary-color); }
+.info-box .info-box-number { font-weight: 600; font-size: 1.25rem; }
+
+/* Small box (stats) */
+.small-box { position: relative; display: block; border-radius: .5rem; box-shadow: var(--bs-box-shadow-sm); padding: 1rem; color: #fff; }
+.small-box .inner h3 { font-weight: 700; margin: 0; font-size: 1.5rem; }
+.small-box .inner p { margin: 0; opacity: .9; }
+.small-box .icon { position: absolute; top: .75rem; right: .75rem; font-size: 2rem; opacity: .35; }
+
+/* Mini utilities */
+.h-4px { height: 4px; }
+.h-8px { height: 8px; }
+.fs-4rem { font-size: 4rem; }
+.gap-1 { gap: .25rem; }
+
+/* Progress bar width data-width helper (applied via JS for compatibility) */
+.progress [data-width] { width: 0; transition: width .4s ease; }
+
+/* Card tweaks to feel more AdminLTE */
+.card .card-header { background: var(--bs-card-cap-bg); }
+.card .card-title { font-size: 1rem; }
+.card { border-radius: .5rem; }
+.card .card-body { padding: 1rem 1rem; }
+
+/* Navbar subtle improvements */
+.navbar.sticky-top { box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+[data-bs-theme="dark"] .navbar { background-color: #0f141c !important; }
+[data-bs-theme="dark"] .navbar .nav-link { color: #cbd5e1; }
+[data-bs-theme="dark"] .navbar .nav-link:hover { color: #ffffff; }
+[data-bs-theme="dark"] .btn-outline-light { color: #e2e8f0; border-color: #3a4250; }
+[data-bs-theme="dark"] .btn-outline-light:hover { background-color: #1e2632; border-color: #4a5465; }
+
+/* Page/content paddings */
+.content-area { padding-top: 1rem; padding-bottom: 1rem; }
+.container-fluid { --container-x-padding: 1rem; padding-left: var(--container-x-padding); padding-right: var(--container-x-padding); }
+
+/* Normalize page container widths across templates */
+.content-area > .container-fluid,
+section.content > .container-fluid {
+	max-width: 1320px; /* similar to Bootstrap xxl */
+	margin-left: auto;
+	margin-right: auto;
+}
+
+/* Provider badge dynamic coloring */
+.badge.provider-dynamic { background-color: var(--provider-color, var(--bs-secondary)); }
+
+/* Status indicator dot */
+.status-indicator { width: .6rem; height: .6rem; border-radius: 50%; background: var(--bs-secondary); }
+.status-indicator.status-running { background: var(--bs-success); }
+.status-indicator.status-stopped { background: var(--bs-secondary); }
+.status-indicator.status-error { background: var(--bs-danger); }
+
+/* Table header */
+.table-dark th { background-color: var(--bs-dark) !important; }
+
+/* Chart legend and palette */
+.chart-legend { display:flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .5rem; }
+.chart-legend .legend-item { display:flex; align-items:center; gap:.5rem; font-size:.875rem; color: var(--bs-secondary-color); }
+.chart-legend .legend-swatch { width: 12px; height: 12px; border-radius: 2px; display:inline-block; }
+.palette-0 { background-color: #0d6efd; }
+.palette-1 { background-color: #198754; }
+.palette-2 { background-color: #0dcaf0; }
+.palette-3 { background-color: #ffc107; }
+.palette-4 { background-color: #dc3545; }
+.palette-5 { background-color: #6f42c1; }
+.palette-6 { background-color: #20c997; }
+
+/* Spacing helpers missing from old snippets */
+.me-1 { margin-right: .25rem !important; }
+.me-2 { margin-right: .5rem !important; }
+.ms-1 { margin-left: .25rem !important; }
+.mr-1 { margin-right: .25rem !important; } /* BS4 compat */
+.mr-2 { margin-right: .5rem !important; }
+.ml-1 { margin-left: .25rem !important; }
+.ml-2 { margin-left: .5rem !important; }
+.mt-4 { margin-top: 1.5rem !important; }
+.mb-3 { margin-bottom: 1rem !important; }
+.mb-4 { margin-bottom: 1.5rem !important; }
+
+/* Alerts small */
+.alert-sm { padding: .25rem .5rem; font-size: .825rem; }
+
+/* Offcanvas body scroll */
+.offcanvas-body { overflow-y: auto; }
+
+/* BS4 -> BS5 compat */
+.btn-block { display: block; width: 100%; }
+
+/* Custom color helpers seen in templates */
+.bg-purple { background-color: rebeccapurple !important; color: #fff !important; }
+.bg-green { background-color: #198754 !important; color: #fff !important; }
+.bg-blue { background-color: #0d6efd !important; color: #fff !important; }
+
+/* --- Dark theme improvements --------------------------------------------- */
+/* Use Bootstrap 5.3 data-bs-theme to refine colors for dark mode */
+[data-bs-theme="dark"] {
+	/* Surfaces and text */
+	--bs-body-bg: #0e1117;               /* deep slate */
+	--bs-body-color: #e2e8f0;            /* slate-100 */
+	--bs-secondary-color: #94a3b8;       /* slate-400 for muted text */
+	--bs-border-color: #2a2f3a;          /* subtle borders */
+
+	/* Cards and headers */
+	--bs-card-bg: #121826;               /* slightly lifted from body */
+	--bs-card-color: var(--bs-body-color);
+	--bs-card-cap-bg: #161d2e;           /* header background */
+
+	/* Links */
+	--bs-link-color: #7ab8ff;
+	--bs-link-hover-color: #9ad0ff;
+}
+
+/* Component-level dark adjustments */
+[data-bs-theme="dark"] .info-box { background: var(--bs-card-bg); }
+[data-bs-theme="dark"] .card { border-color: var(--bs-border-color); }
+[data-bs-theme="dark"] .card .card-header { background: var(--bs-card-cap-bg); border-bottom-color: var(--bs-border-color); }
+[data-bs-theme="dark"] .card .card-body { color: var(--bs-body-color); }
+
+/* Tables */
+[data-bs-theme="dark"] .table thead th { background-color: var(--bs-card-cap-bg) !important; color: var(--bs-secondary-color); border-bottom-color: var(--bs-border-color); }
+[data-bs-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(255, 255, 255, 0.03); }
+[data-bs-theme="dark"] .table-hover > tbody > tr:hover > * { background-color: rgba(255, 255, 255, 0.06); }
+
+/* Progress bars and small widgets subtle borders in dark */
+[data-bs-theme="dark"] .small-box { box-shadow: 0 0 0 1px var(--bs-border-color) inset; }
+[data-bs-theme="dark"] .progress { background-color: rgba(255,255,255,0.08); }
+
+/* Chart legend readability in dark */
+[data-bs-theme="dark"] .chart-legend .legend-item { color: var(--bs-secondary-color); }
+[data-bs-theme="dark"] .chart-legend .legend-swatch { box-shadow: 0 0 0 1px rgba(255,255,255,0.18) inset; }
+
+/* Dark: soften bright contextual cards to dark-friendly tints */
+[data-bs-theme="dark"] .card.bg-primary { background-color: #143455 !important; color: #e6f0ff !important; }
+[data-bs-theme="dark"] .card.bg-success { background-color: #0f3a2e !important; color: #e6fffa !important; }
+[data-bs-theme="dark"] .card.bg-info { background-color: #0a3640 !important; color: #e6fbff !important; }
+[data-bs-theme="dark"] .card.bg-warning { background-color: #3b2f08 !important; color: #fff4cc !important; }
+[data-bs-theme="dark"] .card.bg-danger { background-color: #42181f !important; color: #ffe6ea !important; }
+[data-bs-theme="dark"] .card.bg-secondary { background-color: #232a35 !important; color: #cbd5e1 !important; }
+
+/* Ensure footer regions of these cards are slightly separated */
+[data-bs-theme="dark"] .card.bg-primary .card-footer,
+[data-bs-theme="dark"] .card.bg-success .card-footer,
+[data-bs-theme="dark"] .card.bg-info .card-footer,
+[data-bs-theme="dark"] .card.bg-warning .card-footer,
+[data-bs-theme="dark"] .card.bg-danger .card-footer,
+[data-bs-theme="dark"] .card.bg-secondary .card-footer {
+	background-color: rgba(0,0,0,0.12);
+	border-top-color: rgba(255,255,255,0.08);
+}
+
+/* Dark: alerts tuning for readability */
+[data-bs-theme="dark"] .alert-warning { background-color: #3b2f08; color: #ffe9a6; border-color: #6b580c; }
+[data-bs-theme="dark"] .alert-danger { background-color: #401a22; color: #ffd1d8; border-color: #6e2430; }
+[data-bs-theme="dark"] .alert-info { background-color: #0a2e38; color: #ccefff; border-color: #13495a; }

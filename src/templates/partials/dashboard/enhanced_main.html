@@ -1,3 +1,4 @@
+{# AdminLTE (dist) integration note #}
 {% from 'partials/common/_module_wrapper.html' import module_card %}
 
 {% call module_card(title='Enhanced Dashboard', classes='module-enhanced-main') %}
@@ -246,6 +247,7 @@
         </div>
         <div class="card-body">
           <canvas id="providerChart" width="400" height="200"></canvas>
+          <div id="providerLegend" class="chart-legend"></div>
         </div>
       </div>
     </div>
@@ -260,6 +262,7 @@
         </div>
         <div class="card-body">
           <canvas id="frameworkChart" width="400" height="200"></canvas>
+          <div id="frameworkLegend" class="chart-legend"></div>
         </div>
       </div>
     </div>
@@ -493,16 +496,118 @@ function updateRecentApps(apps) {
   `).join('');
 }
 
-// Chart update functions (placeholder - you can implement with Chart.js)
+// Chart.js integration
+let providerChartInstance = null;
+let frameworkChartInstance = null;
+
+function ensureCharts() {
+  if (typeof Chart === 'undefined') return;
+
+  const providerCtx = document.getElementById('providerChart');
+  if (providerCtx && !providerChartInstance) {
+    const styles = getComputedStyle(document.documentElement);
+    const textColor = styles.getPropertyValue('--bs-body-color').trim() || '#212529';
+    const gridColor = styles.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,.1)';
+    providerChartInstance = new Chart(providerCtx, {
+      type: 'doughnut',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        color: textColor,
+      }
+    });
+  }
+
+  const frameworkCtx = document.getElementById('frameworkChart');
+  if (frameworkCtx && !frameworkChartInstance) {
+    const styles = getComputedStyle(document.documentElement);
+    const textColor = styles.getPropertyValue('--bs-body-color').trim() || '#212529';
+    const gridColor = styles.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,.1)';
+    frameworkChartInstance = new Chart(frameworkCtx, {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: 'rgba(13,110,253,.6)' }] },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: { color: textColor }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: gridColor },
+            ticks: { color: textColor }
+          }
+        },
+        color: textColor
+      }
+    });
+  }
+}
+
 function updateProviderChart(providers) {
-  // Implement Chart.js provider distribution chart
-  console.log('Provider data:', providers);
+  ensureCharts();
+  if (!providerChartInstance || !providers) return;
+  const labels = Object.keys(providers || {});
+  const data = labels.map(k => providers[k] || 0);
+  const palette = ['#0d6efd','#198754','#0dcaf0','#ffc107','#dc3545','#6f42c1','#20c997'];
+  const colors = labels.map((_, i) => palette[i % palette.length]);
+  providerChartInstance.data.labels = labels;
+  providerChartInstance.data.datasets[0].data = data;
+  providerChartInstance.data.datasets[0].backgroundColor = colors;
+  providerChartInstance.update();
+
+  // Render legend
+  const legend = document.getElementById('providerLegend');
+  if (legend) {
+    legend.innerHTML = labels.map((l, i) => `
+      <span class="legend-item"><span class="legend-swatch" style="background:${colors[i]}"></span>${l}</span>
+    `).join('');
+  }
 }
 
 function updateFrameworkChart(frameworks) {
-  // Implement Chart.js framework distribution chart
-  console.log('Framework data:', frameworks);
+  ensureCharts();
+  if (!frameworkChartInstance || !frameworks) return;
+  const labels = Object.keys(frameworks || {});
+  const data = labels.map(k => frameworks[k] || 0);
+  frameworkChartInstance.data.labels = labels;
+  frameworkChartInstance.data.datasets[0].data = data;
+  frameworkChartInstance.update();
+
+  const legend = document.getElementById('frameworkLegend');
+  if (legend) {
+    const color = 'rgba(13,110,253,.6)';
+    legend.innerHTML = labels.map(l => `
+      <span class="legend-item"><span class="legend-swatch" style="background:${color}"></span>${l}</span>
+    `).join('');
+  }
 }
+
+// Listen for theme changes to update chart colors
+window.addEventListener('themechange', function(e){
+  const styles = getComputedStyle(document.documentElement);
+  const textColor = styles.getPropertyValue('--bs-body-color').trim() || '#212529';
+  const gridColor = styles.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,.1)';
+  if (providerChartInstance) {
+    providerChartInstance.options.color = textColor;
+    providerChartInstance.update('none');
+  }
+  if (frameworkChartInstance) {
+    frameworkChartInstance.options.color = textColor;
+    if (frameworkChartInstance.options.scales && frameworkChartInstance.options.scales.x) {
+      frameworkChartInstance.options.scales.x.grid.color = gridColor;
+      frameworkChartInstance.options.scales.x.ticks.color = textColor;
+    }
+    if (frameworkChartInstance.options.scales && frameworkChartInstance.options.scales.y) {
+      frameworkChartInstance.options.scales.y.grid.color = gridColor;
+      frameworkChartInstance.options.scales.y.ticks.color = textColor;
+    }
+    frameworkChartInstance.update('none');
+  }
+});
 
 // Analyzer service management
 async function startAnalyzerServices() {

@@ -1,6 +1,10 @@
 {% from 'partials/common/_module_wrapper.html' import module_card %}
 
-{% call module_card(title='System Health', classes='module-system-health') %}
+{% call module_card(title='System Health', classes='module-system-health', header_actions='\
+    <div class="btn-group btn-group-sm" role="group">\
+        <button class="btn btn-outline-primary" onclick="refreshSystemHealth()"><i class=\'fas fa-sync me-1\'></i>Refresh</button>\
+    </div>\
+') %}
 <div id="system-health-panel"
          data-refresh-interval="30s"
          hx-get="{{ url_for('api.dashboard_system_health_fragment') }}"

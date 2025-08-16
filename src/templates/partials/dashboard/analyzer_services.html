@@ -1,3 +1,4 @@
+{# AdminLTE (dist) integration note #}
 {% from 'partials/common/_module_wrapper.html' import module_card %}
 
 {% call module_card(title='Analyzer Services', classes='module-analyzer-services') %}
@@ -14,19 +15,19 @@
                         </div>
                         <div class="service-status">
                             {% if service.status == 'running' %}
-                                <span class="badge badge-success">
+                                <span class="badge bg-success">
                                     <i class="fas fa-circle mr-1"></i>Running
                                 </span>
                             {% elif service.status == 'stopped' %}
-                                <span class="badge badge-secondary">
+                                <span class="badge bg-secondary">
                                     <i class="fas fa-circle mr-1"></i>Stopped
                                 </span>
                             {% elif service.status == 'error' %}
-                                <span class="badge badge-danger">
+                                <span class="badge bg-danger">
                                     <i class="fas fa-exclamation-triangle mr-1"></i>Error
                                 </span>
                             {% else %}
-                                <span class="badge badge-warning">
+                                <span class="badge bg-warning text-dark">
                                     <i class="fas fa-question-circle mr-1"></i>Unknown
                                 </span>
                             {% endif %}
