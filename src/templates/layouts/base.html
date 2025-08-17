@@ -113,6 +113,17 @@
             </div>
             {% endblock %}
 
+            {# Optional standard page header (opt-in via blocks) #}
+            {% from 'partials/common/_page_header.html' import page_header %}
+            {# Provide empty defaults so self.page_title() is always callable #}
+            {% block page_title %}{% endblock %}
+            {% block page_subtitle %}{% endblock %}
+            {% block page_icon %}{% endblock %}
+            {% set _title = self.page_title()|trim %}
+            {% if _title %}
+                {{ page_header(_title, self.page_subtitle()|trim, icon=self.page_icon()|trim) }}
+            {% endif %}
+
             {# Page Content #}
             {% block content %}
             <div class="alert alert-warning">

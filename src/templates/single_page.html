@@ -1,7 +1,400 @@
-{# Single page wrapper that works with current layouts #}
-{% extends 'layouts/single-page.html' %}
+{#
+  Single Page Application Layout Template
+  
+  Purpose: Dynamic content loading shell for SPA-like behavior
+  Features:
+  - Dynamic content loading via HTMX
+  - Navigation without full page reloads
+  - History API integration
+  - Loading states and error handling
+  - Progressive enhancement
+  
+  Routes:
+  - Used with single_page.html view pattern
+  - Loads content dynamically based on route
+  
+  Technical Details:
+  - Extends base.html with dynamic content loading
+  - HTMX-powered navigation
+  - History pushState integration
+  - Error handling for failed loads
+  - Loading indicators
+  
+  Usage:
+  - Main application shell
+  - Dynamic dashboard views
+  - Analysis workflow pages
+  - Model browsing interface
+#}
 
-{# The layouts/single-page.html already renders dynamic content via HTMX if initial_content_url is provided
-   and includes main_partial directly when set. This wrapper exists for routes calling render_template('single_page.html'). #}
+{% extends "layouts/base.html" %}
 
 {% block title %}{{ page_title|default('AI Model Analysis Platform') }}{% endblock %}
+
+{# Use a single inner container instead of base's default container-fluid on main #}
+{# Use base's unified content container; no override needed #}
+{% block main_class %}py-4{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+    /* Single page application styles */
+    .spa-container {
+        min-height: calc(100vh - 200px);
+        position: relative;
+        padding: 0; /* remove internal padding to rely on outer content container */
+    }
+    
+    .spa-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        z-index: 100;
+    }
+    
+    .spa-content {
+        transition: opacity 0.3s ease;
+    }
+    
+    .spa-content.loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    
+    .spa-error {
+        text-align: center;
+        padding: 3rem 1rem;
+    }
+    
+    /* Removed legacy SPA top navigation bar */
+    
+    /* Navigation breadcrumb */
+    .spa-breadcrumb {
+        background-color: var(--bs-gray-100);
+        border-radius: 0.375rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Loading animation */
+    .spa-loading .spinner-border {
+        width: 3rem;
+        height: 3rem;
+    }
+    
+    /* Transition animations */
+    .fade-in {
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+</style>
+<!-- Dashboard deps for SPA-loaded dashboard content -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+{% endblock %}
+
+{% block body_class %}{{ super() }} spa-layout{% endblock %}
+
+{% block breadcrumbs %}
+{# Dynamic breadcrumb based on current page; match Analysis Hub wrapper (nav.breadcrumb.mb-4) #}
+<nav aria-label="breadcrumb" class="mb-4" id="spa-breadcrumb">
+    <ol class="breadcrumb mb-0" id="breadcrumb-list">
+        <li class="breadcrumb-item">
+            <a href="/" hx-get="/spa/dashboard" hx-target="#spa-content" hx-push-url="true">
+                <i class="fas fa-home me-1"></i>Dashboard
+            </a>
+        </li>
+        {% if breadcrumb_items %}
+            {% for item in breadcrumb_items %}
+            <li class="breadcrumb-item{{ ' active' if loop.last else '' }}"
+                {% if loop.last %}aria-current="page"{% endif %}>
+                {% if not loop.last and item.url %}
+                <a href="{{ item.url }}" 
+                   hx-get="{{ item.spa_url|default(item.url) }}" 
+                   hx-target="#spa-content" 
+                   hx-push-url="true">
+                    {% if item.icon %}<i class="{{ item.icon }} me-1"></i>{% endif %}
+                    {{ item.title }}
+                </a>
+                {% else %}
+                {% if item.icon %}<i class="{{ item.icon }} me-1"></i>{% endif %}
+                {{ item.title }}
+                {% endif %}
+            </li>
+            {% endfor %}
+        {% endif %}
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+{# SPA top navigation bar removed as unnecessary #}
+
+{# Main SPA Container #}
+<div class="spa-container">
+    {# Loading Indicator #}
+    <div class="spa-loading d-none" id="spa-loading">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div class="mt-3">
+            <h5 class="text-muted">Loading content...</h5>
+            <p class="text-muted small">Please wait while we fetch the latest data.</p>
+        </div>
+    </div>
+    
+    {# Error Display #}
+    <div class="spa-error d-none" id="spa-error">
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+            <h4>Content Loading Error</h4>
+            <p class="mb-3">We encountered an error while loading the requested content.</p>
+            <button type="button" class="btn btn-outline-danger" id="spa-retry">
+                <i class="fas fa-redo me-1"></i>Retry
+            </button>
+            <button type="button" class="btn btn-secondary ms-2" id="spa-home">
+                <i class="fas fa-home me-1"></i>Go Home
+            </button>
+        </div>
+    </div>
+    
+    {# Dynamic Content Area #}
+    <div class="spa-content" 
+         id="spa-content"
+         hx-get="{{ initial_content_url|default('/spa/dashboard') }}"
+         hx-trigger="load"
+         hx-target="this"
+         hx-swap="innerHTML"
+         hx-indicator="#spa-loading"
+         hx-push-url="{{ initial_url|default('/') }}">
+        
+        {# Initial Content Placeholder #}
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading initial content...</span>
+            </div>
+            <div class="mt-3">
+                <h5 class="text-muted">Initializing Application</h5>
+                <p class="text-muted small">Setting up your workspace...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Shared modal for SPA content that expects #main-modal #}
+<div class="modal fade" id="main-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content"><!-- populated via HTMX --></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+    // Single Page Application Manager
+    class SPAManager {
+        constructor() {
+            this.currentPage = null;
+            this.history = [];
+            this.contentElement = document.getElementById('spa-content');
+            this.loadingElement = document.getElementById('spa-loading');
+            this.errorElement = document.getElementById('spa-error');
+            
+            this.initialize();
+        }
+        
+        initialize() {
+            this.setupHTMXEvents();
+            // Navigation bar removed; no per-button bindings needed
+            this.setupHistoryHandling();
+            this.setupKeyboardShortcuts();
+            // Active navigation state no longer shown in UI
+        }
+        
+        setupHTMXEvents() {
+            // Handle HTMX requests
+            document.body.addEventListener('htmx:beforeRequest', (e) => {
+                if (e.target.id === 'spa-content') {
+                    this.showLoading();
+                    this.hideError();
+                }
+            });
+            
+            document.body.addEventListener('htmx:afterRequest', (e) => {
+                if (e.target.id === 'spa-content') {
+                    this.hideLoading();
+                    
+                    if (!e.detail.successful) {
+                        this.showError(e.detail.xhr);
+                    } else {
+                        this.onContentLoaded(e.detail.pathInfo.requestPath);
+                    }
+                }
+            });
+            
+            document.body.addEventListener('htmx:responseError', (e) => {
+                if (e.target.id === 'spa-content') {
+                    this.showError(e.detail.xhr);
+                }
+            });
+            
+            document.body.addEventListener('htmx:pushedIntoHistory', (e) => {
+                this.updateActiveNavigation();
+                this.updateBreadcrumb(e.detail.path);
+            });
+        }
+        
+        setupNavigationEvents() {
+            // Error handling buttons (still applicable)
+            document.getElementById('spa-retry')?.addEventListener('click', () => {
+                this.retryLastRequest();
+            });
+            
+            document.getElementById('spa-home')?.addEventListener('click', () => {
+                this.navigateHome();
+            });
+        }
+        
+        setupHistoryHandling() {
+            // Handle browser back/forward
+            window.addEventListener('popstate', (e) => {
+                if (e.state && e.state.spa) {
+                    this.loadPage(e.state.path, false);
+                }
+            });
+        }
+        
+        setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // Escape for error dismiss
+                if (e.key === 'Escape' && !this.errorElement.classList.contains('d-none')) {
+                    this.hideError();
+                }
+            });
+        }
+        
+        showLoading() {
+            this.loadingElement.classList.remove('d-none');
+            this.contentElement.classList.add('loading');
+        }
+        
+        hideLoading() {
+            this.loadingElement.classList.add('d-none');
+            this.contentElement.classList.remove('loading');
+        }
+        
+        showError(xhr) {
+            this.hideLoading();
+            this.errorElement.classList.remove('d-none');
+            
+            // Update error message if available
+            const errorMsg = xhr ? xhr.statusText || 'Network Error' : 'Unknown Error';
+            this.errorElement.querySelector('.alert p').textContent = 
+                `Error ${xhr?.status || 'Unknown'}: ${errorMsg}`;
+        }
+        
+        hideError() {
+            this.errorElement.classList.add('d-none');
+        }
+        
+        onContentLoaded(path) {
+            this.currentPage = path;
+            this.contentElement.classList.add('fade-in');
+            
+            // Update page title if specified in response
+            const titleElement = this.contentElement.querySelector('[data-page-title]');
+            if (titleElement) {
+                document.title = titleElement.dataset.pageTitle + ' - AI Model Analysis Platform';
+            }
+            
+            // Initialize any new components in the loaded content
+            this.initializeNewContent();
+        }
+        
+        initializeNewContent() {
+            // Re-initialize Bootstrap components
+            const tooltips = this.contentElement.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltips.forEach(el => new bootstrap.Tooltip(el));
+            
+            const popovers = this.contentElement.querySelectorAll('[data-bs-toggle="popover"]');
+            popovers.forEach(el => new bootstrap.Popover(el));
+            
+            // Initialize dashboard chart if present
+            const chartCanvas = this.contentElement.querySelector('#analysis-chart');
+            if (chartCanvas && window.Chart) {
+                if (!window._dashboardChart) {
+                    window._dashboardChart = new Chart(chartCanvas, {
+                        type: 'line',
+                        data: { labels: [], datasets: [
+                            { label: 'Security Analyses', data: [], borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75,192,192,0.1)', tension: 0.1 },
+                            { label: 'Performance Tests', data: [], borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255,99,132,0.1)', tension: 0.1 }
+                        ]},
+                        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                    });
+                }
+                // Load/update chart data
+                fetch('/api/dashboard/chart-data')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (!data || !window._dashboardChart) return;
+                        // Expecting { labels: [...], security: [...], performance: [...] }
+                        window._dashboardChart.data.labels = data.labels || [];
+                        if (window._dashboardChart.data.datasets[0]) window._dashboardChart.data.datasets[0].data = data.security || [];
+                        if (window._dashboardChart.data.datasets[1]) window._dashboardChart.data.datasets[1].data = data.performance || [];
+                        window._dashboardChart.update();
+                    })
+                    .catch(() => { /* ignore */ });
+            }
+
+            // Trigger custom initialization event
+            this.contentElement.dispatchEvent(new CustomEvent('spa:contentLoaded'));
+        }
+        
+    // Active navigation UI removed
+        
+        updateBreadcrumb(path) {
+            // Update breadcrumb based on current path
+            // This would be implemented based on routing structure
+        }
+        
+        refreshCurrentPage() {
+            if (this.currentPage) {
+                htmx.ajax('GET', this.currentPage, '#spa-content');
+            }
+        }
+        
+        retryLastRequest() {
+            this.hideError();
+            this.refreshCurrentPage();
+        }
+        
+        navigateHome() {
+            htmx.ajax('GET', '/spa/dashboard', '#spa-content');
+            history.pushState({spa: true, path: '/'}, '', '/');
+            this.updateActiveNavigation();
+        }
+        
+        loadPage(url, pushState = true) {
+            htmx.ajax('GET', url, '#spa-content');
+            
+            if (pushState) {
+                history.pushState({spa: true, path: url}, '', url);
+            }
+            
+            this.updateActiveNavigation();
+        }
+    }
+    
+    // Initialize SPA manager when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        window.spaManager = new SPAManager();
+    });
+</script>
+{% endblock %}

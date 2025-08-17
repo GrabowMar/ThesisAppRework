@@ -33,6 +33,18 @@
 
 {% block title %}Dashboard - {{ super() }}{% endblock %}
 
+{# Default header blocks that child pages can override #}
+{% block dashboard_title %}Dashboard{% endblock %}
+{% block dashboard_subtitle %}{% endblock %}
+{% block quick_actions %}
+<button type="button" class="btn btn-outline-primary btn-sm">
+    <i class="fas fa-sync-alt me-1"></i>Refresh
+</button>
+<button type="button" class="btn btn-outline-success btn-sm">
+    <i class="fas fa-plus me-1"></i>New Analysis
+</button>
+{% endblock %}
+
 {% block extra_head %}
 {{ super() }}
 <!-- Chart.js for dashboard visualizations -->
@@ -64,35 +76,16 @@
 
 {% block content %}
 {# Dashboard Header with Quick Actions #}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1 class="h3 mb-0">
-                <i class="fas fa-tachometer-alt me-2"></i>
-                {% block dashboard_title %}Dashboard{% endblock %}
-            </h1>
-            
-            {# Quick Actions Panel #}
-            <div class="btn-group" role="group">
-                {% block quick_actions %}
-                <button type="button" class="btn btn-outline-primary btn-sm">
-                    <i class="fas fa-sync-alt me-1"></i>Refresh
-                </button>
-                <button type="button" class="btn btn-outline-success btn-sm">
-                    <i class="fas fa-plus me-1"></i>New Analysis
-                </button>
-                {% endblock %}
-            </div>
-        </div>
-    </div>
-</div>
+{% from 'partials/common/_page_header.html' import page_header %}
+{% set _actions_html = self.quick_actions() %}
+{{ page_header(self.dashboard_title()|trim or 'Dashboard', self.dashboard_subtitle()|trim or 'Your AI analysis control center', icon='fas fa-tachometer-alt', actions_html=_actions_html) }}
 
 {# Dashboard Stats Row #}
 <div class="row mb-4" id="dashboard-stats" 
-     hx-get="/api/dashboard/stats-fragment" 
-     hx-trigger="load, every 30s"
-     hx-target="#dashboard-stats"
-     hx-swap="outerHTML">
+    hx-get="/api/dashboard/stats-fragment" 
+    hx-trigger="load, every 30s"
+    hx-target="#dashboard-stats"
+    hx-swap="innerHTML">
     {% block dashboard_stats %}
     <div class="col-12">
         <div class="text-center text-muted py-3">

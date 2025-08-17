@@ -98,6 +98,8 @@ def create_app(config_name: str = 'default') -> Flask:
         SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
         SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', default_db_path),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        # Ensure templates are always reloaded to avoid stale caches in tests/dev
+        TEMPLATES_AUTO_RELOAD=True,
         
         # Celery configuration
         CELERY_BROKER_URL=CeleryConfig.broker_url,
@@ -112,6 +114,24 @@ def create_app(config_name: str = 'default') -> Flask:
         ANALYZER_AUTO_START=os.environ.get('ANALYZER_AUTO_START', 'false').lower() == 'true',
     )
     
+    # Ensure Jinja picks up template changes without restarting the app
+    try:
+        app.jinja_env.auto_reload = True
+    except Exception:
+        pass
+
+    # In test runs, aggressively clear Jinja template bytecode/cache to avoid stale templates
+    try:
+        import os as _os
+        if _os.environ.get('PYTEST_CURRENT_TEST') or app.config.get('TESTING'):
+            # Clear cache dict if present
+            cache_obj = getattr(app.jinja_env, 'cache', None)
+            if cache_obj is not None and hasattr(cache_obj, 'clear'):
+                cache_obj.clear()
+    except Exception:
+        # Best-effort only; ignore any issues here
+        pass
+
     # Initialize extensions and get components manager
     components = init_extensions(app)
     

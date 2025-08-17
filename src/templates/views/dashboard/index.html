@@ -34,15 +34,19 @@
 
 {% extends "layouts/dashboard.html" %}
 
-{% block title %}Dashboard - {{ super() }}{% endblock %}
+{# Avoid double "Dashboard -" prefix; layout already prefixes the title #}
+{% block title %}{{ super() }}{% endblock %}
 
 {% block dashboard_title %}AI Analysis Dashboard{% endblock %}
 
+{# Subtitle under the main title to mirror Analysis Hub header #}
+{% block dashboard_subtitle %}Manage and monitor your AI model analyses{% endblock %}
+
 {% block quick_actions %}
 <button type="button" class="btn btn-outline-primary btn-sm" 
-        hx-get="/api/dashboard/refresh" 
-        hx-target="#dashboard-content" 
-        hx-indicator="#global-spinner">
+    hx-get="/api/dashboard/refresh" 
+    hx-swap="none" 
+    hx-indicator="#global-spinner">
     <i class="fas fa-sync-alt me-1"></i>Refresh All
 </button>
 <button type="button" class="btn btn-outline-success btn-sm" 
@@ -60,6 +64,9 @@
     <i class="fas fa-robot me-1"></i>Select Model
 </button>
 {% endblock %}
+
+{# Hidden container for model quick-select responses #}
+<div id="model-selector" class="d-none"></div>
 
 {% block dashboard_stats %}
 <div class="col-lg-3 col-md-6 mb-3">
@@ -160,16 +167,16 @@
                 <i class="fas fa-heartbeat me-2"></i>System Health
             </h5>
             <div class="btn-group btn-group-sm">
-                <button type="button" class="btn btn-outline-primary"
-                        hx-get="/api/dashboard/health"
+        <button type="button" class="btn btn-outline-primary"
+            hx-get="/api/dashboard/system-health-fragment"
                         hx-target="#system-health-content"
                         hx-indicator="#health-spinner">
                     <i class="fas fa-sync-alt me-1"></i>Refresh
                 </button>
             </div>
         </div>
-        <div class="card-body" id="system-health-content"
-             hx-get="/api/dashboard/health"
+    <div class="card-body" id="system-health-content"
+         hx-get="/api/dashboard/system-health-fragment"
              hx-trigger="load, every 30s"
              hx-target="#system-health-content"
              hx-swap="innerHTML">
@@ -234,13 +241,10 @@
                 </div>
                 <div class="col-md-3">
                     <div class="d-grid">
-                        <button type="button" class="btn btn-outline-info h-100"
-                                hx-get="/models/overview"
-                                hx-target="#spa-content"
-                                hx-push-url="/models">
+                        <a class="btn btn-outline-info h-100" href="/models/">
                             <i class="fas fa-robot fa-2x mb-2"></i>
                             <div class="small">Browse Models</div>
-                        </button>
+                        </a>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -274,8 +278,8 @@
             </a>
         </div>
         <div class="card-body p-0">
-            <div class="list-group list-group-flush" id="recent-activity"
-                 hx-get="/api/dashboard/activity"
+          <div class="list-group list-group-flush" id="recent-activity"
+              hx-get="/api/dashboard/activity-timeline"
                  hx-trigger="load, every 60s"
                  hx-target="#recent-activity"
                  hx-swap="innerHTML">
