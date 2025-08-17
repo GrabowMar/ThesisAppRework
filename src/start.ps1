@@ -235,11 +235,28 @@ function Initialize-Database {
         $initScript = @"
 from app.factory import create_cli_app
 from app.extensions import init_db
+from app.models import ModelCapability
+from app.services.data_initialization import DataInitializationService
 
 app = create_cli_app()
 with app.app_context():
     init_db()
-    print('Database initialized successfully')
+    try:
+        count = ModelCapability.query.count()
+    except Exception as e:
+        print(f'Warning: could not query ModelCapability count: {e}')
+        count = 0
+
+    if count == 0:
+        try:
+            svc = DataInitializationService()
+            res = svc.initialize_all_data()
+            print(f"Database initialized and seeded: models={res.get('models_loaded')}, apps={res.get('applications_loaded')}, success={res.get('success')}")
+        except Exception as se:
+            print(f'Warning: database seeding failed: {se}')
+            print('Database initialized without seed data')
+    else:
+        print(f'Database initialized successfully; existing models: {count}')
 "@
         $pinfo = New-Object System.Diagnostics.ProcessStartInfo
         $pinfo.FileName = $pythonExe

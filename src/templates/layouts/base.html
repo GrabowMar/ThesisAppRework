@@ -60,6 +60,12 @@
                 --sidebar-width: 260px;
                 --sidebar-width-collapsed: 70px;
             }
+    /* Ensure main content always accounts for fixed navbar */
+    .main-content { padding-top: var(--navbar-height); }
+    /* Provide a universal class we can reuse for page-level padding tweaks */
+    .content-container { box-sizing: border-box; }
+    /* SPA breadcrumb visual consistency */
+    .spa-breadcrumb { background-color: var(--bs-gray-100); border-radius: .375rem; padding: .75rem 1rem; margin-bottom: 1rem; }
         </style>
     {% endblock %}
     
@@ -89,7 +95,8 @@
     
     {# Main Content Container #}
     <main class="main-content {% block main_class %}py-4{% endblock %}">
-        <div class="content-container container-fluid px-3">
+        {% set _content_container_class = content_container_class|default('container-fluid px-3') %}
+        <div class="content-container {{ _content_container_class }}">
             {# Breadcrumb Navigation #}
             {% if show_breadcrumbs|default(true) %}
             {% block breadcrumbs %}

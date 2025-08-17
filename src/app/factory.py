@@ -122,6 +122,12 @@ def create_app(config_name: str = 'default') -> Flask:
     # Initialize database with app context
     with app.app_context():
         try:
+            # Ensure models are imported before creating tables so SQLAlchemy
+            # is aware of all model metadata (avoids 'no such table' errors)
+            try:
+                import app.models as _models  # noqa: F401
+            except Exception as _imp_err:
+                logger.warning(f"Could not import app.models before DB init: {_imp_err}")
             db.create_all()
             logger.info("Database initialized successfully")
         except Exception as e:
@@ -296,6 +302,11 @@ def create_cli_app() -> Flask:
     
     with app.app_context():
         try:
+            # Ensure models are imported before creating tables
+            try:
+                import app.models as _models  # noqa: F401
+            except Exception as _imp_err:
+                logger.warning(f"Could not import app.models before CLI DB init: {_imp_err}")
             db.create_all()
             logger.info("Database initialized for CLI")
         except Exception as e:
