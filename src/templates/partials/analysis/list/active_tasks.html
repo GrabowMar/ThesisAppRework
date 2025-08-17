@@ -1,0 +1,48 @@
+{#
+Active Tasks List Partial
+=========================
+
+Active tasks display for HTMX updates.
+
+Parameters:
+- active (list): Currently active tasks/analyses
+
+Usage: /analysis/api/active-tasks endpoint
+#}
+
+{% if active %}
+    {% for task in active %}
+    <div class="d-flex align-items-center mb-2 p-3 border rounded bg-light">
+        <div class="me-3">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        <div class="flex-grow-1">
+            <div class="fw-semibold">{{ task.task_type|title }} Analysis</div>
+            <div class="small text-muted">
+                {{ task.application.model_slug if task.application else 'Unknown Model' }} - 
+                App {{ task.application.app_number if task.application else 'N/A' }}
+            </div>
+            <div class="small text-muted">
+                Started {{ task.started_at.strftime('%H:%M:%S') if task.started_at else 'Unknown time' }}
+            </div>
+        </div>
+        <div class="text-end">
+            <span class="badge bg-info">
+                <i class="fas fa-clock me-1"></i>
+                Running
+            </span>
+            <div class="small text-muted mt-1">
+                {{ task.progress }}% complete
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="text-center py-4 text-muted">
+        <i class="fas fa-check-circle fa-3x mb-2"></i>
+        <div class="h6">No active tasks</div>
+        <div class="small">All analyses are complete</div>
+    </div>
+{% endif %}

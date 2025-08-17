@@ -1,0 +1,752 @@
+{# 
+Common Progress Component
+
+Purpose: Progress bars and indicators for various progress states
+Usage: {{ progress(value=75, type='bar', label='Analysis Progress', animated=true) }}
+Routes: Used across all views for progress indication
+Features:
+- Multiple progress types (bar, circle, step, radial)
+- Animated and static progress indicators
+- Color-coded progress states
+- Labels and percentage display
+- Indeterminate/infinite progress
+- Multi-step progress tracking
+- Accessibility support with ARIA attributes
+- Real-time progress updates via HTMX
+Technical: CSS animations, SVG circle progress, Bootstrap progress bars
+Dependencies: Bootstrap 5 progress classes, CSS animations, SVG support
+#}
+
+{# Set default values for optional parameters #}
+{%- set value = value or 0 -%}
+{%- set max_value = max_value or 100 -%}
+{%- set type = type or 'bar' -%}
+{%- set label = label or None -%}
+{%- set show_percentage = show_percentage if show_percentage is not none else true -%}
+{%- set animated = animated if animated is not none else false -%}
+{%- set striped = striped if striped is not none else false -%}
+{%- set color = color or 'primary' -%}
+{%- set size = size or 'normal' -%}
+{%- set indeterminate = indeterminate if indeterminate is not none else false -%}
+{%- set component_id = id or 'progress-' ~ range(1000, 9999) | random -%}
+{%- set steps = steps or [] -%}
+{%- set current_step = current_step or 0 -%}
+{%- set show_labels = show_labels if show_labels is not none else true -%}
+{%- set htmx_poll = htmx_poll or None -%}
+
+{# Calculate percentage #}
+{%- set percentage = ((value / max_value) * 100) | round(1) -%}
+
+{# Color mappings #}
+{%- set color_classes = {
+    'primary': 'bg-primary',
+    'secondary': 'bg-secondary', 
+    'success': 'bg-success',
+    'warning': 'bg-warning',
+    'danger': 'bg-danger',
+    'info': 'bg-info',
+    'light': 'bg-light',
+    'dark': 'bg-dark'
+} -%}
+
+{# Size mappings #}
+{%- set size_classes = {
+    'xs': 'progress-xs',
+    'sm': 'progress-sm', 
+    'normal': '',
+    'lg': 'progress-lg',
+    'xl': 'progress-xl'
+} -%}
+
+<div class="progress-container {{ size_classes[size] }}" 
+     id="{{ component_id }}" 
+     data-type="{{ type }}"
+     {% if htmx_poll %}
+         hx-get="{{ htmx_poll }}"
+         hx-trigger="every {{ htmx_poll_interval or '2s' }}"
+         hx-target="#{{ component_id }}"
+         hx-swap="outerHTML"
+     {% endif %}>
+     
+    {# Progress Label #}
+    {% if label %}
+        <div class="progress-label d-flex justify-content-between align-items-center mb-2">
+            <span class="progress-title">{{ label }}</span>
+            {% if show_percentage and not indeterminate %}
+                <span class="progress-percentage text-muted">{{ percentage }}%</span>
+            {% endif %}
+        </div>
+    {% endif %}
+    
+    {# Bar Progress Type #}
+    {% if type == 'bar' %}
+        <div class="progress {{ 'progress-striped' if striped else '' }} {{ 'progress-animated' if animated else '' }}"
+             role="progressbar"
+             aria-valuenow="{{ value }}"
+             aria-valuemin="0"
+             aria-valuemax="{{ max_value }}"
+             {% if label %}aria-label="{{ label }}"{% endif %}>
+            <div class="progress-bar {{ color_classes[color] }} {{ 'progress-bar-indeterminate' if indeterminate else '' }}"
+                 style="{{ 'width: ' + percentage|string + '%' if not indeterminate else 'width: 100%' }}">
+                {% if show_percentage and not label and not indeterminate %}
+                    {{ percentage }}%
+                {% endif %}
+            </div>
+        </div>
+    
+    {# Circle Progress Type #}
+    {% elif type == 'circle' %}
+        <div class="progress-circle" data-percentage="{{ percentage }}">
+            <svg class="progress-circle-svg" viewBox="0 0 100 100">
+                <circle class="progress-circle-background" 
+                        cx="50" cy="50" r="45" 
+                        fill="none" 
+                        stroke="#e9ecef" 
+                        stroke-width="8"/>
+                <circle class="progress-circle-progress" 
+                        cx="50" cy="50" r="45" 
+                        fill="none" 
+                        stroke="var(--bs-{{ color }})"
+                        stroke-width="8"
+                        stroke-dasharray="283"
+                        stroke-dashoffset="{{ 283 - (283 * percentage / 100) }}"
+                        {% if animated %}class="progress-circle-animated"{% endif %}/>
+            </svg>
+            <div class="progress-circle-content">
+                {% if show_percentage and not indeterminate %}
+                    <span class="progress-circle-percentage">{{ percentage }}%</span>
+                {% endif %}
+                {% if label and not show_percentage %}
+                    <span class="progress-circle-label">{{ label }}</span>
+                {% endif %}
+            </div>
+        </div>
+    
+    {# Step Progress Type #}
+    {% elif type == 'steps' and steps %}
+        <div class="progress-steps" role="progressbar" 
+             aria-valuenow="{{ current_step }}" 
+             aria-valuemin="0" 
+             aria-valuemax="{{ steps|length - 1 }}"
+             aria-label="Step {{ current_step + 1 }} of {{ steps|length }}">
+            <div class="progress-steps-track">
+                {% for step in steps %}
+                    <div class="progress-step {{ 'completed' if loop.index0 < current_step else '' }} {{ 'active' if loop.index0 == current_step else '' }} {{ 'pending' if loop.index0 > current_step else '' }}"
+                         data-step="{{ loop.index0 }}">
+                        <div class="progress-step-marker">
+                            {% if loop.index0 < current_step %}
+                                <i class="fas fa-check"></i>
+                            {% elif loop.index0 == current_step %}
+                                <span class="step-number">{{ loop.index }}</span>
+                            {% else %}
+                                <span class="step-number">{{ loop.index }}</span>
+                            {% endif %}
+                        </div>
+                        {% if show_labels %}
+                            <div class="progress-step-label">{{ step.label or step }}</div>
+                        {% endif %}
+                    </div>
+                    {% if not loop.last %}
+                        <div class="progress-step-connector {{ 'completed' if loop.index0 < current_step else '' }}"></div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    
+    {# Radial Progress Type #}
+    {% elif type == 'radial' %}
+        <div class="progress-radial" data-percentage="{{ percentage }}">
+            <div class="progress-radial-inner" 
+                 style="background: conic-gradient(var(--bs-{{ color }}) {{ percentage * 3.6 }}deg, #e9ecef 0deg);">
+                <div class="progress-radial-content">
+                    {% if show_percentage and not indeterminate %}
+                        <span class="progress-radial-percentage">{{ percentage }}%</span>
+                    {% endif %}
+                    {% if label %}
+                        <span class="progress-radial-label">{{ label }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    
+    {# Thin Line Progress Type #}
+    {% elif type == 'line' %}
+        <div class="progress-line {{ 'progress-line-indeterminate' if indeterminate else '' }}">
+            <div class="progress-line-track">
+                <div class="progress-line-fill {{ color_classes[color] }}"
+                     style="{{ 'width: ' + percentage|string + '%' if not indeterminate else '' }}"></div>
+            </div>
+        </div>
+    
+    {# Dots Progress Type #}
+    {% elif type == 'dots' %}
+        <div class="progress-dots {{ 'progress-dots-animated' if animated else '' }}">
+            {% for i in range(5) %}
+                <div class="progress-dot {{ color_classes[color] }}" 
+                     style="animation-delay: {{ i * 0.2 }}s;"></div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    {# Progress Info/Details #}
+    {% if type != 'steps' and (value is defined or indeterminate) %}
+        <div class="progress-info mt-2">
+            {% if not indeterminate %}
+                <small class="text-muted">
+                    {{ value }} / {{ max_value }} 
+                    {% if label and 'items' not in label.lower() %}items{% endif %}
+                </small>
+            {% else %}
+                <small class="text-muted">In progress...</small>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+{# JavaScript for progress functionality #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const progressContainer = document.getElementById('{{ component_id }}');
+    if (!progressContainer) return;
+    
+    // Initialize progress based on type
+    const progressType = progressContainer.dataset.type;
+    
+    // Circle progress animation
+    if (progressType === 'circle') {
+        animateCircleProgress();
+    }
+    
+    // Handle HTMX updates
+    document.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target.id === '{{ component_id }}') {
+            // Re-initialize after HTMX update
+            if (progressType === 'circle') {
+                setTimeout(animateCircleProgress, 50);
+            }
+        }
+    });
+    
+    function animateCircleProgress() {
+        const circle = progressContainer.querySelector('.progress-circle-progress');
+        if (!circle) return;
+        
+        const percentage = parseFloat(progressContainer.querySelector('.progress-circle').dataset.percentage);
+        const circumference = 283;
+        const offset = circumference - (circumference * percentage / 100);
+        
+        // Animate from 100% offset to target offset
+        circle.style.strokeDashoffset = circumference;
+        
+        // Use requestAnimationFrame for smooth animation
+        const duration = 1500; // 1.5 seconds
+        const startTime = performance.now();
+        
+        function animate(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Easing function (ease-out)
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            const currentOffset = circumference - (circumference - offset) * easeProgress;
+            
+            circle.style.strokeDashoffset = currentOffset;
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            }
+        }
+        
+        requestAnimationFrame(animate);
+    }
+    
+    // Step progress interaction
+    if (progressType === 'steps') {
+        const steps = progressContainer.querySelectorAll('.progress-step');
+        steps.forEach((step, index) => {
+            step.addEventListener('click', function() {
+                // Emit custom event for step click
+                const event = new CustomEvent('progressStepClick', {
+                    detail: {
+                        stepIndex: index,
+                        stepElement: step,
+                        componentId: '{{ component_id }}'
+                    }
+                });
+                document.dispatchEvent(event);
+            });
+        });
+    }
+    
+    // Progress update function (for external use)
+    window.updateProgress = function(componentId, newValue, newMax) {
+        if (componentId !== '{{ component_id }}') return;
+        
+        const percentage = Math.round((newValue / (newMax || {{ max_value }})) * 100);
+        
+        // Update bar progress
+        const progressBar = progressContainer.querySelector('.progress-bar');
+        if (progressBar) {
+            progressBar.style.width = percentage + '%';
+            progressBar.setAttribute('aria-valuenow', newValue);
+            
+            if (progressBar.textContent.includes('%')) {
+                progressBar.textContent = percentage + '%';
+            }
+        }
+        
+        // Update percentage displays
+        const percentageDisplays = progressContainer.querySelectorAll('.progress-percentage, .progress-circle-percentage, .progress-radial-percentage');
+        percentageDisplays.forEach(display => {
+            display.textContent = percentage + '%';
+        });
+        
+        // Update circle progress
+        const circle = progressContainer.querySelector('.progress-circle-progress');
+        if (circle) {
+            const circumference = 283;
+            const offset = circumference - (circumference * percentage / 100);
+            circle.style.strokeDashoffset = offset;
+        }
+        
+        // Update radial progress
+        const radial = progressContainer.querySelector('.progress-radial-inner');
+        if (radial) {
+            radial.style.background = `conic-gradient(var(--bs-{{ color }}) ${percentage * 3.6}deg, #e9ecef 0deg)`;
+        }
+        
+        // Update line progress
+        const lineFill = progressContainer.querySelector('.progress-line-fill');
+        if (lineFill) {
+            lineFill.style.width = percentage + '%';
+        }
+        
+        // Update info
+        const progressInfo = progressContainer.querySelector('.progress-info small');
+        if (progressInfo && !progressInfo.textContent.includes('In progress')) {
+            progressInfo.textContent = `${newValue} / ${newMax || {{ max_value }}} items`;
+        }
+    };
+});
+</script>
+
+{# CSS for progress styling #}
+<style>
+:root {
+    --progress-height: 0.5rem;
+    --progress-border-radius: 0.375rem;
+}
+
+.progress-container {
+    width: 100%;
+}
+
+/* Size variations */
+.progress-xs .progress { height: 0.25rem; }
+.progress-sm .progress { height: 0.375rem; }
+.progress-lg .progress { height: 0.75rem; }
+.progress-xl .progress { height: 1rem; }
+
+/* Progress Label */
+.progress-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.progress-title {
+    color: #495057;
+}
+
+.progress-percentage {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.8125rem;
+}
+
+/* Bar Progress Enhancements */
+.progress {
+    background-color: #e9ecef;
+    border-radius: var(--progress-border-radius);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.progress-bar {
+    transition: width 0.6s ease;
+    font-size: 0.75rem;
+    line-height: var(--progress-height);
+    color: white;
+    text-align: center;
+    white-space: nowrap;
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-size: 1rem 1rem;
+}
+
+.progress-striped .progress-bar {
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+}
+
+.progress-animated .progress-bar {
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+    0% { background-position: 1rem 0; }
+    100% { background-position: 0 0; }
+}
+
+.progress-bar-indeterminate {
+    position: relative;
+    background: linear-gradient(90deg, transparent, var(--bs-primary), transparent);
+    animation: progress-indeterminate 2s infinite;
+    background-size: 200% 100%;
+}
+
+@keyframes progress-indeterminate {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Circle Progress */
+.progress-circle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+}
+
+.progress-circle-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.progress-circle-progress {
+    transition: stroke-dashoffset 0.6s ease;
+    stroke-linecap: round;
+}
+
+.progress-circle-animated {
+    transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-circle-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.progress-circle-percentage {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #495057;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+
+.progress-circle-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+/* Step Progress */
+.progress-steps {
+    padding: 1rem 0;
+}
+
+.progress-steps-track {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+}
+
+.progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.progress-step:hover {
+    transform: scale(1.05);
+}
+
+.progress-step-marker {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: 2px solid #dee2e6;
+    background-color: #f8f9fa;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+.progress-step.completed .progress-step-marker {
+    background-color: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+.progress-step.active .progress-step-marker {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+    box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.25);
+}
+
+.progress-step-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-align: center;
+    max-width: 80px;
+    word-wrap: break-word;
+}
+
+.progress-step.completed .progress-step-label {
+    color: #28a745;
+    font-weight: 500;
+}
+
+.progress-step.active .progress-step-label {
+    color: #007bff;
+    font-weight: 600;
+}
+
+.progress-step-connector {
+    position: absolute;
+    top: 1rem;
+    left: calc(50% + 1rem);
+    right: calc(50% + 1rem);
+    height: 2px;
+    background-color: #dee2e6;
+    z-index: -1;
+    transition: background-color 0.3s ease;
+}
+
+.progress-step-connector.completed {
+    background-color: #28a745;
+}
+
+/* Radial Progress */
+.progress-radial {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    height: 100px;
+}
+
+.progress-radial-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background 0.6s ease;
+}
+
+.progress-radial-inner::before {
+    content: '';
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    right: 10%;
+    bottom: 10%;
+    background-color: white;
+    border-radius: 50%;
+}
+
+.progress-radial-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+}
+
+.progress-radial-percentage {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #495057;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+
+.progress-radial-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+/* Line Progress */
+.progress-line {
+    width: 100%;
+    height: 2px;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-line-track {
+    width: 100%;
+    height: 100%;
+    background-color: #e9ecef;
+    border-radius: 1px;
+}
+
+.progress-line-fill {
+    height: 100%;
+    background-color: var(--bs-primary);
+    border-radius: 1px;
+    transition: width 0.6s ease;
+}
+
+.progress-line-indeterminate .progress-line-fill {
+    width: 30% !important;
+    animation: progress-line-indeterminate 2s infinite;
+}
+
+@keyframes progress-line-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+}
+
+/* Dots Progress */
+.progress-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.progress-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--bs-primary);
+    opacity: 0.3;
+}
+
+.progress-dots-animated .progress-dot {
+    animation: progress-dots-pulse 1.5s infinite;
+}
+
+@keyframes progress-dots-pulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(1); }
+    40% { opacity: 1; transform: scale(1.2); }
+}
+
+/* Progress Info */
+.progress-info {
+    font-size: 0.8125rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .progress-circle,
+    .progress-radial {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .progress-circle-percentage,
+    .progress-radial-percentage {
+        font-size: 0.75rem;
+    }
+    
+    .progress-step-marker {
+        width: 1.5rem;
+        height: 1.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .progress-step-label {
+        font-size: 0.6875rem;
+        max-width: 60px;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .progress {
+        background-color: #343a40;
+    }
+    
+    .progress-title {
+        color: #e9ecef;
+    }
+    
+    .progress-circle-percentage,
+    .progress-radial-percentage {
+        color: #e9ecef;
+    }
+    
+    .progress-step-marker {
+        background-color: #495057;
+        border-color: #6c757d;
+        color: #adb5bd;
+    }
+    
+    .progress-step-label {
+        color: #adb5bd;
+    }
+    
+    .progress-step-connector {
+        background-color: #6c757d;
+    }
+    
+    .progress-radial-inner::before {
+        background-color: #212529;
+    }
+    
+    .progress-line-track {
+        background-color: #495057;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .progress-bar,
+    .progress-circle-progress,
+    .progress-step-marker,
+    .progress-radial-inner,
+    .progress-line-fill {
+        transition: none;
+    }
+    
+    .progress-animated .progress-bar,
+    .progress-bar-indeterminate,
+    .progress-line-indeterminate .progress-line-fill,
+    .progress-dots-animated .progress-dot {
+        animation: none;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .progress {
+        border: 1px solid #000000;
+    }
+    
+    .progress-step-marker {
+        border-width: 3px;
+    }
+    
+    .progress-step.active .progress-step-marker {
+        box-shadow: 0 0 0 3px #000000;
+    }
+}
+</style>

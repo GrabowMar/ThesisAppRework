@@ -1,0 +1,929 @@
+{#
+  Sidebar Component - Side Navigation Menu
+  
+  Purpose: Primary side navigation with menu items, collapsible sections, and user context
+  
+  Usage:
+    {% include 'components/navigation/sidebar.html' %}
+    
+    Or with custom parameters:
+    {% include 'components/navigation/sidebar.html' with {
+        collapsed: false,
+        variant: "dark",
+        show_user_info: true,
+        show_search: true,
+        fixed_position: true
+    } %}
+  
+  Dependencies:
+    - Bootstrap 5.3+ (offcanvas, collapse, nav components)
+    - HTMX 1.9+ (for dynamic menu updates)
+    - Font Awesome 6+ (for icons)
+    - Custom CSS for sidebar styling
+  
+  Routes:
+    - /dashboard (GET) - Dashboard overview
+    - /analysis/* (GET) - Analysis routes
+    - /models/* (GET) - Model routes
+    - /applications/* (GET) - Application routes
+    - /batch/* (GET) - Batch job routes
+    - /statistics/* (GET) - Statistics routes
+    - /system/* (GET) - System routes
+  
+  Features:
+    - Collapsible menu sections
+    - Active page highlighting with breadcrumb trail
+    - User context and quick stats
+    - Responsive design (offcanvas on mobile)
+    - Search functionality within menu items
+    - Keyboard navigation support
+    - Quick action buttons
+    - System status indicators
+#}
+
+{%- set collapsed = collapsed|default(false) -%}
+{%- set variant = variant|default("dark") -%}
+{%- set show_user_info = show_user_info|default(true) -%}
+{%- set show_search = show_search|default(true) -%}
+{%- set show_quick_stats = show_quick_stats|default(true) -%}
+{%- set fixed_position = fixed_position|default(true) -%}
+{%- set enable_tooltips = enable_tooltips|default(true) -%}
+
+{# Internal flag to avoid recursive include when rendering mobile menu #}
+{%- set _rendering_variant = _rendering_variant|default('desktop') -%}
+
+<!-- Desktop Sidebar -->
+<aside class="sidebar sidebar-{{ variant }} {{ 'collapsed' if collapsed else '' }} {{ 'position-fixed' if fixed_position else '' }} d-none d-lg-flex flex-column" 
+       id="desktop-sidebar"
+       role="navigation" 
+       aria-label="Main sidebar navigation">
+  
+  <!-- User info section (if enabled) -->
+  {% if show_user_info and current_user %}
+  <div class="sidebar-user-info p-3 border-bottom border-secondary">
+    <div class="d-flex align-items-center">
+      <div class="flex-shrink-0">
+        <img src="{{ current_user.avatar_url if current_user.avatar_url else url_for('static', filename='images/default-avatar.svg') }}" 
+             class="rounded-circle sidebar-avatar" 
+             width="40" 
+             height="40" 
+             alt="{{ current_user.name }} avatar">
+      </div>
+      <div class="flex-grow-1 ms-3 sidebar-user-text">
+        <div class="fw-semibold text-white">{{ current_user.name }}</div>
+        <div class="small text-white-50">{{ current_user.role|title if current_user.role else 'User' }}</div>
+      </div>
+      <div class="flex-shrink-0">
+        <button class="btn btn-link btn-sm text-white-50 p-0" 
+                type="button"
+                data-bs-toggle="dropdown"
+                aria-label="User menu">
+          <i class="fas fa-ellipsis-v"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-dark">
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">Profile (not available)</a></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">Settings (not available)</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <button type="button" class="dropdown-item text-muted" disabled>Logout (not available)</button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Search within sidebar (if enabled) -->
+  {% if show_search %}
+  <div class="sidebar-search p-3 border-bottom border-secondary">
+    <div class="position-relative">
+      <input type="text" 
+             class="form-control form-control-sm bg-dark border-secondary text-white" 
+             placeholder="Search menu..."
+             id="sidebar-search-input"
+             aria-label="Search sidebar menu">
+      <i class="fas fa-search position-absolute top-50 end-0 translate-middle-y me-2 text-white-50" aria-hidden="true"></i>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Quick stats (if enabled) -->
+  {% if show_quick_stats %}
+  <div class="sidebar-stats p-3 border-bottom border-secondary"
+       hx-get="{{ url_for('api.sidebar_stats') }}"
+       hx-trigger="load, every 60s"
+       hx-swap="innerHTML">
+    <div class="row g-2 text-center">
+      <div class="col">
+        <div class="small text-white-50">Active</div>
+        <div class="fw-bold text-success sidebar-stat-number">--</div>
+      </div>
+      <div class="col">
+        <div class="small text-white-50">Models</div>
+        <div class="fw-bold text-primary sidebar-stat-number">--</div>
+      </div>
+      <div class="col">
+        <div class="small text-white-50">Apps</div>
+        <div class="fw-bold text-info sidebar-stat-number">--</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Main navigation menu -->
+  <nav class="sidebar-nav flex-grow-1" role="navigation" aria-label="Sidebar navigation menu">
+    <ul class="nav nav-pills flex-column" id="sidebar-nav-list">
+      
+      <!-- Dashboard -->
+      <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'main.dashboard' else '' }}" 
+           href="{{ url_for('main.dashboard') }}"
+           {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Dashboard Overview"' if enable_tooltips and collapsed else '' }}>
+          <i class="nav-icon fas fa-tachometer-alt" aria-hidden="true"></i>
+          <span class="nav-text">Dashboard</span>
+        </a>
+      </li>
+
+      <!-- Analysis Section -->
+      <li class="nav-item">
+        <a class="nav-link nav-link-collapse {{ 'active' if request.endpoint and 'analysis' in request.endpoint else '' }}" 
+           data-bs-toggle="collapse" 
+           data-bs-target="#analysis-menu"
+           aria-expanded="{{ 'true' if request.endpoint and 'analysis' in request.endpoint else 'false' }}"
+           aria-controls="analysis-menu"
+           href="#"
+           role="button">
+          <i class="nav-icon fas fa-chart-line" aria-hidden="true"></i>
+          <span class="nav-text">Analysis</span>
+          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
+        </a>
+        <div class="collapse {{ 'show' if request.endpoint and 'analysis' in request.endpoint else '' }}" id="analysis-menu">
+          <ul class="nav nav-pills flex-column nav-sub">
+        <li class="nav-item">
+          <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analysis_hub' else '' }}" 
+            href="{{ url_for('analysis.analysis_hub') }}">
+                <i class="nav-icon fas fa-home" aria-hidden="true"></i>
+                <span class="nav-text">Hub</span>
+              </a>
+            </li>
+            <li class="nav-item">
+          <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analyses_create_page' else '' }}" 
+            href="{{ url_for('analysis.analyses_create_page') }}">
+                <i class="nav-icon fas fa-plus" aria-hidden="true"></i>
+                <span class="nav-text">New Analysis</span>
+              </a>
+            </li>
+        <li class="nav-item">
+          <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analyses_list_page' else '' }}" 
+            href="{{ url_for('analysis.analyses_list_page') }}">
+                <i class="nav-icon fas fa-list" aria-hidden="true"></i>
+                <span class="nav-text">All Results</span>
+              </a>
+            </li>
+        {# Compare route not implemented; hide link to avoid 404 #}
+          </ul>
+        </div>
+      </li>
+
+      <!-- Models Section -->
+      <li class="nav-item">
+        <a class="nav-link nav-link-collapse {{ 'active' if request.endpoint and 'models' in request.endpoint else '' }}" 
+           data-bs-toggle="collapse" 
+           data-bs-target="#models-menu"
+           aria-expanded="{{ 'true' if request.endpoint and 'models' in request.endpoint else 'false' }}"
+           aria-controls="models-menu"
+           href="#"
+           role="button">
+          <i class="nav-icon fas fa-brain" aria-hidden="true"></i>
+          <span class="nav-text">Models</span>
+          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
+        </a>
+        <div class="collapse {{ 'show' if request.endpoint and 'models' in request.endpoint else '' }}" id="models-menu">
+          <ul class="nav nav-pills flex-column nav-sub">
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if request.endpoint == 'models.models_overview' else '' }}" 
+                 href="{{ url_for('models.models_overview') }}">
+                <i class="nav-icon fas fa-th-large" aria-hidden="true"></i>
+                <span class="nav-text">Overview</span>
+              </a>
+            </li>
+            {# Comparison/Capabilities not implemented; hide to avoid 404 #}
+          </ul>
+        </div>
+      </li>
+
+      <!-- Applications Section -->
+      <li class="nav-item">
+        <a class="nav-link nav-link-collapse {{ 'active' if request.endpoint and 'applications' in request.endpoint else '' }}" 
+           data-bs-toggle="collapse" 
+           data-bs-target="#applications-menu"
+           aria-expanded="{{ 'true' if request.endpoint and 'applications' in request.endpoint else 'false' }}"
+           aria-controls="applications-menu"
+           href="#"
+           role="button">
+          <i class="nav-icon fas fa-boxes" aria-hidden="true"></i>
+          <span class="nav-text">Applications</span>
+          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
+        </a>
+        <div class="collapse {{ 'show' if request.endpoint and 'applications' in request.endpoint else '' }}" id="applications-menu">
+          <ul class="nav nav-pills flex-column nav-sub">
+        <li class="nav-item">
+          <a class="nav-link {{ 'active' if request.endpoint == 'models.applications' else '' }}" 
+            href="{{ url_for('models.applications') }}">
+                <i class="nav-icon fas fa-list" aria-hidden="true"></i>
+                <span class="nav-text">All Apps</span>
+              </a>
+            </li>
+            <li class="nav-item">
+          <a class="nav-link" 
+            href="{{ url_for('models.applications') }}?status=running">
+                <i class="nav-icon fas fa-play text-success" aria-hidden="true"></i>
+                <span class="nav-text">Running</span>
+                <span class="badge bg-success ms-auto sidebar-badge">0</span>
+              </a>
+            </li>
+            <li class="nav-item">
+          <a class="nav-link" 
+            href="{{ url_for('models.applications') }}?status=stopped">
+                <i class="nav-icon fas fa-stop text-danger" aria-hidden="true"></i>
+                <span class="nav-text">Stopped</span>
+                <span class="badge bg-secondary ms-auto sidebar-badge">0</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </li>
+
+      <!-- Batch Jobs -->
+      <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint and 'batch' in request.endpoint else '' }}" 
+           href="{{ url_for('batch.batch_overview') }}"
+           {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Batch Jobs"' if enable_tooltips and collapsed else '' }}>
+          <i class="nav-icon fas fa-tasks" aria-hidden="true"></i>
+          <span class="nav-text">Batch Jobs</span>
+          <span class="badge bg-warning ms-auto sidebar-badge">0</span>
+        </a>
+      </li>
+
+      <!-- Statistics -->
+      <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint and 'statistics' in request.endpoint else '' }}" 
+           href="{{ url_for('statistics.statistics_overview') }}"
+           {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Statistics"' if enable_tooltips and collapsed else '' }}>
+          <i class="nav-icon fas fa-chart-bar" aria-hidden="true"></i>
+          <span class="nav-text">Statistics</span>
+        </a>
+      </li>
+
+      <!-- Divider -->
+      <li class="nav-divider my-3"></li>
+
+      <!-- System Section -->
+      <li class="nav-item">
+        <a class="nav-link nav-link-collapse" 
+           data-bs-toggle="collapse" 
+           data-bs-target="#system-menu"
+           aria-expanded="false"
+           aria-controls="system-menu"
+           href="#"
+           role="button">
+          <i class="nav-icon fas fa-server" aria-hidden="true"></i>
+          <span class="nav-text">System</span>
+          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
+        </a>
+        <div class="collapse" id="system-menu">
+          <ul class="nav nav-pills flex-column nav-sub">
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if request.endpoint == 'main.system_status' else '' }}" 
+                 href="{{ url_for('main.system_status') }}">
+                <i class="nav-icon fas fa-heartbeat" aria-hidden="true"></i>
+                <span class="nav-text">Health</span>
+              </a>
+            </li>
+            {# Logs/Settings not implemented; hide to avoid 404 #}
+          </ul>
+        </div>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Quick actions footer -->
+  <div class="sidebar-footer p-3 border-top border-secondary">
+    <div class="d-grid gap-2">
+  <button class="btn btn-primary btn-sm" 
+              type="button"
+      onclick="location.href='{{ url_for('analysis.analyses_create_page') }}'"
+              {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Start New Analysis"' if enable_tooltips and collapsed else '' }}>
+        <i class="fas fa-plus me-1" aria-hidden="true"></i>
+        <span class="sidebar-btn-text">New Analysis</span>
+      </button>
+      <button class="btn btn-outline-light btn-sm sidebar-collapse-btn" 
+              type="button"
+              onclick="toggleSidebar()"
+              aria-label="Toggle sidebar">
+        <i class="fas fa-angle-double-left sidebar-collapse-icon" aria-hidden="true"></i>
+        <span class="sidebar-btn-text">Collapse</span>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<!-- Mobile Sidebar (Offcanvas) -->
+<div class="offcanvas offcanvas-start bg-dark text-white d-lg-none" 
+     id="mobile-sidebar" 
+     tabindex="-1" 
+     aria-labelledby="mobile-sidebar-label">
+  <div class="offcanvas-header border-bottom border-secondary">
+    <h5 class="offcanvas-title" id="mobile-sidebar-label">
+      <i class="fas fa-robot me-2 text-primary" aria-hidden="true"></i>
+      AI Model Analysis
+    </h5>
+    <button type="button" 
+            class="btn-close btn-close-white" 
+            data-bs-dismiss="offcanvas" 
+            aria-label="Close sidebar"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    {# Render a simplified copy of the nav for mobile to avoid recursion #}
+    <nav class="sidebar-nav" role="navigation" aria-label="Mobile sidebar navigation">
+      <ul class="nav nav-pills flex-column">
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}"><i class="nav-icon fas fa-tachometer-alt"></i><span class="nav-text">Dashboard</span></a></li>
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('analysis.analysis_hub') }}"><i class="nav-icon fas fa-chart-line"></i><span class="nav-text">Analysis</span></a></li>
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('models.models_overview') }}"><i class="nav-icon fas fa-brain"></i><span class="nav-text">Models</span></a></li>
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('models.applications') }}"><i class="nav-icon fas fa-boxes"></i><span class="nav-text">Applications</span></a></li>
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('batch.batch_overview') }}"><i class="nav-icon fas fa-tasks"></i><span class="nav-text">Batch Jobs</span></a></li>
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}"><i class="nav-icon fas fa-chart-bar"></i><span class="nav-text">Statistics</span></a></li>
+        <li class="nav-divider my-3"></li>
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('main.system_status') }}"><i class="nav-icon fas fa-heartbeat"></i><span class="nav-text">System Health</span></a></li>
+      </ul>
+    </nav>
+  </div>
+</div>
+
+<!-- Sidebar JavaScript -->
+<script>
+class SidebarManager {
+  constructor() {
+    this.sidebar = document.getElementById('desktop-sidebar');
+    this.searchInput = document.getElementById('sidebar-search-input');
+    this.navItems = document.querySelectorAll('.sidebar-nav .nav-link');
+    
+  this.isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    
+    this.init();
+  }
+  
+  init() {
+    this.setupSearch();
+    this.setupTooltips();
+    this.setupCollapse();
+    this.setupNavigation();
+    this.loadSidebarState();
+    
+    // Apply initial state
+    if (this.isCollapsed) {
+      this.collapseSidebar();
+    } else {
+      document.body.classList.add('with-sidebar');
+    }
+  }
+  
+  setupSearch() {
+    if (!this.searchInput) return;
+    
+    this.searchInput.addEventListener('input', (e) => {
+      this.filterNavItems(e.target.value);
+    });
+    
+    // Clear search on escape
+    this.searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.searchInput.value = '';
+        this.filterNavItems('');
+        this.searchInput.blur();
+      }
+    });
+  }
+  
+  filterNavItems(query) {
+    const normalizedQuery = query.toLowerCase().trim();
+    
+    this.navItems.forEach(link => {
+      const text = link.querySelector('.nav-text');
+      if (!text) return;
+      
+      const navItem = link.closest('.nav-item');
+      const textContent = text.textContent.toLowerCase();
+      
+      if (normalizedQuery === '' || textContent.includes(normalizedQuery)) {
+        navItem.style.display = '';
+        
+        // If it's a sub-menu item that matches, show its parent
+        const parentCollapse = link.closest('.collapse');
+        if (parentCollapse) {
+          parentCollapse.classList.add('show');
+          const parentToggle = document.querySelector(`[data-bs-target="#${parentCollapse.id}"]`);
+          if (parentToggle) {
+            parentToggle.setAttribute('aria-expanded', 'true');
+          }
+        }
+      } else {
+        navItem.style.display = 'none';
+      }
+    });
+    
+    // Hide empty sections
+    document.querySelectorAll('.nav-sub').forEach(subNav => {
+      const visibleItems = Array.from(subNav.querySelectorAll('.nav-item')).filter(item => 
+        item.style.display !== 'none'
+      );
+      
+      const parentCollapse = subNav.closest('.collapse');
+      if (parentCollapse && visibleItems.length === 0) {
+        parentCollapse.classList.remove('show');
+      }
+    });
+  }
+  
+  setupTooltips() {
+    if (!this.sidebar) return;
+    
+    // Initialize tooltips for collapsed state
+    const tooltipElements = this.sidebar.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltipElements.forEach(element => {
+      new bootstrap.Tooltip(element);
+    });
+  }
+  
+  setupCollapse() {
+    // Update collapse icons
+    document.querySelectorAll('.nav-link-collapse').forEach(link => {
+      link.addEventListener('click', (e) => {
+        const arrow = link.querySelector('.nav-arrow');
+        const target = document.querySelector(link.getAttribute('data-bs-target'));
+        
+        if (target) {
+          target.addEventListener('show.bs.collapse', () => {
+            arrow.style.transform = 'rotate(90deg)';
+          });
+          
+          target.addEventListener('hide.bs.collapse', () => {
+            arrow.style.transform = 'rotate(0deg)';
+          });
+        }
+      });
+    });
+  }
+  
+  setupNavigation() {
+    // Add click handlers for navigation items
+    this.navItems.forEach(link => {
+      if (!link.classList.contains('nav-link-collapse')) {
+        link.addEventListener('click', (e) => {
+          // Remove active class from all items
+          this.navItems.forEach(item => item.classList.remove('active'));
+          
+          // Add active class to clicked item
+          link.classList.add('active');
+          
+          // Save active state
+          localStorage.setItem('activeSidebarItem', link.getAttribute('href'));
+        });
+      }
+    });
+  }
+  
+  loadSidebarState() {
+    // Restore active item
+    const activeItem = localStorage.getItem('activeSidebarItem');
+    if (activeItem) {
+      const link = document.querySelector(`.nav-link[href="${activeItem}"]`);
+      if (link) {
+        link.classList.add('active');
+        
+        // If it's in a collapsed section, expand it
+        const parentCollapse = link.closest('.collapse');
+        if (parentCollapse) {
+          parentCollapse.classList.add('show');
+          const toggle = document.querySelector(`[data-bs-target="#${parentCollapse.id}"]`);
+          if (toggle) {
+            toggle.setAttribute('aria-expanded', 'true');
+            const arrow = toggle.querySelector('.nav-arrow');
+            if (arrow) {
+              arrow.style.transform = 'rotate(90deg)';
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  collapseSidebar() {
+    if (!this.sidebar) return;
+    
+    this.sidebar.classList.add('collapsed');
+    this.isCollapsed = true;
+    localStorage.setItem('sidebarCollapsed', 'true');
+  document.body.classList.add('with-sidebar');
+    
+    // Update collapse button icon
+    const collapseIcon = document.querySelector('.sidebar-collapse-icon');
+    if (collapseIcon) {
+      collapseIcon.className = 'fas fa-angle-double-right';
+    }
+    
+    // Enable tooltips in collapsed mode
+    this.enableCollapsedTooltips();
+    
+    // Collapse all expanded menus
+    document.querySelectorAll('.sidebar-nav .collapse.show').forEach(collapse => {
+      collapse.classList.remove('show');
+    });
+    
+    // Dispatch custom event
+    window.dispatchEvent(new CustomEvent('sidebar:collapsed'));
+  }
+  
+  expandSidebar() {
+    if (!this.sidebar) return;
+    
+    this.sidebar.classList.remove('collapsed');
+    this.isCollapsed = false;
+    localStorage.setItem('sidebarCollapsed', 'false');
+  document.body.classList.add('with-sidebar');
+    
+    // Update collapse button icon
+    const collapseIcon = document.querySelector('.sidebar-collapse-icon');
+    if (collapseIcon) {
+      collapseIcon.className = 'fas fa-angle-double-left';
+    }
+    
+    // Disable tooltips in expanded mode
+    this.disableCollapsedTooltips();
+    
+    // Dispatch custom event
+    window.dispatchEvent(new CustomEvent('sidebar:expanded'));
+  }
+  
+  enableCollapsedTooltips() {
+    this.sidebar.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+      const tooltip = bootstrap.Tooltip.getInstance(element);
+      if (tooltip) {
+        tooltip.enable();
+      }
+    });
+  }
+  
+  disableCollapsedTooltips() {
+    this.sidebar.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+      const tooltip = bootstrap.Tooltip.getInstance(element);
+      if (tooltip) {
+        tooltip.disable();
+      }
+    });
+  }
+  
+  toggleSidebar() {
+    if (this.isCollapsed) {
+      this.expandSidebar();
+    } else {
+      this.collapseSidebar();
+    }
+  }
+}
+
+// Global function for toggle button
+function toggleSidebar() {
+  if (window.sidebarManager) {
+    window.sidebarManager.toggleSidebar();
+  }
+}
+
+// Initialize sidebar when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  window.sidebarManager = new SidebarManager();
+});
+
+// HTMX event listeners
+document.body.addEventListener('htmx:afterRequest', (event) => {
+  // Update badge counts after HTMX requests
+  if (event.detail.elt.classList.contains('sidebar-badge')) {
+    const response = event.detail.xhr.response;
+    if (response && !isNaN(response)) {
+      event.detail.elt.textContent = response;
+    }
+  }
+});
+
+// Listen for sidebar toggle from navbar
+window.addEventListener('toggle:sidebar', () => {
+  if (window.sidebarManager) {
+    window.sidebarManager.toggleSidebar();
+  }
+});
+</script>
+
+<!-- Sidebar Styles -->
+<style>
+.sidebar {
+  width: 260px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+  transition: all 0.3s ease;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 1000;
+}
+
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar.position-fixed {
+  top: 0;
+  left: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* User info section */
+.sidebar-user-info {
+  transition: all 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-user-info {
+  padding: 1rem 0.5rem;
+  text-align: center;
+}
+
+.sidebar.collapsed .sidebar-user-text {
+  display: none;
+}
+
+.sidebar-avatar {
+  transition: all 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+/* Search section */
+.sidebar-search {
+  transition: all 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-search {
+  display: none;
+}
+
+/* Stats section */
+.sidebar-stats {
+  transition: all 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-stats {
+  display: none;
+}
+
+.sidebar-stat-number {
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+/* Navigation */
+.sidebar-nav {
+  padding: 1rem 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar-nav .nav-item {
+  margin-bottom: 0.25rem;
+}
+
+.sidebar-nav .nav-link {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 0;
+  border: none;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.sidebar-nav .nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.sidebar-nav .nav-link.active {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.sidebar-nav .nav-link.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: #fff;
+}
+
+.nav-icon {
+  width: 20px;
+  margin-right: 0.75rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.nav-text {
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 0.3s ease;
+}
+
+.nav-arrow {
+  transition: transform 0.3s ease;
+  font-size: 0.8em;
+}
+
+.sidebar.collapsed .nav-text,
+.sidebar.collapsed .nav-arrow,
+.sidebar.collapsed .sidebar-badge {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .nav-icon {
+  margin-right: 0;
+}
+
+.sidebar.collapsed .nav-link {
+  justify-content: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+/* Sub navigation */
+.nav-sub {
+  background-color: rgba(0, 0, 0, 0.2);
+  margin: 0;
+  padding: 0.5rem 0;
+}
+
+.nav-sub .nav-link {
+  padding-left: 3rem;
+  font-size: 0.9em;
+}
+
+.sidebar.collapsed .nav-sub {
+  display: none;
+}
+
+/* Badges */
+.sidebar-badge {
+  font-size: 0.7em;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+/* Divider */
+.nav-divider {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.1);
+  margin: 1rem 0.5rem;
+}
+
+.sidebar.collapsed .nav-divider {
+  margin: 1rem 0.25rem;
+}
+
+/* Footer */
+.sidebar-footer {
+  margin-top: auto;
+  transition: all 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-footer {
+  padding: 1rem 0.5rem;
+}
+
+.sidebar.collapsed .sidebar-btn-text {
+  display: none;
+}
+
+.sidebar.collapsed .btn {
+  padding: 0.5rem;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-collapse-btn {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.sidebar-collapse-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+}
+
+/* Mobile offcanvas */
+.offcanvas-body .sidebar {
+  width: 100%;
+  min-height: auto;
+  position: static;
+  border-right: none;
+}
+
+.offcanvas-body .sidebar-footer {
+  margin-top: 2rem;
+}
+
+/* Scrollbar styling */
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Animation for stats */
+.sidebar-stat-number {
+  transition: all 0.3s ease;
+}
+
+.sidebar-stat-number.updated {
+  transform: scale(1.1);
+  color: #28a745;
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .sidebar {
+    border-right: 2px solid #fff;
+  }
+  
+  .sidebar-nav .nav-link.active {
+    outline: 2px solid #fff;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-nav .nav-link,
+  .nav-arrow,
+  .nav-text,
+  .sidebar-badge,
+  .sidebar-stat-number {
+    transition: none;
+  }
+}
+
+/* Content adjustment for fixed sidebar */
+.main-content {
+  margin-left: 260px;
+  transition: margin-left 0.3s ease;
+}
+
+.sidebar.collapsed + .main-content {
+  margin-left: 70px;
+}
+
+/* Ensure content shifts only when a sidebar exists */
+body:not(.with-sidebar) .main-content {
+  margin-left: 0;
+}
+
+@media (max-width: 991.98px) {
+  .main-content {
+    margin-left: 0;
+  }
+}
+</style>

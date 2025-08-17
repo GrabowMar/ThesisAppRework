@@ -1,0 +1,914 @@
+{# 
+Form Application Selector Component
+
+Purpose: Application selection dropdown with status and metadata information
+Usage: {{ app_selector(name='application', model='openai_gpt-4o', show_status=true) }}
+Routes: Used in analysis creation, batch job forms, and application management views
+Features:
+- Model-specific application filtering
+- Application status indicators (running, stopped, error)
+- Port and container information display
+- Thumbnail previews for applications
+- Real-time status updates via HTMX
+- Multi-select support for batch operations
+- Search and filtering capabilities
+- Accessibility support with proper ARIA attributes
+Technical: Bootstrap Select, application metadata integration, container status APIs
+Dependencies: Bootstrap 5 forms, application service APIs, container status endpoints
+#}
+
+{# Set default values for optional parameters #}
+{%- set name = name or 'application' -%}
+{%- set selected = selected or None -%}
+{%- set model = model or None -%}
+{%- set placeholder = placeholder or 'Select an application...' -%}
+{%- set required = required if required is not none else false -%}
+{%- set multiple = multiple if multiple is not none else false -%}
+{%- set show_status = show_status if show_status is not none else true -%}
+{%- set show_ports = show_ports if show_ports is not none else true -%}
+{%- set show_thumbnails = show_thumbnails if show_thumbnails is not none else false -%}
+{%- set show_metadata = show_metadata if show_metadata is not none else true -%}
+{%- set searchable = searchable if searchable is not none else true -%}
+{%- set component_id = id or 'app-selector-' ~ range(1000, 9999) | random -%}
+{%- set size = size or 'normal' -%}
+{%- set disabled = disabled if disabled is not none else false -%}
+{%- set htmx_endpoint = htmx_endpoint or None -%}
+{%- set status_filter = status_filter or [] -%}
+{%- set auto_refresh = auto_refresh if auto_refresh is not none else true -%}
+
+{# Mock application data - in real implementation, this would come from your application service #}
+{%- set applications = applications or [
+    {
+        'id': 1,
+        'name': 'Todo App',
+        'model': 'openai_gpt-4o',
+        'status': 'running',
+        'description': 'Task management application with user authentication',
+        'frontend_port': 9051,
+        'backend_port': 6051,
+        'container_id': 'gpt4o-app1-frontend',
+        'created_at': '2025-08-15T10:30:00Z',
+        'last_updated': '2025-08-17T14:20:00Z',
+        'thumbnail': '/static/thumbnails/gpt4o-app1.png',
+        'technologies': ['React', 'Node.js', 'MongoDB'],
+        'features': ['Authentication', 'CRUD Operations', 'Real-time Updates']
+    },
+    {
+        'id': 2,
+        'name': 'E-commerce Store',
+        'model': 'openai_gpt-4o',
+        'status': 'stopped',
+        'description': 'Full-stack e-commerce platform with payment integration',
+        'frontend_port': 9052,
+        'backend_port': 6052,
+        'container_id': 'gpt4o-app2-frontend',
+        'created_at': '2025-08-14T15:45:00Z',
+        'last_updated': '2025-08-16T09:15:00Z',
+        'thumbnail': '/static/thumbnails/gpt4o-app2.png',
+        'technologies': ['Vue.js', 'Express', 'PostgreSQL'],
+        'features': ['Shopping Cart', 'Payment Gateway', 'User Profiles']
+    },
+    {
+        'id': 1,
+        'name': 'Chat Application',
+        'model': 'anthropic_claude-3-sonnet',
+        'status': 'running',
+        'description': 'Real-time chat application with rooms and messaging',
+        'frontend_port': 9101,
+        'backend_port': 6101,
+        'container_id': 'claude-app1-frontend',
+        'created_at': '2025-08-16T08:20:00Z',
+        'last_updated': '2025-08-17T11:30:00Z',
+        'thumbnail': '/static/thumbnails/claude-app1.png',
+        'technologies': ['React', 'Socket.io', 'Redis'],
+        'features': ['Real-time Messaging', 'Chat Rooms', 'File Sharing']
+    },
+    {
+        'id': 2,
+        'name': 'Blog Platform',
+        'model': 'anthropic_claude-3-sonnet',
+        'status': 'error',
+        'description': 'Content management system with rich text editing',
+        'frontend_port': 9102,
+        'backend_port': 6102,
+        'container_id': 'claude-app2-frontend',
+        'created_at': '2025-08-15T12:10:00Z',
+        'last_updated': '2025-08-17T10:45:00Z',
+        'thumbnail': '/static/thumbnails/claude-app2.png',
+        'technologies': ['Angular', 'NestJS', 'MySQL'],
+        'features': ['Rich Text Editor', 'Comments', 'SEO Optimization']
+    },
+    {
+        'id': 1,
+        'name': 'Weather Dashboard',
+        'model': 'google_gemini-pro',
+        'status': 'running',
+        'description': 'Weather monitoring dashboard with data visualization',
+        'frontend_port': 9201,
+        'backend_port': 6201,
+        'container_id': 'gemini-app1-frontend',
+        'created_at': '2025-08-17T07:00:00Z',
+        'last_updated': '2025-08-17T13:15:00Z',
+        'thumbnail': '/static/thumbnails/gemini-app1.png',
+        'technologies': ['React', 'FastAPI', 'InfluxDB'],
+        'features': ['Live Data', 'Charts', 'Alerts']
+    }
+] -%}
+
+{# Filter applications based on model and status #}
+{%- set filtered_apps = [] -%}
+{%- for app in applications -%}
+    {%- if not model or app.model == model -%}
+        {%- if not status_filter or app.status in status_filter -%}
+            {%- set _ = filtered_apps.append(app) -%}
+        {%- endif -%}
+    {%- endif -%}
+{%- endfor -%}
+
+{# Status configuration #}
+{%- set status_config = {
+    'running': {'color': 'success', 'icon': 'fas fa-play-circle', 'label': 'Running'},
+    'stopped': {'color': 'secondary', 'icon': 'fas fa-stop-circle', 'label': 'Stopped'},
+    'error': {'color': 'danger', 'icon': 'fas fa-exclamation-circle', 'label': 'Error'},
+    'starting': {'color': 'warning', 'icon': 'fas fa-clock', 'label': 'Starting'},
+    'stopping': {'color': 'warning', 'icon': 'fas fa-pause-circle', 'label': 'Stopping'}
+} -%}
+
+<div class="app-selector-container" id="{{ component_id }}-container">
+    <div class="form-group">
+        {% if label %}
+            <label for="{{ component_id }}" class="form-label">
+                {{ label }}
+                {% if required %}<span class="text-danger">*</span>{% endif %}
+                {% if auto_refresh %}
+                    <button type="button" 
+                            class="btn btn-link btn-sm p-0 ms-2" 
+                            id="{{ component_id }}-refresh"
+                            title="Refresh application list">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                {% endif %}
+            </label>
+        {% endif %}
+        
+        {# Application Select #}
+        <div class="app-select-wrapper">
+            <select class="form-select app-select {{ 'is-invalid' if error else '' }}"
+                    id="{{ component_id }}"
+                    name="{{ name }}"
+                    {% if required %}required{% endif %}
+                    {% if disabled %}disabled{% endif %}
+                    {% if multiple %}multiple{% endif %}
+                    {% if htmx_endpoint %}
+                        hx-get="{{ htmx_endpoint }}"
+                        hx-trigger="change"
+                        hx-target="{{ htmx_target or '#' + component_id + '-info' }}"
+                    {% endif %}
+                    data-placeholder="{{ placeholder }}"
+                    data-searchable="{{ searchable|lower }}"
+                    data-model="{{ model or '' }}"
+                    aria-describedby="{{ component_id }}-help">
+                
+                {% if not required and not multiple %}
+                    <option value="">{{ placeholder }}</option>
+                {% endif %}
+                
+                {% for app in filtered_apps %}
+                    <option value="{{ app.model }}_app{{ app.id }}"
+                            {% if selected and ((selected is string and selected == app.model + '_app' + app.id|string) or (selected is iterable and (app.model + '_app' + app.id|string) in selected)) %}selected{% endif %}
+                            data-model="{{ app.model }}"
+                            data-status="{{ app.status }}"
+                            data-frontend-port="{{ app.frontend_port }}"
+                            data-backend-port="{{ app.backend_port }}"
+                            data-container="{{ app.container_id }}"
+                            data-description="{{ app.description }}"
+                            data-technologies="{{ app.technologies|join(',') }}"
+                            data-features="{{ app.features|join(',') }}"
+                            data-thumbnail="{{ app.thumbnail or '' }}"
+                            data-created="{{ app.created_at }}"
+                            data-updated="{{ app.last_updated }}">
+                        {{ app.name }}
+                        {% if show_status %} - {{ status_config[app.status].label }}{% endif %}
+                        {% if show_ports %} ({{ app.frontend_port }}){% endif %}
+                    </option>
+                {% endfor %}
+                
+                {% if filtered_apps|length == 0 %}
+                    <option disabled>No applications available{% if model %} for {{ model }}{% endif %}</option>
+                {% endif %}
+            </select>
+            
+            {# Search overlay for custom search functionality #}
+            {% if searchable %}
+                <div class="app-search-overlay" style="display: none;">
+                    <div class="search-header p-2 bg-light border-bottom">
+                        <input type="text" 
+                               class="form-control form-control-sm app-search-input" 
+                               placeholder="Search applications..." 
+                               aria-label="Search applications">
+                    </div>
+                    <div class="app-search-results"></div>
+                </div>
+            {% endif %}
+        </div>
+        
+        {# Application Information Display #}
+        <div class="app-info mt-2" id="{{ component_id }}-info" style="display: none;">
+            <div class="card">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-start mb-3">
+                        {% if show_thumbnails %}
+                            <div class="app-thumbnail me-3">
+                                <img class="app-thumbnail-img" 
+                                     src="" 
+                                     alt="Application thumbnail"
+                                     style="width: 60px; height: 60px; object-fit: cover; border-radius: 0.375rem;">
+                            </div>
+                        {% endif %}
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="app-info-name mb-1"></h6>
+                                    <small class="app-info-model text-muted"></small>
+                                </div>
+                                <div class="app-info-status"></div>
+                            </div>
+                            <p class="app-info-description small text-muted mb-2"></p>
+                        </div>
+                    </div>
+                    
+                    {% if show_metadata %}
+                        <div class="row">
+                            {% if show_ports %}
+                                <div class="col-md-6 mb-2">
+                                    <small class="text-muted d-block">Ports:</small>
+                                    <div class="port-info">
+                                        <span class="badge bg-primary me-1">
+                                            Frontend: <span class="frontend-port">0000</span>
+                                        </span>
+                                        <span class="badge bg-secondary">
+                                            Backend: <span class="backend-port">0000</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            
+                            <div class="col-md-6 mb-2">
+                                <small class="text-muted d-block">Container:</small>
+                                <code class="app-container-id small">-</code>
+                            </div>
+                            
+                            <div class="col-12 mb-2">
+                                <small class="text-muted d-block">Technologies:</small>
+                                <div class="tech-badges"></div>
+                            </div>
+                            
+                            <div class="col-12 mb-2">
+                                <small class="text-muted d-block">Features:</small>
+                                <div class="feature-badges"></div>
+                            </div>
+                            
+                            <div class="col-12">
+                                <small class="text-muted d-block">Last Updated:</small>
+                                <small class="app-last-updated text-muted">-</small>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="app-actions mt-3 d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary app-action-view" disabled>
+                            <i class="fas fa-external-link-alt me-1"></i>View App
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary app-action-logs" disabled>
+                            <i class="fas fa-file-alt me-1"></i>Logs
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-info app-action-restart" disabled>
+                            <i class="fas fa-redo me-1"></i>Restart
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {# Help text #}
+        {% if help_text %}
+            <div class="form-text" id="{{ component_id }}-help">{{ help_text }}</div>
+        {% endif %}
+        
+        {# Error message #}
+        {% if error %}
+            <div class="invalid-feedback">{{ error }}</div>
+        {% endif %}
+    </div>
+</div>
+
+{# JavaScript for application selector functionality #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('{{ component_id }}-container');
+    const select = document.getElementById('{{ component_id }}');
+    const appInfo = document.getElementById('{{ component_id }}-info');
+    const refreshBtn = document.getElementById('{{ component_id }}-refresh');
+    
+    if (!container || !select) return;
+    
+    // Application data for JavaScript access
+    const applications = {{ filtered_apps|tojson }};
+    const statusConfig = {{ status_config|tojson }};
+    
+    // Initialize application selector
+    initializeAppSelector();
+    
+    function initializeAppSelector() {
+        // Show app info on selection change
+        select.addEventListener('change', function() {
+            updateAppInfo(this.value);
+        });
+        
+        // Initialize with current selection
+        if (select.value) {
+            updateAppInfo(select.value);
+        }
+        
+        // Initialize search functionality if enabled
+        {% if searchable %}
+            initializeSearch();
+        {% endif %}
+        
+        // Initialize refresh functionality
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', refreshApplicationList);
+        }
+        
+        // Auto-refresh if enabled
+        {% if auto_refresh %}
+            setInterval(refreshApplicationStatus, 30000); // Refresh every 30 seconds
+        {% endif %}
+    }
+    
+    function updateAppInfo(appValue) {
+        if (!appValue || !appInfo) {
+            appInfo.style.display = 'none';
+            return;
+        }
+        
+        // Parse app value to find application
+        const app = applications.find(a => `${a.model}_app${a.id}` === appValue);
+        if (!app) return;
+        
+        // Update basic info
+        const nameElement = appInfo.querySelector('.app-info-name');
+        const modelElement = appInfo.querySelector('.app-info-model');
+        const statusElement = appInfo.querySelector('.app-info-status');
+        const descriptionElement = appInfo.querySelector('.app-info-description');
+        
+        if (nameElement) nameElement.textContent = app.name;
+        if (modelElement) modelElement.textContent = `Model: ${app.model.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
+        if (descriptionElement) descriptionElement.textContent = app.description;
+        
+        // Update status badge
+        if (statusElement) {
+            const config = statusConfig[app.status];
+            const pulseClass = app.status === 'running' ? ' status-pulse' : '';
+            statusElement.innerHTML = `<span class="badge bg-${config.color}${pulseClass}">
+                <i class="${config.icon} me-1"></i>${config.label}
+            </span>`;
+        }
+        
+        // Update thumbnail
+        {% if show_thumbnails %}
+            const thumbnailImg = appInfo.querySelector('.app-thumbnail-img');
+            if (thumbnailImg && app.thumbnail) {
+                thumbnailImg.src = app.thumbnail;
+                thumbnailImg.style.display = 'block';
+            } else if (thumbnailImg) {
+                thumbnailImg.style.display = 'none';
+            }
+        {% endif %}
+        
+        {% if show_metadata %}
+            // Update ports
+            {% if show_ports %}
+                const frontendPort = appInfo.querySelector('.frontend-port');
+                const backendPort = appInfo.querySelector('.backend-port');
+                if (frontendPort) frontendPort.textContent = app.frontend_port;
+                if (backendPort) backendPort.textContent = app.backend_port;
+            {% endif %}
+            
+            // Update container ID
+            const containerElement = appInfo.querySelector('.app-container-id');
+            if (containerElement) containerElement.textContent = app.container_id;
+            
+            // Update technologies
+            const techBadges = appInfo.querySelector('.tech-badges');
+            if (techBadges && app.technologies) {
+                techBadges.innerHTML = app.technologies.map(tech => 
+                    `<span class="badge bg-light text-dark me-1 mb-1">${tech}</span>`
+                ).join('');
+            }
+            
+            // Update features
+            const featureBadges = appInfo.querySelector('.feature-badges');
+            if (featureBadges && app.features) {
+                featureBadges.innerHTML = app.features.map(feature => 
+                    `<span class="badge bg-info me-1 mb-1">${feature}</span>`
+                ).join('');
+            }
+            
+            // Update last updated
+            const lastUpdated = appInfo.querySelector('.app-last-updated');
+            if (lastUpdated) {
+                const date = new Date(app.last_updated);
+                lastUpdated.textContent = date.toLocaleString();
+            }
+        {% endif %}
+        
+        // Update action buttons
+        updateActionButtons(app);
+        
+        // Show app info
+        appInfo.style.display = 'block';
+        
+        // Emit app change event
+        const event = new CustomEvent('appChanged', {
+            detail: {
+                appValue: appValue,
+                app: app,
+                componentId: '{{ component_id }}'
+            }
+        });
+        document.dispatchEvent(event);
+    }
+    
+    function updateActionButtons(app) {
+        const viewBtn = appInfo.querySelector('.app-action-view');
+        const logsBtn = appInfo.querySelector('.app-action-logs');
+        const restartBtn = appInfo.querySelector('.app-action-restart');
+        
+        if (viewBtn) {
+            viewBtn.disabled = app.status !== 'running';
+            viewBtn.onclick = () => {
+                if (app.status === 'running') {
+                    window.open(`http://localhost:${app.frontend_port}`, '_blank');
+                }
+            };
+        }
+        
+        if (logsBtn) {
+            logsBtn.disabled = false;
+            logsBtn.onclick = () => {
+                // Emit logs request event
+                const event = new CustomEvent('appLogsRequest', {
+                    detail: { app: app, componentId: '{{ component_id }}' }
+                });
+                document.dispatchEvent(event);
+            };
+        }
+        
+        if (restartBtn) {
+            restartBtn.disabled = app.status === 'starting' || app.status === 'stopping';
+            restartBtn.onclick = () => {
+                if (confirm(`Restart ${app.name}?`)) {
+                    restartApplication(app);
+                }
+            };
+        }
+    }
+    
+    {% if searchable %}
+    function initializeSearch() {
+        const searchOverlay = container.querySelector('.app-search-overlay');
+        const searchInput = container.querySelector('.app-search-input');
+        const searchResults = container.querySelector('.app-search-results');
+        
+        if (!searchOverlay || !searchInput || !searchResults) return;
+        
+        // Show search overlay on select focus
+        select.addEventListener('focus', function() {
+            if (!select.disabled && applications.length > 0) {
+                searchOverlay.style.display = 'block';
+                searchInput.focus();
+            }
+        });
+        
+        // Hide search overlay on outside click
+        document.addEventListener('click', function(e) {
+            if (!container.contains(e.target)) {
+                searchOverlay.style.display = 'none';
+            }
+        });
+        
+        // Search functionality
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const filteredApps = applications.filter(app => 
+                app.name.toLowerCase().includes(query) ||
+                app.description.toLowerCase().includes(query) ||
+                app.technologies.some(tech => tech.toLowerCase().includes(query)) ||
+                app.features.some(feature => feature.toLowerCase().includes(query))
+            );
+            
+            renderSearchResults(filteredApps);
+        });
+        
+        // Initial render
+        renderSearchResults(applications);
+        
+        function renderSearchResults(filteredApps) {
+            if (filteredApps.length === 0) {
+                searchResults.innerHTML = '<div class="p-3 text-muted text-center">No applications found</div>';
+                return;
+            }
+            
+            const resultsHtml = filteredApps.map(app => {
+                const config = statusConfig[app.status];
+                const statusBadge = `<span class="badge bg-${config.color} me-2">
+                    <i class="${config.icon} me-1"></i>${config.label}
+                </span>`;
+                
+                return `
+                    <div class="search-result-item p-3 border-bottom" data-app-value="${app.model}_app${app.id}" role="button" tabindex="0">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="flex-grow-1">
+                                <div class="fw-medium d-flex align-items-center mb-1">
+                                    ${app.name}
+                                    ${statusBadge}
+                                </div>
+                                <small class="text-muted">${app.description}</small>
+                            </div>
+                            ${show_thumbnails && app.thumbnail ? `
+                                <img src="${app.thumbnail}" alt="${app.name}" 
+                                     class="ms-2" style="width: 40px; height: 40px; object-fit: cover; border-radius: 0.25rem;">
+                            ` : ''}
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="tech-preview">
+                                ${app.technologies.slice(0, 3).map(tech => 
+                                    `<span class="badge bg-light text-dark me-1">${tech}</span>`
+                                ).join('')}
+                                ${app.technologies.length > 3 ? `<span class="text-muted">+${app.technologies.length - 3}</span>` : ''}
+                            </div>
+                            <small class="text-muted">Port: ${app.frontend_port}</small>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            searchResults.innerHTML = resultsHtml;
+            
+            // Add click handlers
+            searchResults.querySelectorAll('.search-result-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const appValue = this.dataset.appValue;
+                    select.value = appValue;
+                    select.dispatchEvent(new Event('change'));
+                    searchOverlay.style.display = 'none';
+                });
+                
+                // Keyboard navigation
+                item.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.click();
+                    }
+                });
+            });
+        }
+    }
+    {% endif %}
+    
+    function refreshApplicationList() {
+        if (refreshBtn) {
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '<i class="fas fa-spin fa-spinner"></i>';
+            
+            // Simulate refresh - in real implementation, make HTMX call
+            setTimeout(() => {
+                refreshBtn.disabled = false;
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+                
+                // Emit refresh event
+                const event = new CustomEvent('appListRefresh', {
+                    detail: { componentId: '{{ component_id }}' }
+                });
+                document.dispatchEvent(event);
+            }, 1000);
+        }
+    }
+    
+    function refreshApplicationStatus() {
+        // Emit status refresh event for real-time updates
+        const event = new CustomEvent('appStatusRefresh', {
+            detail: { componentId: '{{ component_id }}' }
+        });
+        document.dispatchEvent(event);
+    }
+    
+    function restartApplication(app) {
+        // Emit restart event
+        const event = new CustomEvent('appRestart', {
+            detail: { app: app, componentId: '{{ component_id }}' }
+        });
+        document.dispatchEvent(event);
+    }
+    
+    // Public API functions
+    window.AppSelector = window.AppSelector || {};
+    window.AppSelector['{{ component_id }}'] = {
+        getValue: () => select.value,
+        setValue: (value) => {
+            select.value = value;
+            updateAppInfo(value);
+        },
+        getSelectedApp: () => {
+            const value = select.value;
+            return applications.find(a => `${a.model}_app${a.id}` === value);
+        },
+        refresh: refreshApplicationList,
+        disable: () => { select.disabled = true; },
+        enable: () => { select.disabled = false; }
+    };
+});
+</script>
+
+{# CSS for application selector styling #}
+<style>
+.app-selector-container {
+    position: relative;
+}
+
+.app-select-wrapper {
+    position: relative;
+}
+
+/* Search overlay styling */
+.app-search-overlay {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    max-height: 400px;
+    overflow: hidden;
+}
+
+.app-search-results {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.search-result-item {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.search-result-item:hover,
+.search-result-item:focus {
+    background-color: #f8f9fa;
+    outline: none;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+/* App info styling */
+.app-info {
+    animation: appInfoFadeIn 0.3s ease;
+}
+
+@keyframes appInfoFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.app-info .card {
+    border-left: 4px solid #007bff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.app-thumbnail-img {
+    border: 2px solid #dee2e6;
+    transition: transform 0.2s ease;
+}
+
+.app-thumbnail-img:hover {
+    transform: scale(1.05);
+}
+
+.port-info {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+
+.tech-badges .badge,
+.feature-badges .badge {
+    transition: all 0.2s ease;
+}
+
+.tech-badges .badge:hover,
+.feature-badges .badge:hover {
+    transform: scale(1.05);
+}
+
+/* Status-specific styling */
+.status-pulse {
+    animation: statusPulse 2s infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Action buttons */
+.app-actions .btn {
+    transition: all 0.2s ease;
+}
+
+.app-actions .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.app-actions .btn:disabled {
+    opacity: 0.6;
+}
+
+/* Status-specific card styling */
+.app-info .card[data-status="running"] {
+    border-left-color: #198754;
+}
+
+.app-info .card[data-status="error"] {
+    border-left-color: #dc3545;
+}
+
+.app-info .card[data-status="stopped"] {
+    border-left-color: #6c757d;
+}
+
+.app-info .card[data-status="starting"],
+.app-info .card[data-status="stopping"] {
+    border-left-color: #ffc107;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .app-search-overlay {
+        position: fixed;
+        top: auto;
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+        max-height: 60vh;
+        border-radius: 0.375rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .search-result-item {
+        padding: 1rem 0.75rem;
+    }
+    
+    .app-info .card-body {
+        padding: 1rem;
+    }
+    
+    .app-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .app-actions .btn {
+        width: 100%;
+    }
+    
+    .row {
+        margin: 0;
+    }
+    
+    .row > [class^="col"] {
+        padding: 0 0.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .app-thumbnail {
+        display: none;
+    }
+    
+    .tech-preview .badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .app-actions .btn {
+        font-size: 0.875rem;
+        padding: 0.375rem 0.75rem;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .app-search-overlay {
+        background: #343a40;
+        border-color: #495057;
+    }
+    
+    .app-search-overlay .search-header {
+        background: #495057;
+        border-color: #6c757d;
+    }
+    
+    .search-result-item:hover,
+    .search-result-item:focus {
+        background-color: #495057;
+    }
+    
+    .app-info .card {
+        background-color: #343a40;
+        border-color: #495057;
+        color: #e9ecef;
+    }
+    
+    .app-thumbnail-img {
+        border-color: #495057;
+    }
+    
+    .tech-badges .badge.bg-light {
+        background-color: #495057 !important;
+        color: #e9ecef !important;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .app-info .card {
+        border-width: 2px;
+        border-left-width: 4px;
+    }
+    
+    .search-result-item {
+        border-color: #000000;
+    }
+    
+    .badge {
+        border: 1px solid #000000;
+        font-weight: 600;
+    }
+}
+
+/* Print styles */
+@media print {
+    .app-search-overlay {
+        display: none !important;
+    }
+    
+    .app-actions {
+        display: none;
+    }
+    
+    .app-info .card {
+        border: 1px solid #000000;
+        box-shadow: none;
+    }
+    
+    .badge {
+        border: 1px solid #000000;
+        background-color: transparent !important;
+        color: #000000 !important;
+    }
+}
+
+/* Loading states */
+.app-select[disabled] {
+    background-color: #e9ecef;
+    opacity: 0.7;
+}
+
+/* Focus management */
+.app-select:focus-visible {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+.search-result-item:focus-visible {
+    outline: 2px solid #0d6efd;
+    outline-offset: -2px;
+}
+
+.app-actions .btn:focus-visible {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+</style>

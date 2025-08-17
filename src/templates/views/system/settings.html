@@ -1,0 +1,1013 @@
+{#
+  System Settings View
+  
+  Purpose: System configuration and settings management interface
+  Features:
+  - Application configuration settings
+  - Service configuration
+  - Security settings
+  - Performance tuning
+  - Alert configuration
+  
+  Routes:
+  - GET /system/settings
+  - POST /system/settings
+  
+  Technical Details:
+  - Extends base.html layout
+  - Form validation and submission
+  - Real-time setting validation
+  - Configuration backup/restore
+  
+  Components Used:
+  - components/forms/filter-panel.html
+  - components/common/alert.html
+  - components/common/modal.html
+  
+  HTMX Endpoints:
+  - /api/system/settings (get/update settings)
+  - /api/system/validate-setting (validate individual setting)
+  - /api/system/backup-config (backup configuration)
+#}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}System Settings - {{ super() }}{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+    .settings-view {
+        /* Settings-specific styles */
+    }
+    
+    .settings-sidebar {
+        background: var(--bs-light);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        position: sticky;
+        top: 100px;
+        height: fit-content;
+    }
+    
+    .settings-nav {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .settings-nav-item {
+        margin-bottom: 0.5rem;
+    }
+    
+    .settings-nav-link {
+        display: block;
+        padding: 0.75rem 1rem;
+        color: var(--bs-text);
+        text-decoration: none;
+        border-radius: 0.375rem;
+        transition: all 0.3s;
+        border: 1px solid transparent;
+    }
+    
+    .settings-nav-link:hover {
+        background: rgba(var(--bs-primary-rgb), 0.1);
+        color: var(--bs-primary);
+        border-color: rgba(var(--bs-primary-rgb), 0.2);
+    }
+    
+    .settings-nav-link.active {
+        background: var(--bs-primary);
+        color: white;
+    }
+    
+    .settings-section {
+        display: none;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    .settings-section.active {
+        display: block;
+    }
+    
+    .setting-card {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        background: white;
+        transition: all 0.3s;
+    }
+    
+    .setting-card:hover {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-color: var(--bs-primary);
+    }
+    
+    .setting-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+    
+    .setting-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .status-enabled {
+        background: rgba(var(--bs-success-rgb), 0.1);
+        color: var(--bs-success);
+        border: 1px solid rgba(var(--bs-success-rgb), 0.2);
+    }
+    
+    .status-disabled {
+        background: rgba(var(--bs-danger-rgb), 0.1);
+        color: var(--bs-danger);
+        border: 1px solid rgba(var(--bs-danger-rgb), 0.2);
+    }
+    
+    .status-warning {
+        background: rgba(var(--bs-warning-rgb), 0.1);
+        color: var(--bs-warning);
+        border: 1px solid rgba(var(--bs-warning-rgb), 0.2);
+    }
+    
+    .validation-feedback {
+        display: none;
+        margin-top: 0.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .validation-feedback.show {
+        display: block;
+    }
+    
+    .validation-success {
+        color: var(--bs-success);
+    }
+    
+    .validation-error {
+        color: var(--bs-danger);
+    }
+    
+    .config-preview {
+        background: #f8f9fa;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.375rem;
+        padding: 1rem;
+        font-family: monospace;
+        font-size: 0.875rem;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .backup-item {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        padding: 0.75rem;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.375rem;
+        margin-bottom: 0.5rem;
+        background: white;
+    }
+    
+    .backup-item:hover {
+        background: var(--bs-light);
+        border-color: var(--bs-primary);
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="/system/status">System</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Settings</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="settings-view">
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-cog me-2"></i>System Settings
+                    </h1>
+                    <p class="text-muted mb-0">Configure system settings and preferences</p>
+                </div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#backup-modal">
+                        <i class="fas fa-download me-1"></i>Backup Config
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#restore-modal">
+                        <i class="fas fa-upload me-1"></i>Restore Config
+                    </button>
+                    <button type="button" class="btn btn-primary" id="save-all-settings">
+                        <i class="fas fa-save me-1"></i>Save All Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        {# Settings Navigation #}
+        <div class="col-lg-3">
+            <div class="settings-sidebar">
+                <h5 class="mb-3">Settings Categories</h5>
+                <ul class="settings-nav">
+                    <li class="settings-nav-item">
+                        <a href="#general" class="settings-nav-link active" data-section="general">
+                            <i class="fas fa-sliders-h me-2"></i>General
+                        </a>
+                    </li>
+                    <li class="settings-nav-item">
+                        <a href="#security" class="settings-nav-link" data-section="security">
+                            <i class="fas fa-shield-alt me-2"></i>Security
+                        </a>
+                    </li>
+                    <li class="settings-nav-item">
+                        <a href="#performance" class="settings-nav-link" data-section="performance">
+                            <i class="fas fa-tachometer-alt me-2"></i>Performance
+                        </a>
+                    </li>
+                    <li class="settings-nav-item">
+                        <a href="#notifications" class="settings-nav-link" data-section="notifications">
+                            <i class="fas fa-bell me-2"></i>Notifications
+                        </a>
+                    </li>
+                    <li class="settings-nav-item">
+                        <a href="#analysis" class="settings-nav-link" data-section="analysis">
+                            <i class="fas fa-flask me-2"></i>Analysis
+                        </a>
+                    </li>
+                    <li class="settings-nav-item">
+                        <a href="#storage" class="settings-nav-link" data-section="storage">
+                            <i class="fas fa-database me-2"></i>Storage
+                        </a>
+                    </li>
+                    <li class="settings-nav-item">
+                        <a href="#logging" class="settings-nav-link" data-section="logging">
+                            <i class="fas fa-file-alt me-2"></i>Logging
+                        </a>
+                    </li>
+                    <li class="settings-nav-item">
+                        <a href="#advanced" class="settings-nav-link" data-section="advanced">
+                            <i class="fas fa-tools me-2"></i>Advanced
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        {# Settings Content #}
+        <div class="col-lg-9">
+            {# General Settings #}
+            <div class="settings-section active" id="general">
+                <h4 class="mb-4">General Settings</h4>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">Application Information</h5>
+                            <p class="text-muted mb-0 small">Basic application configuration</p>
+                        </div>
+                        <span class="setting-status status-enabled">Active</span>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Application Name</label>
+                                <input type="text" class="form-control" name="app_name" 
+                                       value="{{ settings.app_name|default('AI Analysis Platform') }}"
+                                       hx-trigger="change" hx-post="/api/system/validate-setting" hx-target="next .validation-feedback">
+                                <div class="validation-feedback"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Application Version</label>
+                                <input type="text" class="form-control" name="app_version" 
+                                       value="{{ settings.app_version|default('1.0.0') }}" readonly>
+                                <div class="form-text">Automatically updated with releases</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Default Language</label>
+                                <select class="form-select" name="default_language">
+                                    <option value="en" {% if settings.default_language == 'en' %}selected{% endif %}>English</option>
+                                    <option value="es" {% if settings.default_language == 'es' %}selected{% endif %}>Spanish</option>
+                                    <option value="fr" {% if settings.default_language == 'fr' %}selected{% endif %}>French</option>
+                                    <option value="de" {% if settings.default_language == 'de' %}selected{% endif %}>German</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Timezone</label>
+                                <select class="form-select" name="timezone">
+                                    <option value="UTC" {% if settings.timezone == 'UTC' %}selected{% endif %}>UTC</option>
+                                    <option value="America/New_York" {% if settings.timezone == 'America/New_York' %}selected{% endif %}>Eastern Time</option>
+                                    <option value="America/Chicago" {% if settings.timezone == 'America/Chicago' %}selected{% endif %}>Central Time</option>
+                                    <option value="America/Los_Angeles" {% if settings.timezone == 'America/Los_Angeles' %}selected{% endif %}>Pacific Time</option>
+                                    <option value="Europe/London" {% if settings.timezone == 'Europe/London' %}selected{% endif %}>London</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">User Interface</h5>
+                            <p class="text-muted mb-0 small">Customize the user interface appearance</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Default Theme</label>
+                                <select class="form-select" name="default_theme">
+                                    <option value="light" {% if settings.default_theme == 'light' %}selected{% endif %}>Light</option>
+                                    <option value="dark" {% if settings.default_theme == 'dark' %}selected{% endif %}>Dark</option>
+                                    <option value="auto" {% if settings.default_theme == 'auto' %}selected{% endif %}>Auto (System)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Items Per Page</label>
+                                <select class="form-select" name="items_per_page">
+                                    <option value="10" {% if settings.items_per_page == 10 %}selected{% endif %}>10</option>
+                                    <option value="25" {% if settings.items_per_page == 25 %}selected{% endif %}>25</option>
+                                    <option value="50" {% if settings.items_per_page == 50 %}selected{% endif %}>50</option>
+                                    <option value="100" {% if settings.items_per_page == 100 %}selected{% endif %}>100</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="enable_animations" 
+                                       {% if settings.enable_animations %}checked{% endif %}>
+                                <label class="form-check-label">Enable animations and transitions</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="show_tooltips" 
+                                       {% if settings.show_tooltips %}checked{% endif %}>
+                                <label class="form-check-label">Show helpful tooltips</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Security Settings #}
+            <div class="settings-section" id="security">
+                <h4 class="mb-4">Security Settings</h4>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">Authentication</h5>
+                            <p class="text-muted mb-0 small">User authentication and session management</p>
+                        </div>
+                        <span class="setting-status status-enabled">Enabled</span>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Session Timeout (minutes)</label>
+                                <input type="number" class="form-control" name="session_timeout" 
+                                       value="{{ settings.session_timeout|default(30) }}" min="5" max="1440">
+                                <div class="form-text">Auto-logout after inactivity</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Max Login Attempts</label>
+                                <input type="number" class="form-control" name="max_login_attempts" 
+                                       value="{{ settings.max_login_attempts|default(5) }}" min="3" max="20">
+                                <div class="form-text">Account lockout threshold</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="require_https" 
+                                       {% if settings.require_https %}checked{% endif %}>
+                                <label class="form-check-label">Require HTTPS for all connections</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="enable_2fa" 
+                                       {% if settings.enable_2fa %}checked{% endif %}>
+                                <label class="form-check-label">Enable two-factor authentication</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">API Security</h5>
+                            <p class="text-muted mb-0 small">API access and security policies</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">API Rate Limit (requests/minute)</label>
+                                <input type="number" class="form-control" name="api_rate_limit" 
+                                       value="{{ settings.api_rate_limit|default(100) }}" min="10" max="1000">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">API Key Expiry (days)</label>
+                                <input type="number" class="form-control" name="api_key_expiry" 
+                                       value="{{ settings.api_key_expiry|default(365) }}" min="1" max="3650">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="require_api_key" 
+                                       {% if settings.require_api_key %}checked{% endif %}>
+                                <label class="form-check-label">Require API key for all endpoints</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="log_api_requests" 
+                                       {% if settings.log_api_requests %}checked{% endif %}>
+                                <label class="form-check-label">Log all API requests</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Performance Settings #}
+            <div class="settings-section" id="performance">
+                <h4 class="mb-4">Performance Settings</h4>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">Analysis Performance</h5>
+                            <p class="text-muted mb-0 small">Configure analysis execution settings</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Max Concurrent Analyses</label>
+                                <input type="number" class="form-control" name="max_concurrent_analyses" 
+                                       value="{{ settings.max_concurrent_analyses|default(3) }}" min="1" max="10">
+                                <div class="form-text">Maximum analyses running simultaneously</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Analysis Timeout (minutes)</label>
+                                <input type="number" class="form-control" name="analysis_timeout" 
+                                       value="{{ settings.analysis_timeout|default(60) }}" min="5" max="480">
+                                <div class="form-text">Auto-cancel after timeout</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Queue Priority</label>
+                                <select class="form-select" name="queue_priority">
+                                    <option value="fifo" {% if settings.queue_priority == 'fifo' %}selected{% endif %}>First In, First Out</option>
+                                    <option value="priority" {% if settings.queue_priority == 'priority' %}selected{% endif %}>Priority-based</option>
+                                    <option value="shortest" {% if settings.queue_priority == 'shortest' %}selected{% endif %}>Shortest Job First</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Memory Limit per Analysis (GB)</label>
+                                <input type="number" class="form-control" name="memory_limit" 
+                                       value="{{ settings.memory_limit|default(2) }}" min="1" max="16" step="0.5">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">Caching</h5>
+                            <p class="text-muted mb-0 small">Configure caching behavior</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Cache TTL (minutes)</label>
+                                <input type="number" class="form-control" name="cache_ttl" 
+                                       value="{{ settings.cache_ttl|default(60) }}" min="1" max="1440">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Max Cache Size (MB)</label>
+                                <input type="number" class="form-control" name="max_cache_size" 
+                                       value="{{ settings.max_cache_size|default(512) }}" min="64" max="4096">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="enable_caching" 
+                                       {% if settings.enable_caching %}checked{% endif %}>
+                                <label class="form-check-label">Enable result caching</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="cache_static_analysis" 
+                                       {% if settings.cache_static_analysis %}checked{% endif %}>
+                                <label class="form-check-label">Cache static analysis results</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Notifications Settings #}
+            <div class="settings-section" id="notifications">
+                <h4 class="mb-4">Notification Settings</h4>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">Email Notifications</h5>
+                            <p class="text-muted mb-0 small">Configure email notification settings</p>
+                        </div>
+                        <span class="setting-status {{ 'status-enabled' if settings.email_notifications else 'status-disabled' }}">
+                            {{ 'Enabled' if settings.email_notifications else 'Disabled' }}
+                        </span>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="email_notifications" 
+                                       {% if settings.email_notifications %}checked{% endif %}>
+                                <label class="form-check-label">Enable email notifications</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">SMTP Server</label>
+                                <input type="text" class="form-control" name="smtp_server" 
+                                       value="{{ settings.smtp_server|default('') }}" placeholder="smtp.example.com">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">SMTP Port</label>
+                                <input type="number" class="form-control" name="smtp_port" 
+                                       value="{{ settings.smtp_port|default(587) }}" min="1" max="65535">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">From Email</label>
+                                <input type="email" class="form-control" name="from_email" 
+                                       value="{{ settings.from_email|default('') }}" placeholder="noreply@example.com">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">From Name</label>
+                                <input type="text" class="form-control" name="from_name" 
+                                       value="{{ settings.from_name|default('AI Analysis Platform') }}">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="notify_analysis_complete" 
+                                       {% if settings.notify_analysis_complete %}checked{% endif %}>
+                                <label class="form-check-label">Notify when analysis completes</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="notify_analysis_failed" 
+                                       {% if settings.notify_analysis_failed %}checked{% endif %}>
+                                <label class="form-check-label">Notify when analysis fails</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="notify_system_alerts" 
+                                       {% if settings.notify_system_alerts %}checked{% endif %}>
+                                <label class="form-check-label">Notify on system alerts</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Analysis Settings #}
+            <div class="settings-section" id="analysis">
+                <h4 class="mb-4">Analysis Settings</h4>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">Default Analysis Options</h5>
+                            <p class="text-muted mb-0 small">Set default options for new analyses</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Default Analysis Type</label>
+                                <select class="form-select" name="default_analysis_type">
+                                    <option value="security" {% if settings.default_analysis_type == 'security' %}selected{% endif %}>Security</option>
+                                    <option value="performance" {% if settings.default_analysis_type == 'performance' %}selected{% endif %}>Performance</option>
+                                    <option value="dynamic" {% if settings.default_analysis_type == 'dynamic' %}selected{% endif %}>Dynamic</option>
+                                    <option value="comprehensive" {% if settings.default_analysis_type == 'comprehensive' %}selected{% endif %}>Comprehensive</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Results Retention (days)</label>
+                                <input type="number" class="form-control" name="results_retention" 
+                                       value="{{ settings.results_retention|default(90) }}" min="1" max="3650">
+                                <div class="form-text">Auto-delete old results</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="auto_cleanup_results" 
+                                       {% if settings.auto_cleanup_results %}checked{% endif %}>
+                                <label class="form-check-label">Automatically cleanup old results</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="compress_results" 
+                                       {% if settings.compress_results %}checked{% endif %}>
+                                <label class="form-check-label">Compress analysis results</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Storage Settings #}
+            <div class="settings-section" id="storage">
+                <h4 class="mb-4">Storage Settings</h4>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">File Storage</h5>
+                            <p class="text-muted mb-0 small">Configure file storage options</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Storage Backend</label>
+                                <select class="form-select" name="storage_backend">
+                                    <option value="local" {% if settings.storage_backend == 'local' %}selected{% endif %}>Local Filesystem</option>
+                                    <option value="s3" {% if settings.storage_backend == 's3' %}selected{% endif %}>Amazon S3</option>
+                                    <option value="azure" {% if settings.storage_backend == 'azure' %}selected{% endif %}>Azure Blob Storage</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Max File Size (MB)</label>
+                                <input type="number" class="form-control" name="max_file_size" 
+                                       value="{{ settings.max_file_size|default(100) }}" min="1" max="1024">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Logging Settings #}
+            <div class="settings-section" id="logging">
+                <h4 class="mb-4">Logging Settings</h4>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">Log Configuration</h5>
+                            <p class="text-muted mb-0 small">Configure system logging behavior</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Log Level</label>
+                                <select class="form-select" name="log_level">
+                                    <option value="DEBUG" {% if settings.log_level == 'DEBUG' %}selected{% endif %}>Debug</option>
+                                    <option value="INFO" {% if settings.log_level == 'INFO' %}selected{% endif %}>Info</option>
+                                    <option value="WARNING" {% if settings.log_level == 'WARNING' %}selected{% endif %}>Warning</option>
+                                    <option value="ERROR" {% if settings.log_level == 'ERROR' %}selected{% endif %}>Error</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Log Retention (days)</label>
+                                <input type="number" class="form-control" name="log_retention" 
+                                       value="{{ settings.log_retention|default(30) }}" min="1" max="365">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Advanced Settings #}
+            <div class="settings-section" id="advanced">
+                <h4 class="mb-4">Advanced Settings</h4>
+                
+                <div class="setting-card">
+                    <div class="setting-header">
+                        <div>
+                            <h5 class="mb-0">Configuration Preview</h5>
+                            <p class="text-muted mb-0 small">Preview current configuration</p>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="refresh-config">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="config-preview" id="config-preview"
+                         hx-get="/api/system/config-preview"
+                         hx-trigger="load"
+                         hx-target="#config-preview"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading configuration...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Backup Modal #}
+<div class="modal fade" id="backup-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Backup Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Create a backup of your current system configuration.</p>
+                <div class="mb-3">
+                    <label class="form-label">Backup Name</label>
+                    <input type="text" class="form-control" id="backup-name" 
+                           value="backup_{{ moment().format('YYYY_MM_DD_HH_mm') }}">
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="include-secrets">
+                        <label class="form-check-label">Include sensitive settings</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="create-backup">Create Backup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Restore Modal #}
+<div class="modal fade" id="restore-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Restore Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Select a backup to restore system configuration.</p>
+                <div class="mb-3">
+                    <label class="form-label">Available Backups</label>
+                    <div id="backup-list"
+                         hx-get="/api/system/backups"
+                         hx-trigger="load"
+                         hx-target="#backup-list"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading backups...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> Restoring will overwrite current settings. Consider creating a backup first.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="restore-backup" disabled>Restore Selected</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+    // Settings JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // Settings navigation
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('settings-nav-link')) {
+                e.preventDefault();
+                
+                const sectionId = e.target.dataset.section;
+                
+                // Update navigation
+                document.querySelectorAll('.settings-nav-link').forEach(link => {
+                    link.classList.remove('active');
+                });
+                e.target.classList.add('active');
+                
+                // Show section
+                document.querySelectorAll('.settings-section').forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.getElementById(sectionId).classList.add('active');
+            }
+        });
+        
+        // Auto-save on change
+        document.addEventListener('change', function(e) {
+            if (e.target.matches('input, select, textarea')) {
+                // Auto-save individual setting
+                const settingName = e.target.name;
+                const settingValue = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+                
+                fetch('/api/system/settings/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        [settingName]: settingValue
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSettingsSaved();
+                    } else {
+                        showSettingsError(data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving setting:', error);
+                    showSettingsError('Failed to save setting');
+                });
+            }
+        });
+        
+        // Save all settings
+        document.getElementById('save-all-settings').addEventListener('click', function() {
+            const formData = new FormData();
+            
+            // Collect all settings
+            document.querySelectorAll('input, select, textarea').forEach(input => {
+                if (input.name) {
+                    if (input.type === 'checkbox') {
+                        formData.append(input.name, input.checked);
+                    } else {
+                        formData.append(input.name, input.value);
+                    }
+                }
+            });
+            
+            fetch('/api/system/settings/save-all', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSettingsSaved('All settings saved successfully!');
+                } else {
+                    showSettingsError(data.message || 'Failed to save settings');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving settings:', error);
+                showSettingsError('Failed to save settings');
+            });
+        });
+        
+        // Backup functionality
+        document.getElementById('create-backup').addEventListener('click', function() {
+            const backupName = document.getElementById('backup-name').value;
+            const includeSecrets = document.getElementById('include-secrets').checked;
+            
+            fetch('/api/system/backup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: backupName,
+                    include_secrets: includeSecrets
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('backup-modal')).hide();
+                    showSettingsSaved('Configuration backed up successfully!');
+                } else {
+                    showSettingsError(data.message || 'Failed to create backup');
+                }
+            })
+            .catch(error => {
+                console.error('Error creating backup:', error);
+                showSettingsError('Failed to create backup');
+            });
+        });
+        
+        // Refresh config preview
+        document.getElementById('refresh-config').addEventListener('click', function() {
+            htmx.ajax('GET', '/api/system/config-preview', '#config-preview');
+        });
+        
+        // Utility functions
+        function showSettingsSaved(message = 'Settings saved successfully!') {
+            const toast = document.createElement('div');
+            toast.className = 'toast-container position-fixed top-0 end-0 p-3';
+            toast.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-header">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <strong class="me-auto">Settings Saved</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">${message}</div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 5000);
+        }
+        
+        function showSettingsError(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-container position-fixed top-0 end-0 p-3';
+            toast.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-header">
+                        <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                        <strong class="me-auto">Settings Error</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">${message}</div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 5000);
+        }
+    });
+</script>
+{% endblock %}

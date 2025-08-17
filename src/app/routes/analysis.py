@@ -80,7 +80,7 @@ def analysis_hub():
             }
         except Exception:
             stats = {}
-        return render_template('pages/analysis.html', stats=stats)
+        return render_template('views/analysis/hub.html', stats=stats)
     except Exception as e:  # pragma: no cover - defensive catch
         logger.error(f"Error loading analysis page: {e}")
         return render_template(

@@ -1,0 +1,435 @@
+{#
+    HTMX Fragment: Live Logs Streaming
+    Route: /api/logs/stream
+    Purpose: Real-time log streaming fragment for system monitoring
+    
+    Usage:
+    - Streamed via HTMX Server-Sent Events (SSE) for real-time log display
+    - Shows system logs, analysis logs, and error logs with filtering
+    - Auto-scrolls and maintains log buffer limits
+    
+    HTMX Integration:
+    - hx-get="/api/logs/stream?source={{ source }}&level={{ level }}"
+    - hx-trigger="sse:log-entry"
+    - hx-target="#live-logs-container"
+    - hx-swap="beforeend"
+    
+    Data Expected:
+    - log_entries: List of new log entries
+    - source: Log source (system, analysis, celery, etc.)
+    - level: Log level filter (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    - timestamp: Log entry timestamp
+#}
+
+<!-- Live Logs Streaming Fragment -->
+<div class="live-logs-stream" id="live-logs-stream">
+    {% for entry in log_entries %}
+    <div class="log-entry" 
+         data-level="{{ entry.level }}" 
+         data-source="{{ entry.source }}" 
+         data-timestamp="{{ entry.timestamp }}">
+        
+        <!-- Log Entry Content -->
+        <div class="log-line d-flex align-items-start">
+            <!-- Timestamp -->
+            <div class="log-timestamp text-muted flex-shrink-0 me-3">
+                {{ entry.timestamp|datetime('%H:%M:%S.%f')[:12] }}
+            </div>
+            
+            <!-- Level Badge -->
+            <div class="log-level flex-shrink-0 me-3">
+                <span class="badge badge-sm bg-{{ 'danger' if entry.level == 'ERROR' or entry.level == 'CRITICAL' else 'warning' if entry.level == 'WARNING' else 'info' if entry.level == 'INFO' else 'light text-dark' }}">
+                    {{ entry.level }}
+                </span>
+            </div>
+            
+            <!-- Source Badge -->
+            <div class="log-source flex-shrink-0 me-3">
+                <span class="badge badge-sm bg-secondary bg-opacity-50">
+                    {{ entry.source|upper }}
+                </span>
+            </div>
+            
+            <!-- Log Message -->
+            <div class="log-message flex-grow-1">
+                <span class="log-text {{ 'text-danger' if entry.level == 'ERROR' or entry.level == 'CRITICAL' else 'text-warning' if entry.level == 'WARNING' else '' }}">
+                    {{ entry.message }}
+                </span>
+                
+                <!-- Additional Context -->
+                {% if entry.context %}
+                <div class="log-context mt-1">
+                    {% for key, value in entry.context.items() %}
+                    <small class="text-muted me-3">
+                        <strong>{{ key }}:</strong> {{ value }}
+                    </small>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Exception/Stack Trace -->
+                {% if entry.exception %}
+                <div class="log-exception mt-2">
+                    <details class="bg-light rounded p-2">
+                        <summary class="text-danger fw-medium cursor-pointer">
+                            <i class="fas fa-bug me-1"></i>Exception Details
+                        </summary>
+                        <pre class="mt-2 mb-0 text-danger small"><code>{{ entry.exception }}</code></pre>
+                    </details>
+                </div>
+                {% endif %}
+                
+                <!-- Analysis Link (if applicable) -->
+                {% if entry.analysis_id %}
+                <div class="log-analysis-link mt-1">
+                    <a href="/analysis/{{ entry.analysis_id }}/results" 
+                       class="text-decoration-none small">
+                        <i class="fas fa-link me-1"></i>Analysis #{{ entry.analysis_id }}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Actions -->
+            <div class="log-actions flex-shrink-0 ms-3">
+                <div class="btn-group btn-group-sm" role="group">
+                    <!-- Copy to Clipboard -->
+                    <button class="btn btn-outline-secondary btn-sm" 
+                            onclick="copyLogEntry(this)" 
+                            title="Copy log entry">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    
+                    <!-- Filter by Source -->
+                    <button class="btn btn-outline-secondary btn-sm" 
+                            onclick="filterBySource('{{ entry.source }}')" 
+                            title="Filter by {{ entry.source }}">
+                        <i class="fas fa-filter"></i>
+                    </button>
+                    
+                    <!-- View Context -->
+                    {% if entry.context or entry.exception %}
+                    <button class="btn btn-outline-info btn-sm" 
+                            onclick="toggleLogDetails(this)" 
+                            title="Toggle details">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Expandable Details -->
+        {% if entry.raw_data %}
+        <div class="log-details collapse mt-2">
+            <div class="card card-body bg-light">
+                <h6 class="mb-2">Raw Log Data</h6>
+                <pre class="mb-0 small"><code>{{ entry.raw_data|tojson_pretty }}</code></pre>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Log Buffer Management -->
+<div class="log-buffer-info text-muted small mt-2" hx-swap-oob="innerHTML:#log-buffer-status">
+    Showing {{ log_entries|length }} entries
+    {% if total_entries > log_entries|length %}
+    ({{ total_entries - log_entries|length }} older entries hidden)
+    {% endif %}
+    - Last update: {{ now()|datetime('%H:%M:%S') }}
+</div>
+
+<!-- JavaScript for Live Logs -->
+<script>
+// Auto-scroll to bottom when new logs arrive
+document.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'live-logs-container') {
+        const container = event.detail.target;
+        const shouldAutoScroll = isScrolledToBottom(container.parentElement);
+        
+        if (shouldAutoScroll) {
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // Animate new log entries
+        const newEntries = container.querySelectorAll('.log-entry:not(.animated)');
+        newEntries.forEach(entry => {
+            entry.classList.add('animated');
+            entry.style.opacity = '0';
+            entry.style.transform = 'translateX(-10px)';
+            
+            requestAnimationFrame(() => {
+                entry.style.transition = 'all 0.3s ease-out';
+                entry.style.opacity = '1';
+                entry.style.transform = 'translateX(0)';
+            });
+        });
+        
+        // Maintain buffer limit
+        maintainLogBuffer(container);
+    }
+});
+
+function isScrolledToBottom(element) {
+    const threshold = 50; // pixels from bottom
+    return element.scrollTop + element.clientHeight >= element.scrollHeight - threshold;
+}
+
+function maintainLogBuffer(container) {
+    const maxEntries = 1000; // Keep last 1000 entries
+    const entries = container.querySelectorAll('.log-entry');
+    
+    if (entries.length > maxEntries) {
+        const entriesToRemove = entries.length - maxEntries;
+        for (let i = 0; i < entriesToRemove; i++) {
+            entries[i].remove();
+        }
+    }
+}
+
+// Copy log entry to clipboard
+function copyLogEntry(button) {
+    const logEntry = button.closest('.log-entry');
+    const timestamp = logEntry.querySelector('.log-timestamp').textContent.trim();
+    const level = logEntry.querySelector('.log-level .badge').textContent.trim();
+    const source = logEntry.querySelector('.log-source .badge').textContent.trim();
+    const message = logEntry.querySelector('.log-message .log-text').textContent.trim();
+    
+    const logText = `[${timestamp}] ${level} ${source}: ${message}`;
+    
+    navigator.clipboard.writeText(logText).then(() => {
+        // Show feedback
+        const icon = button.querySelector('i');
+        const originalClass = icon.className;
+        icon.className = 'fas fa-check';
+        setTimeout(() => {
+            icon.className = originalClass;
+        }, 1000);
+    });
+}
+
+// Filter logs by source
+function filterBySource(source) {
+    const filterSelect = document.querySelector('#log-source-filter');
+    if (filterSelect) {
+        filterSelect.value = source;
+        filterSelect.dispatchEvent(new Event('change'));
+    }
+}
+
+// Toggle log details
+function toggleLogDetails(button) {
+    const logEntry = button.closest('.log-entry');
+    const details = logEntry.querySelector('.log-details');
+    
+    if (details) {
+        const collapse = new bootstrap.Collapse(details);
+        collapse.toggle();
+        
+        const icon = button.querySelector('i');
+        if (details.classList.contains('show')) {
+            icon.className = 'fas fa-info-circle';
+        } else {
+            icon.className = 'fas fa-info-circle';
+        }
+    }
+}
+
+// Pause/resume log streaming
+let logStreamPaused = false;
+
+function toggleLogStream() {
+    const button = document.querySelector('#toggle-stream-btn');
+    const icon = button.querySelector('i');
+    const sseConnection = document.querySelector('[hx-sse]');
+    
+    if (logStreamPaused) {
+        // Resume streaming
+        logStreamPaused = false;
+        button.classList.remove('btn-success');
+        button.classList.add('btn-warning');
+        button.textContent = 'Pause Stream';
+        icon.className = 'fas fa-pause me-1';
+        
+        if (sseConnection) {
+            htmx.trigger(sseConnection, 'sse:resume');
+        }
+    } else {
+        // Pause streaming
+        logStreamPaused = true;
+        button.classList.remove('btn-warning');
+        button.classList.add('btn-success');
+        button.textContent = 'Resume Stream';
+        icon.className = 'fas fa-play me-1';
+        
+        if (sseConnection) {
+            htmx.trigger(sseConnection, 'sse:pause');
+        }
+    }
+}
+
+// Clear log buffer
+function clearLogs() {
+    if (confirm('Are you sure you want to clear all logs? This action cannot be undone.')) {
+        const container = document.querySelector('#live-logs-container');
+        container.innerHTML = '';
+        
+        // Reset buffer status
+        document.querySelector('#log-buffer-status').textContent = 'Logs cleared';
+    }
+}
+
+// Export logs
+function exportLogs() {
+    const entries = document.querySelectorAll('.log-entry');
+    let logText = '';
+    
+    entries.forEach(entry => {
+        const timestamp = entry.querySelector('.log-timestamp').textContent.trim();
+        const level = entry.querySelector('.log-level .badge').textContent.trim();
+        const source = entry.querySelector('.log-source .badge').textContent.trim();
+        const message = entry.querySelector('.log-message .log-text').textContent.trim();
+        
+        logText += `[${timestamp}] ${level} ${source}: ${message}\n`;
+    });
+    
+    const blob = new Blob([logText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `system-logs-${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Search within logs
+function searchLogs(searchTerm) {
+    const entries = document.querySelectorAll('.log-entry');
+    const term = searchTerm.toLowerCase();
+    
+    entries.forEach(entry => {
+        const message = entry.querySelector('.log-message .log-text').textContent.toLowerCase();
+        const shouldShow = !term || message.includes(term);
+        
+        entry.style.display = shouldShow ? '' : 'none';
+        
+        if (shouldShow && term) {
+            // Highlight search term
+            const messageEl = entry.querySelector('.log-message .log-text');
+            const originalText = messageEl.textContent;
+            const highlightedText = originalText.replace(
+                new RegExp(term, 'gi'),
+                '<mark>$&</mark>'
+            );
+            messageEl.innerHTML = highlightedText;
+        }
+    });
+}
+
+// Level filtering
+function filterByLevel(level) {
+    const entries = document.querySelectorAll('.log-entry');
+    
+    entries.forEach(entry => {
+        const entryLevel = entry.dataset.level;
+        const shouldShow = !level || level === 'ALL' || entryLevel === level;
+        entry.style.display = shouldShow ? '' : 'none';
+    });
+}
+</script>
+
+<!-- Custom CSS for Log Streaming -->
+<style>
+.live-logs-stream {
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.log-entry {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 8px 0;
+    transition: background-color 0.2s ease;
+}
+
+.log-entry:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.log-entry[data-level="ERROR"],
+.log-entry[data-level="CRITICAL"] {
+    border-left: 3px solid #dc3545;
+    padding-left: 8px;
+    background-color: rgba(220, 53, 69, 0.05);
+}
+
+.log-entry[data-level="WARNING"] {
+    border-left: 3px solid #ffc107;
+    padding-left: 8px;
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+.log-timestamp {
+    font-size: 0.8rem;
+    width: 80px;
+    text-align: right;
+}
+
+.log-level .badge,
+.log-source .badge {
+    font-size: 0.7rem;
+    width: 60px;
+    text-align: center;
+}
+
+.log-message {
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.log-actions {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.log-entry:hover .log-actions {
+    opacity: 1;
+}
+
+.log-exception details[open] summary {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+mark {
+    background-color: #fff3cd;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .log-line {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .log-timestamp,
+    .log-level,
+    .log-source {
+        margin-bottom: 4px;
+    }
+    
+    .log-actions {
+        opacity: 1;
+        margin-top: 8px;
+    }
+}
+</style>

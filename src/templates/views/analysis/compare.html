@@ -1,0 +1,1065 @@
+{#
+    Analysis Comparison View
+    Route: /analysis/compare
+    Purpose: Side-by-side comparison of multiple analyses with interactive charts and metrics
+    
+    Features:
+    - Multi-select analysis comparison
+    - Side-by-side metrics display
+    - Comparative charts and visualizations
+    - Trend analysis over time
+    - Export comparison reports
+    - Filter by analysis type, model, date range
+    
+    Layout: Uses base.html layout with comparison-specific styling
+    Components: Uses comparison cards, metric comparison tables, chart components
+    JavaScript: Comparison logic, dynamic chart updates, selection handling
+#}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}Compare Analyses - AI Model Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-balance-scale text-primary me-2"></i>
+                        Compare Analyses
+                    </h1>
+                    <p class="mb-0 text-muted">
+                        Compare performance metrics and results across multiple analyses
+                    </p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" onclick="clearComparison()">
+                        <i class="fas fa-times me-1"></i>Clear Selection
+                    </button>
+                    <button class="btn btn-primary" onclick="exportComparison()" disabled id="export-comparison-btn">
+                        <i class="fas fa-download me-1"></i>Export Comparison
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Selection Panel -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-search me-2"></i>Select Analyses to Compare
+                        </h5>
+                        <small class="text-muted">Maximum 4 analyses can be compared at once</small>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Filters -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label">Analysis Type</label>
+                            <select class="form-select" id="type-filter" onchange="applyFilters()">
+                                <option value="">All Types</option>
+                                <option value="security">Security</option>
+                                <option value="performance">Performance</option>
+                                <option value="dynamic">Dynamic</option>
+                                <option value="comprehensive">Comprehensive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Model</label>
+                            <select class="form-select" id="model-filter" onchange="applyFilters()">
+                                <option value="">All Models</option>
+                                {% for model in available_models %}
+                                <option value="{{ model.slug }}">{{ model.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="status-filter" onchange="applyFilters()">
+                                <option value="completed">Completed Only</option>
+                                <option value="">All Statuses</option>
+                                <option value="running">Running</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Date Range</label>
+                            <select class="form-select" id="date-filter" onchange="applyFilters()">
+                                <option value="">All Time</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="quarter">This Quarter</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Analysis Selection Grid -->
+                    <div id="analysis-selection-grid" 
+                         hx-get="/api/analysis/list?selectable=true" 
+                         hx-trigger="load">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading analyses...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Selected Analyses Summary -->
+    <div class="row mb-4" id="selected-analyses-row" style="display: none;">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-check-circle me-2"></i>Selected Analyses
+                        <span class="badge bg-light text-primary ms-2" id="selected-count">0</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="selected-analyses-container">
+                        <!-- Selected analyses will be populated here -->
+                    </div>
+                    <div class="text-center mt-3">
+                        <button class="btn btn-success" onclick="runComparison()">
+                            <i class="fas fa-play me-1"></i>Run Comparison
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Results -->
+    <div id="comparison-results" style="display: none;">
+        <!-- Overview Comparison -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Comparison Overview
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <canvas id="comparison-overview-chart" width="400" height="200"></canvas>
+                            </div>
+                            <div class="col-lg-4">
+                                <div id="comparison-summary">
+                                    <!-- Summary statistics will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Metrics Comparison -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-table me-2"></i>Detailed Metrics
+                            </h5>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary active" onclick="switchMetricView('table')" data-view="table">
+                                    <i class="fas fa-table me-1"></i>Table
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="switchMetricView('chart')" data-view="chart">
+                                    <i class="fas fa-chart-bar me-1"></i>Chart
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Metric View Toggle -->
+                        <div id="metric-table-view">
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="comparison-metrics-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Metric</th>
+                                            <th class="text-center" style="min-width: 150px;">Analysis 1</th>
+                                            <th class="text-center" style="min-width: 150px;">Analysis 2</th>
+                                            <th class="text-center" style="min-width: 150px;">Analysis 3</th>
+                                            <th class="text-center" style="min-width: 150px;">Analysis 4</th>
+                                            <th class="text-center">Best</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="metrics-table-body">
+                                        <!-- Metrics rows will be populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div id="metric-chart-view" style="display: none;">
+                            <canvas id="detailed-metrics-chart" width="400" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Trends -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Performance Trends
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="performance-trend-chart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-bullseye me-2"></i>Score Distribution
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="score-distribution-chart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Details Cards -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>Analysis Details
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="analysis-details-cards">
+                            <!-- Analysis detail cards will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-lightbulb me-2"></i>Insights & Recommendations
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="comparison-insights">
+                            <!-- AI-generated insights will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Selection Modal -->
+<div class="modal fade" id="analysisSelectionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Analysis Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-analysis-details">
+                    <!-- Analysis details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmSelection()">
+                    Add to Comparison
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.analysis-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.analysis-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.analysis-card.selected {
+    border-color: #007bff !important;
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.analysis-card.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.metric-comparison-cell {
+    position: relative;
+}
+
+.metric-best {
+    background-color: #d4edda !important;
+    border-color: #c3e6cb !important;
+}
+
+.metric-worst {
+    background-color: #f8d7da !important;
+    border-color: #f5c6cb !important;
+}
+
+.comparison-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.analysis-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.analysis-info-item:last-child {
+    border-bottom: none;
+}
+
+.analysis-info-label {
+    font-weight: 500;
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
+.analysis-info-value {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .comparison-metrics-table {
+        font-size: 0.8rem;
+    }
+    
+    .analysis-card {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+let selectedAnalyses = [];
+let comparisonCharts = {};
+let comparisonData = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Check for pre-selected analyses from URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const includeParam = urlParams.get('include');
+    if (includeParam) {
+        const analysisIds = includeParam.split(',').map(id => parseInt(id));
+        // Pre-select these analyses
+        preselectAnalyses(analysisIds);
+    }
+});
+
+function preselectAnalyses(analysisIds) {
+    // Wait for grid to load then select analyses
+    setTimeout(() => {
+        analysisIds.forEach(id => {
+            const card = document.querySelector(`[data-analysis-id="${id}"]`);
+            if (card) {
+                selectAnalysis(id, card);
+            }
+        });
+    }, 1000);
+}
+
+function applyFilters() {
+    const type = document.getElementById('type-filter').value;
+    const model = document.getElementById('model-filter').value;
+    const status = document.getElementById('status-filter').value;
+    const dateRange = document.getElementById('date-filter').value;
+
+    const params = new URLSearchParams();
+    params.append('selectable', 'true');
+    if (type) params.append('type', type);
+    if (model) params.append('model', model);
+    if (status) params.append('status', status);
+    if (dateRange) params.append('date_range', dateRange);
+
+    htmx.ajax('GET', `/api/analysis/list?${params.toString()}`, {
+        target: '#analysis-selection-grid'
+    });
+}
+
+function selectAnalysis(analysisId, cardElement) {
+    if (selectedAnalyses.length >= 4 && !selectedAnalyses.find(a => a.id === analysisId)) {
+        alert('Maximum of 4 analyses can be compared at once.');
+        return;
+    }
+
+    const isSelected = cardElement.classList.contains('selected');
+    
+    if (isSelected) {
+        // Remove from selection
+        selectedAnalyses = selectedAnalyses.filter(a => a.id !== analysisId);
+        cardElement.classList.remove('selected');
+    } else {
+        // Add to selection - fetch analysis data
+        fetch(`/api/analysis/${analysisId}/summary`)
+        .then(response => response.json())
+        .then(data => {
+            selectedAnalyses.push({
+                id: analysisId,
+                ...data
+            });
+            cardElement.classList.add('selected');
+            updateSelectedAnalysesDisplay();
+        })
+        .catch(error => {
+            console.error('Failed to fetch analysis data:', error);
+            alert('Failed to load analysis data.');
+        });
+    }
+
+    updateSelectedAnalysesDisplay();
+}
+
+function updateSelectedAnalysesDisplay() {
+    const selectedRow = document.getElementById('selected-analyses-row');
+    const container = document.getElementById('selected-analyses-container');
+    const countBadge = document.getElementById('selected-count');
+    const exportBtn = document.getElementById('export-comparison-btn');
+
+    if (selectedAnalyses.length === 0) {
+        selectedRow.style.display = 'none';
+        exportBtn.disabled = true;
+        return;
+    }
+
+    selectedRow.style.display = 'block';
+    countBadge.textContent = selectedAnalyses.length;
+    exportBtn.disabled = false;
+
+    container.innerHTML = selectedAnalyses.map(analysis => `
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card border-primary h-100">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-${getAnalysisTypeIcon(analysis.analysis_type)} me-1"></i>
+                            ${analysis.analysis_type.charAt(0).toUpperCase() + analysis.analysis_type.slice(1)}
+                        </h6>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeAnalysis(${analysis.id})">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="analysis-info">
+                        <div class="analysis-info-item">
+                            <span class="analysis-info-label">ID:</span>
+                            <span class="analysis-info-value">#${analysis.id}</span>
+                        </div>
+                        <div class="analysis-info-item">
+                            <span class="analysis-info-label">Model:</span>
+                            <span class="analysis-info-value">${analysis.model_name}</span>
+                        </div>
+                        <div class="analysis-info-item">
+                            <span class="analysis-info-label">App:</span>
+                            <span class="analysis-info-value">#${analysis.app_number}</span>
+                        </div>
+                        <div class="analysis-info-item">
+                            <span class="analysis-info-label">Status:</span>
+                            <span class="analysis-info-value">
+                                <span class="badge bg-${getStatusColor(analysis.status)}">${analysis.status}</span>
+                            </span>
+                        </div>
+                        <div class="analysis-info-item">
+                            <span class="analysis-info-label">Date:</span>
+                            <span class="analysis-info-value">${new Date(analysis.created_at).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function removeAnalysis(analysisId) {
+    selectedAnalyses = selectedAnalyses.filter(a => a.id !== analysisId);
+    
+    // Update UI
+    const card = document.querySelector(`[data-analysis-id="${analysisId}"]`);
+    if (card) {
+        card.classList.remove('selected');
+    }
+    
+    updateSelectedAnalysesDisplay();
+}
+
+function clearComparison() {
+    selectedAnalyses = [];
+    document.querySelectorAll('.analysis-card.selected').forEach(card => {
+        card.classList.remove('selected');
+    });
+    updateSelectedAnalysesDisplay();
+    
+    // Hide comparison results
+    document.getElementById('comparison-results').style.display = 'none';
+}
+
+function runComparison() {
+    if (selectedAnalyses.length < 2) {
+        alert('Please select at least 2 analyses to compare.');
+        return;
+    }
+
+    const analysisIds = selectedAnalyses.map(a => a.id);
+    
+    // Show loading state
+    const resultsDiv = document.getElementById('comparison-results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading comparison...</span>
+            </div>
+            <p class="mt-3 text-muted">Analyzing and comparing selected analyses...</p>
+        </div>
+    `;
+
+    // Fetch comparison data
+    fetch('/api/analysis/compare', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ analysis_ids: analysisIds })
+    })
+    .then(response => response.json())
+    .then(data => {
+        comparisonData = data;
+        displayComparisonResults(data);
+    })
+    .catch(error => {
+        console.error('Comparison failed:', error);
+        resultsDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <h5 class="alert-heading">Comparison Failed</h5>
+                <p>Failed to compare analyses. Please try again.</p>
+            </div>
+        `;
+    });
+}
+
+function displayComparisonResults(data) {
+    const resultsDiv = document.getElementById('comparison-results');
+    
+    // Restore the full comparison results HTML structure
+    resultsDiv.innerHTML = `
+        <!-- Overview Comparison -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Comparison Overview
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <canvas id="comparison-overview-chart" width="400" height="200"></canvas>
+                            </div>
+                            <div class="col-lg-4">
+                                <div id="comparison-summary">
+                                    ${generateComparisonSummary(data)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Metrics Comparison -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-table me-2"></i>Detailed Metrics
+                            </h5>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary active" onclick="switchMetricView('table')" data-view="table">
+                                    <i class="fas fa-table me-1"></i>Table
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="switchMetricView('chart')" data-view="chart">
+                                    <i class="fas fa-chart-bar me-1"></i>Chart
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="metric-table-view">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Metric</th>
+                                            ${data.analyses.map((analysis, index) => 
+                                                `<th class="text-center">Analysis ${index + 1}</th>`
+                                            ).join('')}
+                                            <th class="text-center">Best</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${generateMetricsTable(data)}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div id="metric-chart-view" style="display: none;">
+                            <canvas id="detailed-metrics-chart" width="400" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Trends and Distribution -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Performance Trends
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="performance-trend-chart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-bullseye me-2"></i>Score Distribution
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="score-distribution-chart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Insights -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-lightbulb me-2"></i>Insights & Recommendations
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        ${generateInsights(data)}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Initialize charts
+    setTimeout(() => {
+        initializeComparisonCharts(data);
+    }, 100);
+}
+
+function generateComparisonSummary(data) {
+    const bestPerforming = data.analyses.reduce((best, current) => 
+        (current.overall_score || 0) > (best.overall_score || 0) ? current : best
+    );
+
+    return `
+        <h6>Summary Statistics</h6>
+        <div class="analysis-info">
+            <div class="analysis-info-item">
+                <span class="analysis-info-label">Analyses Compared:</span>
+                <span class="analysis-info-value">${data.analyses.length}</span>
+            </div>
+            <div class="analysis-info-item">
+                <span class="analysis-info-label">Best Performing:</span>
+                <span class="analysis-info-value">Analysis ${data.analyses.indexOf(bestPerforming) + 1}</span>
+            </div>
+            <div class="analysis-info-item">
+                <span class="analysis-info-label">Average Score:</span>
+                <span class="analysis-info-value">${(data.analyses.reduce((sum, a) => sum + (a.overall_score || 0), 0) / data.analyses.length).toFixed(1)}</span>
+            </div>
+            <div class="analysis-info-item">
+                <span class="analysis-info-label">Score Range:</span>
+                <span class="analysis-info-value">${Math.min(...data.analyses.map(a => a.overall_score || 0)).toFixed(1)} - ${Math.max(...data.analyses.map(a => a.overall_score || 0)).toFixed(1)}</span>
+            </div>
+        </div>
+    `;
+}
+
+function generateMetricsTable(data) {
+    const metrics = extractCommonMetrics(data);
+    
+    return metrics.map(metric => {
+        const values = data.analyses.map(analysis => getMetricValue(analysis, metric.key));
+        const bestIndex = findBestValueIndex(values, metric.higherIsBetter);
+        
+        return `
+            <tr>
+                <td><strong>${metric.label}</strong></td>
+                ${values.map((value, index) => `
+                    <td class="text-center ${index === bestIndex ? 'metric-best' : ''}">
+                        ${formatMetricValue(value, metric.unit)}
+                    </td>
+                `).join('')}
+                <td class="text-center">
+                    <span class="badge bg-success">Analysis ${bestIndex + 1}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function generateInsights(data) {
+    const insights = [];
+    
+    // Performance insights
+    const avgScores = data.analyses.map(a => a.overall_score || 0);
+    const bestScore = Math.max(...avgScores);
+    const worstScore = Math.min(...avgScores);
+    
+    if (bestScore - worstScore > 2) {
+        insights.push({
+            type: 'warning',
+            title: 'Significant Performance Variation',
+            message: `There's a ${(bestScore - worstScore).toFixed(1)} point difference between the best and worst performing analyses. Consider investigating the factors contributing to this variation.`
+        });
+    }
+
+    // Model-specific insights
+    const uniqueModels = [...new Set(data.analyses.map(a => a.model_slug))];
+    if (uniqueModels.length > 1) {
+        insights.push({
+            type: 'info',
+            title: 'Multi-Model Comparison',
+            message: `You're comparing analyses from ${uniqueModels.length} different models. This provides valuable insights into model performance differences.`
+        });
+    }
+
+    // Temporal insights
+    const dates = data.analyses.map(a => new Date(a.created_at));
+    const daysDiff = Math.max(...dates) - Math.min(...dates);
+    if (daysDiff > 7 * 24 * 60 * 60 * 1000) { // More than a week
+        insights.push({
+            type: 'success',
+            title: 'Temporal Analysis',
+            message: `Your comparison spans multiple time periods, allowing you to identify trends and improvements over time.`
+        });
+    }
+
+    if (insights.length === 0) {
+        insights.push({
+            type: 'info',
+            title: 'Comparison Complete',
+            message: 'All selected analyses have been successfully compared. Review the metrics above for detailed insights.'
+        });
+    }
+
+    return insights.map(insight => `
+        <div class="alert alert-${insight.type}">
+            <h6 class="alert-heading">${insight.title}</h6>
+            <p class="mb-0">${insight.message}</p>
+        </div>
+    `).join('');
+}
+
+function initializeComparisonCharts(data) {
+    // Overview Chart
+    const overviewCtx = document.getElementById('comparison-overview-chart').getContext('2d');
+    comparisonCharts.overview = new Chart(overviewCtx, {
+        type: 'radar',
+        data: {
+            labels: ['Security', 'Performance', 'Quality', 'Coverage', 'Reliability'],
+            datasets: data.analyses.map((analysis, index) => ({
+                label: `Analysis ${index + 1}`,
+                data: [
+                    analysis.security_score || 0,
+                    analysis.performance_score || 0,
+                    analysis.quality_score || 0,
+                    analysis.coverage_score || 0,
+                    analysis.reliability_score || 0
+                ],
+                backgroundColor: getChartColor(index, 0.2),
+                borderColor: getChartColor(index, 1),
+                borderWidth: 2
+            }))
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    min: 0,
+                    max: 10,
+                    ticks: {
+                        stepSize: 2
+                    }
+                }
+            }
+        }
+    });
+
+    // Performance Trend Chart
+    const trendCtx = document.getElementById('performance-trend-chart').getContext('2d');
+    comparisonCharts.trend = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: data.analyses.map(a => new Date(a.created_at).toLocaleDateString()),
+            datasets: [{
+                label: 'Overall Score',
+                data: data.analyses.map(a => a.overall_score || 0),
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                borderColor: '#007bff',
+                borderWidth: 2,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // Score Distribution Chart
+    const distributionCtx = document.getElementById('score-distribution-chart').getContext('2d');
+    comparisonCharts.distribution = new Chart(distributionCtx, {
+        type: 'bar',
+        data: {
+            labels: data.analyses.map((_, index) => `Analysis ${index + 1}`),
+            datasets: [{
+                label: 'Overall Score',
+                data: data.analyses.map(a => a.overall_score || 0),
+                backgroundColor: data.analyses.map((_, index) => getChartColor(index, 0.8)),
+                borderColor: data.analyses.map((_, index) => getChartColor(index, 1)),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    min: 0,
+                    max: 10
+                }
+            }
+        }
+    });
+}
+
+function switchMetricView(view) {
+    const tableView = document.getElementById('metric-table-view');
+    const chartView = document.getElementById('metric-chart-view');
+    const buttons = document.querySelectorAll('[data-view]');
+
+    buttons.forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`[data-view="${view}"]`).classList.add('active');
+
+    if (view === 'table') {
+        tableView.style.display = 'block';
+        chartView.style.display = 'none';
+    } else {
+        tableView.style.display = 'none';
+        chartView.style.display = 'block';
+        
+        // Initialize detailed metrics chart if not already done
+        if (!comparisonCharts.detailedMetrics && comparisonData) {
+            initializeDetailedMetricsChart();
+        }
+    }
+}
+
+function initializeDetailedMetricsChart() {
+    const ctx = document.getElementById('detailed-metrics-chart').getContext('2d');
+    const metrics = extractCommonMetrics(comparisonData);
+    
+    comparisonCharts.detailedMetrics = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: metrics.map(m => m.label),
+            datasets: comparisonData.analyses.map((analysis, index) => ({
+                label: `Analysis ${index + 1}`,
+                data: metrics.map(metric => getMetricValue(analysis, metric.key)),
+                backgroundColor: getChartColor(index, 0.8),
+                borderColor: getChartColor(index, 1),
+                borderWidth: 1
+            }))
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+function exportComparison() {
+    if (!comparisonData) {
+        alert('Please run a comparison first.');
+        return;
+    }
+
+    const format = prompt('Choose export format:\n1. PDF Report\n2. JSON Data\n3. CSV Summary\n\nEnter 1, 2, or 3:', '1');
+    
+    const formatMap = {
+        '1': 'pdf',
+        '2': 'json', 
+        '3': 'csv'
+    };
+
+    const exportFormat = formatMap[format];
+    if (!exportFormat) {
+        return;
+    }
+
+    const analysisIds = selectedAnalyses.map(a => a.id);
+    
+    fetch(`/api/analysis/compare/export?format=${exportFormat}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ analysis_ids: analysisIds })
+    })
+    .then(response => response.blob())
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `analysis_comparison.${exportFormat}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    })
+    .catch(error => {
+        console.error('Export failed:', error);
+        alert('Export failed. Please try again.');
+    });
+}
+
+// Utility functions
+function getAnalysisTypeIcon(type) {
+    const icons = {
+        security: 'shield-alt',
+        performance: 'tachometer-alt',
+        dynamic: 'play',
+        comprehensive: 'chart-line'
+    };
+    return icons[type] || 'chart-bar';
+}
+
+function getStatusColor(status) {
+    const colors = {
+        completed: 'success',
+        running: 'primary',
+        failed: 'danger',
+        queued: 'warning'
+    };
+    return colors[status] || 'secondary';
+}
+
+function getChartColor(index, alpha = 1) {
+    const colors = [
+        `rgba(0, 123, 255, ${alpha})`,    // Blue
+        `rgba(40, 167, 69, ${alpha})`,    // Green
+        `rgba(255, 193, 7, ${alpha})`,    // Yellow
+        `rgba(220, 53, 69, ${alpha})`,    // Red
+        `rgba(108, 117, 125, ${alpha})`   // Gray
+    ];
+    return colors[index % colors.length];
+}
+
+function extractCommonMetrics(data) {
+    // Return common metrics that can be compared across analyses
+    return [
+        { key: 'overall_score', label: 'Overall Score', unit: '/10', higherIsBetter: true },
+        { key: 'duration_minutes', label: 'Duration', unit: 'min', higherIsBetter: false },
+        { key: 'total_cost', label: 'Cost', unit: '$', higherIsBetter: false },
+        { key: 'security_score', label: 'Security Score', unit: '/10', higherIsBetter: true },
+        { key: 'performance_score', label: 'Performance Score', unit: '/10', higherIsBetter: true }
+    ];
+}
+
+function getMetricValue(analysis, key) {
+    return analysis[key] || 0;
+}
+
+function findBestValueIndex(values, higherIsBetter = true) {
+    if (higherIsBetter) {
+        return values.indexOf(Math.max(...values));
+    } else {
+        return values.indexOf(Math.min(...values));
+    }
+}
+
+function formatMetricValue(value, unit) {
+    if (typeof value === 'number') {
+        return value.toFixed(unit.includes('$') ? 4 : 1) + unit;
+    }
+    return value || 'N/A';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,796 @@
+{#
+  Tab Navigation Component - Interactive Tab Controls
+  
+  Purpose: Tab-based navigation with HTMX content loading and customizable styling
+  
+  Usage:
+    {% include 'components/navigation/tab-navigation.html' with {
+        tabs: [
+            {'id': 'overview', 'name': 'Overview', 'icon': 'fas fa-home', 'active': true, 'url': '/analysis/overview'},
+            {'id': 'security', 'name': 'Security', 'icon': 'fas fa-shield-alt', 'url': '/analysis/security', 'badge': '3'},
+            {'id': 'performance', 'name': 'Performance', 'icon': 'fas fa-tachometer-alt', 'url': '/analysis/performance'},
+            {'id': 'files', 'name': 'Files', 'icon': 'fas fa-folder', 'url': '/analysis/files', 'disabled': true}
+        ],
+        tab_style: "pills",
+        enable_htmx: true,
+        target_container: "#tab-content"
+    } %}
+  
+  Dependencies:
+    - Bootstrap 5.3+ (nav tabs/pills)
+    - HTMX 1.9+ (for dynamic content loading)
+    - Font Awesome 6+ (for icons)
+  
+  Features:
+    - Multiple tab styles (tabs, pills, underlined)
+    - HTMX content loading without page refresh
+    - Icon and badge support for tabs
+    - Disabled tab states
+    - Keyboard navigation (arrow keys, home/end)
+    - Responsive design with overflow scrolling
+    - Loading states and error handling
+    - Custom tab content or HTMX integration
+    - URL hash fragment support
+#}
+
+{%- set tabs = tabs|default([]) -%}
+{%- set tab_style = tab_style|default("tabs") -%}
+{%- set enable_htmx = enable_htmx|default(true) -%}
+{%- set target_container = target_container|default("#tab-content") -%}
+{%- set enable_hash_navigation = enable_hash_navigation|default(true) -%}
+{%- set show_icons = show_icons|default(true) -%}
+{%- set enable_badges = enable_badges|default(true) -%}
+{%- set responsive = responsive|default(true) -%}
+{%- set fade_animation = fade_animation|default(true) -%}
+
+{# Define CSS classes for different tab styles #}
+{%- set style_classes = {
+  'tabs': 'nav-tabs',
+  'pills': 'nav-pills',
+  'underlined': 'nav-underlined',
+  'minimal': 'nav-minimal'
+} -%}
+
+<div class="tab-navigation-container" id="tab-navigation-{{ tab_style }}" role="tablist">
+  
+  <!-- Tab Navigation -->
+  <ul class="nav {{ style_classes.get(tab_style, 'nav-tabs') }} {{ 'nav-scrollable' if responsive else '' }} mb-3" 
+      role="tablist" 
+      id="tab-nav-list"
+      aria-label="Tab navigation">
+    
+    {% for tab in tabs %}
+    {%- set is_active = tab.active|default(false) -%}
+    {%- set is_disabled = tab.disabled|default(false) -%}
+    {%- set tab_id = tab.id|default('tab-' ~ loop.index) -%}
+    
+    <li class="nav-item" role="presentation">
+      <button class="nav-link {{ 'active' if is_active else '' }} {{ 'disabled' if is_disabled else '' }}" 
+              type="button"
+              role="tab"
+              id="{{ tab_id }}-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#{{ tab_id }}-content"
+              aria-controls="{{ tab_id }}-content"
+              aria-selected="{{ 'true' if is_active else 'false' }}"
+              {{ 'disabled' if is_disabled else '' }}
+              {% if enable_htmx and tab.url and not is_disabled %}
+              hx-get="{{ tab.url }}"
+              hx-target="{{ target_container }}"
+              hx-trigger="click"
+              hx-swap="innerHTML"
+              hx-indicator="#tab-loading"
+              hx-push-url="false"
+              {% endif %}
+              data-tab-id="{{ tab_id }}"
+              {% if enable_hash_navigation %}data-hash="#{{ tab_id }}"{% endif %}>
+        
+        <!-- Tab icon -->
+        {% if show_icons and tab.icon %}
+        <i class="{{ tab.icon }} tab-icon me-2" aria-hidden="true"></i>
+        {% endif %}
+        
+        <!-- Tab text -->
+        <span class="tab-text">{{ tab.name }}</span>
+        
+        <!-- Tab badge -->
+        {% if enable_badges and tab.badge %}
+        <span class="badge bg-primary ms-2 tab-badge" 
+              title="{{ tab.badge }} {{ tab.badge_text|default('items') }}">
+          {{ tab.badge }}
+        </span>
+        {% endif %}
+        
+        <!-- Loading indicator for this tab -->
+        <div class="tab-loading-spinner d-none">
+          <div class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></div>
+        </div>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  
+  <!-- Tab Content Container -->
+  <div class="tab-content {{ 'fade' if fade_animation else '' }}" id="tab-content">
+    
+    {% for tab in tabs %}
+    {%- set is_active = tab.active|default(false) -%}
+    {%- set tab_id = tab.id|default('tab-' ~ loop.index) -%}
+    
+    <div class="tab-pane {{ 'show active' if is_active else '' }} {{ 'fade' if fade_animation else '' }}"
+         id="{{ tab_id }}-content"
+         role="tabpanel"
+         aria-labelledby="{{ tab_id }}-tab"
+         tabindex="0">
+      
+      {% if tab.content %}
+      <!-- Static content -->
+      {{ tab.content|safe }}
+      
+      {% elif enable_htmx and tab.url %}
+      <!-- HTMX placeholder content -->
+      {% if is_active %}
+      <div class="d-flex justify-content-center align-items-center py-5"
+           hx-get="{{ tab.url }}"
+           hx-trigger="load"
+           hx-swap="outerHTML"
+           hx-indicator="#tab-loading">
+        <div class="text-center">
+          <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
+          <p class="text-muted">Loading {{ tab.name|lower }}...</p>
+        </div>
+      </div>
+      {% else %}
+      <div class="tab-placeholder py-5 text-center text-muted">
+        <i class="{{ tab.icon }} fa-2x mb-3" aria-hidden="true"></i>
+        <p>{{ tab.name }} content will load when selected</p>
+      </div>
+      {% endif %}
+      
+      {% else %}
+      <!-- Default placeholder -->
+      <div class="tab-placeholder py-5 text-center text-muted">
+        <i class="{{ tab.icon if tab.icon else 'fas fa-info-circle' }} fa-2x mb-3" aria-hidden="true"></i>
+        <p>{{ tab.name }} content not configured</p>
+      </div>
+      {% endif %}
+      
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Global loading indicator -->
+  <div class="tab-loading-overlay d-none" id="tab-loading">
+    <div class="d-flex justify-content-center align-items-center py-4">
+      <div class="spinner-border text-primary me-3" role="status" aria-hidden="true"></div>
+      <span class="text-muted">Loading content...</span>
+    </div>
+  </div>
+
+  <!-- Error state container -->
+  <div class="tab-error-container d-none" id="tab-error">
+    <div class="alert alert-warning d-flex align-items-center" role="alert">
+      <i class="fas fa-exclamation-triangle me-3" aria-hidden="true"></i>
+      <div>
+        <strong>Failed to load content</strong>
+        <p class="mb-0">There was an error loading the tab content. Please try again.</p>
+      </div>
+      <button type="button" class="btn btn-outline-warning ms-auto" onclick="retryTabLoad()">
+        <i class="fas fa-redo me-1" aria-hidden="true"></i>
+        Retry
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Tab Navigation JavaScript -->
+<script>
+class TabNavigationManager {
+  constructor(containerId) {
+    this.container = document.getElementById(containerId);
+    this.tabButtons = this.container?.querySelectorAll('[role="tab"]') || [];
+    this.tabPanes = this.container?.querySelectorAll('[role="tabpanel"]') || [];
+    this.activeTab = this.container?.querySelector('.nav-link.active');
+    this.loadingOverlay = document.getElementById('tab-loading');
+    this.errorContainer = document.getElementById('tab-error');
+    
+    this.enableHashNavigation = this.container?.hasAttribute('data-enable-hash') || {{ 'true' if enable_hash_navigation else 'false' }};
+    
+    this.init();
+  }
+  
+  init() {
+    this.setupKeyboardNavigation();
+    this.setupHashNavigation();
+    this.setupTabEvents();
+    this.setupScrollableNavigation();
+    
+    // Load initial hash tab
+    if (this.enableHashNavigation) {
+      this.handleHashChange();
+    }
+  }
+  
+  setupKeyboardNavigation() {
+    this.tabButtons.forEach((button, index) => {
+      button.addEventListener('keydown', (e) => {
+        let targetIndex;
+        
+        switch (e.key) {
+          case 'ArrowRight':
+          case 'ArrowDown':
+            e.preventDefault();
+            targetIndex = (index + 1) % this.tabButtons.length;
+            this.focusTab(targetIndex);
+            break;
+          case 'ArrowLeft':
+          case 'ArrowUp':
+            e.preventDefault();
+            targetIndex = index === 0 ? this.tabButtons.length - 1 : index - 1;
+            this.focusTab(targetIndex);
+            break;
+          case 'Home':
+            e.preventDefault();
+            this.focusTab(0);
+            break;
+          case 'End':
+            e.preventDefault();
+            this.focusTab(this.tabButtons.length - 1);
+            break;
+          case 'Enter':
+          case ' ':
+            e.preventDefault();
+            if (!button.disabled) {
+              button.click();
+            }
+            break;
+        }
+      });
+    });
+  }
+  
+  focusTab(index) {
+    const button = this.tabButtons[index];
+    if (button && !button.disabled) {
+      button.focus();
+      
+      // Scroll into view if using scrollable navigation
+      if (this.container.querySelector('.nav-scrollable')) {
+        button.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }
+  
+  setupHashNavigation() {
+    if (!this.enableHashNavigation) return;
+    
+    // Listen for hash changes
+    window.addEventListener('hashchange', () => {
+      this.handleHashChange();
+    });
+    
+    // Update hash when tab changes
+    this.tabButtons.forEach(button => {
+      button.addEventListener('shown.bs.tab', (e) => {
+        const hash = button.dataset.hash;
+        if (hash && window.location.hash !== hash) {
+          history.replaceState(null, null, hash);
+        }
+      });
+    });
+  }
+  
+  handleHashChange() {
+    const hash = window.location.hash;
+    if (!hash) return;
+    
+    const targetButton = this.container.querySelector(`[data-hash="${hash}"]`);
+    if (targetButton && !targetButton.disabled) {
+      const tab = new bootstrap.Tab(targetButton);
+      tab.show();
+    }
+  }
+  
+  setupTabEvents() {
+    this.tabButtons.forEach(button => {
+      // Show loading state when tab is clicked
+      button.addEventListener('click', (e) => {
+        if (button.hasAttribute('hx-get')) {
+          this.showTabLoading(button);
+        }
+      });
+      
+      // Handle tab shown event
+      button.addEventListener('shown.bs.tab', (e) => {
+        this.onTabShown(e.target);
+        this.hideTabLoading(e.target);
+      });
+      
+      // Handle tab hidden event
+      button.addEventListener('hidden.bs.tab', (e) => {
+        this.onTabHidden(e.target);
+      });
+    });
+  }
+  
+  showTabLoading(button) {
+    // Show loading spinner in tab
+    const spinner = button.querySelector('.tab-loading-spinner');
+    if (spinner) {
+      spinner.classList.remove('d-none');
+    }
+    
+    // Disable the button temporarily
+    button.classList.add('loading');
+    
+    // Show global loading overlay
+    if (this.loadingOverlay) {
+      this.loadingOverlay.classList.remove('d-none');
+    }
+    
+    // Hide error container
+    if (this.errorContainer) {
+      this.errorContainer.classList.add('d-none');
+    }
+  }
+  
+  hideTabLoading(button) {
+    // Hide loading spinner in tab
+    const spinner = button.querySelector('.tab-loading-spinner');
+    if (spinner) {
+      spinner.classList.add('d-none');
+    }
+    
+    // Re-enable the button
+    button.classList.remove('loading');
+    
+    // Hide global loading overlay
+    if (this.loadingOverlay) {
+      this.loadingOverlay.classList.add('d-none');
+    }
+  }
+  
+  showTabError(message) {
+    if (this.errorContainer) {
+      this.errorContainer.classList.remove('d-none');
+      const errorText = this.errorContainer.querySelector('p');
+      if (errorText && message) {
+        errorText.textContent = message;
+      }
+    }
+    
+    // Hide loading overlay
+    if (this.loadingOverlay) {
+      this.loadingOverlay.classList.add('d-none');
+    }
+  }
+  
+  onTabShown(button) {
+    const tabId = button.dataset.tabId;
+    const tabPane = document.getElementById(`${tabId}-content`);
+    
+    // Update badge if needed
+    this.updateTabBadge(button);
+    
+    // Dispatch custom event
+    this.container.dispatchEvent(new CustomEvent('tab:shown', {
+      detail: { tabId, button, tabPane }
+    }));
+  }
+  
+  onTabHidden(button) {
+    const tabId = button.dataset.tabId;
+    
+    // Dispatch custom event
+    this.container.dispatchEvent(new CustomEvent('tab:hidden', {
+      detail: { tabId, button }
+    }));
+  }
+  
+  updateTabBadge(button, count) {
+    const badge = button.querySelector('.tab-badge');
+    if (badge && count !== undefined) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'inline' : 'none';
+    }
+  }
+  
+  setupScrollableNavigation() {
+    const navList = this.container.querySelector('.nav-scrollable');
+    if (!navList) return;
+    
+    // Add scroll buttons for mobile
+    const scrollContainer = document.createElement('div');
+    scrollContainer.className = 'nav-scroll-container position-relative';
+    
+    const leftButton = document.createElement('button');
+    leftButton.className = 'nav-scroll-btn nav-scroll-left btn btn-sm btn-outline-secondary position-absolute';
+    leftButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    leftButton.style.left = '0';
+    leftButton.style.top = '50%';
+    leftButton.style.transform = 'translateY(-50%)';
+    leftButton.style.zIndex = '10';
+    
+    const rightButton = document.createElement('button');
+    rightButton.className = 'nav-scroll-btn nav-scroll-right btn btn-sm btn-outline-secondary position-absolute';
+    rightButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    rightButton.style.right = '0';
+    rightButton.style.top = '50%';
+    rightButton.style.transform = 'translateY(-50%)';
+    rightButton.style.zIndex = '10';
+    
+    // Wrap nav list
+    navList.parentNode.insertBefore(scrollContainer, navList);
+    scrollContainer.appendChild(leftButton);
+    scrollContainer.appendChild(navList);
+    scrollContainer.appendChild(rightButton);
+    
+    // Add scroll functionality
+    leftButton.addEventListener('click', () => {
+      navList.scrollBy({ left: -200, behavior: 'smooth' });
+    });
+    
+    rightButton.addEventListener('click', () => {
+      navList.scrollBy({ left: 200, behavior: 'smooth' });
+    });
+    
+    // Update button visibility on scroll
+    const updateScrollButtons = () => {
+      leftButton.style.display = navList.scrollLeft > 0 ? 'block' : 'none';
+      rightButton.style.display = 
+        navList.scrollLeft < (navList.scrollWidth - navList.clientWidth) ? 'block' : 'none';
+    };
+    
+    navList.addEventListener('scroll', updateScrollButtons);
+    window.addEventListener('resize', updateScrollButtons);
+    updateScrollButtons(); // Initial check
+  }
+  
+  // Public API
+  showTab(tabId) {
+    const button = this.container.querySelector(`[data-tab-id="${tabId}"]`);
+    if (button && !button.disabled) {
+      const tab = new bootstrap.Tab(button);
+      tab.show();
+    }
+  }
+  
+  disableTab(tabId) {
+    const button = this.container.querySelector(`[data-tab-id="${tabId}"]`);
+    if (button) {
+      button.disabled = true;
+      button.classList.add('disabled');
+      button.setAttribute('aria-disabled', 'true');
+    }
+  }
+  
+  enableTab(tabId) {
+    const button = this.container.querySelector(`[data-tab-id="${tabId}"]`);
+    if (button) {
+      button.disabled = false;
+      button.classList.remove('disabled');
+      button.removeAttribute('aria-disabled');
+    }
+  }
+}
+
+// Global retry function for error handling
+function retryTabLoad() {
+  const activeButton = document.querySelector('.nav-link.active[hx-get]');
+  if (activeButton) {
+    // Re-trigger HTMX request
+    htmx.trigger(activeButton, 'click');
+  }
+}
+
+// Initialize tab navigation
+document.addEventListener('DOMContentLoaded', () => {
+  const tabContainers = document.querySelectorAll('.tab-navigation-container');
+  tabContainers.forEach(container => {
+    const manager = new TabNavigationManager(container.id);
+    
+    // Store manager instance for external access
+    container._tabManager = manager;
+  });
+});
+
+// HTMX event listeners
+document.body.addEventListener('htmx:beforeRequest', (event) => {
+  if (event.detail.elt.matches('[role="tab"]')) {
+    const container = event.detail.elt.closest('.tab-navigation-container');
+    if (container && container._tabManager) {
+      container._tabManager.showTabLoading(event.detail.elt);
+    }
+  }
+});
+
+document.body.addEventListener('htmx:afterRequest', (event) => {
+  if (event.detail.elt.matches('[role="tab"]')) {
+    const container = event.detail.elt.closest('.tab-navigation-container');
+    if (container && container._tabManager) {
+      if (event.detail.xhr.status >= 400) {
+        container._tabManager.showTabError(`Failed to load content (${event.detail.xhr.status})`);
+      } else {
+        container._tabManager.hideTabLoading(event.detail.elt);
+      }
+    }
+  }
+});
+
+document.body.addEventListener('htmx:responseError', (event) => {
+  if (event.detail.elt.matches('[role="tab"]')) {
+    const container = event.detail.elt.closest('.tab-navigation-container');
+    if (container && container._tabManager) {
+      container._tabManager.showTabError('Network error occurred');
+    }
+  }
+});
+</script>
+
+<!-- Tab Navigation Styles -->
+<style>
+.tab-navigation-container {
+  position: relative;
+}
+
+/* Scrollable navigation for mobile */
+.nav-scrollable {
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scroll-behavior: smooth;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.nav-scrollable::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.nav-scrollable .nav-item {
+  flex-shrink: 0;
+}
+
+/* Custom tab styles */
+.nav-minimal {
+  border: none;
+}
+
+.nav-minimal .nav-link {
+  border: none;
+  background: none;
+  color: #6c757d;
+  padding: 0.5rem 1rem;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.nav-minimal .nav-link:hover {
+  color: #007bff;
+  border-bottom-color: rgba(0, 123, 255, 0.3);
+}
+
+.nav-minimal .nav-link.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+  font-weight: 600;
+}
+
+.nav-underlined {
+  border-bottom: 1px solid #dee2e6;
+}
+
+.nav-underlined .nav-link {
+  border: none;
+  background: none;
+  color: #6c757d;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.3s ease;
+}
+
+.nav-underlined .nav-link:hover {
+  color: #007bff;
+  border-bottom-color: rgba(0, 123, 255, 0.3);
+}
+
+.nav-underlined .nav-link.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+  font-weight: 600;
+}
+
+/* Tab icons and badges */
+.tab-icon {
+  transition: all 0.3s ease;
+}
+
+.nav-link:hover .tab-icon {
+  transform: scale(1.1);
+}
+
+.tab-badge {
+  font-size: 0.7em;
+  min-width: 1.5em;
+  height: 1.5em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.nav-link.active .tab-badge {
+  background-color: #fff !important;
+  color: #007bff;
+}
+
+/* Loading states */
+.nav-link.loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.tab-loading-spinner {
+  animation: fadeIn 0.3s ease;
+}
+
+.tab-loading-overlay {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 0.375rem;
+  backdrop-filter: blur(2px);
+}
+
+/* Tab placeholders */
+.tab-placeholder {
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.tab-pane:hover .tab-placeholder {
+  opacity: 0.8;
+}
+
+/* Scroll buttons */
+.nav-scroll-container {
+  margin: 0 2rem;
+}
+
+.nav-scroll-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .nav-scroll-btn {
+    display: block;
+  }
+}
+
+/* Fade animation */
+.tab-content.fade .tab-pane {
+  transition: opacity 0.15s linear;
+}
+
+.tab-content.fade .tab-pane:not(.show) {
+  opacity: 0;
+}
+
+/* Error states */
+.tab-error-container {
+  margin-top: 1rem;
+}
+
+/* Disabled state */
+.nav-link.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nav-link.disabled .tab-icon,
+.nav-link.disabled .tab-text,
+.nav-link.disabled .tab-badge {
+  opacity: 0.6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 575.98px) {
+  .nav-tabs .nav-link,
+  .nav-pills .nav-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  .tab-icon {
+    display: none;
+  }
+  
+  .tab-badge {
+    font-size: 0.6em;
+  }
+}
+
+/* Theme variants */
+[data-theme="dark"] .nav-tabs {
+  border-bottom-color: #495057;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link {
+  color: rgba(255, 255, 255, 0.6);
+  border-color: #495057;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link:hover {
+  color: rgba(255, 255, 255, 0.8);
+  border-color: #6c757d;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link.active {
+  color: #fff;
+  background-color: #343a40;
+  border-color: #495057 #495057 #343a40;
+}
+
+[data-theme="dark"] .nav-pills .nav-link {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="dark"] .nav-pills .nav-link:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .nav-pills .nav-link.active {
+  background-color: #007bff;
+  color: #fff;
+}
+
+[data-theme="dark"] .tab-loading-overlay {
+  background: rgba(33, 37, 41, 0.9);
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .nav-link {
+    border: 2px solid transparent;
+  }
+  
+  .nav-link:focus {
+    outline: 3px solid;
+    outline-offset: 2px;
+  }
+  
+  .nav-link.active {
+    border-color: currentColor;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .nav-link,
+  .tab-icon,
+  .tab-badge,
+  .tab-placeholder,
+  .tab-loading-spinner {
+    transition: none;
+  }
+  
+  .nav-scrollable {
+    scroll-behavior: auto;
+  }
+  
+  .tab-content.fade .tab-pane {
+    transition: none;
+  }
+}
+
+/* Print styles */
+@media print {
+  .tab-navigation-container {
+    display: none;
+  }
+}
+</style>

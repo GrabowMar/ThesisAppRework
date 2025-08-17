@@ -1,0 +1,912 @@
+{#
+    Model Detail View
+    Route: /models/<slug>
+    Purpose: Comprehensive detail view of a single AI model with specifications, benchmarks, and analysis history
+    
+    Features:
+    - Complete model specifications and metadata
+    - Performance benchmarks and scoring
+    - Historical analysis data and trends
+    - Interactive capability matrix
+    - Cost estimation tools
+    - Model comparison with similar models
+    - Analysis history and results
+    
+    Layout: Uses base.html layout with model-specific styling
+    Components: Uses specification cards, benchmark charts, analysis history
+    JavaScript: Chart visualization, cost calculator, analysis management
+#}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ model.name }} - Model Details - AI Model Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-2">
+                            <li class="breadcrumb-item"><a href="/dashboard">Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="/models">Models</a></li>
+                            <li class="breadcrumb-item active">{{ model.name }}</li>
+                        </ol>
+                    </nav>
+                    <div class="d-flex align-items-center mb-2">
+                        <img src="{{ model.provider_logo }}" alt="{{ model.provider }}" class="me-3" style="width: 40px; height: 40px;">
+                        <div>
+                            <h1 class="h2 mb-0">{{ model.name }}</h1>
+                            <p class="text-muted mb-0">by {{ model.provider }}</p>
+                        </div>
+                        <div class="ms-4">
+                            <span class="badge bg-{{ 'success' if model.status == 'active' else 'warning' if model.status == 'beta' else 'danger' }} fs-6 px-3 py-2">
+                                {{ model.status|title }}
+                            </span>
+                        </div>
+                    </div>
+                    <p class="text-muted">{{ model.description }}</p>
+                </div>
+                <div class="text-end">
+                    <div class="btn-group mb-2">
+                        <button class="btn btn-primary" onclick="analyzeModel()">
+                            <i class="fas fa-play me-1"></i>Run Analysis
+                        </button>
+                        <button class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="compareWithSimilar()">
+                                <i class="fas fa-balance-scale me-2"></i>Compare Similar Models
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportModelData()">
+                                <i class="fas fa-download me-2"></i>Export Model Data
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="addToFavorites()">
+                                <i class="fas fa-star me-2"></i>Add to Favorites
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="shareModel()">
+                                <i class="fas fa-share me-2"></i>Share Model
+                            </a></li>
+                        </ul>
+                    </div>
+                    <div class="model-rating">
+                        <div class="d-flex align-items-center">
+                            <span class="text-muted me-2">Overall Rating:</span>
+                            <div class="rating-stars me-2">
+                                {% for i in range(5) %}
+                                    <i class="fas fa-star {{ 'text-warning' if i < (model.overall_rating or 0) else 'text-muted' }}"></i>
+                                {% endfor %}
+                            </div>
+                            <span class="fw-bold">{{ model.overall_rating or 0 }}/5</span>
+                        </div>
+                        <div class="small text-muted">Based on {{ model.analysis_count or 0 }} analyses</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Metrics Row -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">{{ model.performance_score or 'N/A' }}/10</h4>
+                            <p class="mb-0 text-white-75">Performance Score</p>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-tachometer-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">{{ model.total_analyses or 0 }}</h4>
+                            <p class="mb-0 text-white-75">Total Analyses</p>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-chart-bar fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">{{ formatContextLength(model.context_length) }}</h4>
+                            <p class="mb-0 text-white-75">Context Length</p>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-file-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card bg-warning text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">${{ "%.4f"|format(model.avg_cost_per_1k or 0) }}</h4>
+                            <p class="mb-0 text-white-75">Avg Cost/1K Tokens</p>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-dollar-sign fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Tabs -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#overview-tab" role="tab">
+                                <i class="fas fa-info-circle me-2"></i>Overview
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#specifications-tab" role="tab">
+                                <i class="fas fa-cog me-2"></i>Specifications
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#benchmarks-tab" role="tab">
+                                <i class="fas fa-chart-line me-2"></i>Benchmarks
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#pricing-tab" role="tab">
+                                <i class="fas fa-dollar-sign me-2"></i>Pricing
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#analyses-tab" role="tab">
+                                <i class="fas fa-history me-2"></i>Analysis History
+                                <span class="badge bg-secondary ms-1">{{ model.total_analyses or 0 }}</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#similar-tab" role="tab">
+                                <i class="fas fa-search-plus me-2"></i>Similar Models
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- Overview Tab -->
+                        <div class="tab-pane fade show active" id="overview-tab" role="tabpanel">
+                            <div class="row">
+                                <div class="col-lg-8">
+                                    <!-- Model Description -->
+                                    <div class="mb-4">
+                                        <h5 class="mb-3">About {{ model.name }}</h5>
+                                        <p class="text-muted">{{ model.long_description or model.description }}</p>
+                                        
+                                        {% if model.key_features %}
+                                        <h6 class="mt-4 mb-3">Key Features</h6>
+                                        <ul class="list-unstyled">
+                                            {% for feature in model.key_features %}
+                                            <li class="mb-2">
+                                                <i class="fas fa-check text-success me-2"></i>
+                                                {{ feature }}
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Capabilities Matrix -->
+                                    <div class="mb-4">
+                                        <h5 class="mb-3">Capabilities</h5>
+                                        <div class="row">
+                                            {% for capability, score in model.capability_scores.items() %}
+                                            <div class="col-md-6 mb-3">
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <span class="fw-medium">{{ capability|title }}</span>
+                                                    <span class="text-muted">{{ score }}/10</span>
+                                                </div>
+                                                <div class="progress" style="height: 8px;">
+                                                    <div class="progress-bar bg-{{ 'success' if score >= 8 else 'warning' if score >= 6 else 'danger' }}" 
+                                                         style="width: {{ score * 10 }}%"></div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+
+                                    <!-- Performance Chart -->
+                                    <div class="mb-4">
+                                        <h5 class="mb-3">Performance Overview</h5>
+                                        <canvas id="performance-chart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4">
+                                    <!-- Quick Info -->
+                                    <div class="card mb-4">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Quick Information</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <dl class="row mb-0 small">
+                                                <dt class="col-5">Provider:</dt>
+                                                <dd class="col-7">{{ model.provider }}</dd>
+                                                
+                                                <dt class="col-5">Model ID:</dt>
+                                                <dd class="col-7"><code>{{ model.slug }}</code></dd>
+                                                
+                                                <dt class="col-5">Release Date:</dt>
+                                                <dd class="col-7">{{ model.release_date|date if model.release_date else 'N/A' }}</dd>
+                                                
+                                                <dt class="col-5">Model Type:</dt>
+                                                <dd class="col-7">{{ model.model_type or 'Language Model' }}</dd>
+                                                
+                                                <dt class="col-5">Parameters:</dt>
+                                                <dd class="col-7">{{ model.parameter_count or 'Not disclosed' }}</dd>
+                                                
+                                                <dt class="col-5">Training Data:</dt>
+                                                <dd class="col-7">{{ model.training_data_cutoff|date if model.training_data_cutoff else 'N/A' }}</dd>
+                                                
+                                                <dt class="col-5">Languages:</dt>
+                                                <dd class="col-7">{{ model.supported_languages|length if model.supported_languages else 'N/A' }} languages</dd>
+                                            </dl>
+                                        </div>
+                                    </div>
+
+                                    <!-- Usage Statistics -->
+                                    <div class="card mb-4">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Usage Statistics</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="text-center mb-3">
+                                                <canvas id="usage-chart" width="200" height="200"></canvas>
+                                            </div>
+                                            <dl class="row mb-0 small">
+                                                <dt class="col-8">Total Analyses:</dt>
+                                                <dd class="col-4 text-end">{{ model.total_analyses or 0 }}</dd>
+                                                
+                                                <dt class="col-8">Successful:</dt>
+                                                <dd class="col-4 text-end text-success">{{ model.successful_analyses or 0 }}</dd>
+                                                
+                                                <dt class="col-8">Failed:</dt>
+                                                <dd class="col-4 text-end text-danger">{{ model.failed_analyses or 0 }}</dd>
+                                                
+                                                <dt class="col-8">Avg Duration:</dt>
+                                                <dd class="col-4 text-end">{{ model.avg_analysis_duration or 'N/A' }}</dd>
+                                                
+                                                <dt class="col-8">Last Used:</dt>
+                                                <dd class="col-4 text-end">{{ model.last_used|timeago if model.last_used else 'Never' }}</dd>
+                                            </dl>
+                                        </div>
+                                    </div>
+
+                                    <!-- Quick Actions -->
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Quick Actions</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="d-grid gap-2">
+                                                <button class="btn btn-primary btn-sm" onclick="analyzeModel()">
+                                                    <i class="fas fa-play me-1"></i>Run New Analysis
+                                                </button>
+                                                <button class="btn btn-outline-info btn-sm" onclick="viewAllAnalyses()">
+                                                    <i class="fas fa-history me-1"></i>View All Analyses
+                                                </button>
+                                                <button class="btn btn-outline-secondary btn-sm" onclick="estimateCosts()">
+                                                    <i class="fas fa-calculator me-1"></i>Cost Calculator
+                                                </button>
+                                                <button class="btn btn-outline-warning btn-sm" onclick="compareWithSimilar()">
+                                                    <i class="fas fa-balance-scale me-1"></i>Compare Models
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Specifications Tab -->
+                        <div class="tab-pane fade" id="specifications-tab" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5 class="mb-3">Technical Specifications</h5>
+                                    <table class="table table-bordered">
+                                        <tbody>
+                                            <tr>
+                                                <td class="fw-bold">Model Architecture</td>
+                                                <td>{{ model.architecture or 'Transformer' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Parameter Count</td>
+                                                <td>{{ model.parameter_count or 'Not disclosed' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Context Window</td>
+                                                <td>{{ formatContextLength(model.context_length) }} tokens</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Max Output Length</td>
+                                                <td>{{ formatContextLength(model.max_output_length) if model.max_output_length else 'Variable' }} tokens</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Training Data Cutoff</td>
+                                                <td>{{ model.training_data_cutoff|date if model.training_data_cutoff else 'Not specified' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Supported Languages</td>
+                                                <td>{{ model.supported_languages|join(', ') if model.supported_languages else 'English (primarily)' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">API Endpoint</td>
+                                                <td><code>{{ model.api_endpoint or 'Provider-specific' }}</code></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Rate Limits</td>
+                                                <td>{{ model.rate_limits or 'Provider-specific' }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5 class="mb-3">Performance Characteristics</h5>
+                                    <table class="table table-bordered">
+                                        <tbody>
+                                            <tr>
+                                                <td class="fw-bold">Average Latency</td>
+                                                <td>{{ model.avg_latency_ms or 'N/A' }}ms</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Throughput</td>
+                                                <td>{{ model.throughput_tokens_per_sec or 'N/A' }} tokens/sec</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Accuracy Score</td>
+                                                <td>{{ model.accuracy_score or 'N/A' }}/10</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Reliability Score</td>
+                                                <td>{{ model.reliability_score or 'N/A' }}/10</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Safety Score</td>
+                                                <td>{{ model.safety_score or 'N/A' }}/10</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Bias Score</td>
+                                                <td>{{ model.bias_score or 'N/A' }}/10 (lower is better)</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Carbon Footprint</td>
+                                                <td>{{ model.carbon_footprint or 'Not measured' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Energy Efficiency</td>
+                                                <td>{{ model.energy_efficiency_score or 'N/A' }}/10</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Advanced Configuration -->
+                            <div class="mt-4">
+                                <h5 class="mb-3">Advanced Configuration Options</h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Supported Parameters</h6>
+                                        <ul class="list-group list-group-flush">
+                                            {% if model.supported_parameters %}
+                                                {% for param in model.supported_parameters %}
+                                                <li class="list-group-item d-flex justify-content-between">
+                                                    <span><code>{{ param.name }}</code></span>
+                                                    <span class="text-muted">{{ param.description }}</span>
+                                                </li>
+                                                {% endfor %}
+                                            {% else %}
+                                                <li class="list-group-item text-muted">No advanced parameters documented</li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Special Features</h6>
+                                        <ul class="list-group list-group-flush">
+                                            {% if model.special_features %}
+                                                {% for feature in model.special_features %}
+                                                <li class="list-group-item">
+                                                    <i class="fas fa-check text-success me-2"></i>
+                                                    {{ feature }}
+                                                </li>
+                                                {% endfor %}
+                                            {% else %}
+                                                <li class="list-group-item text-muted">No special features documented</li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Benchmarks Tab -->
+                        <div class="tab-pane fade" id="benchmarks-tab" role="tabpanel">
+                            <div class="row">
+                                <div class="col-lg-8">
+                                    <h5 class="mb-3">Performance Benchmarks</h5>
+                                    <canvas id="benchmarks-chart" width="400" height="300"></canvas>
+                                </div>
+                                <div class="col-lg-4">
+                                    <h5 class="mb-3">Benchmark Scores</h5>
+                                    <div class="list-group">
+                                        {% if model.benchmark_scores %}
+                                            {% for benchmark, score in model.benchmark_scores.items() %}
+                                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <h6 class="mb-1">{{ benchmark }}</h6>
+                                                    <p class="mb-1 text-muted small">Industry standard benchmark</p>
+                                                </div>
+                                                <span class="badge bg-{{ 'success' if score >= 80 else 'warning' if score >= 60 else 'danger' }} rounded-pill">
+                                                    {{ score }}%
+                                                </span>
+                                            </div>
+                                            {% endfor %}
+                                        {% else %}
+                                            <div class="list-group-item text-muted">
+                                                No benchmark data available
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Historical Performance -->
+                            <div class="mt-4">
+                                <h5 class="mb-3">Performance Trend</h5>
+                                <canvas id="performance-trend-chart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Pricing Tab -->
+                        <div class="tab-pane fade" id="pricing-tab" role="tabpanel">
+                            <div class="row">
+                                <div class="col-lg-6">
+                                    <h5 class="mb-3">Pricing Structure</h5>
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div class="row text-center">
+                                                <div class="col-6">
+                                                    <h3 class="text-primary">${{ "%.6f"|format(model.input_price_per_1k) }}</h3>
+                                                    <p class="text-muted">per 1K input tokens</p>
+                                                </div>
+                                                <div class="col-6">
+                                                    <h3 class="text-success">${{ "%.6f"|format(model.output_price_per_1k) }}</h3>
+                                                    <p class="text-muted">per 1K output tokens</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Cost Calculator -->
+                                    <div class="card mt-4">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Cost Calculator</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Estimated Input Tokens</label>
+                                                <input type="number" class="form-control" id="input-tokens" value="1000" onchange="calculateCost()">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Estimated Output Tokens</label>
+                                                <input type="number" class="form-control" id="output-tokens" value="500" onchange="calculateCost()">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Number of Requests</label>
+                                                <input type="number" class="form-control" id="request-count" value="100" onchange="calculateCost()">
+                                            </div>
+                                            <hr>
+                                            <div class="d-flex justify-content-between">
+                                                <span class="fw-bold">Estimated Total Cost:</span>
+                                                <span class="fw-bold text-primary" id="calculated-cost">$0.00</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <h5 class="mb-3">Cost Comparison</h5>
+                                    <canvas id="cost-comparison-chart" width="400" height="300"></canvas>
+                                    
+                                    <!-- Usage Recommendations -->
+                                    <div class="card mt-4">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Usage Recommendations</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="alert alert-info">
+                                                <h6 class="alert-heading">Cost Optimization Tips</h6>
+                                                <ul class="mb-0 small">
+                                                    <li>Use shorter prompts when possible to reduce input token costs</li>
+                                                    <li>Implement caching for repeated queries</li>
+                                                    <li>Consider batch processing for multiple requests</li>
+                                                    <li>Monitor usage patterns to optimize request timing</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Analysis History Tab -->
+                        <div class="tab-pane fade" id="analyses-tab" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">Analysis History</h5>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" onclick="filterAnalyses('all')">All</button>
+                                    <button class="btn btn-outline-success" onclick="filterAnalyses('completed')">Completed</button>
+                                    <button class="btn btn-outline-warning" onclick="filterAnalyses('running')">Running</button>
+                                    <button class="btn btn-outline-danger" onclick="filterAnalyses('failed')">Failed</button>
+                                </div>
+                            </div>
+
+                            <div id="analyses-list" 
+                                 hx-get="/api/models/{{ model.slug }}/analyses" 
+                                 hx-trigger="load">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading analyses...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Similar Models Tab -->
+                        <div class="tab-pane fade" id="similar-tab" role="tabpanel">
+                            <h5 class="mb-3">Similar Models</h5>
+                            <p class="text-muted mb-4">Models with similar capabilities and performance characteristics</p>
+                            
+                            <div id="similar-models-list" 
+                                 hx-get="/api/models/{{ model.slug }}/similar" 
+                                 hx-trigger="load">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading similar models...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.rating-stars i {
+    font-size: 1.1rem;
+}
+
+.capability-progress {
+    height: 8px;
+    border-radius: 4px;
+}
+
+.benchmark-card {
+    transition: all 0.3s ease;
+}
+
+.benchmark-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.analysis-item {
+    transition: all 0.3s ease;
+}
+
+.analysis-item:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+
+@media (max-width: 768px) {
+    .model-rating {
+        text-align: center;
+        margin-top: 1rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+const modelSlug = '{{ model.slug }}';
+let charts = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    calculateCost();
+});
+
+function initializeCharts() {
+    // Performance Overview Chart
+    const perfCtx = document.getElementById('performance-chart').getContext('2d');
+    charts.performance = new Chart(perfCtx, {
+        type: 'radar',
+        data: {
+            labels: {{ model.capability_scores.keys()|list|tojsonpretty|safe }},
+            datasets: [{
+                label: '{{ model.name }}',
+                data: {{ model.capability_scores.values()|list|tojsonpretty|safe }},
+                backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                borderColor: '#007bff',
+                borderWidth: 2,
+                pointBackgroundColor: '#007bff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    min: 0,
+                    max: 10,
+                    ticks: {
+                        stepSize: 2
+                    }
+                }
+            }
+        }
+    });
+
+    // Usage Statistics Chart
+    const usageCtx = document.getElementById('usage-chart').getContext('2d');
+    charts.usage = new Chart(usageCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Successful', 'Failed'],
+            datasets: [{
+                data: [
+                    {{ model.successful_analyses or 0 }},
+                    {{ model.failed_analyses or 0 }}
+                ],
+                backgroundColor: ['#28a745', '#dc3545'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Benchmarks Chart
+    {% if model.benchmark_scores %}
+    const benchmarksCtx = document.getElementById('benchmarks-chart').getContext('2d');
+    charts.benchmarks = new Chart(benchmarksCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ model.benchmark_scores.keys()|list|tojsonpretty|safe }},
+            datasets: [{
+                label: 'Score (%)',
+                data: {{ model.benchmark_scores.values()|list|tojsonpretty|safe }},
+                backgroundColor: 'rgba(0, 123, 255, 0.8)',
+                borderColor: '#007bff',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    // Performance Trend Chart (placeholder data)
+    const trendCtx = document.getElementById('performance-trend-chart').getContext('2d');
+    charts.trend = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [{
+                label: 'Performance Score',
+                data: [7.2, 7.5, 7.8, 7.6, 8.1, {{ model.performance_score or 8.0 }}],
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                borderColor: '#007bff',
+                borderWidth: 2,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    min: 0,
+                    max: 10
+                }
+            }
+        }
+    });
+
+    // Cost Comparison Chart (load similar models for comparison)
+    loadCostComparison();
+}
+
+function loadCostComparison() {
+    fetch(`/api/models/${modelSlug}/cost-comparison`)
+    .then(response => response.json())
+    .then(data => {
+        const costCtx = document.getElementById('cost-comparison-chart').getContext('2d');
+        charts.costComparison = new Chart(costCtx, {
+            type: 'bar',
+            data: {
+                labels: data.models.map(m => m.name),
+                datasets: [
+                    {
+                        label: 'Input Cost per 1K',
+                        data: data.models.map(m => m.input_price_per_1k),
+                        backgroundColor: 'rgba(0, 123, 255, 0.8)'
+                    },
+                    {
+                        label: 'Output Cost per 1K',
+                        data: data.models.map(m => m.output_price_per_1k),
+                        backgroundColor: 'rgba(40, 167, 69, 0.8)'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toFixed(6);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    })
+    .catch(error => {
+        console.error('Failed to load cost comparison:', error);
+    });
+}
+
+function calculateCost() {
+    const inputTokens = parseInt(document.getElementById('input-tokens').value) || 0;
+    const outputTokens = parseInt(document.getElementById('output-tokens').value) || 0;
+    const requestCount = parseInt(document.getElementById('request-count').value) || 0;
+
+    const inputCost = (inputTokens / 1000) * {{ model.input_price_per_1k }} * requestCount;
+    const outputCost = (outputTokens / 1000) * {{ model.output_price_per_1k }} * requestCount;
+    const totalCost = inputCost + outputCost;
+
+    document.getElementById('calculated-cost').textContent = '$' + totalCost.toFixed(6);
+}
+
+function analyzeModel() {
+    window.location.href = `/analysis/create?model=${modelSlug}`;
+}
+
+function viewAllAnalyses() {
+    window.location.href = `/analysis?model=${modelSlug}`;
+}
+
+function compareWithSimilar() {
+    window.location.href = `/models/comparison?include=${modelSlug}`;
+}
+
+function exportModelData() {
+    const format = prompt('Choose export format:\n1. JSON\n2. CSV\n3. PDF Report\n\nEnter 1, 2, or 3:', '1');
+    const formatMap = { '1': 'json', '2': 'csv', '3': 'pdf' };
+    const exportFormat = formatMap[format];
+    
+    if (exportFormat) {
+        window.open(`/api/models/${modelSlug}/export?format=${exportFormat}`, '_blank');
+    }
+}
+
+function addToFavorites() {
+    fetch(`/api/models/${modelSlug}/favorite`, { method: 'POST' })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Model added to favorites!');
+        } else {
+            alert('Failed to add to favorites: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Failed to add to favorites:', error);
+        alert('Failed to add to favorites.');
+    });
+}
+
+function shareModel() {
+    if (navigator.share) {
+        navigator.share({
+            title: '{{ model.name }} - AI Model',
+            text: 'Check out this AI model: {{ model.name }} by {{ model.provider }}',
+            url: window.location.href
+        });
+    } else {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            alert('Model URL copied to clipboard!');
+        });
+    }
+}
+
+function estimateCosts() {
+    // Scroll to pricing tab and highlight cost calculator
+    const pricingTab = document.querySelector('[href="#pricing-tab"]');
+    pricingTab.click();
+    
+    setTimeout(() => {
+        const calculator = document.querySelector('.card-body');
+        calculator.scrollIntoView({ behavior: 'smooth' });
+    }, 300);
+}
+
+function filterAnalyses(status) {
+    const params = status !== 'all' ? `?status=${status}` : '';
+    htmx.ajax('GET', `/api/models/${modelSlug}/analyses${params}`, {
+        target: '#analyses-list'
+    });
+}
+
+// Format context length helper function
+function formatContextLength(length) {
+    if (length >= 1000000) {
+        return (length / 1000000).toFixed(1) + 'M';
+    } else if (length >= 1000) {
+        return (length / 1000).toFixed(0) + 'K';
+    }
+    return length.toString();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,972 @@
+{#
+    Models Overview View
+    Route: /models
+    Purpose: Comprehensive overview of all AI models with filtering, search, and management capabilities
+    
+    Features:
+    - Interactive model grid with filtering and search
+    - Provider-based categorization and statistics
+    - Model capability comparison matrix
+    - Pricing analysis and cost estimation tools
+    - Performance metrics and usage statistics
+    - Batch operations for model management
+    
+    Layout: Uses base.html layout with models-specific styling
+    Components: Uses model cards, filter components, capability matrix
+    JavaScript: Advanced filtering, search functionality, comparison tools
+#}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}AI Models Overview - AI Model Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-brain text-primary me-2"></i>
+                        AI Models Overview
+                    </h1>
+                    <p class="mb-0 text-muted">
+                        Comprehensive view of available AI models with capabilities, pricing, and performance data
+                    </p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-outline-primary" onclick="refreshModels()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <button class="btn btn-outline-success" onclick="exportModelsData()">
+                        <i class="fas fa-download me-1"></i>Export Data
+                    </button>
+                    <div class="btn-group">
+                        <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fas fa-plus me-1"></i>Actions
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/models/add">
+                                <i class="fas fa-plus me-2"></i>Add New Model
+                            </a></li>
+                            <li><a class="dropdown-item" href="/models/import">
+                                <i class="fas fa-upload me-2"></i>Import Models
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/models/comparison">
+                                <i class="fas fa-balance-scale me-2"></i>Compare Models
+                            </a></li>
+                            <li><a class="dropdown-item" href="/models/benchmarks">
+                                <i class="fas fa-chart-bar me-2"></i>Benchmarks
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Overview -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0" id="total-models">{{ models_stats.total_models }}</h3>
+                            <p class="mb-0 text-white-75">Total Models</p>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-brain fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0" id="active-models">{{ models_stats.active_models }}</h3>
+                            <p class="mb-0 text-white-75">Active Models</p>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0" id="unique-providers">{{ models_stats.unique_providers }}</h3>
+                            <p class="mb-0 text-white-75">Providers</p>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-building fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-0" id="avg-cost">$<span>{{ models_stats.avg_cost_per_1k|round(4) }}</span></h3>
+                            <p class="mb-0 text-white-75">Avg Cost/1K Tokens</p>
+                        </div>
+                        <div class="text-white-50">
+                            <i class="fas fa-dollar-sign fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters and Controls -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-filter me-2"></i>Filters & Search
+                        </h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary active" data-view="grid" onclick="switchView('grid')">
+                                <i class="fas fa-th-large me-1"></i>Grid
+                            </button>
+                            <button class="btn btn-outline-secondary" data-view="table" onclick="switchView('table')">
+                                <i class="fas fa-table me-1"></i>Table
+                            </button>
+                            <button class="btn btn-outline-secondary" data-view="comparison" onclick="switchView('comparison')">
+                                <i class="fas fa-balance-scale me-1"></i>Compare
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Search Models</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="model-search" 
+                                       placeholder="Search by name or description..." 
+                                       onkeyup="debounceSearch()">
+                                <button class="btn btn-outline-secondary" onclick="clearSearch()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Provider</label>
+                            <select class="form-select" id="provider-filter" onchange="applyFilters()">
+                                <option value="">All Providers</option>
+                                {% for provider in available_providers %}
+                                <option value="{{ provider.id }}">{{ provider.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Capability</label>
+                            <select class="form-select" id="capability-filter" onchange="applyFilters()">
+                                <option value="">All Capabilities</option>
+                                <option value="coding">Coding</option>
+                                <option value="analysis">Analysis</option>
+                                <option value="reasoning">Reasoning</option>
+                                <option value="multimodal">Multimodal</option>
+                                <option value="language">Language</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Price Range</label>
+                            <select class="form-select" id="price-filter" onchange="applyFilters()">
+                                <option value="">All Prices</option>
+                                <option value="free">Free</option>
+                                <option value="low">Low ($0-$0.01)</option>
+                                <option value="medium">Medium ($0.01-$0.05)</option>
+                                <option value="high">High ($0.05+)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="status-filter" onchange="applyFilters()">
+                                <option value="">All Statuses</option>
+                                <option value="active" selected>Active Only</option>
+                                <option value="beta">Beta</option>
+                                <option value="deprecated">Deprecated</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <button class="btn btn-outline-danger d-block" onclick="clearAllFilters()" title="Clear Filters">
+                                <i class="fas fa-eraser"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Filters Collapse -->
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" 
+                                data-bs-target="#advanced-filters">
+                            <i class="fas fa-cog me-1"></i>Advanced Filters
+                        </button>
+                    </div>
+
+                    <div class="collapse mt-3" id="advanced-filters">
+                        <div class="border rounded p-3 bg-light">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <label class="form-label">Context Length</label>
+                                    <select class="form-select" id="context-filter" onchange="applyFilters()">
+                                        <option value="">Any Length</option>
+                                        <option value="short">Short (≤ 4K)</option>
+                                        <option value="medium">Medium (4K-32K)</option>
+                                        <option value="long">Long (32K-128K)</option>
+                                        <option value="extended">Extended (≥ 128K)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Model Size</label>
+                                    <select class="form-select" id="size-filter" onchange="applyFilters()">
+                                        <option value="">Any Size</option>
+                                        <option value="small">Small (≤ 7B)</option>
+                                        <option value="medium">Medium (7B-30B)</option>
+                                        <option value="large">Large (30B-100B)</option>
+                                        <option value="xl">Extra Large (≥ 100B)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Release Date</label>
+                                    <select class="form-select" id="release-filter" onchange="applyFilters()">
+                                        <option value="">Any Date</option>
+                                        <option value="recent">Last 3 Months</option>
+                                        <option value="thisYear">This Year</option>
+                                        <option value="lastYear">Last Year</option>
+                                        <option value="older">Older</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Specialization</label>
+                                    <select class="form-select" id="specialization-filter" onchange="applyFilters()">
+                                        <option value="">General Purpose</option>
+                                        <option value="code">Code Generation</option>
+                                        <option value="chat">Conversational</option>
+                                        <option value="analysis">Data Analysis</option>
+                                        <option value="creative">Creative Writing</option>
+                                        <option value="research">Research</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Models Display Area -->
+    <div id="models-display-area">
+        <!-- Grid View (Default) -->
+        <div id="grid-view" class="view-container active">
+            <div class="row" id="models-grid" 
+                 hx-get="/api/models/grid" 
+                 hx-trigger="load"
+                 hx-indicator="#loading-spinner">
+                <!-- Models grid will be populated here -->
+            </div>
+            
+            <!-- Pagination -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <nav id="models-pagination">
+                        <!-- Pagination will be populated here -->
+                    </nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table View -->
+        <div id="table-view" class="view-container">
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="models-table">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" id="select-all-models" onchange="toggleSelectAll()">
+                                    </th>
+                                    <th onclick="sortTable('name')" class="sortable">
+                                        Model Name <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable('provider')" class="sortable">
+                                        Provider <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable('capabilities')" class="sortable">
+                                        Capabilities <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable('pricing')" class="sortable">
+                                        Price/1K Tokens <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable('context_length')" class="sortable">
+                                        Context Length <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable('status')" class="sortable">
+                                        Status <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable('performance_score')" class="sortable">
+                                        Performance <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="models-table-body">
+                                <!-- Table rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison View -->
+        <div id="comparison-view" class="view-container">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Model Comparison Matrix</h5>
+                        <div>
+                            <span class="text-muted me-3">Select up to 5 models to compare</span>
+                            <button class="btn btn-sm btn-primary" onclick="generateComparisonReport()" disabled id="comparison-report-btn">
+                                <i class="fas fa-chart-bar me-1"></i>Generate Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="comparison-matrix">
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-balance-scale fa-3x mb-3"></i>
+                            <h5>Select Models to Compare</h5>
+                            <p>Choose models from the grid above to see a detailed comparison matrix</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading-spinner" class="text-center py-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2 text-muted">Loading models...</p>
+    </div>
+</div>
+
+<!-- Model Detail Modal -->
+<div class="modal fade" id="modelDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Model Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-model-details">
+                    <!-- Model details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="analyzeModel()">
+                    <i class="fas fa-play me-1"></i>Analyze Model
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Batch Operations Modal -->
+<div class="modal fade" id="batchOperationsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Batch Operations</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Perform operations on <span id="selected-models-count">0</span> selected models:</p>
+                <div class="list-group">
+                    <button class="list-group-item list-group-item-action" onclick="batchAnalyze()">
+                        <i class="fas fa-play me-2"></i>Run Analysis on All
+                    </button>
+                    <button class="list-group-item list-group-item-action" onclick="batchExport()">
+                        <i class="fas fa-download me-2"></i>Export Selected Models
+                    </button>
+                    <button class="list-group-item list-group-item-action" onclick="batchCompare()">
+                        <i class="fas fa-balance-scale me-2"></i>Compare Selected Models
+                    </button>
+                    <button class="list-group-item list-group-item-action text-warning" onclick="batchUpdateStatus()">
+                        <i class="fas fa-edit me-2"></i>Update Status
+                    </button>
+                    <button class="list-group-item list-group-item-action text-danger" onclick="batchDelete()">
+                        <i class="fas fa-trash me-2"></i>Delete Selected Models
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.view-container {
+    display: none;
+}
+
+.view-container.active {
+    display: block;
+}
+
+.model-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+    height: 100%;
+}
+
+.model-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.model-card.selected {
+    border-color: #007bff !important;
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.model-card .card-header {
+    border-bottom: 1px solid rgba(0,0,0,0.125);
+    padding: 0.75rem 1rem;
+}
+
+.capability-badge {
+    font-size: 0.7rem;
+    margin: 0.125rem;
+}
+
+.pricing-info {
+    font-size: 0.875rem;
+}
+
+.performance-indicator {
+    display: inline-block;
+    width: 60px;
+    height: 8px;
+    border-radius: 4px;
+    background-color: #e9ecef;
+    position: relative;
+    overflow: hidden;
+}
+
+.performance-indicator::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+    border-radius: 4px;
+}
+
+.performance-indicator[data-score="0"]::after { width: 0%; }
+.performance-indicator[data-score="1"]::after { width: 10%; }
+.performance-indicator[data-score="2"]::after { width: 20%; }
+.performance-indicator[data-score="3"]::after { width: 30%; }
+.performance-indicator[data-score="4"]::after { width: 40%; }
+.performance-indicator[data-score="5"]::after { width: 50%; }
+.performance-indicator[data-score="6"]::after { width: 60%; }
+.performance-indicator[data-score="7"]::after { width: 70%; }
+.performance-indicator[data-score="8"]::after { width: 80%; }
+.performance-indicator[data-score="9"]::after { width: 90%; }
+.performance-indicator[data-score="10"]::after { width: 100%; }
+
+.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sortable:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+
+.sort-asc .fa-sort::before {
+    content: '\f0de'; /* fa-sort-up */
+}
+
+.sort-desc .fa-sort::before {
+    content: '\f0dd'; /* fa-sort-down */
+}
+
+.comparison-matrix-table th {
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
+    min-width: 120px;
+    text-align: center;
+}
+
+.comparison-cell {
+    text-align: center;
+    font-size: 0.875rem;
+}
+
+.comparison-cell.winner {
+    background-color: #d4edda !important;
+    font-weight: bold;
+}
+
+.comparison-cell.loser {
+    background-color: #f8d7da !important;
+}
+
+@media (max-width: 768px) {
+    .model-card {
+        margin-bottom: 1rem;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .capability-badge {
+        font-size: 0.6rem;
+        margin: 0.0625rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentView = 'grid';
+let selectedModels = [];
+let currentSort = { field: null, direction: 'asc' };
+let searchTimeout;
+let modelsData = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Load initial data
+    loadModels();
+    
+    // Setup event listeners
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Search input debouncing
+    document.getElementById('model-search').addEventListener('input', debounceSearch);
+}
+
+function debounceSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        applyFilters();
+    }, 300);
+}
+
+function switchView(viewType) {
+    // Update button states
+    document.querySelectorAll('[data-view]').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-view="${viewType}"]`).classList.add('active');
+
+    // Update view containers
+    document.querySelectorAll('.view-container').forEach(container => {
+        container.classList.remove('active');
+    });
+    document.getElementById(`${viewType}-view`).classList.add('active');
+
+    currentView = viewType;
+
+    // Load appropriate data for the view
+    switch(viewType) {
+        case 'grid':
+            loadModelsGrid();
+            break;
+        case 'table':
+            loadModelsTable();
+            break;
+        case 'comparison':
+            loadComparisonView();
+            break;
+    }
+}
+
+function loadModels() {
+    showLoading(true);
+    
+    fetch('/api/models/all')
+    .then(response => response.json())
+    .then(data => {
+        modelsData = data.models;
+        updateStatistics(data.statistics);
+        
+        // Load current view
+        switch(currentView) {
+            case 'grid':
+                renderModelsGrid(data.models);
+                break;
+            case 'table':
+                renderModelsTable(data.models);
+                break;
+            case 'comparison':
+                renderComparisonView(data.models);
+                break;
+        }
+        
+        showLoading(false);
+    })
+    .catch(error => {
+        console.error('Failed to load models:', error);
+        showError('Failed to load models. Please try again.');
+        showLoading(false);
+    });
+}
+
+function applyFilters() {
+    const filters = {
+        search: document.getElementById('model-search').value,
+        provider: document.getElementById('provider-filter').value,
+        capability: document.getElementById('capability-filter').value,
+        price: document.getElementById('price-filter').value,
+        status: document.getElementById('status-filter').value,
+        context: document.getElementById('context-filter')?.value || '',
+        size: document.getElementById('size-filter')?.value || '',
+        release: document.getElementById('release-filter')?.value || '',
+        specialization: document.getElementById('specialization-filter')?.value || ''
+    };
+
+    showLoading(true);
+
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+    });
+
+    fetch(`/api/models/filtered?${params.toString()}`)
+    .then(response => response.json())
+    .then(data => {
+        modelsData = data.models;
+        updateStatistics(data.statistics);
+        
+        // Render current view with filtered data
+        switch(currentView) {
+            case 'grid':
+                renderModelsGrid(data.models);
+                break;
+            case 'table':
+                renderModelsTable(data.models);
+                break;
+            case 'comparison':
+                renderComparisonView(data.models);
+                break;
+        }
+        
+        showLoading(false);
+    })
+    .catch(error => {
+        console.error('Filter failed:', error);
+        showError('Filter operation failed. Please try again.');
+        showLoading(false);
+    });
+}
+
+function clearAllFilters() {
+    // Reset all filter controls
+    document.getElementById('model-search').value = '';
+    document.getElementById('provider-filter').value = '';
+    document.getElementById('capability-filter').value = '';
+    document.getElementById('price-filter').value = '';
+    document.getElementById('status-filter').value = 'active';
+    
+    // Advanced filters
+    if (document.getElementById('context-filter')) {
+        document.getElementById('context-filter').value = '';
+        document.getElementById('size-filter').value = '';
+        document.getElementById('release-filter').value = '';
+        document.getElementById('specialization-filter').value = '';
+    }
+
+    // Reload all models
+    loadModels();
+}
+
+function clearSearch() {
+    document.getElementById('model-search').value = '';
+    applyFilters();
+}
+
+function renderModelsGrid(models) {
+    const grid = document.getElementById('models-grid');
+    
+    if (models.length === 0) {
+        grid.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No models found</h5>
+                <p class="text-muted">Try adjusting your search criteria or filters.</p>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = models.map(model => `
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card model-card h-100 ${selectedModels.includes(model.slug) ? 'selected' : ''}" 
+                 data-model-slug="${model.slug}" 
+                 onclick="toggleModelSelection('${model.slug}', this)">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <img src="${model.provider_logo}" alt="${model.provider}" 
+                             class="me-2" style="width: 20px; height: 20px;">
+                        <strong>${model.name}</strong>
+                    </div>
+                    <span class="badge bg-${getStatusColor(model.status)}">${model.status}</span>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <small class="text-muted">${model.provider}</small>
+                    </div>
+                    
+                    <!-- Capabilities -->
+                    <div class="mb-3">
+                        ${model.capabilities.map(cap => 
+                            `<span class="badge bg-info capability-badge">${cap}</span>`
+                        ).join('')}
+                    </div>
+                    
+                    <!-- Pricing -->
+                    <div class="pricing-info mb-2">
+                        <div class="d-flex justify-content-between">
+                            <span>Input:</span>
+                            <span>$${model.input_price_per_1k}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Output:</span>
+                            <span>$${model.output_price_per_1k}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Context Length -->
+                    <div class="mb-2">
+                        <small class="text-muted">Context: ${formatContextLength(model.context_length)}</small>
+                    </div>
+                    
+                    <!-- Performance -->
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="small text-muted">Performance:</span>
+                        <div class="d-flex align-items-center">
+                            <div class="performance-indicator me-2" data-score="${model.performance_score}"></div>
+                            <span class="small">${model.performance_score}/10</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="btn-group w-100">
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewModelDetails('${model.slug}'); event.stopPropagation();">
+                            <i class="fas fa-eye me-1"></i>Details
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="analyzeModel('${model.slug}'); event.stopPropagation();">
+                            <i class="fas fa-play me-1"></i>Analyze
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderModelsTable(models) {
+    const tbody = document.getElementById('models-table-body');
+    
+    if (models.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center py-4">
+                    <i class="fas fa-search fa-2x text-muted mb-2"></i>
+                    <p class="text-muted mb-0">No models found matching your criteria</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = models.map(model => `
+        <tr class="${selectedModels.includes(model.slug) ? 'table-primary' : ''}">
+            <td>
+                <input type="checkbox" ${selectedModels.includes(model.slug) ? 'checked' : ''} 
+                       onchange="toggleModelSelection('${model.slug}')">
+            </td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <img src="${model.provider_logo}" alt="${model.provider}" 
+                         class="me-2" style="width: 16px; height: 16px;">
+                    <strong>${model.name}</strong>
+                </div>
+            </td>
+            <td>${model.provider}</td>
+            <td>
+                ${model.capabilities.slice(0, 2).map(cap => 
+                    `<span class="badge bg-info capability-badge">${cap}</span>`
+                ).join('')}
+                ${model.capabilities.length > 2 ? `<span class="text-muted small">+${model.capabilities.length - 2} more</span>` : ''}
+            </td>
+            <td>$${model.input_price_per_1k} / $${model.output_price_per_1k}</td>
+            <td>${formatContextLength(model.context_length)}</td>
+            <td><span class="badge bg-${getStatusColor(model.status)}">${model.status}</span></td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <div class="performance-indicator me-2" data-score="${model.performance_score}"></div>
+                    <span class="small">${model.performance_score}/10</span>
+                </div>
+            </td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary btn-sm" onclick="viewModelDetails('${model.slug}')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" onclick="analyzeModel('${model.slug}')">
+                        <i class="fas fa-play"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function toggleModelSelection(modelSlug, cardElement = null) {
+    const index = selectedModels.indexOf(modelSlug);
+    
+    if (index > -1) {
+        selectedModels.splice(index, 1);
+        if (cardElement) cardElement.classList.remove('selected');
+    } else {
+        if (selectedModels.length >= 5) {
+            alert('Maximum of 5 models can be selected for comparison.');
+            return;
+        }
+        selectedModels.push(modelSlug);
+        if (cardElement) cardElement.classList.add('selected');
+    }
+
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    // Update comparison report button
+    const comparisonBtn = document.getElementById('comparison-report-btn');
+    if (comparisonBtn) {
+        comparisonBtn.disabled = selectedModels.length < 2;
+    }
+
+    // Update batch operations count
+    const countSpan = document.getElementById('selected-models-count');
+    if (countSpan) {
+        countSpan.textContent = selectedModels.length;
+    }
+
+    // If in comparison view, update the matrix
+    if (currentView === 'comparison' && selectedModels.length >= 2) {
+        renderComparisonMatrix();
+    }
+}
+
+function updateStatistics(stats) {
+    document.getElementById('total-models').textContent = stats.total_models || 0;
+    document.getElementById('active-models').textContent = stats.active_models || 0;
+    document.getElementById('unique-providers').textContent = stats.unique_providers || 0;
+    
+    const avgCostSpan = document.querySelector('#avg-cost span');
+    if (avgCostSpan) {
+        avgCostSpan.textContent = (stats.avg_cost_per_1k || 0).toFixed(4);
+    }
+}
+
+function showLoading(show) {
+    const spinner = document.getElementById('loading-spinner');
+    spinner.style.display = show ? 'block' : 'none';
+}
+
+function showError(message) {
+    // You can implement a toast notification or alert here
+    alert(message);
+}
+
+// Utility functions
+function getStatusColor(status) {
+    const colors = {
+        active: 'success',
+        beta: 'warning',
+        deprecated: 'danger',
+        maintenance: 'secondary'
+    };
+    return colors[status] || 'secondary';
+}
+
+function formatContextLength(length) {
+    if (length >= 1000000) {
+        return `${(length / 1000000).toFixed(1)}M`;
+    } else if (length >= 1000) {
+        return `${(length / 1000).toFixed(0)}K`;
+    }
+    return length.toString();
+}
+
+function viewModelDetails(modelSlug) {
+    fetch(`/api/models/${modelSlug}/details`)
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('modal-model-details').innerHTML = renderModelDetailsHTML(data);
+        const modal = new bootstrap.Modal(document.getElementById('modelDetailModal'));
+        modal.show();
+    })
+    .catch(error => {
+        console.error('Failed to load model details:', error);
+        alert('Failed to load model details.');
+    });
+}
+
+function analyzeModel(modelSlug) {
+    window.location.href = `/analysis/create?model=${modelSlug}`;
+}
+
+function refreshModels() {
+    loadModels();
+}
+
+function exportModelsData() {
+    const format = prompt('Choose export format:\n1. JSON\n2. CSV\n3. Excel\n\nEnter 1, 2, or 3:', '1');
+    const formatMap = { '1': 'json', '2': 'csv', '3': 'xlsx' };
+    const exportFormat = formatMap[format];
+    
+    if (exportFormat) {
+        window.open(`/api/models/export?format=${exportFormat}`, '_blank');
+    }
+}
+</script>
+{% endblock %}

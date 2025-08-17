@@ -1,0 +1,1379 @@
+{#
+  Capability Matrix Component - AI Model Capabilities Comparison Grid
+  
+  Purpose: Display comprehensive comparison matrix of AI model capabilities with visual indicators and filters
+  
+  Usage:
+    {% include 'components/models/capability-matrix.html' with {
+        models: [
+            {
+                'slug': 'openai_gpt-4o',
+                'name': 'GPT-4o',
+                'provider': 'OpenAI',
+                'capabilities': {
+                    'text_generation': 5,
+                    'code_generation': 5,
+                    'image_understanding': 5,
+                    'function_calling': 5,
+                    'json_mode': 5,
+                    'multimodal': 5,
+                    'reasoning': 5,
+                    'math': 4,
+                    'creative_writing': 5
+                }
+            },
+            {
+                'slug': 'anthropic_claude-3-5-sonnet',
+                'name': 'Claude 3.5 Sonnet',
+                'provider': 'Anthropic',
+                'capabilities': {
+                    'text_generation': 5,
+                    'code_generation': 5,
+                    'image_understanding': 4,
+                    'function_calling': 4,
+                    'json_mode': 4,
+                    'multimodal': 4,
+                    'reasoning': 5,
+                    'math': 5,
+                    'creative_writing': 5
+                }
+            }
+        ],
+        capability_categories: {
+            'Core Features': ['text_generation', 'code_generation', 'reasoning'],
+            'Multimodal': ['image_understanding', 'multimodal'],
+            'Integration': ['function_calling', 'json_mode'],
+            'Specialized': ['math', 'creative_writing']
+        },
+        show_scores: true,
+        enable_filtering: true,
+        enable_sorting: true,
+        compact_mode: false
+    } %}
+  
+  Dependencies:
+    - Bootstrap 5.3+ (table, badge, button components)
+    - HTMX 1.9+ (for dynamic filtering)
+    - Font Awesome 6+ (for capability icons and stars)
+  
+  Routes:
+    - /api/models/capabilities (GET) - Get capability data
+    - /api/models/compare (POST) - Compare selected models
+  
+  Features:
+    - Interactive capability comparison matrix
+    - Star rating system for capability levels
+    - Category-based grouping and filtering
+    - Model selection and comparison tools
+    - Export capability comparison data
+    - Responsive table design with horizontal scrolling
+    - Color-coded capability indicators
+    - Sortable columns and rows
+#}
+
+{%- set models = models|default([]) -%}
+{%- set capability_categories = capability_categories|default({}) -%}
+{%- set show_scores = show_scores|default(true) -%}
+{%- set enable_filtering = enable_filtering|default(true) -%}
+{%- set enable_sorting = enable_sorting|default(true) -%}
+{%- set compact_mode = compact_mode|default(false) -%}
+
+{# All possible capabilities with metadata #}
+{%- set capability_definitions = {
+  'text_generation': {
+    'name': 'Text Generation',
+    'description': 'Generate human-like text content',
+    'icon': 'fas fa-pen-fancy',
+    'category': 'Core Features'
+  },
+  'code_generation': {
+    'name': 'Code Generation',
+    'description': 'Generate and debug code in multiple languages',
+    'icon': 'fas fa-code',
+    'category': 'Core Features'
+  },
+  'reasoning': {
+    'name': 'Logical Reasoning',
+    'description': 'Complex problem-solving and logical deduction',
+    'icon': 'fas fa-brain',
+    'category': 'Core Features'
+  },
+  'image_understanding': {
+    'name': 'Image Understanding',
+    'description': 'Analyze and describe visual content',
+    'icon': 'fas fa-image',
+    'category': 'Multimodal'
+  },
+  'multimodal': {
+    'name': 'Multimodal Input',
+    'description': 'Process multiple input types simultaneously',
+    'icon': 'fas fa-layer-group',
+    'category': 'Multimodal'
+  },
+  'function_calling': {
+    'name': 'Function Calling',
+    'description': 'Execute external functions and APIs',
+    'icon': 'fas fa-plug',
+    'category': 'Integration'
+  },
+  'json_mode': {
+    'name': 'Structured Output',
+    'description': 'Generate structured JSON responses',
+    'icon': 'fas fa-brackets-curly',
+    'category': 'Integration'
+  },
+  'math': {
+    'name': 'Mathematical Reasoning',
+    'description': 'Solve mathematical problems and equations',
+    'icon': 'fas fa-calculator',
+    'category': 'Specialized'
+  },
+  'creative_writing': {
+    'name': 'Creative Writing',
+    'description': 'Generate creative and narrative content',
+    'icon': 'fas fa-feather-alt',
+    'category': 'Specialized'
+  }
+} -%}
+
+{# Generate all capabilities list from models #}
+{%- set all_capabilities = [] -%}
+{%- for model in models -%}
+  {%- for capability in model.capabilities.keys() -%}
+    {%- if capability not in all_capabilities -%}
+      {%- set _ = all_capabilities.append(capability) -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endfor -%}
+
+<div class="capability-matrix {{ 'compact' if compact_mode else '' }}" 
+     id="capability-matrix"
+     data-models-count="{{ models|length }}"
+     data-capabilities-count="{{ all_capabilities|length }}">
+
+  <!-- Matrix Header -->
+  <div class="matrix-header d-flex justify-content-between align-items-center mb-3">
+    <div class="matrix-title">
+      <h5 class="mb-1">
+        <i class="fas fa-table me-2 text-primary" aria-hidden="true"></i>
+        Model Capability Matrix
+      </h5>
+      <small class="text-muted">Compare {{ models|length }} models across {{ all_capabilities|length }} capabilities</small>
+    </div>
+    
+    <div class="matrix-actions d-flex align-items-center gap-2">
+      
+      <!-- View Toggle -->
+      <div class="btn-group" role="group" aria-label="View mode">
+        <input type="radio" class="btn-check" name="view-mode" id="view-detailed" checked>
+        <label class="btn btn-outline-primary btn-sm" for="view-detailed">
+          <i class="fas fa-list-ul" aria-hidden="true"></i>
+          <span class="d-none d-md-inline ms-1">Detailed</span>
+        </label>
+        
+        <input type="radio" class="btn-check" name="view-mode" id="view-compact">
+        <label class="btn btn-outline-primary btn-sm" for="view-compact">
+          <i class="fas fa-compress-alt" aria-hidden="true"></i>
+          <span class="d-none d-md-inline ms-1">Compact</span>
+        </label>
+      </div>
+      
+      <!-- Export Button -->
+      <button type="button" 
+              class="btn btn-outline-secondary btn-sm"
+              onclick="capabilityMatrix.exportData()"
+              title="Export comparison data">
+        <i class="fas fa-download" aria-hidden="true"></i>
+        <span class="d-none d-md-inline ms-1">Export</span>
+      </button>
+      
+      <!-- Compare Selected -->
+      <button type="button" 
+              class="btn btn-primary btn-sm"
+              id="compare-selected"
+              onclick="capabilityMatrix.compareSelected()"
+              disabled
+              title="Compare selected models">
+        <i class="fas fa-balance-scale me-1" aria-hidden="true"></i>
+        Compare (<span id="selected-count">0</span>)
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters Panel -->
+  {% if enable_filtering %}
+  <div class="filters-panel card mb-3">
+    <div class="card-body py-2">
+      <div class="row align-items-center">
+        
+        <!-- Category Filter -->
+        <div class="col-md-3">
+          <select class="form-select form-select-sm" 
+                  id="category-filter"
+                  onchange="capabilityMatrix.filterByCategory(this.value)">
+            <option value="">All Categories</option>
+            {% for category, capabilities in capability_categories.items() %}
+            <option value="{{ category }}">{{ category }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Provider Filter -->
+        <div class="col-md-3">
+          <select class="form-select form-select-sm" 
+                  id="provider-filter"
+                  onchange="capabilityMatrix.filterByProvider(this.value)">
+            <option value="">All Providers</option>
+            {% for provider in models|map(attribute='provider')|unique %}
+            <option value="{{ provider }}">{{ provider }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Minimum Score Filter -->
+        <div class="col-md-3">
+          <label for="min-score" class="form-label small mb-0">Min Score:</label>
+          <input type="range" 
+                 class="form-range" 
+                 id="min-score" 
+                 min="1" 
+                 max="5" 
+                 value="1"
+                 onchange="capabilityMatrix.filterByScore(this.value)">
+          <small class="text-muted">Score: <span id="min-score-display">1</span>+</small>
+        </div>
+        
+        <!-- Clear Filters -->
+        <div class="col-md-3 text-end">
+          <button type="button" 
+                  class="btn btn-outline-secondary btn-sm"
+                  onclick="capabilityMatrix.clearFilters()">
+            <i class="fas fa-times me-1" aria-hidden="true"></i>
+            Clear Filters
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Capability Matrix Table -->
+  <div class="matrix-table-container">
+    <div class="table-responsive">
+      <table class="table table-bordered capability-table" id="capability-table">
+        <thead class="table-light sticky-top">
+          <tr>
+            <!-- Model Selection Column -->
+            <th class="model-select-column">
+              <div class="form-check">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       id="select-all-models"
+                       onchange="capabilityMatrix.toggleAllModels(this.checked)">
+                <label class="form-check-label small" for="select-all-models">
+                  Model
+                </label>
+              </div>
+            </th>
+            
+            <!-- Capability Columns -->
+            {% for capability in all_capabilities %}
+            {%- set cap_def = capability_definitions.get(capability, {}) -%}
+            <th class="capability-column {{ capability }}" 
+                data-capability="{{ capability }}"
+                data-category="{{ cap_def.get('category', 'Other') }}">
+              <div class="capability-header">
+                <i class="{{ cap_def.get('icon', 'fas fa-cog') }} mb-1" 
+                   aria-hidden="true"
+                   title="{{ cap_def.get('description', capability) }}"></i>
+                <div class="capability-name">{{ cap_def.get('name', capability.replace('_', ' ').title()) }}</div>
+                {% if enable_sorting %}
+                <button type="button" 
+                        class="btn btn-sm btn-link p-0 sort-btn"
+                        onclick="capabilityMatrix.sortByCapability('{{ capability }}')"
+                        title="Sort by {{ cap_def.get('name', capability) }}">
+                  <i class="fas fa-sort text-muted" aria-hidden="true"></i>
+                </button>
+                {% endif %}
+              </div>
+            </th>
+            {% endfor %}
+            
+            <!-- Average Score Column -->
+            <th class="average-column">
+              <div class="capability-header">
+                <i class="fas fa-chart-line mb-1" aria-hidden="true"></i>
+                <div class="capability-name">Average</div>
+                {% if enable_sorting %}
+                <button type="button" 
+                        class="btn btn-sm btn-link p-0 sort-btn"
+                        onclick="capabilityMatrix.sortByAverage()"
+                        title="Sort by average score">
+                  <i class="fas fa-sort text-muted" aria-hidden="true"></i>
+                </button>
+                {% endif %}
+              </div>
+            </th>
+          </tr>
+        </thead>
+        
+        <tbody>
+          {% for model in models %}
+          {%- set model_capabilities = model.capabilities|default({}) -%}
+          {%- set capability_scores = [] -%}
+          {%- for capability in all_capabilities -%}
+            {%- set score = model_capabilities.get(capability, 0) -%}
+            {%- set _ = capability_scores.append(score) -%}
+          {%- endfor -%}
+          {%- set average_score = (capability_scores|sum / capability_scores|length) if capability_scores else 0 -%}
+          
+          <tr class="model-row" 
+              data-model="{{ model.slug }}"
+              data-provider="{{ model.provider }}"
+              data-average="{{ '%.1f'|format(average_score) }}">
+            
+            <!-- Model Selection -->
+            <td class="model-info">
+              <div class="d-flex align-items-center">
+                <div class="form-check me-2">
+                  <input class="form-check-input model-checkbox" 
+                         type="checkbox" 
+                         id="select-{{ model.slug }}"
+                         value="{{ model.slug }}"
+                         onchange="capabilityMatrix.updateSelectedCount()">
+                </div>
+                <div class="model-details">
+                  <div class="model-name fw-bold">{{ model.name }}</div>
+                  <small class="text-muted">{{ model.provider }}</small>
+                </div>
+              </div>
+            </td>
+            
+            <!-- Capability Scores -->
+            {% for capability in all_capabilities %}
+            {%- set score = model_capabilities.get(capability, 0) -%}
+            <td class="capability-cell {{ capability }}" 
+                data-capability="{{ capability }}"
+                data-score="{{ score }}">
+              
+              {% if score > 0 %}
+                <!-- Star Rating Display -->
+                <div class="capability-rating">
+                  {% if show_scores %}
+                  <div class="score-stars">
+                    {% for i in range(1, 6) %}
+                    <i class="fas fa-star {{ 'text-warning' if i <= score else 'text-muted' }}" 
+                       aria-hidden="true"></i>
+                    {% endfor %}
+                  </div>
+                  <small class="score-number text-muted">{{ score }}/5</small>
+                  {% else %}
+                  <div class="score-indicator">
+                    {% if score >= 4 %}
+                    <span class="badge bg-success">Excellent</span>
+                    {% elif score >= 3 %}
+                    <span class="badge bg-primary">Good</span>
+                    {% elif score >= 2 %}
+                    <span class="badge bg-warning">Fair</span>
+                    {% else %}
+                    <span class="badge bg-danger">Limited</span>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                </div>
+              {% else %}
+                <div class="no-capability">
+                  <i class="fas fa-minus text-muted" aria-hidden="true"></i>
+                  <small class="text-muted">N/A</small>
+                </div>
+              {% endif %}
+            </td>
+            {% endfor %}
+            
+            <!-- Average Score -->
+            <td class="average-cell">
+              <div class="average-score">
+                <div class="score-circle bg-{{ 'success' if average_score >= 4 else 'primary' if average_score >= 3 else 'warning' if average_score >= 2 else 'danger' }}">
+                  {{ '%.1f'|format(average_score) }}
+                </div>
+                <small class="text-muted">avg</small>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Matrix Summary -->
+  <div class="matrix-summary mt-3">
+    <div class="row">
+      <div class="col-md-8">
+        <div class="summary-stats d-flex flex-wrap gap-3">
+          <div class="stat-item">
+            <small class="text-muted">Models Compared:</small>
+            <span class="fw-bold">{{ models|length }}</span>
+          </div>
+          <div class="stat-item">
+            <small class="text-muted">Capabilities Evaluated:</small>
+            <span class="fw-bold">{{ all_capabilities|length }}</span>
+          </div>
+          <div class="stat-item">
+            <small class="text-muted">Providers:</small>
+            <span class="fw-bold">{{ models|map(attribute='provider')|unique|list|length }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 text-end">
+        <div class="legend">
+          <small class="text-muted me-2">Rating Scale:</small>
+          {% for i in range(1, 6) %}
+          <i class="fas fa-star text-warning" aria-hidden="true"></i>
+          {% endfor %}
+          <small class="text-muted ms-1">= Excellent (5/5)</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- No Results Message -->
+  <div class="no-results d-none" id="no-results">
+    <div class="text-center py-5">
+      <i class="fas fa-filter fa-3x text-muted mb-3" aria-hidden="true"></i>
+      <h6 class="text-muted">No models match the current filters</h6>
+      <p class="text-muted small">Try adjusting your filter criteria or clearing all filters</p>
+      <button type="button" 
+              class="btn btn-outline-primary"
+              onclick="capabilityMatrix.clearFilters()">
+        <i class="fas fa-times me-1" aria-hidden="true"></i>
+        Clear Filters
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Model Comparison Modal -->
+<div class="modal fade" 
+     id="model-comparison-modal" 
+     tabindex="-1" 
+     aria-labelledby="model-comparison-modal-label"
+     aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="model-comparison-modal-label">
+          <i class="fas fa-balance-scale me-2" aria-hidden="true"></i>
+          Model Capability Comparison
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="comparison-content">
+          <!-- Comparison content will be loaded here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" 
+                class="btn btn-primary"
+                onclick="capabilityMatrix.exportComparison()">
+          <i class="fas fa-download me-1" aria-hidden="true"></i>
+          Export Comparison
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Capability Matrix JavaScript -->
+<script>
+class CapabilityMatrix {
+  constructor(containerId, options = {}) {
+    this.container = document.getElementById(containerId);
+    this.options = {
+      enableFiltering: true,
+      enableSorting: true,
+      ...options
+    };
+    
+    this.originalData = [];
+    this.filteredData = [];
+    this.sortColumn = null;
+    this.sortDirection = 'asc';
+    
+    this.init();
+  }
+  
+  init() {
+    this.cacheOriginalData();
+    this.setupEventListeners();
+    this.updateSelectedCount();
+  }
+  
+  cacheOriginalData() {
+    const rows = this.container.querySelectorAll('.model-row');
+    this.originalData = Array.from(rows).map(row => ({
+      element: row,
+      model: row.dataset.model,
+      provider: row.dataset.provider,
+      average: parseFloat(row.dataset.average)
+    }));
+    this.filteredData = [...this.originalData];
+  }
+  
+  setupEventListeners() {
+    // View mode toggle
+    const viewModeInputs = this.container.querySelectorAll('input[name="view-mode"]');
+    viewModeInputs.forEach(input => {
+      input.addEventListener('change', (e) => {
+        this.toggleViewMode(e.target.id === 'view-compact');
+      });
+    });
+    
+    // Min score range slider
+    const minScoreSlider = this.container.querySelector('#min-score');
+    if (minScoreSlider) {
+      minScoreSlider.addEventListener('input', (e) => {
+        document.getElementById('min-score-display').textContent = e.target.value;
+      });
+    }
+    
+    // Capability cell hover for tooltips
+    const capabilityCells = this.container.querySelectorAll('.capability-cell');
+    capabilityCells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        this.showCapabilityTooltip(e.target);
+      });
+    });
+  }
+  
+  toggleViewMode(compact) {
+    const table = this.container.querySelector('.capability-table');
+    const container = this.container.querySelector('.matrix-table-container');
+    
+    if (compact) {
+      table.classList.add('compact-view');
+      container.style.fontSize = '0.85rem';
+    } else {
+      table.classList.remove('compact-view');
+      container.style.fontSize = '';
+    }
+  }
+  
+  filterByCategory(category) {
+    const capabilityColumns = this.container.querySelectorAll('.capability-column');
+    
+    capabilityColumns.forEach(column => {
+      const columnCategory = column.dataset.category;
+      const capability = column.dataset.capability;
+      
+      if (!category || columnCategory === category) {
+        column.style.display = '';
+        this.showCapabilityColumn(capability);
+      } else {
+        column.style.display = 'none';
+        this.hideCapabilityColumn(capability);
+      }
+    });
+    
+    this.updateVisibleCounts();
+  }
+  
+  filterByProvider(provider) {
+    this.filteredData = this.originalData.filter(item => {
+      return !provider || item.provider === provider;
+    });
+    
+    this.updateTableDisplay();
+  }
+  
+  filterByScore(minScore) {
+    const minScoreNum = parseFloat(minScore);
+    
+    this.filteredData = this.originalData.filter(item => {
+      return item.average >= minScoreNum;
+    });
+    
+    this.updateTableDisplay();
+  }
+  
+  showCapabilityColumn(capability) {
+    const cells = this.container.querySelectorAll(`.capability-cell.${capability}`);
+    cells.forEach(cell => cell.style.display = '');
+  }
+  
+  hideCapabilityColumn(capability) {
+    const cells = this.container.querySelectorAll(`.capability-cell.${capability}`);
+    cells.forEach(cell => cell.style.display = 'none');
+  }
+  
+  updateTableDisplay() {
+    const tbody = this.container.querySelector('tbody');
+    const allRows = this.container.querySelectorAll('.model-row');
+    
+    // Hide all rows first
+    allRows.forEach(row => row.style.display = 'none');
+    
+    // Show filtered rows
+    this.filteredData.forEach(item => {
+      item.element.style.display = '';
+    });
+    
+    // Show/hide no results message
+    const noResults = this.container.querySelector('#no-results');
+    if (this.filteredData.length === 0) {
+      noResults.classList.remove('d-none');
+      this.container.querySelector('.matrix-table-container').style.display = 'none';
+    } else {
+      noResults.classList.add('d-none');
+      this.container.querySelector('.matrix-table-container').style.display = '';
+    }
+    
+    this.updateVisibleCounts();
+  }
+  
+  updateVisibleCounts() {
+    const visibleModels = this.filteredData.length;
+    const visibleCapabilities = this.container.querySelectorAll('.capability-column:not([style*="display: none"])').length;
+    
+    // Update summary stats
+    const modelsStat = this.container.querySelector('.stat-item:first-child span');
+    const capabilitiesStat = this.container.querySelector('.stat-item:nth-child(2) span');
+    
+    if (modelsStat) modelsStat.textContent = visibleModels;
+    if (capabilitiesStat) capabilitiesStat.textContent = visibleCapabilities;
+  }
+  
+  clearFilters() {
+    // Reset filter controls
+    document.getElementById('category-filter').value = '';
+    document.getElementById('provider-filter').value = '';
+    document.getElementById('min-score').value = '1';
+    document.getElementById('min-score-display').textContent = '1';
+    
+    // Reset data
+    this.filteredData = [...this.originalData];
+    
+    // Show all columns and rows
+    const capabilityColumns = this.container.querySelectorAll('.capability-column');
+    capabilityColumns.forEach(column => {
+      column.style.display = '';
+      const capability = column.dataset.capability;
+      this.showCapabilityColumn(capability);
+    });
+    
+    this.updateTableDisplay();
+  }
+  
+  sortByCapability(capability) {
+    if (this.sortColumn === capability) {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortColumn = capability;
+      this.sortDirection = 'asc';
+    }
+    
+    this.filteredData.sort((a, b) => {
+      const aCell = a.element.querySelector(`.capability-cell.${capability}`);
+      const bCell = b.element.querySelector(`.capability-cell.${capability}`);
+      
+      const aScore = parseFloat(aCell.dataset.score) || 0;
+      const bScore = parseFloat(bCell.dataset.score) || 0;
+      
+      return this.sortDirection === 'asc' ? aScore - bScore : bScore - aScore;
+    });
+    
+    this.updateTableDisplay();
+    this.updateSortIndicators(capability);
+  }
+  
+  sortByAverage() {
+    if (this.sortColumn === 'average') {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortColumn = 'average';
+      this.sortDirection = 'asc';
+    }
+    
+    this.filteredData.sort((a, b) => {
+      return this.sortDirection === 'asc' ? a.average - b.average : b.average - a.average;
+    });
+    
+    this.updateTableDisplay();
+    this.updateSortIndicators('average');
+  }
+  
+  updateSortIndicators(activeColumn) {
+    // Reset all sort buttons
+    const sortBtns = this.container.querySelectorAll('.sort-btn i');
+    sortBtns.forEach(icon => {
+      icon.className = 'fas fa-sort text-muted';
+    });
+    
+    // Update active sort button
+    const activeBtn = this.container.querySelector(`[onclick*="${activeColumn}"] i`);
+    if (activeBtn) {
+      const iconClass = this.sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down';
+      activeBtn.className = `fas ${iconClass} text-primary`;
+    }
+  }
+  
+  toggleAllModels(checked) {
+    const modelCheckboxes = this.container.querySelectorAll('.model-checkbox');
+    modelCheckboxes.forEach(checkbox => {
+      if (!checkbox.closest('.model-row').style.display.includes('none')) {
+        checkbox.checked = checked;
+      }
+    });
+    this.updateSelectedCount();
+  }
+  
+  updateSelectedCount() {
+    const selectedCheckboxes = this.container.querySelectorAll('.model-checkbox:checked');
+    const visibleSelected = Array.from(selectedCheckboxes).filter(cb => 
+      !cb.closest('.model-row').style.display.includes('none')
+    );
+    
+    const count = visibleSelected.length;
+    const countSpan = document.getElementById('selected-count');
+    const compareBtn = document.getElementById('compare-selected');
+    
+    if (countSpan) countSpan.textContent = count;
+    if (compareBtn) compareBtn.disabled = count < 2;
+    
+    // Update select all checkbox
+    const selectAllCheckbox = document.getElementById('select-all-models');
+    const visibleCheckboxes = Array.from(this.container.querySelectorAll('.model-checkbox')).filter(cb =>
+      !cb.closest('.model-row').style.display.includes('none')
+    );
+    
+    if (selectAllCheckbox && visibleCheckboxes.length > 0) {
+      const allChecked = visibleCheckboxes.every(cb => cb.checked);
+      const someChecked = visibleCheckboxes.some(cb => cb.checked);
+      
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = someChecked && !allChecked;
+    }
+  }
+  
+  compareSelected() {
+    const selectedModels = Array.from(this.container.querySelectorAll('.model-checkbox:checked'))
+      .map(cb => cb.value);
+    
+    if (selectedModels.length < 2) {
+      this.showNotification('Please select at least 2 models to compare', 'warning');
+      return;
+    }
+    
+    this.showComparisonModal(selectedModels);
+  }
+  
+  showComparisonModal(modelSlugs) {
+    const modal = new bootstrap.Modal(document.getElementById('model-comparison-modal'));
+    const contentContainer = document.getElementById('comparison-content');
+    
+    // Show loading state
+    contentContainer.innerHTML = `
+      <div class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading comparison...</span>
+        </div>
+        <div class="mt-2 text-muted">Generating detailed comparison...</div>
+      </div>
+    `;
+    
+    modal.show();
+    
+    // Generate comparison content
+    setTimeout(() => {
+      this.generateComparisonContent(modelSlugs, contentContainer);
+    }, 500);
+  }
+  
+  generateComparisonContent(modelSlugs, container) {
+    const selectedRows = modelSlugs.map(slug => 
+      this.container.querySelector(`[data-model="${slug}"]`)
+    );
+    
+    let comparisonHtml = `
+      <div class="comparison-grid">
+        <div class="row">
+    `;
+    
+    selectedRows.forEach((row, index) => {
+      const modelName = row.querySelector('.model-name').textContent;
+      const provider = row.querySelector('.text-muted').textContent;
+      const average = row.dataset.average;
+      
+      comparisonHtml += `
+        <div class="col-md-6 mb-3">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0">${modelName}</h6>
+              <small class="text-muted">${provider}</small>
+            </div>
+            <div class="card-body">
+              <div class="text-center mb-3">
+                <div class="score-circle bg-primary large">
+                  ${average}
+                </div>
+                <small class="text-muted">Overall Score</small>
+              </div>
+              <!-- Add capability breakdown here -->
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    comparisonHtml += `
+        </div>
+        <div class="comparison-summary mt-3">
+          <h6>Comparison Summary</h6>
+          <p class="text-muted">Detailed analysis of selected models would appear here.</p>
+        </div>
+      </div>
+    `;
+    
+    container.innerHTML = comparisonHtml;
+  }
+  
+  showCapabilityTooltip(cell) {
+    const capability = cell.dataset.capability;
+    const score = cell.dataset.score;
+    
+    if (score > 0) {
+      const tooltip = `Score: ${score}/5 for ${capability.replace('_', ' ').toUpperCase()}`;
+      cell.setAttribute('title', tooltip);
+      
+      // Initialize Bootstrap tooltip if available
+      if (typeof bootstrap !== 'undefined') {
+        new bootstrap.Tooltip(cell);
+      }
+    }
+  }
+  
+  exportData() {
+    const data = {
+      models: this.filteredData.map(item => ({
+        slug: item.model,
+        provider: item.provider,
+        average: item.average
+      })),
+      exportedAt: new Date().toISOString(),
+      filters: {
+        category: document.getElementById('category-filter').value,
+        provider: document.getElementById('provider-filter').value,
+        minScore: document.getElementById('min-score').value
+      }
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `model-capabilities-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    this.showNotification('Capability data exported successfully', 'success');
+  }
+  
+  exportComparison() {
+    const selectedModels = Array.from(this.container.querySelectorAll('.model-checkbox:checked'))
+      .map(cb => cb.value);
+    
+    // This would export the detailed comparison data
+    this.showNotification('Comparison export functionality would be implemented here', 'info');
+  }
+  
+  showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} notification-toast`;
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1060;
+      min-width: 300px;
+      animation: slideInRight 0.3s ease;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.style.animation = 'slideOutRight 0.3s ease';
+      setTimeout(() => notification.remove(), 300);
+    }, 4000);
+  }
+}
+
+// Initialize capability matrix
+const capabilityMatrix = new CapabilityMatrix('capability-matrix');
+
+// Make it globally accessible for HTML onclick handlers
+window.capabilityMatrix = capabilityMatrix;
+</script>
+
+<!-- Capability Matrix Styles -->
+<style>
+.capability-matrix {
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.matrix-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.matrix-table-container {
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.capability-table {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+}
+
+.capability-table.compact-view {
+  font-size: 0.8rem;
+}
+
+.capability-table th,
+.capability-table td {
+  vertical-align: middle;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  border: 1px solid #dee2e6;
+}
+
+.model-select-column {
+  min-width: 200px;
+  text-align: left !important;
+  background-color: #f8f9fa;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.capability-column {
+  min-width: 120px;
+  background-color: #f8f9fa;
+}
+
+.average-column {
+  min-width: 100px;
+  background-color: #e9ecef;
+  position: sticky;
+  right: 0;
+  z-index: 10;
+}
+
+.capability-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.capability-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.sort-btn {
+  font-size: 0.7rem;
+  color: #6c757d;
+}
+
+.sort-btn:hover {
+  color: #007bff;
+}
+
+.model-info {
+  text-align: left !important;
+}
+
+.model-details {
+  min-width: 0;
+  flex-grow: 1;
+}
+
+.model-name {
+  font-size: 0.85rem;
+  line-height: 1.2;
+  margin-bottom: 0.125rem;
+}
+
+.capability-cell {
+  position: relative;
+}
+
+.capability-rating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.score-stars {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.score-stars i {
+  font-size: 0.75rem;
+}
+
+.score-number {
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+.score-indicator .badge {
+  font-size: 0.65rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.no-capability {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0.5;
+}
+
+.average-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.score-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+.score-circle.large {
+  width: 60px;
+  height: 60px;
+  font-size: 1.1rem;
+}
+
+.filters-panel {
+  border-radius: 0.5rem;
+}
+
+.matrix-summary {
+  background-color: #f8f9fa;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.summary-stats {
+  display: flex;
+  align-items: center;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.no-results {
+  background-color: #f8f9fa;
+  border-radius: 0.5rem;
+  padding: 2rem;
+}
+
+/* Row highlighting */
+.model-row:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+.model-row:hover .model-select-column,
+.model-row:hover .average-column {
+  background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* Selected row styling */
+.model-checkbox:checked + .model-details {
+  color: #007bff;
+}
+
+.model-row:has(.model-checkbox:checked) {
+  background-color: rgba(0, 123, 255, 0.05);
+  border-left: 3px solid #007bff;
+}
+
+/* Capability cell hover effects */
+.capability-cell:hover {
+  background-color: rgba(0, 123, 255, 0.1);
+  transform: scale(1.05);
+  z-index: 5;
+  position: relative;
+  border-radius: 0.25rem;
+}
+
+/* Notification animations */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 1200px) {
+  .capability-table th,
+  .capability-table td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.8rem;
+  }
+  
+  .capability-name {
+    font-size: 0.7rem;
+  }
+  
+  .score-stars i {
+    font-size: 0.7rem;
+  }
+  
+  .score-circle {
+    width: 32px;
+    height: 32px;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .capability-matrix {
+    padding: 0.75rem;
+  }
+  
+  .matrix-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .matrix-actions {
+    justify-content: space-between;
+  }
+  
+  .filters-panel .row > div {
+    margin-bottom: 0.75rem;
+  }
+  
+  .matrix-table-container {
+    font-size: 0.8rem;
+  }
+  
+  .model-select-column {
+    min-width: 150px;
+  }
+  
+  .capability-column {
+    min-width: 80px;
+  }
+  
+  .capability-header {
+    gap: 0.125rem;
+  }
+  
+  .capability-name {
+    font-size: 0.65rem;
+  }
+  
+  .score-stars {
+    gap: 0.0625rem;
+  }
+  
+  .score-stars i {
+    font-size: 0.625rem;
+  }
+  
+  .matrix-summary {
+    padding: 0.75rem;
+  }
+  
+  .summary-stats {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .legend {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .capability-table th,
+  .capability-table td {
+    padding: 0.375rem 0.125rem;
+  }
+  
+  .model-name {
+    font-size: 0.8rem;
+  }
+  
+  .capability-name {
+    font-size: 0.6rem;
+  }
+  
+  .score-number {
+    display: none; /* Hide score numbers on very small screens */
+  }
+  
+  .score-circle {
+    width: 28px;
+    height: 28px;
+    font-size: 0.7rem;
+  }
+}
+
+/* Dark theme */
+[data-theme="dark"] .capability-matrix {
+  background: #2d3748;
+}
+
+[data-theme="dark"] .capability-table {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .capability-table th {
+  background-color: #4a5568;
+  color: #e2e8f0;
+  border-color: #4a5568;
+}
+
+[data-theme="dark"] .model-select-column,
+[data-theme="dark"] .capability-column {
+  background-color: #4a5568;
+}
+
+[data-theme="dark"] .average-column {
+  background-color: #2d3748;
+}
+
+[data-theme="dark"] .capability-table td {
+  border-color: #4a5568;
+}
+
+[data-theme="dark"] .model-row:hover {
+  background-color: rgba(0, 123, 255, 0.1);
+}
+
+[data-theme="dark"] .filters-panel,
+[data-theme="dark"] .matrix-summary {
+  background-color: #4a5568;
+  border-color: #4a5568;
+}
+
+[data-theme="dark"] .no-results {
+  background-color: #4a5568;
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .capability-table,
+  .capability-table th,
+  .capability-table td {
+    border: 2px solid;
+  }
+  
+  .score-stars i,
+  .capability-header i {
+    filter: contrast(2);
+  }
+  
+  .score-circle {
+    border: 2px solid;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .capability-cell,
+  .notification-toast {
+    transition: none;
+    animation: none;
+  }
+  
+  .capability-cell:hover {
+    transform: none;
+  }
+}
+
+/* Print styles */
+@media print {
+  .matrix-actions,
+  .filters-panel,
+  .sort-btn {
+    display: none;
+  }
+  
+  .capability-matrix {
+    box-shadow: none;
+  }
+  
+  .matrix-table-container {
+    box-shadow: none;
+  }
+  
+  .capability-table th,
+  .capability-table td {
+    border: 1px solid #000;
+  }
+  
+  .model-row {
+    break-inside: avoid;
+  }
+}
+</style>

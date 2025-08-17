@@ -1,0 +1,514 @@
+{# 
+Dashboard Quick Actions Component
+
+Purpose: Displays commonly used actions and shortcuts for easy access from dashboard
+Usage: {{ quick_actions(actions=dashboard_actions, layout="grid", show_tooltips=true) }}
+Routes: Used in dashboard views and control panels
+Features:
+- Configurable action buttons with icons and descriptions
+- Grid and list layout options
+- Tooltips with detailed descriptions
+- Permission-based action visibility
+- Loading states and confirmation dialogs
+- Keyboard shortcuts support
+- Recent actions tracking
+Technical: Bootstrap 5 buttons, tooltips, HTMX for actions, JavaScript keyboard handling
+Dependencies: Bootstrap tooltips, confirmation modals
+#}
+
+{# Set default values for optional parameters #}
+{%- set actions = actions or [] -%}
+{%- set layout = layout or 'grid' -%}
+{%- set show_tooltips = show_tooltips or true -%}
+{%- set show_descriptions = show_descriptions or true -%}
+{%- set show_shortcuts = show_shortcuts or true -%}
+{%- set max_actions = max_actions or 12 -%}
+{%- set action_size = action_size or 'medium' -%}
+{%- set show_recent = show_recent or false -%}
+{%- set component_id = component_id or 'quick-actions' -%}
+
+<div class="quick-actions-container" id="{{ component_id }}">
+    {# Component Header #}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0 text-primary font-weight-bold">
+            <i class="fas fa-bolt mr-2"></i>Quick Actions
+        </h6>
+        
+        {# Layout Toggle #}
+        <div class="btn-group btn-group-sm" role="group" aria-label="Layout options">
+            <button type="button" class="btn btn-outline-secondary layout-toggle {{ 'active' if layout == 'grid' else '' }}" 
+                    data-layout="grid" title="Grid Layout">
+                <i class="fas fa-th"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary layout-toggle {{ 'active' if layout == 'list' else '' }}" 
+                    data-layout="list" title="List Layout">
+                <i class="fas fa-list"></i>
+            </button>
+        </div>
+    </div>
+
+    {# Actions Container #}
+    <div class="actions-container layout-{{ layout }}" id="actions-container">
+        {% if actions %}
+            {% for action in actions[:max_actions] %}
+                {# Check permissions if specified #}
+                {% if not action.permission or current_user.has_permission(action.permission) %}
+                    <div class="action-item" 
+                         data-action="{{ action.key }}" 
+                         data-category="{{ action.category or 'general' }}">
+                        
+                        {# Action Button #}
+                        {% if action.type == 'link' %}
+                            <a href="{{ action.url }}" 
+                               class="btn btn-{{ action.color or 'primary' }} action-button size-{{ action_size }}"
+                               {% if action.target %}target="{{ action.target }}"{% endif %}
+                               {% if show_tooltips and action.tooltip %}
+                                   data-toggle="tooltip" 
+                                   data-placement="top" 
+                                   title="{{ action.tooltip }}"
+                               {% endif %}
+                               {% if action.shortcut and show_shortcuts %}
+                                   data-shortcut="{{ action.shortcut }}"
+                               {% endif %}>
+                                
+                                {# Icon and Label #}
+                                <i class="{{ action.icon or 'fas fa-cog' }}"></i>
+                                {% if layout == 'list' or action_size in ['large', 'medium'] %}
+                                    <span class="action-label">{{ action.label }}</span>
+                                {% endif %}
+                                
+                                {# Keyboard Shortcut Badge #}
+                                {% if action.shortcut and show_shortcuts and layout == 'list' %}
+                                    <span class="shortcut-badge">{{ action.shortcut }}</span>
+                                {% endif %}
+                            </a>
+                        
+                        {% elif action.type == 'modal' %}
+                            <button class="btn btn-{{ action.color or 'primary' }} action-button size-{{ action_size }}"
+                                    data-toggle="modal" 
+                                    data-target="#{{ action.modal_target }}"
+                                    {% if show_tooltips and action.tooltip %}
+                                        data-toggle="tooltip" 
+                                        data-placement="top" 
+                                        title="{{ action.tooltip }}"
+                                    {% endif %}
+                                    {% if action.shortcut and show_shortcuts %}
+                                        data-shortcut="{{ action.shortcut }}"
+                                    {% endif %}>
+                                
+                                <i class="{{ action.icon or 'fas fa-cog' }}"></i>
+                                {% if layout == 'list' or action_size in ['large', 'medium'] %}
+                                    <span class="action-label">{{ action.label }}</span>
+                                {% endif %}
+                                
+                                {% if action.shortcut and show_shortcuts and layout == 'list' %}
+                                    <span class="shortcut-badge">{{ action.shortcut }}</span>
+                                {% endif %}
+                            </button>
+                        
+                        {% elif action.type == 'htmx' %}
+                            <button class="btn btn-{{ action.color or 'primary' }} action-button size-{{ action_size }}"
+                                    hx-{{ action.method or 'post' }}="{{ action.url }}"
+                                    {% if action.target %}hx-target="{{ action.target }}"{% endif %}
+                                    {% if action.swap %}hx-swap="{{ action.swap }}"{% endif %}
+                                    {% if action.confirm %}hx-confirm="{{ action.confirm }}"{% endif %}
+                                    hx-indicator="#action-spinner-{{ loop.index }}"
+                                    {% if show_tooltips and action.tooltip %}
+                                        data-toggle="tooltip" 
+                                        data-placement="top" 
+                                        title="{{ action.tooltip }}"
+                                    {% endif %}
+                                    {% if action.shortcut and show_shortcuts %}
+                                        data-shortcut="{{ action.shortcut }}"
+                                    {% endif %}>
+                                
+                                <span class="htmx-indicator spinner-border spinner-border-sm" 
+                                      id="action-spinner-{{ loop.index }}" 
+                                      role="status" 
+                                      aria-hidden="true"></span>
+                                <i class="{{ action.icon or 'fas fa-cog' }}"></i>
+                                {% if layout == 'list' or action_size in ['large', 'medium'] %}
+                                    <span class="action-label">{{ action.label }}</span>
+                                {% endif %}
+                                
+                                {% if action.shortcut and show_shortcuts and layout == 'list' %}
+                                    <span class="shortcut-badge">{{ action.shortcut }}</span>
+                                {% endif %}
+                            </button>
+                        
+                        {% else %}
+                            <button class="btn btn-{{ action.color or 'primary' }} action-button size-{{ action_size }}"
+                                    onclick="{{ action.onclick or '' }}"
+                                    {% if show_tooltips and action.tooltip %}
+                                        data-toggle="tooltip" 
+                                        data-placement="top" 
+                                        title="{{ action.tooltip }}"
+                                    {% endif %}
+                                    {% if action.shortcut and show_shortcuts %}
+                                        data-shortcut="{{ action.shortcut }}"
+                                    {% endif %}>
+                                
+                                <i class="{{ action.icon or 'fas fa-cog' }}"></i>
+                                {% if layout == 'list' or action_size in ['large', 'medium'] %}
+                                    <span class="action-label">{{ action.label }}</span>
+                                {% endif %}
+                                
+                                {% if action.shortcut and show_shortcuts and layout == 'list' %}
+                                    <span class="shortcut-badge">{{ action.shortcut }}</span>
+                                {% endif %}
+                            </button>
+                        {% endif %}
+                        
+                        {# Action Description (for list layout) #}
+                        {% if show_descriptions and action.description and layout == 'list' %}
+                            <small class="action-description text-muted d-block mt-1">
+                                {{ action.description }}
+                            </small>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            {# Empty State #}
+            <div class="text-center py-4">
+                <i class="fas fa-hand-point-up fa-2x text-muted mb-2"></i>
+                <p class="text-muted mb-0">No quick actions available</p>
+            </div>
+        {% endif %}
+    </div>
+
+    {# Recent Actions Section #}
+    {% if show_recent and recent_actions %}
+        <div class="recent-actions-section mt-4">
+            <h6 class="text-muted font-weight-bold mb-2">
+                <i class="fas fa-history mr-1"></i>Recent Actions
+            </h6>
+            <div class="recent-actions-list">
+                {% for recent in recent_actions[:5] %}
+                    <div class="recent-action-item">
+                        <small class="text-muted">
+                            <i class="{{ recent.icon }}"></i>
+                            {{ recent.label }}
+                            <span class="float-right">{{ moment(recent.timestamp).fromNow() }}</span>
+                        </small>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+{# JavaScript for Quick Actions Management #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    {% if show_tooltips %}
+        $('[data-toggle="tooltip"]').tooltip();
+    {% endif %}
+
+    // Layout toggle functionality
+    document.querySelectorAll('.layout-toggle').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const layout = this.getAttribute('data-layout');
+            switchLayout(layout);
+        });
+    });
+
+    // Keyboard shortcuts
+    {% if show_shortcuts %}
+        document.addEventListener('keydown', function(e) {
+            // Check if user is typing in an input field
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            
+            const shortcut = getKeyboardShortcut(e);
+            const actionButton = document.querySelector(`[data-shortcut="${shortcut}"]`);
+            
+            if (actionButton) {
+                e.preventDefault();
+                actionButton.click();
+                
+                // Visual feedback
+                actionButton.classList.add('shortcut-activated');
+                setTimeout(() => actionButton.classList.remove('shortcut-activated'), 200);
+            }
+        });
+    {% endif %}
+
+    // Track action usage
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('action-button')) {
+            const actionItem = e.target.closest('.action-item');
+            if (actionItem) {
+                const actionKey = actionItem.getAttribute('data-action');
+                trackActionUsage(actionKey);
+            }
+        }
+    });
+
+    function switchLayout(layout) {
+        const container = document.getElementById('actions-container');
+        const toggles = document.querySelectorAll('.layout-toggle');
+        
+        // Update container class
+        container.className = container.className.replace(/layout-\w+/, `layout-${layout}`);
+        
+        // Update toggle buttons
+        toggles.forEach(function(toggle) {
+            if (toggle.getAttribute('data-layout') === layout) {
+                toggle.classList.add('active');
+            } else {
+                toggle.classList.remove('active');
+            }
+        });
+        
+        // Save preference
+        localStorage.setItem('quickActionsLayout', layout);
+        
+        // Reinitialize tooltips after layout change
+        {% if show_tooltips %}
+            $('[data-toggle="tooltip"]').tooltip('dispose').tooltip();
+        {% endif %}
+    }
+
+    function getKeyboardShortcut(event) {
+        let shortcut = '';
+        
+        if (event.ctrlKey) shortcut += 'Ctrl+';
+        if (event.altKey) shortcut += 'Alt+';
+        if (event.shiftKey) shortcut += 'Shift+';
+        
+        shortcut += event.key.toUpperCase();
+        
+        return shortcut;
+    }
+
+    function trackActionUsage(actionKey) {
+        // Send usage data to server for analytics
+        fetch('{{ url_for("api.track_action_usage") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                action: actionKey,
+                timestamp: new Date().toISOString()
+            })
+        }).catch(err => console.log('Action tracking failed:', err));
+    }
+
+    // Load saved layout preference
+    const savedLayout = localStorage.getItem('quickActionsLayout');
+    if (savedLayout && savedLayout !== '{{ layout }}') {
+        switchLayout(savedLayout);
+    }
+
+    // Handle HTMX events
+    document.addEventListener('htmx:beforeRequest', function(event) {
+        if (event.target.classList.contains('action-button')) {
+            event.target.classList.add('loading');
+        }
+    });
+
+    document.addEventListener('htmx:afterRequest', function(event) {
+        if (event.target.classList.contains('action-button')) {
+            event.target.classList.remove('loading');
+        }
+    });
+});
+</script>
+
+{# CSS for Quick Actions Styling #}
+<style>
+.quick-actions-container {
+    background: #fff;
+    border-radius: 0.375rem;
+    padding: 1.25rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Grid Layout */
+.actions-container.layout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+/* List Layout */
+.actions-container.layout-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.action-item {
+    position: relative;
+}
+
+/* Button Sizes */
+.action-button.size-small {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.action-button.size-medium {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.action-button.size-large {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+}
+
+/* Grid Layout Buttons */
+.layout-grid .action-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+    width: 100%;
+    text-align: center;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.layout-grid .action-button i {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.layout-grid .action-button .action-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* List Layout Buttons */
+.layout-list .action-button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    text-align: left;
+    justify-content: flex-start;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+}
+
+.layout-list .action-button i {
+    margin-right: 0.75rem;
+    width: 1.25rem;
+    text-align: center;
+}
+
+.layout-list .action-button .action-label {
+    flex: 1;
+    font-weight: 500;
+}
+
+/* Shortcut Badge */
+.shortcut-badge {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.7rem;
+    font-family: 'Courier New', monospace;
+    margin-left: auto;
+}
+
+/* Action Description */
+.action-description {
+    font-size: 0.75rem;
+    line-height: 1.3;
+    margin-left: 2rem;
+}
+
+/* Button States */
+.action-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
+}
+
+.action-button.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.action-button.shortcut-activated {
+    animation: shortcutPulse 0.2s ease;
+}
+
+@keyframes shortcutPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Spinner for HTMX actions */
+.htmx-indicator {
+    display: none;
+    margin-right: 0.5rem;
+}
+
+.htmx-request .htmx-indicator {
+    display: inline-block;
+}
+
+/* Recent Actions */
+.recent-actions-section {
+    border-top: 1px solid #e3e6f0;
+    padding-top: 1rem;
+}
+
+.recent-action-item {
+    padding: 0.375rem 0;
+    border-bottom: 1px solid #f8f9fc;
+}
+
+.recent-action-item:last-child {
+    border-bottom: none;
+}
+
+/* Layout Toggle */
+.layout-toggle.active {
+    background-color: #4e73df;
+    border-color: #4e73df;
+    color: #fff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .actions-container.layout-grid {
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 0.75rem;
+    }
+    
+    .layout-grid .action-button {
+        min-height: 70px;
+        padding: 0.5rem;
+    }
+    
+    .layout-grid .action-button i {
+        font-size: 1.25rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .layout-grid .action-button .action-label {
+        font-size: 0.75rem;
+    }
+    
+    .layout-list .action-description {
+        margin-left: 1.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .actions-container.layout-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .quick-actions-container {
+        padding: 1rem;
+    }
+}
+</style>

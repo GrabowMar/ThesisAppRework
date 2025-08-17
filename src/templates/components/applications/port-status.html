@@ -1,0 +1,1270 @@
+{#
+  Port Status Component - Real-time Port Monitoring
+  
+  Purpose: Display real-time port availability and health monitoring with status indicators and traffic analysis
+  
+  Usage:
+    {% include 'components/applications/port-status.html' with {
+        app_id: 1,
+        ports: [
+            {
+                'number': 3000,
+                'type': 'frontend',
+                'status': 'open',
+                'health': 'healthy',
+                'response_time': 150,
+                'last_check': '2024-01-15T14:30:00Z'
+            },
+            {
+                'number': 3001,
+                'type': 'backend',
+                'status': 'open',
+                'health': 'healthy',
+                'response_time': 85,
+                'last_check': '2024-01-15T14:30:00Z'
+            }
+        ],
+        show_traffic: true,
+        show_history: true,
+        auto_refresh: true,
+        refresh_interval: 30,
+        compact_mode: false
+    } %}
+  
+  Dependencies:
+    - Bootstrap 5.3+ (card, badge, progress components)
+    - HTMX 1.9+ (for real-time updates)
+    - Font Awesome 6+ (for status icons)
+    - Chart.js 3+ (for traffic visualization, optional)
+  
+  Routes:
+    - /api/ports/status (GET) - Get status of all monitored ports
+    - /api/ports/{port}/status (GET) - Get specific port status
+    - /api/ports/{port}/health (GET) - Get port health metrics
+    - /api/ports/{port}/traffic (GET) - Get port traffic data
+    - /api/ports/scan (POST) - Initiate port scan
+  
+  Features:
+    - Real-time port availability monitoring
+    - Health status with response time tracking
+    - Traffic monitoring and visualization
+    - Historical status tracking
+    - Port scanning capabilities
+    - Responsive design with compact mode
+    - WebSocket updates for real-time data
+#}
+
+{%- set app_id = app_id|default(0) -%}
+{%- set ports = ports|default([]) -%}
+{%- set show_traffic = show_traffic|default(false) -%}
+{%- set show_history = show_history|default(false) -%}
+{%- set auto_refresh = auto_refresh|default(true) -%}
+{%- set refresh_interval = refresh_interval|default(30) -%}
+{%- set compact_mode = compact_mode|default(false) -%}
+{%- set show_scan_controls = show_scan_controls|default(false) -%}
+
+<div class="port-status-container {{ 'compact' if compact_mode else '' }}" 
+     id="port-status-{{ app_id }}"
+     data-app-id="{{ app_id }}"
+     data-auto-refresh="{{ 'true' if auto_refresh else 'false' }}"
+     data-refresh-interval="{{ refresh_interval }}">
+
+  <!-- Port Status Header -->
+  {% if not compact_mode %}
+  <div class="port-status-header d-flex justify-content-between align-items-center mb-3">
+    <div class="port-status-title">
+      <h5 class="mb-1">
+        <i class="fas fa-network-wired me-2 text-primary" aria-hidden="true"></i>
+        Port Status Monitor
+      </h5>
+      <small class="text-muted">Real-time port availability and health monitoring</small>
+    </div>
+    
+    <div class="port-status-controls d-flex align-items-center gap-2">
+      
+      <!-- Auto-refresh Toggle -->
+      <div class="form-check form-switch">
+        <input class="form-check-input" 
+               type="checkbox" 
+               id="auto-refresh-{{ app_id }}"
+               {{ 'checked' if auto_refresh else '' }}
+               onchange="portMonitor{{ app_id }}.toggleAutoRefresh(this.checked)">
+        <label class="form-check-label small" for="auto-refresh-{{ app_id }}">
+          Auto-refresh
+        </label>
+      </div>
+      
+      <!-- Refresh Button -->
+      <button type="button" 
+              class="btn btn-outline-primary btn-sm"
+              onclick="portMonitor{{ app_id }}.refresh()"
+              title="Refresh now">
+        <i class="fas fa-sync-alt" aria-hidden="true"></i>
+      </button>
+      
+      <!-- Port Scan -->
+      {% if show_scan_controls %}
+      <button type="button" 
+              class="btn btn-outline-info btn-sm"
+              data-bs-toggle="modal"
+              data-bs-target="#port-scan-modal-{{ app_id }}"
+              title="Scan ports">
+        <i class="fas fa-search me-1" aria-hidden="true"></i>
+        Scan
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Port Status Grid -->
+  <div class="port-status-grid" id="port-status-grid-{{ app_id }}">
+    
+    {% if ports %}
+    {% for port in ports %}
+    {% set port_number = port.number|default(0) %}
+    {% set port_type = port.type|default('unknown') %}
+    {% set port_status = port.status|default('unknown') %}
+    {% set port_health = port.health|default('unknown') %}
+    {% set response_time = port.response_time|default(0) %}
+    {% set last_check = port.last_check %}
+    
+    <!-- Port Card -->
+    <div class="port-card" 
+         id="port-card-{{ port_number }}"
+         data-port="{{ port_number }}"
+         data-type="{{ port_type }}"
+         data-status="{{ port_status }}">
+      
+      <div class="card h-100">
+        
+        <!-- Port Header -->
+        <div class="card-header py-2">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="port-info">
+              <div class="port-number font-monospace fw-bold">
+                {{ port_number }}
+              </div>
+              <small class="text-muted text-capitalize">{{ port_type }}</small>
+            </div>
+            
+            <!-- Status Badge -->
+            <div class="port-status-badge">
+              {% if port_status == 'open' %}
+              <span class="badge bg-success">
+                <i class="fas fa-circle" aria-hidden="true"></i>
+                Open
+              </span>
+              {% elif port_status == 'closed' %}
+              <span class="badge bg-danger">
+                <i class="fas fa-times-circle" aria-hidden="true"></i>
+                Closed
+              </span>
+              {% elif port_status == 'filtered' %}
+              <span class="badge bg-warning">
+                <i class="fas fa-filter" aria-hidden="true"></i>
+                Filtered
+              </span>
+              {% else %}
+              <span class="badge bg-secondary">
+                <i class="fas fa-question-circle" aria-hidden="true"></i>
+                Unknown
+              </span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Port Body -->
+        <div class="card-body py-2">
+          
+          <!-- Health Status -->
+          <div class="port-health mb-2">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <small class="text-muted">Health Status</small>
+              
+              {% if port_health == 'healthy' %}
+              <span class="badge bg-success bg-opacity-10 text-success">
+                <i class="fas fa-check-circle me-1" aria-hidden="true"></i>
+                Healthy
+              </span>
+              {% elif port_health == 'degraded' %}
+              <span class="badge bg-warning bg-opacity-10 text-warning">
+                <i class="fas fa-exclamation-triangle me-1" aria-hidden="true"></i>
+                Degraded
+              </span>
+              {% elif port_health == 'unhealthy' %}
+              <span class="badge bg-danger bg-opacity-10 text-danger">
+                <i class="fas fa-times-circle me-1" aria-hidden="true"></i>
+                Unhealthy
+              </span>
+              {% else %}
+              <span class="badge bg-secondary bg-opacity-10 text-secondary">
+                <i class="fas fa-question-circle me-1" aria-hidden="true"></i>
+                Unknown
+              </span>
+              {% endif %}
+            </div>
+            
+            <!-- Response Time -->
+            {% if response_time > 0 %}
+            <div class="response-time-indicator">
+              <small class="text-muted">Response Time</small>
+              <div class="progress" style="height: 4px;">
+                {% set response_class = 'success' if response_time < 100 else 'warning' if response_time < 500 else 'danger' %}
+                <div class="progress-bar bg-{{ response_class }}" 
+                     role="progressbar" 
+                     style="width: {{ (response_time / 1000 * 100)|min(100) }}%"
+                     aria-valuenow="{{ response_time }}" 
+                     aria-valuemin="0" 
+                     aria-valuemax="1000"></div>
+              </div>
+              <small class="font-monospace text-{{ response_class }}">{{ response_time }}ms</small>
+            </div>
+            {% endif %}
+          </div>
+          
+          <!-- Port Actions -->
+          <div class="port-actions d-flex gap-1">
+            
+            <!-- Test Connection -->
+            <button type="button" 
+                    class="btn btn-outline-primary btn-sm flex-fill"
+                    onclick="portMonitor{{ app_id }}.testPort({{ port_number }})"
+                    title="Test connection">
+              <i class="fas fa-plug" aria-hidden="true"></i>
+            </button>
+            
+            <!-- Open in Browser (if web port) -->
+            {% if port_type in ['frontend', 'web', 'http'] and port_status == 'open' %}
+            <button type="button" 
+                    class="btn btn-outline-info btn-sm flex-fill"
+                    onclick="window.open('http://localhost:{{ port_number }}', '_blank')"
+                    title="Open in browser">
+              <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+            </button>
+            {% endif %}
+            
+            <!-- Port Details -->
+            <button type="button" 
+                    class="btn btn-outline-secondary btn-sm"
+                    data-bs-toggle="modal"
+                    data-bs-target="#port-details-modal-{{ port_number }}"
+                    title="View details">
+              <i class="fas fa-info-circle" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Last Check Time -->
+        {% if last_check and not compact_mode %}
+        <div class="card-footer py-1 bg-transparent border-top-0">
+          <small class="text-muted">
+            <i class="fas fa-clock me-1" aria-hidden="true"></i>
+            Last checked: {{ moment(last_check).fromNow() }}
+          </small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    
+    {% else %}
+    <!-- No Ports State -->
+    <div class="no-ports-state text-center py-4">
+      <i class="fas fa-network-wired fa-3x text-muted mb-3" aria-hidden="true"></i>
+      <h6 class="text-muted">No ports configured</h6>
+      <p class="text-muted small">Add port monitoring to see status information</p>
+      {% if show_scan_controls %}
+      <button type="button" 
+              class="btn btn-outline-primary btn-sm"
+              data-bs-toggle="modal"
+              data-bs-target="#port-scan-modal-{{ app_id }}">
+        <i class="fas fa-search me-1" aria-hidden="true"></i>
+        Scan for Ports
+      </button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Traffic Overview (if enabled) -->
+  {% if show_traffic and not compact_mode %}
+  <div class="traffic-overview mt-3">
+    <div class="card">
+      <div class="card-header py-2">
+        <h6 class="mb-0">
+          <i class="fas fa-chart-line me-2 text-info" aria-hidden="true"></i>
+          Traffic Overview
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="traffic-charts" id="traffic-charts-{{ app_id }}">
+          <!-- Traffic charts will be loaded here -->
+          <div class="text-center py-3">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+              <span class="visually-hidden">Loading traffic data...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Auto-refresh Status -->
+  {% if auto_refresh %}
+  <div class="refresh-status mt-2 text-center" id="refresh-status-{{ app_id }}">
+    <small class="text-muted">
+      <i class="fas fa-sync-alt me-1" aria-hidden="true"></i>
+      Auto-refreshing every {{ refresh_interval }} seconds
+    </small>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Port Scan Modal -->
+{% if show_scan_controls %}
+<div class="modal fade" 
+     id="port-scan-modal-{{ app_id }}" 
+     tabindex="-1" 
+     aria-labelledby="port-scan-modal-label-{{ app_id }}"
+     aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="port-scan-modal-label-{{ app_id }}">
+          <i class="fas fa-search me-2" aria-hidden="true"></i>
+          Port Scanner
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Scan Configuration -->
+        <form id="port-scan-form-{{ app_id }}">
+          
+          <!-- Host -->
+          <div class="mb-3">
+            <label for="scan-host-{{ app_id }}" class="form-label">Host</label>
+            <input type="text" 
+                   class="form-control" 
+                   id="scan-host-{{ app_id }}"
+                   value="localhost"
+                   placeholder="localhost">
+          </div>
+          
+          <!-- Port Range -->
+          <div class="row">
+            <div class="col-6">
+              <label for="scan-start-port-{{ app_id }}" class="form-label">Start Port</label>
+              <input type="number" 
+                     class="form-control" 
+                     id="scan-start-port-{{ app_id }}"
+                     value="3000"
+                     min="1"
+                     max="65535">
+            </div>
+            <div class="col-6">
+              <label for="scan-end-port-{{ app_id }}" class="form-label">End Port</label>
+              <input type="number" 
+                     class="form-control" 
+                     id="scan-end-port-{{ app_id }}"
+                     value="3010"
+                     min="1"
+                     max="65535">
+            </div>
+          </div>
+          
+          <!-- Scan Options -->
+          <div class="mt-3">
+            <div class="form-check">
+              <input class="form-check-input" 
+                     type="checkbox" 
+                     id="scan-health-check-{{ app_id }}"
+                     checked>
+              <label class="form-check-label" for="scan-health-check-{{ app_id }}">
+                Perform health checks on open ports
+              </label>
+            </div>
+          </div>
+          
+          <!-- Scan Button -->
+          <div class="d-grid mt-3">
+            <button type="button" 
+                    class="btn btn-primary"
+                    onclick="portMonitor{{ app_id }}.startScan()"
+                    id="scan-button-{{ app_id }}">
+              <i class="fas fa-search me-2" aria-hidden="true"></i>
+              Start Scan
+            </button>
+          </div>
+        </form>
+        
+        <!-- Scan Results -->
+        <div id="scan-results-{{ app_id }}" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Port Details Modals -->
+{% for port in ports %}
+<div class="modal fade" 
+     id="port-details-modal-{{ port.number }}" 
+     tabindex="-1" 
+     aria-labelledby="port-details-modal-label-{{ port.number }}"
+     aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="port-details-modal-label-{{ port.number }}">
+          <i class="fas fa-network-wired me-2" aria-hidden="true"></i>
+          Port {{ port.number }} Details
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Port Information -->
+        <div class="port-details-content" 
+             id="port-details-content-{{ port.number }}"
+             hx-get="{{ url_for('api.port_details', port=port.number) }}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+          
+          <!-- Loading State -->
+          <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading port details...</span>
+            </div>
+            <div class="mt-2 text-muted">Loading port information...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<!-- Port Status JavaScript -->
+<script>
+class PortStatusMonitor {
+  constructor(containerId, appId, options = {}) {
+    this.container = document.getElementById(containerId);
+    this.appId = appId;
+    this.options = {
+      autoRefresh: {{ 'true' if auto_refresh else 'false' }},
+      refreshInterval: {{ refresh_interval * 1000 }}, // Convert to milliseconds
+      showTraffic: {{ 'true' if show_traffic else 'false' }},
+      showHistory: {{ 'true' if show_history else 'false' }},
+      ...options
+    };
+    
+    this.refreshTimer = null;
+    this.websocket = null;
+    this.isScanning = false;
+    
+    this.init();
+  }
+  
+  init() {
+    this.setupEventListeners();
+    this.setupWebSocket();
+    
+    if (this.options.autoRefresh) {
+      this.startAutoRefresh();
+    }
+    
+    if (this.options.showTraffic) {
+      this.loadTrafficData();
+    }
+  }
+  
+  setupEventListeners() {
+    // Port card interactions
+    this.container.addEventListener('click', (e) => {
+      const portCard = e.target.closest('.port-card');
+      if (portCard && !e.target.closest('button')) {
+        this.selectPort(portCard);
+      }
+    });
+    
+    // Modal events
+    this.container.addEventListener('shown.bs.modal', (e) => {
+      if (e.target.id.includes('port-details-modal')) {
+        const port = e.target.id.match(/\d+/)[0];
+        this.loadPortHistory(port);
+      }
+    });
+  }
+  
+  setupWebSocket() {
+    if (typeof WebSocket === 'undefined') return;
+    
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/port-status/${this.appId}`;
+      
+      this.websocket = new WebSocket(wsUrl);
+      
+      this.websocket.onopen = () => {
+        console.log('Port status WebSocket connected');
+      };
+      
+      this.websocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        this.handleWebSocketUpdate(data);
+      };
+      
+      this.websocket.onclose = () => {
+        console.log('Port status WebSocket disconnected');
+        // Attempt to reconnect after 5 seconds
+        setTimeout(() => this.setupWebSocket(), 5000);
+      };
+      
+      this.websocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    } catch (error) {
+      console.error('Failed to setup WebSocket:', error);
+    }
+  }
+  
+  handleWebSocketUpdate(data) {
+    switch (data.type) {
+      case 'port_status_update':
+        this.updatePortStatus(data.port, data.status);
+        break;
+      case 'port_health_update':
+        this.updatePortHealth(data.port, data.health);
+        break;
+      case 'traffic_update':
+        this.updateTrafficData(data.traffic);
+        break;
+      case 'scan_progress':
+        this.updateScanProgress(data.progress);
+        break;
+    }
+  }
+  
+  updatePortStatus(port, statusData) {
+    const portCard = document.getElementById(`port-card-${port}`);
+    if (!portCard) return;
+    
+    // Update status badge
+    const statusBadge = portCard.querySelector('.port-status-badge .badge');
+    if (statusBadge) {
+      this.updateStatusBadge(statusBadge, statusData.status);
+    }
+    
+    // Update health status
+    this.updatePortHealth(port, statusData.health);
+    
+    // Update response time
+    if (statusData.response_time) {
+      this.updateResponseTime(portCard, statusData.response_time);
+    }
+    
+    // Update last check time
+    this.updateLastCheckTime(portCard, new Date());
+  }
+  
+  updateStatusBadge(badge, status) {
+    const statusConfig = {
+      'open': { class: 'bg-success', icon: 'fas fa-circle', text: 'Open' },
+      'closed': { class: 'bg-danger', icon: 'fas fa-times-circle', text: 'Closed' },
+      'filtered': { class: 'bg-warning', icon: 'fas fa-filter', text: 'Filtered' },
+      'unknown': { class: 'bg-secondary', icon: 'fas fa-question-circle', text: 'Unknown' }
+    };
+    
+    const config = statusConfig[status] || statusConfig['unknown'];
+    
+    badge.className = `badge ${config.class}`;
+    badge.innerHTML = `<i class="${config.icon}" aria-hidden="true"></i> ${config.text}`;
+  }
+  
+  updatePortHealth(port, healthData) {
+    const portCard = document.getElementById(`port-card-${port}`);
+    if (!portCard) return;
+    
+    const healthBadge = portCard.querySelector('.port-health .badge');
+    if (!healthBadge) return;
+    
+    const healthConfig = {
+      'healthy': { class: 'bg-success bg-opacity-10 text-success', icon: 'fas fa-check-circle', text: 'Healthy' },
+      'degraded': { class: 'bg-warning bg-opacity-10 text-warning', icon: 'fas fa-exclamation-triangle', text: 'Degraded' },
+      'unhealthy': { class: 'bg-danger bg-opacity-10 text-danger', icon: 'fas fa-times-circle', text: 'Unhealthy' },
+      'unknown': { class: 'bg-secondary bg-opacity-10 text-secondary', icon: 'fas fa-question-circle', text: 'Unknown' }
+    };
+    
+    const config = healthConfig[healthData.status] || healthConfig['unknown'];
+    
+    healthBadge.className = `badge ${config.class}`;
+    healthBadge.innerHTML = `<i class="${config.icon} me-1" aria-hidden="true"></i> ${config.text}`;
+  }
+  
+  updateResponseTime(portCard, responseTime) {
+    const responseTimeElement = portCard.querySelector('.response-time-indicator');
+    if (!responseTimeElement) return;
+    
+    const progressBar = responseTimeElement.querySelector('.progress-bar');
+    const timeDisplay = responseTimeElement.querySelector('.font-monospace');
+    
+    if (progressBar && timeDisplay) {
+      const percentage = Math.min((responseTime / 1000) * 100, 100);
+      const colorClass = responseTime < 100 ? 'bg-success' : 
+                        responseTime < 500 ? 'bg-warning' : 'bg-danger';
+      
+      progressBar.className = `progress-bar ${colorClass}`;
+      progressBar.style.width = `${percentage}%`;
+      progressBar.setAttribute('aria-valuenow', responseTime);
+      
+      timeDisplay.textContent = `${responseTime}ms`;
+      timeDisplay.className = `font-monospace text-${colorClass.replace('bg-', '')}`;
+    }
+  }
+  
+  updateLastCheckTime(portCard, checkTime) {
+    const lastCheckElement = portCard.querySelector('.card-footer small');
+    if (lastCheckElement) {
+      lastCheckElement.innerHTML = `
+        <i class="fas fa-clock me-1" aria-hidden="true"></i>
+        Last checked: ${moment(checkTime).fromNow()}
+      `;
+    }
+  }
+  
+  selectPort(portCard) {
+    // Remove selection from other cards
+    this.container.querySelectorAll('.port-card.selected')
+                  .forEach(card => card.classList.remove('selected'));
+    
+    // Select the clicked card
+    portCard.classList.add('selected');
+  }
+  
+  async testPort(port) {
+    const portCard = document.getElementById(`port-card-${port}`);
+    if (!portCard) return;
+    
+    const testButton = portCard.querySelector('button[onclick*="testPort"]');
+    const originalContent = testButton.innerHTML;
+    
+    // Show loading state
+    testButton.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i>';
+    testButton.disabled = true;
+    
+    try {
+      const response = await fetch(`/api/ports/${port}/test`, {
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update port status with test results
+        this.updatePortStatus(port, data.result);
+        
+        // Show success feedback
+        testButton.innerHTML = '<i class="fas fa-check text-success" aria-hidden="true"></i>';
+        setTimeout(() => {
+          testButton.innerHTML = originalContent;
+          testButton.disabled = false;
+        }, 2000);
+      } else {
+        throw new Error(data.error || 'Test failed');
+      }
+    } catch (error) {
+      console.error('Port test failed:', error);
+      
+      // Show error feedback
+      testButton.innerHTML = '<i class="fas fa-times text-danger" aria-hidden="true"></i>';
+      setTimeout(() => {
+        testButton.innerHTML = originalContent;
+        testButton.disabled = false;
+      }, 2000);
+    }
+  }
+  
+  async startScan() {
+    if (this.isScanning) return;
+    
+    const scanButton = document.getElementById(`scan-button-${this.appId}`);
+    const resultsContainer = document.getElementById(`scan-results-${this.appId}`);
+    
+    // Get scan parameters
+    const host = document.getElementById(`scan-host-${this.appId}`).value;
+    const startPort = parseInt(document.getElementById(`scan-start-port-${this.appId}`).value);
+    const endPort = parseInt(document.getElementById(`scan-end-port-${this.appId}`).value);
+    const healthCheck = document.getElementById(`scan-health-check-${this.appId}`).checked;
+    
+    if (startPort > endPort) {
+      alert('Start port must be less than or equal to end port');
+      return;
+    }
+    
+    this.isScanning = true;
+    
+    // Update UI for scanning state
+    scanButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2" aria-hidden="true"></i>Scanning...';
+    scanButton.disabled = true;
+    
+    resultsContainer.innerHTML = `
+      <div class="alert alert-info">
+        <i class="fas fa-search me-2" aria-hidden="true"></i>
+        Scanning ports ${startPort}-${endPort} on ${host}...
+        <div class="progress mt-2" style="height: 4px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" 
+               role="progressbar" 
+               style="width: 0%" 
+               id="scan-progress-bar-${this.appId}"></div>
+        </div>
+      </div>
+    `;
+    
+    try {
+      const response = await fetch('/api/ports/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          host: host,
+          start_port: startPort,
+          end_port: endPort,
+          health_check: healthCheck,
+          app_id: this.appId
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        this.displayScanResults(data.results);
+      } else {
+        throw new Error(data.error || 'Scan failed');
+      }
+    } catch (error) {
+      console.error('Port scan failed:', error);
+      resultsContainer.innerHTML = `
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>
+          Scan failed: ${error.message}
+        </div>
+      `;
+    } finally {
+      this.isScanning = false;
+      scanButton.innerHTML = '<i class="fas fa-search me-2" aria-hidden="true"></i>Start Scan';
+      scanButton.disabled = false;
+    }
+  }
+  
+  updateScanProgress(progress) {
+    const progressBar = document.getElementById(`scan-progress-bar-${this.appId}`);
+    if (progressBar) {
+      progressBar.style.width = `${progress.percentage}%`;
+      progressBar.setAttribute('aria-valuenow', progress.percentage);
+    }
+  }
+  
+  displayScanResults(results) {
+    const resultsContainer = document.getElementById(`scan-results-${this.appId}`);
+    
+    const openPorts = results.filter(r => r.status === 'open');
+    const closedCount = results.filter(r => r.status === 'closed').length;
+    const filteredCount = results.filter(r => r.status === 'filtered').length;
+    
+    let resultsHTML = `
+      <div class="alert alert-success">
+        <i class="fas fa-check-circle me-2" aria-hidden="true"></i>
+        Scan completed. Found ${openPorts.length} open ports.
+      </div>
+    `;
+    
+    if (openPorts.length > 0) {
+      resultsHTML += `
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Port</th>
+                <th>Status</th>
+                <th>Health</th>
+                <th>Response Time</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      openPorts.forEach(port => {
+        const healthBadge = port.health === 'healthy' ? 
+          '<span class="badge bg-success bg-opacity-10 text-success">Healthy</span>' :
+          '<span class="badge bg-warning bg-opacity-10 text-warning">Unknown</span>';
+        
+        resultsHTML += `
+          <tr>
+            <td class="font-monospace">${port.port}</td>
+            <td><span class="badge bg-success">Open</span></td>
+            <td>${healthBadge}</td>
+            <td class="font-monospace">${port.response_time || 'N/A'}ms</td>
+            <td>
+              <button type="button" 
+                      class="btn btn-outline-primary btn-sm"
+                      onclick="portMonitor${this.appId}.addPortToMonitoring(${port.port})">
+                <i class="fas fa-plus" aria-hidden="true"></i> Monitor
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      
+      resultsHTML += `
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+    
+    if (closedCount > 0 || filteredCount > 0) {
+      resultsHTML += `
+        <div class="mt-2">
+          <small class="text-muted">
+            ${closedCount} closed, ${filteredCount} filtered
+          </small>
+        </div>
+      `;
+    }
+    
+    resultsContainer.innerHTML = resultsHTML;
+  }
+  
+  async addPortToMonitoring(port) {
+    try {
+      const response = await fetch('/api/ports/monitor', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          port: port,
+          app_id: this.appId
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh the port status grid
+        this.refresh();
+        
+        // Show success message
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.textContent = `Port ${port} added to monitoring`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+      } else {
+        throw new Error(data.error || 'Failed to add port');
+      }
+    } catch (error) {
+      console.error('Failed to add port to monitoring:', error);
+      alert(`Failed to add port to monitoring: ${error.message}`);
+    }
+  }
+  
+  async loadTrafficData() {
+    const trafficContainer = document.getElementById(`traffic-charts-${this.appId}`);
+    if (!trafficContainer) return;
+    
+    try {
+      const response = await fetch(`/api/applications/${this.appId}/traffic`);
+      const data = await response.json();
+      
+      if (data.success) {
+        this.renderTrafficCharts(data.traffic);
+      } else {
+        trafficContainer.innerHTML = '<div class="text-muted text-center py-3">No traffic data available</div>';
+      }
+    } catch (error) {
+      console.error('Failed to load traffic data:', error);
+      trafficContainer.innerHTML = '<div class="text-danger text-center py-3">Failed to load traffic data</div>';
+    }
+  }
+  
+  renderTrafficCharts(trafficData) {
+    const trafficContainer = document.getElementById(`traffic-charts-${this.appId}`);
+    if (!trafficContainer || typeof Chart === 'undefined') return;
+    
+    // Create canvas for chart
+    trafficContainer.innerHTML = '<canvas id="traffic-chart-canvas-' + this.appId + '" width="400" height="200"></canvas>';
+    
+    const canvas = document.getElementById(`traffic-chart-canvas-${this.appId}`);
+    const ctx = canvas.getContext('2d');
+    
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: trafficData.labels,
+        datasets: trafficData.datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Requests/min'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+          },
+          title: {
+            display: true,
+            text: 'Port Traffic Overview'
+          }
+        }
+      }
+    });
+  }
+  
+  updateTrafficData(trafficData) {
+    // Update existing traffic chart if available
+    if (typeof Chart !== 'undefined' && Chart.instances.length > 0) {
+      const chart = Chart.instances.find(c => c.canvas.id === `traffic-chart-canvas-${this.appId}`);
+      if (chart) {
+        chart.data = trafficData;
+        chart.update();
+      }
+    }
+  }
+  
+  startAutoRefresh() {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
+    
+    this.refreshTimer = setInterval(() => {
+      this.refresh();
+    }, this.options.refreshInterval);
+  }
+  
+  stopAutoRefresh() {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  }
+  
+  toggleAutoRefresh(enabled) {
+    this.options.autoRefresh = enabled;
+    
+    if (enabled) {
+      this.startAutoRefresh();
+    } else {
+      this.stopAutoRefresh();
+    }
+    
+    // Update status display
+    const statusElement = document.getElementById(`refresh-status-${this.appId}`);
+    if (statusElement) {
+      if (enabled) {
+        statusElement.innerHTML = `
+          <small class="text-muted">
+            <i class="fas fa-sync-alt me-1" aria-hidden="true"></i>
+            Auto-refreshing every ${this.options.refreshInterval / 1000} seconds
+          </small>
+        `;
+        statusElement.classList.remove('d-none');
+      } else {
+        statusElement.classList.add('d-none');
+      }
+    }
+  }
+  
+  async refresh() {
+    try {
+      const response = await fetch(`/api/applications/${this.appId}/ports/status`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update port statuses
+        data.ports.forEach(portData => {
+          this.updatePortStatus(portData.number, portData);
+        });
+      }
+      
+      // Update traffic data if enabled
+      if (this.options.showTraffic) {
+        this.loadTrafficData();
+      }
+    } catch (error) {
+      console.error('Failed to refresh port status:', error);
+    }
+  }
+  
+  destroy() {
+    this.stopAutoRefresh();
+    
+    if (this.websocket) {
+      this.websocket.close();
+    }
+  }
+}
+
+// Initialize port monitor
+const portMonitor{{ app_id }} = new PortStatusMonitor('port-status-{{ app_id }}', {{ app_id }});
+
+// Make it globally accessible for HTML onclick handlers
+window.portMonitor{{ app_id }} = portMonitor{{ app_id }};
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  portMonitor{{ app_id }}.destroy();
+});
+</script>
+
+<!-- Port Status Styles -->
+<style>
+.port-status-container {
+  background: #fff;
+  border-radius: 0.375rem;
+}
+
+.port-status-container.compact {
+  padding: 0.5rem;
+}
+
+.port-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.port-status-container.compact .port-status-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.port-card {
+  transition: all 0.3s ease;
+}
+
+.port-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.port-card.selected {
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.port-card .card {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  height: 100%;
+}
+
+.port-card .card-header {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.port-number {
+  font-size: 1.25rem;
+  color: #495057;
+}
+
+.port-status-badge .badge {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.response-time-indicator .progress {
+  margin: 0.25rem 0;
+}
+
+.response-time-indicator small {
+  display: block;
+  text-align: right;
+  margin-top: 0.25rem;
+}
+
+.port-actions .btn {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.no-ports-state {
+  grid-column: 1 / -1;
+  padding: 3rem 1rem;
+}
+
+.traffic-overview {
+  margin-top: 1.5rem;
+}
+
+.traffic-charts {
+  height: 300px;
+  position: relative;
+}
+
+.refresh-status {
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.refresh-status:hover {
+  opacity: 1;
+}
+
+/* Toast notification */
+.toast-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #28a745;
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  z-index: 1060;
+  animation: slideInRight 0.3s ease, slideOutRight 0.3s ease 2.7s forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .port-status-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .port-status-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .port-status-controls {
+    justify-content: space-between;
+  }
+  
+  .traffic-charts {
+    height: 250px;
+  }
+}
+
+@media (max-width: 576px) {
+  .port-status-container.compact .port-status-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .port-card .card-body {
+    padding: 0.75rem;
+  }
+  
+  .port-actions {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+}
+
+/* Dark theme */
+[data-theme="dark"] .port-status-container {
+  background: #2d3748;
+}
+
+[data-theme="dark"] .port-card .card {
+  background: #2d3748;
+  border-color: #4a5568;
+}
+
+[data-theme="dark"] .port-card .card-header {
+  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+  border-bottom-color: #4a5568;
+}
+
+[data-theme="dark"] .port-number {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .no-ports-state {
+  color: #a0aec0;
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .port-card {
+    border: 2px solid;
+  }
+  
+  .port-card:focus-within {
+    outline: 3px solid;
+    outline-offset: 2px;
+  }
+  
+  .badge {
+    border: 1px solid;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .port-card,
+  .toast-notification,
+  .refresh-status {
+    transition: none;
+    animation: none;
+  }
+  
+  .port-card:hover {
+    transform: none;
+  }
+}
+
+/* Print styles */
+@media print {
+  .port-status-controls,
+  .port-actions,
+  .traffic-overview {
+    display: none;
+  }
+  
+  .port-card {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+  
+  .port-status-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+</style>

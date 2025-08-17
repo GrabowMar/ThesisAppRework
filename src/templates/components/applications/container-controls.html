@@ -1,0 +1,1599 @@
+{#
+  Container Controls Component - Docker Container Management Interface
+  
+  Purpose: Provide comprehensive Docker container management with start/stop/restart controls, resource monitoring, and logs access
+  
+  Usage:
+    {% include 'components/applications/container-controls.html' with {
+        app_id: 1,
+        containers: [
+            {
+                'id': 'abc123def456',
+                'name': 'app_frontend',
+                'image': 'node:18-alpine',
+                'status': 'running',
+                'health': 'healthy',
+                'created': '2024-01-15T10:30:00Z',
+                'ports': ['3000:3000'],
+                'cpu_usage': 15.5,
+                'memory_usage': 128.5,
+                'memory_limit': 512
+            },
+            {
+                'id': 'def456ghi789',
+                'name': 'app_backend',
+                'image': 'python:3.11-slim',
+                'status': 'running',
+                'health': 'healthy',
+                'created': '2024-01-15T10:32:00Z',
+                'ports': ['3001:3001'],
+                'cpu_usage': 8.2,
+                'memory_usage': 95.3,
+                'memory_limit': 256
+            }
+        ],
+        show_logs: true,
+        show_stats: true,
+        enable_actions: true,
+        auto_refresh: true,
+        compact_mode: false
+    } %}
+  
+  Dependencies:
+    - Bootstrap 5.3+ (card, modal, dropdown components)
+    - HTMX 1.9+ (for dynamic actions and updates)
+    - Font Awesome 6+ (for container icons)
+    - Chart.js 3+ (for resource usage charts)
+  
+  Routes:
+    - /api/containers (GET) - List all containers
+    - /api/containers/{container_id}/start (POST) - Start container
+    - /api/containers/{container_id}/stop (POST) - Stop container
+    - /api/containers/{container_id}/restart (POST) - Restart container
+    - /api/containers/{container_id}/logs (GET) - Get container logs
+    - /api/containers/{container_id}/stats (GET) - Get container statistics
+    - /api/containers/{container_id}/inspect (GET) - Inspect container
+  
+  Features:
+    - Real-time container status monitoring
+    - Resource usage visualization (CPU, memory)
+    - Container lifecycle management (start/stop/restart)
+    - Live log streaming with filtering
+    - Container inspection and configuration display
+    - Health monitoring with alerts
+    - Bulk operations for multiple containers
+    - Responsive design with mobile support
+#}
+
+{%- set app_id = app_id|default(0) -%}
+{%- set containers = containers|default([]) -%}
+{%- set show_logs = show_logs|default(true) -%}
+{%- set show_stats = show_stats|default(true) -%}
+{%- set enable_actions = enable_actions|default(true) -%}
+{%- set auto_refresh = auto_refresh|default(true) -%}
+{%- set compact_mode = compact_mode|default(false) -%}
+{%- set enable_bulk_actions = enable_bulk_actions|default(false) -%}
+
+<div class="container-controls {{ 'compact' if compact_mode else '' }}" 
+     id="container-controls-{{ app_id }}"
+     data-app-id="{{ app_id }}"
+     data-auto-refresh="{{ 'true' if auto_refresh else 'false' }}">
+
+  <!-- Container Controls Header -->
+  {% if not compact_mode %}
+  <div class="container-controls-header d-flex justify-content-between align-items-center mb-3">
+    <div class="container-title">
+      <h5 class="mb-1">
+        <i class="fab fa-docker me-2 text-info" aria-hidden="true"></i>
+        Container Management
+      </h5>
+      <small class="text-muted">Docker containers for application {{ app_id }}</small>
+    </div>
+    
+    <div class="container-header-actions d-flex align-items-center gap-2">
+      
+      <!-- Container Count Badge -->
+      <span class="badge bg-secondary" id="container-count-{{ app_id }}">
+        {{ containers|length }} containers
+      </span>
+      
+      <!-- Auto-refresh Toggle -->
+      <div class="form-check form-switch">
+        <input class="form-check-input" 
+               type="checkbox" 
+               id="auto-refresh-containers-{{ app_id }}"
+               {{ 'checked' if auto_refresh else '' }}
+               onchange="containerControls{{ app_id }}.toggleAutoRefresh(this.checked)">
+        <label class="form-check-label small" for="auto-refresh-containers-{{ app_id }}">
+          Live
+        </label>
+      </div>
+      
+      <!-- Refresh Button -->
+      <button type="button" 
+              class="btn btn-outline-primary btn-sm"
+              onclick="containerControls{{ app_id }}.refresh()"
+              title="Refresh containers">
+        <i class="fas fa-sync-alt" aria-hidden="true"></i>
+      </button>
+      
+      <!-- Bulk Actions -->
+      {% if enable_bulk_actions %}
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                type="button" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                title="Bulk actions">
+          <i class="fas fa-tasks me-1" aria-hidden="true"></i>
+          Bulk
+        </button>
+        <ul class="dropdown-menu">
+          <li>
+            <a class="dropdown-item" href="#" onclick="containerControls{{ app_id }}.bulkStart()">
+              <i class="fas fa-play me-2 text-success" aria-hidden="true"></i>
+              Start All
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="#" onclick="containerControls{{ app_id }}.bulkStop()">
+              <i class="fas fa-stop me-2 text-danger" aria-hidden="true"></i>
+              Stop All
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="#" onclick="containerControls{{ app_id }}.bulkRestart()">
+              <i class="fas fa-redo me-2 text-warning" aria-hidden="true"></i>
+              Restart All
+            </a>
+          </li>
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Container Grid -->
+  <div class="container-grid" id="container-grid-{{ app_id }}">
+    
+    {% if containers %}
+    {% for container in containers %}
+    {% set container_id = container.id|default('unknown') %}
+    {% set container_name = container.name|default('unnamed') %}
+    {% set container_image = container.image|default('unknown') %}
+    {% set container_status = container.status|default('unknown') %}
+    {% set container_health = container.health|default('unknown') %}
+    {% set cpu_usage = container.cpu_usage|default(0) %}
+    {% set memory_usage = container.memory_usage|default(0) %}
+    {% set memory_limit = container.memory_limit|default(0) %}
+    {% set ports = container.ports|default([]) %}
+    {% set created = container.created %}
+    
+    <!-- Container Card -->
+    <div class="container-card" 
+         id="container-card-{{ container_id[:12] }}"
+         data-container-id="{{ container_id }}"
+         data-container-name="{{ container_name }}"
+         data-status="{{ container_status }}">
+      
+      <div class="card h-100">
+        
+        <!-- Container Header -->
+        <div class="card-header py-2">
+          <div class="d-flex justify-content-between align-items-start">
+            
+            <!-- Container Info -->
+            <div class="container-info flex-grow-1">
+              <div class="container-name-status d-flex align-items-center mb-1">
+                <h6 class="card-title mb-0 me-2">{{ container_name }}</h6>
+                
+                <!-- Status Badge -->
+                {% if container_status == 'running' %}
+                <span class="badge bg-success status-badge">
+                  <i class="fas fa-play-circle me-1" aria-hidden="true"></i>
+                  Running
+                </span>
+                {% elif container_status == 'stopped' %}
+                <span class="badge bg-danger status-badge">
+                  <i class="fas fa-stop-circle me-1" aria-hidden="true"></i>
+                  Stopped
+                </span>
+                {% elif container_status == 'paused' %}
+                <span class="badge bg-warning status-badge">
+                  <i class="fas fa-pause-circle me-1" aria-hidden="true"></i>
+                  Paused
+                </span>
+                {% elif container_status == 'restarting' %}
+                <span class="badge bg-info status-badge">
+                  <i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>
+                  Restarting
+                </span>
+                {% else %}
+                <span class="badge bg-secondary status-badge">
+                  <i class="fas fa-question-circle me-1" aria-hidden="true"></i>
+                  {{ container_status.title() }}
+                </span>
+                {% endif %}
+              </div>
+              
+              <!-- Image and ID -->
+              <div class="container-meta">
+                <small class="text-muted d-block">{{ container_image }}</small>
+                <small class="font-monospace text-muted">{{ container_id[:12] }}</small>
+              </div>
+            </div>
+            
+            <!-- Health Status -->
+            {% if container_health != 'unknown' %}
+            <div class="health-indicator ms-2">
+              {% if container_health == 'healthy' %}
+              <i class="fas fa-heart text-success" title="Healthy" aria-hidden="true"></i>
+              {% elif container_health == 'unhealthy' %}
+              <i class="fas fa-heart-broken text-danger" title="Unhealthy" aria-hidden="true"></i>
+              {% elif container_health == 'starting' %}
+              <i class="fas fa-heartbeat text-warning" title="Health check starting" aria-hidden="true"></i>
+              {% else %}
+              <i class="fas fa-heart text-muted" title="No health check" aria-hidden="true"></i>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Container Body -->
+        <div class="card-body py-2">
+          
+          <!-- Resource Usage -->
+          {% if show_stats and container_status == 'running' %}
+          <div class="resource-usage mb-3">
+            
+            <!-- CPU Usage -->
+            <div class="resource-metric mb-2">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <small class="text-muted">
+                  <i class="fas fa-microchip me-1" aria-hidden="true"></i>
+                  CPU
+                </small>
+                <small class="font-monospace">{{ "%.1f"|format(cpu_usage) }}%</small>
+              </div>
+              <div class="progress" style="height: 4px;">
+                {% set cpu_class = 'success' if cpu_usage < 50 else 'warning' if cpu_usage < 80 else 'danger' %}
+                <div class="progress-bar bg-{{ cpu_class }}" 
+                     role="progressbar" 
+                     style="width: {{ cpu_usage }}%"
+                     aria-valuenow="{{ cpu_usage }}" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100"
+                     id="cpu-progress-{{ container_id[:12] }}"></div>
+              </div>
+            </div>
+            
+            <!-- Memory Usage -->
+            {% if memory_limit > 0 %}
+            <div class="resource-metric mb-2">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <small class="text-muted">
+                  <i class="fas fa-memory me-1" aria-hidden="true"></i>
+                  Memory
+                </small>
+                <small class="font-monospace">{{ "%.0f"|format(memory_usage) }}/{{ "%.0f"|format(memory_limit) }} MB</small>
+              </div>
+              <div class="progress" style="height: 4px;">
+                {% set memory_percent = (memory_usage / memory_limit * 100) if memory_limit > 0 else 0 %}
+                {% set memory_class = 'success' if memory_percent < 70 else 'warning' if memory_percent < 90 else 'danger' %}
+                <div class="progress-bar bg-{{ memory_class }}" 
+                     role="progressbar" 
+                     style="width: {{ memory_percent }}%"
+                     aria-valuenow="{{ memory_percent }}" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100"
+                     id="memory-progress-{{ container_id[:12] }}"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+          
+          <!-- Port Mappings -->
+          {% if ports and not compact_mode %}
+          <div class="port-mappings mb-3">
+            <small class="text-muted d-block mb-1">
+              <i class="fas fa-network-wired me-1" aria-hidden="true"></i>
+              Ports
+            </small>
+            <div class="port-list">
+              {% for port in ports %}
+              <span class="badge bg-light text-dark me-1 mb-1 font-monospace">{{ port }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          
+          <!-- Container Actions -->
+          {% if enable_actions %}
+          <div class="container-actions">
+            <div class="d-flex gap-1 mb-2">
+              
+              <!-- Start/Stop Button -->
+              {% if container_status == 'running' %}
+              <button type="button" 
+                      class="btn btn-outline-danger btn-sm flex-fill"
+                      onclick="containerControls{{ app_id }}.stopContainer('{{ container_id }}')"
+                      title="Stop container">
+                <i class="fas fa-stop me-1" aria-hidden="true"></i>
+                Stop
+              </button>
+              {% elif container_status == 'stopped' %}
+              <button type="button" 
+                      class="btn btn-outline-success btn-sm flex-fill"
+                      onclick="containerControls{{ app_id }}.startContainer('{{ container_id }}')"
+                      title="Start container">
+                <i class="fas fa-play me-1" aria-hidden="true"></i>
+                Start
+              </button>
+              {% else %}
+              <button type="button" 
+                      class="btn btn-outline-secondary btn-sm flex-fill" 
+                      disabled
+                      title="Container is {{ container_status }}">
+                <i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>
+                {{ container_status.title() }}
+              </button>
+              {% endif %}
+              
+              <!-- Restart Button -->
+              <button type="button" 
+                      class="btn btn-outline-warning btn-sm"
+                      onclick="containerControls{{ app_id }}.restartContainer('{{ container_id }}')"
+                      title="Restart container"
+                      {{ 'disabled' if container_status in ['restarting'] else '' }}>
+                <i class="fas fa-redo" aria-hidden="true"></i>
+              </button>
+            </div>
+            
+            <!-- Secondary Actions -->
+            <div class="d-flex gap-1">
+              
+              <!-- Logs Button -->
+              {% if show_logs %}
+              <button type="button" 
+                      class="btn btn-outline-info btn-sm flex-fill"
+                      data-bs-toggle="modal"
+                      data-bs-target="#logs-modal-{{ container_id[:12] }}"
+                      onclick="containerControls{{ app_id }}.loadLogs('{{ container_id }}')"
+                      title="View logs">
+                <i class="fas fa-file-alt me-1" aria-hidden="true"></i>
+                Logs
+              </button>
+              {% endif %}
+              
+              <!-- Inspect Button -->
+              <button type="button" 
+                      class="btn btn-outline-secondary btn-sm flex-fill"
+                      data-bs-toggle="modal"
+                      data-bs-target="#inspect-modal-{{ container_id[:12] }}"
+                      onclick="containerControls{{ app_id }}.inspectContainer('{{ container_id }}')"
+                      title="Inspect container">
+                <i class="fas fa-search me-1" aria-hidden="true"></i>
+                Inspect
+              </button>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        
+        <!-- Container Footer -->
+        {% if created and not compact_mode %}
+        <div class="card-footer py-1 bg-transparent border-top-0">
+          <small class="text-muted">
+            <i class="fas fa-clock me-1" aria-hidden="true"></i>
+            Created {{ moment(created).fromNow() }}
+          </small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    
+    {% else %}
+    <!-- No Containers State -->
+    <div class="no-containers-state text-center py-4">
+      <i class="fab fa-docker fa-3x text-muted mb-3" aria-hidden="true"></i>
+      <h6 class="text-muted">No containers found</h6>
+      <p class="text-muted small">No Docker containers are configured for this application</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Auto-refresh Status -->
+  {% if auto_refresh %}
+  <div class="refresh-status mt-2 text-center" id="container-refresh-status-{{ app_id }}">
+    <small class="text-muted">
+      <i class="fas fa-sync-alt me-1" aria-hidden="true"></i>
+      Auto-refreshing container status
+    </small>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Container Logs Modals -->
+{% if show_logs %}
+{% for container in containers %}
+<div class="modal fade" 
+     id="logs-modal-{{ container.id[:12] }}" 
+     tabindex="-1" 
+     aria-labelledby="logs-modal-label-{{ container.id[:12] }}"
+     aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="logs-modal-label-{{ container.id[:12] }}">
+          <i class="fas fa-file-alt me-2" aria-hidden="true"></i>
+          Container Logs: {{ container.name }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Log Controls -->
+        <div class="log-controls d-flex justify-content-between align-items-center mb-3">
+          
+          <!-- Log Options -->
+          <div class="log-options d-flex align-items-center gap-2">
+            <div class="form-check form-switch">
+              <input class="form-check-input" 
+                     type="checkbox" 
+                     id="follow-logs-{{ container.id[:12] }}"
+                     onchange="containerControls{{ app_id }}.toggleLogFollow('{{ container.id }}', this.checked)">
+              <label class="form-check-label small" for="follow-logs-{{ container.id[:12] }}">
+                Follow
+              </label>
+            </div>
+            
+            <select class="form-select form-select-sm" 
+                    id="log-lines-{{ container.id[:12] }}"
+                    onchange="containerControls{{ app_id }}.changeLogLines('{{ container.id }}', this.value)"
+                    style="width: auto;">
+              <option value="100">100 lines</option>
+              <option value="500" selected>500 lines</option>
+              <option value="1000">1000 lines</option>
+              <option value="all">All logs</option>
+            </select>
+          </div>
+          
+          <!-- Log Actions -->
+          <div class="log-actions d-flex gap-1">
+            <button type="button" 
+                    class="btn btn-outline-secondary btn-sm"
+                    onclick="containerControls{{ app_id }}.refreshLogs('{{ container.id }}')"
+                    title="Refresh logs">
+              <i class="fas fa-sync-alt" aria-hidden="true"></i>
+            </button>
+            
+            <button type="button" 
+                    class="btn btn-outline-primary btn-sm"
+                    onclick="containerControls{{ app_id }}.downloadLogs('{{ container.id }}')"
+                    title="Download logs">
+              <i class="fas fa-download" aria-hidden="true"></i>
+            </button>
+            
+            <button type="button" 
+                    class="btn btn-outline-danger btn-sm"
+                    onclick="containerControls{{ app_id }}.clearLogView('{{ container.id }}')"
+                    title="Clear view">
+              <i class="fas fa-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Log Content -->
+        <div class="log-content" id="log-content-{{ container.id[:12] }}">
+          <div class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+              <span class="visually-hidden">Loading logs...</span>
+            </div>
+            <div class="small text-muted mt-2">Loading container logs...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- Container Inspect Modals -->
+{% for container in containers %}
+<div class="modal fade" 
+     id="inspect-modal-{{ container.id[:12] }}" 
+     tabindex="-1" 
+     aria-labelledby="inspect-modal-label-{{ container.id[:12] }}"
+     aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="inspect-modal-label-{{ container.id[:12] }}">
+          <i class="fas fa-search me-2" aria-hidden="true"></i>
+          Container Inspection: {{ container.name }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Inspection Content -->
+        <div class="inspection-content" id="inspect-content-{{ container.id[:12] }}">
+          <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading container details...</span>
+            </div>
+            <div class="mt-2 text-muted">Inspecting container...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<!-- Container Controls JavaScript -->
+<script>
+class ContainerControls {
+  constructor(containerId, appId, options = {}) {
+    this.container = document.getElementById(containerId);
+    this.appId = appId;
+    this.options = {
+      autoRefresh: {{ 'true' if auto_refresh else 'false' }},
+      refreshInterval: 30000, // 30 seconds
+      showLogs: {{ 'true' if show_logs else 'false' }},
+      showStats: {{ 'true' if show_stats else 'false' }},
+      enableActions: {{ 'true' if enable_actions else 'false' }},
+      ...options
+    };
+    
+    this.refreshTimer = null;
+    this.logStreams = new Map(); // Track log streaming connections
+    this.statsCharts = new Map(); // Track resource usage charts
+    
+    this.init();
+  }
+  
+  init() {
+    this.setupEventListeners();
+    this.initializeCharts();
+    
+    if (this.options.autoRefresh) {
+      this.startAutoRefresh();
+    }
+  }
+  
+  setupEventListeners() {
+    // Container card interactions
+    this.container.addEventListener('click', (e) => {
+      const containerCard = e.target.closest('.container-card');
+      if (containerCard && !e.target.closest('button')) {
+        this.selectContainer(containerCard);
+      }
+    });
+    
+    // Modal events
+    this.container.addEventListener('shown.bs.modal', (e) => {
+      const modalId = e.target.id;
+      if (modalId.includes('logs-modal')) {
+        const containerId = modalId.replace('logs-modal-', '').replace('-', '');
+        this.startLogStreaming(containerId);
+      }
+    });
+    
+    this.container.addEventListener('hidden.bs.modal', (e) => {
+      const modalId = e.target.id;
+      if (modalId.includes('logs-modal')) {
+        const containerId = modalId.replace('logs-modal-', '').replace('-', '');
+        this.stopLogStreaming(containerId);
+      }
+    });
+  }
+  
+  initializeCharts() {
+    if (!this.options.showStats || typeof Chart === 'undefined') return;
+    
+    // Initialize resource usage charts for running containers
+    const containerCards = this.container.querySelectorAll('.container-card[data-status="running"]');
+    containerCards.forEach(card => {
+      const containerId = card.dataset.containerId;
+      this.createStatsChart(containerId);
+    });
+  }
+  
+  createStatsChart(containerId) {
+    const shortId = containerId.substring(0, 12);
+    const chartContainer = document.getElementById(`stats-chart-${shortId}`);
+    
+    if (!chartContainer) return;
+    
+    const canvas = document.createElement('canvas');
+    canvas.id = `stats-canvas-${shortId}`;
+    canvas.width = 300;
+    canvas.height = 100;
+    chartContainer.appendChild(canvas);
+    
+    const ctx = canvas.getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: Array.from({length: 20}, (_, i) => ''),
+        datasets: [
+          {
+            label: 'CPU %',
+            data: Array.from({length: 20}, () => 0),
+            borderColor: '#007bff',
+            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+            tension: 0.4,
+            pointRadius: 0,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Memory %',
+            data: Array.from({length: 20}, () => 0),
+            borderColor: '#28a745',
+            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+            tension: 0.4,
+            pointRadius: 0,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            display: false
+          },
+          y: {
+            type: 'linear',
+            display: false,
+            position: 'left',
+            min: 0,
+            max: 100
+          },
+          y1: {
+            type: 'linear',
+            display: false,
+            position: 'right',
+            min: 0,
+            max: 100,
+            grid: {
+              drawOnChartArea: false,
+            },
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        animation: {
+          duration: 500
+        }
+      }
+    });
+    
+    this.statsCharts.set(containerId, chart);
+  }
+  
+  updateStatsChart(containerId, cpuUsage, memoryUsage) {
+    const chart = this.statsCharts.get(containerId);
+    if (!chart) return;
+    
+    // Shift data arrays and add new values
+    chart.data.datasets[0].data.shift();
+    chart.data.datasets[0].data.push(cpuUsage);
+    
+    chart.data.datasets[1].data.shift();
+    chart.data.datasets[1].data.push(memoryUsage);
+    
+    chart.update('none'); // No animation for real-time updates
+  }
+  
+  selectContainer(containerCard) {
+    // Remove selection from other cards
+    this.container.querySelectorAll('.container-card.selected')
+                  .forEach(card => card.classList.remove('selected'));
+    
+    // Select the clicked card
+    containerCard.classList.add('selected');
+  }
+  
+  async startContainer(containerId) {
+    await this.performContainerAction(containerId, 'start', 'Starting container...');
+  }
+  
+  async stopContainer(containerId) {
+    await this.performContainerAction(containerId, 'stop', 'Stopping container...');
+  }
+  
+  async restartContainer(containerId) {
+    await this.performContainerAction(containerId, 'restart', 'Restarting container...');
+  }
+  
+  async performContainerAction(containerId, action, loadingText) {
+    const containerCard = document.getElementById(`container-card-${containerId.substring(0, 12)}`);
+    if (!containerCard) return;
+    
+    const actionButton = containerCard.querySelector(`button[onclick*="${action}Container"]`);
+    const originalContent = actionButton ? actionButton.innerHTML : '';
+    
+    try {
+      // Show loading state
+      if (actionButton) {
+        actionButton.innerHTML = `<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>${action.charAt(0).toUpperCase() + action.slice(1)}ing...`;
+        actionButton.disabled = true;
+      }
+      
+      const response = await fetch(`/api/containers/${containerId}/${action}`, {
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update container status
+        this.updateContainerStatus(containerId, data.status);
+        
+        // Show success feedback
+        if (actionButton) {
+          actionButton.innerHTML = '<i class="fas fa-check text-success me-1" aria-hidden="true"></i>Done';
+          setTimeout(() => {
+            this.refreshContainer(containerId);
+          }, 1000);
+        }
+      } else {
+        throw new Error(data.error || `${action} failed`);
+      }
+    } catch (error) {
+      console.error(`Container ${action} failed:`, error);
+      
+      // Show error feedback
+      if (actionButton) {
+        actionButton.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1" aria-hidden="true"></i>Error';
+        setTimeout(() => {
+          actionButton.innerHTML = originalContent;
+          actionButton.disabled = false;
+        }, 3000);
+      }
+      
+      // Show error message
+      this.showNotification(`Failed to ${action} container: ${error.message}`, 'error');
+    }
+  }
+  
+  updateContainerStatus(containerId, statusData) {
+    const shortId = containerId.substring(0, 12);
+    const containerCard = document.getElementById(`container-card-${shortId}`);
+    if (!containerCard) return;
+    
+    // Update status badge
+    const statusBadge = containerCard.querySelector('.status-badge');
+    if (statusBadge) {
+      this.updateStatusBadge(statusBadge, statusData.status);
+    }
+    
+    // Update resource usage
+    if (statusData.stats) {
+      this.updateResourceUsage(containerId, statusData.stats);
+    }
+    
+    // Update data attributes
+    containerCard.dataset.status = statusData.status;
+  }
+  
+  updateStatusBadge(badge, status) {
+    const statusConfig = {
+      'running': { class: 'bg-success', icon: 'fas fa-play-circle', text: 'Running' },
+      'stopped': { class: 'bg-danger', icon: 'fas fa-stop-circle', text: 'Stopped' },
+      'paused': { class: 'bg-warning', icon: 'fas fa-pause-circle', text: 'Paused' },
+      'restarting': { class: 'bg-info', icon: 'fas fa-spinner fa-spin', text: 'Restarting' },
+      'exited': { class: 'bg-secondary', icon: 'fas fa-times-circle', text: 'Exited' }
+    };
+    
+    const config = statusConfig[status] || statusConfig['stopped'];
+    
+    badge.className = `badge ${config.class} status-badge`;
+    badge.innerHTML = `<i class="${config.icon} me-1" aria-hidden="true"></i> ${config.text}`;
+  }
+  
+  updateResourceUsage(containerId, stats) {
+    const shortId = containerId.substring(0, 12);
+    
+    // Update CPU progress bar
+    const cpuProgress = document.getElementById(`cpu-progress-${shortId}`);
+    if (cpuProgress) {
+      const cpuUsage = stats.cpu_usage || 0;
+      const cpuClass = cpuUsage < 50 ? 'bg-success' : cpuUsage < 80 ? 'bg-warning' : 'bg-danger';
+      
+      cpuProgress.style.width = `${cpuUsage}%`;
+      cpuProgress.className = `progress-bar ${cpuClass}`;
+      cpuProgress.setAttribute('aria-valuenow', cpuUsage);
+    }
+    
+    // Update Memory progress bar
+    const memoryProgress = document.getElementById(`memory-progress-${shortId}`);
+    if (memoryProgress && stats.memory_usage && stats.memory_limit) {
+      const memoryPercent = (stats.memory_usage / stats.memory_limit) * 100;
+      const memoryClass = memoryPercent < 70 ? 'bg-success' : memoryPercent < 90 ? 'bg-warning' : 'bg-danger';
+      
+      memoryProgress.style.width = `${memoryPercent}%`;
+      memoryProgress.className = `progress-bar ${memoryClass}`;
+      memoryProgress.setAttribute('aria-valuenow', memoryPercent);
+    }
+    
+    // Update stats chart
+    if (this.options.showStats && stats.cpu_usage && stats.memory_usage) {
+      const memoryPercent = stats.memory_limit ? (stats.memory_usage / stats.memory_limit) * 100 : 0;
+      this.updateStatsChart(containerId, stats.cpu_usage, memoryPercent);
+    }
+  }
+  
+  async loadLogs(containerId) {
+    const shortId = containerId.substring(0, 12);
+    const logContent = document.getElementById(`log-content-${shortId}`);
+    
+    if (!logContent) return;
+    
+    try {
+      const lines = document.getElementById(`log-lines-${shortId}`).value;
+      const response = await fetch(`/api/containers/${containerId}/logs?lines=${lines}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        this.displayLogs(shortId, data.logs);
+      } else {
+        throw new Error(data.error || 'Failed to load logs');
+      }
+    } catch (error) {
+      console.error('Failed to load logs:', error);
+      logContent.innerHTML = `
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>
+          Failed to load logs: ${error.message}
+        </div>
+      `;
+    }
+  }
+  
+  displayLogs(shortId, logs) {
+    const logContent = document.getElementById(`log-content-${shortId}`);
+    if (!logContent) return;
+    
+    logContent.innerHTML = `
+      <pre class="log-output bg-dark text-light p-3 rounded" style="height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.9rem;">${this.escapeHtml(logs)}</pre>
+    `;
+    
+    // Scroll to bottom
+    const logOutput = logContent.querySelector('.log-output');
+    logOutput.scrollTop = logOutput.scrollHeight;
+  }
+  
+  startLogStreaming(containerId) {
+    const followCheckbox = document.getElementById(`follow-logs-${containerId}`);
+    if (!followCheckbox || !followCheckbox.checked) return;
+    
+    // Implement WebSocket or Server-Sent Events for log streaming
+    // This is a simplified example
+    const shortId = containerId.substring(0, 12);
+    const streamUrl = `/api/containers/${containerId}/logs/stream`;
+    
+    if (typeof EventSource !== 'undefined') {
+      const eventSource = new EventSource(streamUrl);
+      
+      eventSource.onmessage = (event) => {
+        const logOutput = document.querySelector(`#log-content-${shortId} .log-output`);
+        if (logOutput) {
+          logOutput.textContent += event.data + '\n';
+          logOutput.scrollTop = logOutput.scrollHeight;
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('Log streaming error:', error);
+        eventSource.close();
+      };
+      
+      this.logStreams.set(containerId, eventSource);
+    }
+  }
+  
+  stopLogStreaming(containerId) {
+    const eventSource = this.logStreams.get(containerId);
+    if (eventSource) {
+      eventSource.close();
+      this.logStreams.delete(containerId);
+    }
+  }
+  
+  toggleLogFollow(containerId, enabled) {
+    if (enabled) {
+      this.startLogStreaming(containerId);
+    } else {
+      this.stopLogStreaming(containerId);
+    }
+  }
+  
+  async changeLogLines(containerId, lines) {
+    await this.loadLogs(containerId);
+  }
+  
+  async refreshLogs(containerId) {
+    await this.loadLogs(containerId);
+  }
+  
+  downloadLogs(containerId) {
+    const downloadUrl = `/api/containers/${containerId}/logs/download`;
+    window.open(downloadUrl, '_blank');
+  }
+  
+  clearLogView(containerId) {
+    const shortId = containerId.substring(0, 12);
+    const logContent = document.getElementById(`log-content-${shortId}`);
+    if (logContent) {
+      const logOutput = logContent.querySelector('.log-output');
+      if (logOutput) {
+        logOutput.textContent = '';
+      }
+    }
+  }
+  
+  async inspectContainer(containerId) {
+    const shortId = containerId.substring(0, 12);
+    const inspectContent = document.getElementById(`inspect-content-${shortId}`);
+    
+    if (!inspectContent) return;
+    
+    try {
+      const response = await fetch(`/api/containers/${containerId}/inspect`);
+      const data = await response.json();
+      
+      if (data.success) {
+        this.displayInspection(shortId, data.inspection);
+      } else {
+        throw new Error(data.error || 'Failed to inspect container');
+      }
+    } catch (error) {
+      console.error('Failed to inspect container:', error);
+      inspectContent.innerHTML = `
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>
+          Failed to inspect container: ${error.message}
+        </div>
+      `;
+    }
+  }
+  
+  displayInspection(shortId, inspection) {
+    const inspectContent = document.getElementById(`inspect-content-${shortId}`);
+    if (!inspectContent) return;
+    
+    inspectContent.innerHTML = `
+      <div class="inspection-data">
+        <ul class="nav nav-tabs" id="inspection-tabs-${shortId}" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#config-${shortId}" type="button" role="tab">
+              <i class="fas fa-cog me-1" aria-hidden="true"></i>
+              Configuration
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#network-${shortId}" type="button" role="tab">
+              <i class="fas fa-network-wired me-1" aria-hidden="true"></i>
+              Network
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#mounts-${shortId}" type="button" role="tab">
+              <i class="fas fa-hdd me-1" aria-hidden="true"></i>
+              Mounts
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#raw-${shortId}" type="button" role="tab">
+              <i class="fas fa-code me-1" aria-hidden="true"></i>
+              Raw JSON
+            </button>
+          </li>
+        </ul>
+        <div class="tab-content mt-3" id="inspection-content-${shortId}">
+          <div class="tab-pane fade show active" id="config-${shortId}" role="tabpanel">
+            ${this.renderConfigurationTab(inspection)}
+          </div>
+          <div class="tab-pane fade" id="network-${shortId}" role="tabpanel">
+            ${this.renderNetworkTab(inspection)}
+          </div>
+          <div class="tab-pane fade" id="mounts-${shortId}" role="tabpanel">
+            ${this.renderMountsTab(inspection)}
+          </div>
+          <div class="tab-pane fade" id="raw-${shortId}" role="tabpanel">
+            <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"><code>${JSON.stringify(inspection, null, 2)}</code></pre>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  renderConfigurationTab(inspection) {
+    const config = inspection.Config || {};
+    const hostConfig = inspection.HostConfig || {};
+    
+    return `
+      <div class="row">
+        <div class="col-md-6">
+          <h6 class="text-muted mb-3">Container Configuration</h6>
+          <table class="table table-sm">
+            <tr>
+              <td><strong>Image:</strong></td>
+              <td class="font-monospace">${config.Image || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td><strong>Command:</strong></td>
+              <td class="font-monospace">${(config.Cmd || []).join(' ') || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td><strong>Entrypoint:</strong></td>
+              <td class="font-monospace">${(config.Entrypoint || []).join(' ') || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td><strong>Working Dir:</strong></td>
+              <td class="font-monospace">${config.WorkingDir || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td><strong>User:</strong></td>
+              <td class="font-monospace">${config.User || 'root'}</td>
+            </tr>
+          </table>
+        </div>
+        <div class="col-md-6">
+          <h6 class="text-muted mb-3">Host Configuration</h6>
+          <table class="table table-sm">
+            <tr>
+              <td><strong>Memory Limit:</strong></td>
+              <td>${hostConfig.Memory ? this.formatBytes(hostConfig.Memory) : 'No limit'}</td>
+            </tr>
+            <tr>
+              <td><strong>CPU Shares:</strong></td>
+              <td>${hostConfig.CpuShares || 'Default'}</td>
+            </tr>
+            <tr>
+              <td><strong>Restart Policy:</strong></td>
+              <td>${hostConfig.RestartPolicy?.Name || 'No'}</td>
+            </tr>
+            <tr>
+              <td><strong>Privileged:</strong></td>
+              <td>${hostConfig.Privileged ? 'Yes' : 'No'}</td>
+            </tr>
+            <tr>
+              <td><strong>Auto Remove:</strong></td>
+              <td>${hostConfig.AutoRemove ? 'Yes' : 'No'}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+  
+  renderNetworkTab(inspection) {
+    const networkSettings = inspection.NetworkSettings || {};
+    const networks = networkSettings.Networks || {};
+    
+    let networksHtml = '';
+    Object.entries(networks).forEach(([name, network]) => {
+      networksHtml += `
+        <div class="network-info mb-3">
+          <h6 class="text-primary">${name}</h6>
+          <table class="table table-sm">
+            <tr>
+              <td><strong>IP Address:</strong></td>
+              <td class="font-monospace">${network.IPAddress || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td><strong>Gateway:</strong></td>
+              <td class="font-monospace">${network.Gateway || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td><strong>MAC Address:</strong></td>
+              <td class="font-monospace">${network.MacAddress || 'N/A'}</td>
+            </tr>
+          </table>
+        </div>
+      `;
+    });
+    
+    return networksHtml || '<p class="text-muted">No network information available</p>';
+  }
+  
+  renderMountsTab(inspection) {
+    const mounts = inspection.Mounts || [];
+    
+    if (mounts.length === 0) {
+      return '<p class="text-muted">No mounts configured</p>';
+    }
+    
+    return `
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Source</th>
+              <th>Destination</th>
+              <th>Mode</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${mounts.map(mount => `
+              <tr>
+                <td><span class="badge bg-secondary">${mount.Type}</span></td>
+                <td class="font-monospace">${mount.Source || 'N/A'}</td>
+                <td class="font-monospace">${mount.Destination}</td>
+                <td class="font-monospace">${mount.Mode || 'rw'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+  
+  async bulkStart() {
+    const stoppedContainers = this.getContainersByStatus('stopped');
+    await this.performBulkAction(stoppedContainers, 'start', 'Starting containers...');
+  }
+  
+  async bulkStop() {
+    const runningContainers = this.getContainersByStatus('running');
+    await this.performBulkAction(runningContainers, 'stop', 'Stopping containers...');
+  }
+  
+  async bulkRestart() {
+    const allContainers = this.getAllContainers();
+    await this.performBulkAction(allContainers, 'restart', 'Restarting containers...');
+  }
+  
+  getContainersByStatus(status) {
+    return Array.from(this.container.querySelectorAll(`.container-card[data-status="${status}"]`))
+                .map(card => card.dataset.containerId);
+  }
+  
+  getAllContainers() {
+    return Array.from(this.container.querySelectorAll('.container-card'))
+                .map(card => card.dataset.containerId);
+  }
+  
+  async performBulkAction(containerIds, action, message) {
+    if (containerIds.length === 0) {
+      this.showNotification(`No containers available for ${action}`, 'warning');
+      return;
+    }
+    
+    if (!confirm(`${message} This will affect ${containerIds.length} container(s).`)) {
+      return;
+    }
+    
+    // Show progress notification
+    const progressNotification = this.showNotification(`${message} (0/${containerIds.length})`, 'info', false);
+    
+    let completed = 0;
+    const promises = containerIds.map(async (containerId, index) => {
+      try {
+        await this.performContainerAction(containerId, action);
+        completed++;
+        progressNotification.textContent = `${message} (${completed}/${containerIds.length})`;
+      } catch (error) {
+        console.error(`Bulk ${action} failed for container ${containerId}:`, error);
+      }
+    });
+    
+    await Promise.all(promises);
+    
+    // Remove progress notification and show completion
+    progressNotification.remove();
+    this.showNotification(`Bulk ${action} completed for ${completed}/${containerIds.length} containers`, 'success');
+  }
+  
+  startAutoRefresh() {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
+    
+    this.refreshTimer = setInterval(() => {
+      this.refresh();
+    }, this.options.refreshInterval);
+  }
+  
+  stopAutoRefresh() {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  }
+  
+  toggleAutoRefresh(enabled) {
+    this.options.autoRefresh = enabled;
+    
+    if (enabled) {
+      this.startAutoRefresh();
+    } else {
+      this.stopAutoRefresh();
+    }
+    
+    // Update status display
+    const statusElement = document.getElementById(`container-refresh-status-${this.appId}`);
+    if (statusElement) {
+      statusElement.classList.toggle('d-none', !enabled);
+    }
+  }
+  
+  async refresh() {
+    try {
+      const response = await fetch(`/api/applications/${this.appId}/containers`);
+      const data = await response.json();
+      
+      if (data.success) {
+        data.containers.forEach(containerData => {
+          this.updateContainerStatus(containerData.id, containerData);
+        });
+        
+        // Update container count
+        const countBadge = document.getElementById(`container-count-${this.appId}`);
+        if (countBadge) {
+          countBadge.textContent = `${data.containers.length} containers`;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh containers:', error);
+    }
+  }
+  
+  async refreshContainer(containerId) {
+    try {
+      const response = await fetch(`/api/containers/${containerId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        this.updateContainerStatus(containerId, data.container);
+      }
+    } catch (error) {
+      console.error(`Failed to refresh container ${containerId}:`, error);
+    }
+  }
+  
+  showNotification(message, type = 'info', autoRemove = true) {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} notification-toast`;
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1060;
+      min-width: 300px;
+      animation: slideInRight 0.3s ease;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    if (autoRemove) {
+      setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+      }, 5000);
+    }
+    
+    return notification;
+  }
+  
+  formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+  
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  destroy() {
+    this.stopAutoRefresh();
+    
+    // Close all log streams
+    this.logStreams.forEach(stream => stream.close());
+    this.logStreams.clear();
+    
+    // Destroy charts
+    this.statsCharts.forEach(chart => chart.destroy());
+    this.statsCharts.clear();
+  }
+}
+
+// Initialize container controls
+const containerControls{{ app_id }} = new ContainerControls('container-controls-{{ app_id }}', {{ app_id }});
+
+// Make it globally accessible for HTML onclick handlers
+window.containerControls{{ app_id }} = containerControls{{ app_id }};
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  containerControls{{ app_id }}.destroy();
+});
+</script>
+
+<!-- Container Controls Styles -->
+<style>
+.container-controls {
+  background: #fff;
+  border-radius: 0.375rem;
+}
+
+.container-controls.compact {
+  padding: 0.5rem;
+}
+
+.container-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.container-controls.compact .container-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.5rem;
+}
+
+.container-card {
+  transition: all 0.3s ease;
+}
+
+.container-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.container-card.selected {
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.container-card .card {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.container-card .card-header {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.container-name-status {
+  gap: 0.5rem;
+}
+
+.container-meta small {
+  line-height: 1.2;
+}
+
+.health-indicator {
+  font-size: 1.2rem;
+}
+
+.resource-usage {
+  background: rgba(0, 0, 0, 0.02);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.resource-metric .progress {
+  margin: 0.25rem 0;
+}
+
+.port-list {
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+.container-actions .btn {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.no-containers-state {
+  grid-column: 1 / -1;
+  padding: 3rem 1rem;
+}
+
+.log-content {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.log-output {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.log-controls {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #dee2e6;
+  margin-bottom: 1rem;
+}
+
+.inspection-data .nav-tabs {
+  border-bottom: 1px solid #dee2e6;
+}
+
+.stats-chart-container {
+  height: 100px;
+  margin: 0.5rem 0;
+}
+
+.refresh-status {
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.refresh-status:hover {
+  opacity: 1;
+}
+
+/* Notification animations */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .container-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .container-controls-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .container-header-actions {
+    justify-content: space-between;
+  }
+  
+  .log-controls {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .modal-dialog.modal-lg,
+  .modal-dialog.modal-xl {
+    max-width: 95%;
+  }
+}
+
+@media (max-width: 576px) {
+  .container-controls.compact .container-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .container-card .card-body {
+    padding: 0.75rem;
+  }
+  
+  .container-actions {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .resource-usage {
+    padding: 0.5rem;
+  }
+}
+
+/* Dark theme */
+[data-theme="dark"] .container-controls {
+  background: #2d3748;
+}
+
+[data-theme="dark"] .container-card .card {
+  background: #2d3748;
+  border-color: #4a5568;
+}
+
+[data-theme="dark"] .container-card .card-header {
+  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+  border-bottom-color: #4a5568;
+}
+
+[data-theme="dark"] .resource-usage {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .log-output {
+  background: #1a202c !important;
+  color: #e2e8f0 !important;
+  border-color: #4a5568;
+}
+
+[data-theme="dark"] .no-containers-state {
+  color: #a0aec0;
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .container-card {
+    border: 2px solid;
+  }
+  
+  .container-card:focus-within {
+    outline: 3px solid;
+    outline-offset: 2px;
+  }
+  
+  .badge, .progress-bar {
+    border: 1px solid;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .container-card,
+  .notification-toast,
+  .refresh-status {
+    transition: none;
+    animation: none;
+  }
+  
+  .container-card:hover {
+    transform: none;
+  }
+}
+
+/* Print styles */
+@media print {
+  .container-controls-header,
+  .container-actions,
+  .log-controls {
+    display: none;
+  }
+  
+  .container-card {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+  
+  .container-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+</style>

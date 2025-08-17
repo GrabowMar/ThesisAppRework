@@ -1,0 +1,365 @@
+{#
+  UI Utility Macros
+  
+  Purpose: Collection of reusable UI macros for common components
+  Features:
+  - Form controls with validation
+  - Buttons and button groups
+  - Badges and status indicators
+  - Progress bars and loading states
+  - Icons and icon groups
+  
+  Usage:
+  {% from 'utils/macros/ui.html' import button, badge, progress_bar, form_input %}
+  
+  Technical Details:
+  - Bootstrap 5 compatible
+  - ARIA accessibility support
+  - Consistent styling patterns
+  - Extensible macro system
+#}
+
+{#
+  Button Macro
+  Creates a Bootstrap button with optional icon and loading state
+  
+  Parameters:
+  - text: Button text
+  - type: Button type (button, submit, reset)
+  - variant: Bootstrap variant (primary, secondary, success, etc.)
+  - size: Button size (sm, lg)
+  - icon: Font Awesome icon class
+  - disabled: Boolean to disable button
+  - loading: Boolean to show loading state
+  - href: If provided, creates a link instead of button
+  - classes: Additional CSS classes
+  - attributes: Additional HTML attributes
+#}
+{% macro button(text, type='button', variant='primary', size='', icon='', disabled=false, loading=false, href='', classes='', attributes='') %}
+{% set tag = 'a' if href else 'button' %}
+{% set btn_classes = ['btn', 'btn-' + variant] %}
+{% if size %}{% set _ = btn_classes.append('btn-' + size) %}{% endif %}
+{% if loading %}{% set _ = btn_classes.append('btn-loading') %}{% endif %}
+{% if classes %}{% set _ = btn_classes.append(classes) %}{% endif %}
+
+<{{ tag }} 
+    {% if not href %}type="{{ type }}"{% endif %}
+    {% if href %}href="{{ href }}"{% endif %}
+    class="{{ btn_classes|join(' ') }}"
+    {% if disabled %}disabled{% endif %}
+    {% if loading %}data-loading="true"{% endif %}
+    {{ attributes|safe }}>
+    
+    {% if loading %}
+        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+    {% elif icon %}
+        <i class="{{ icon }} {% if text %}me-1{% endif %}"></i>
+    {% endif %}
+    
+    {% if text %}{{ text }}{% endif %}
+</{{ tag }}>
+{% endmacro %}
+
+{#
+  Badge Macro
+  Creates a Bootstrap badge with optional icon
+  
+  Parameters:
+  - text: Badge text
+  - variant: Bootstrap variant (primary, secondary, success, etc.)
+  - icon: Font Awesome icon class
+  - pill: Boolean to make badge pill-shaped
+  - classes: Additional CSS classes
+#}
+{% macro badge(text, variant='secondary', icon='', pill=false, classes='') %}
+{% set badge_classes = ['badge', 'bg-' + variant] %}
+{% if pill %}{% set _ = badge_classes.append('rounded-pill') %}{% endif %}
+{% if classes %}{% set _ = badge_classes.append(classes) %}{% endif %}
+
+<span class="{{ badge_classes|join(' ') }}">
+    {% if icon %}<i class="{{ icon }} me-1"></i>{% endif %}
+    {{ text }}
+</span>
+{% endmacro %}
+
+{#
+  Status Badge Macro
+  Creates a status-specific badge with appropriate colors
+  
+  Parameters:
+  - status: Status value (active, inactive, pending, success, error, etc.)
+  - text: Override text (defaults to status)
+  - size: Badge size modifier
+#}
+{% macro status_badge(status, text='', size='') %}
+{% set status_lower = status|lower %}
+{% set display_text = text if text else status|title %}
+{% set variant_map = {
+    'active': 'success',
+    'running': 'warning',
+    'completed': 'success',
+    'success': 'success',
+    'failed': 'danger',
+    'error': 'danger',
+    'pending': 'warning',
+    'queued': 'info',
+    'inactive': 'secondary',
+    'stopped': 'secondary',
+    'unknown': 'secondary'
+} %}
+{% set variant = variant_map.get(status_lower, 'secondary') %}
+{% set size_class = 'badge-' + size if size else '' %}
+
+{{ badge(display_text, variant, classes=size_class) }}
+{% endmacro %}
+
+{#
+  Progress Bar Macro
+  Creates a Bootstrap progress bar
+  
+  Parameters:
+  - value: Progress value (0-100)
+  - variant: Bootstrap variant for color
+  - striped: Boolean for striped appearance
+  - animated: Boolean for animated stripes
+  - label: Show progress label
+  - height: Custom height (e.g., '20px')
+  - classes: Additional CSS classes
+#}
+{% macro progress_bar(value=0, variant='primary', striped=false, animated=false, label=false, height='', classes='') %}
+{% set progress_classes = ['progress'] %}
+{% set bar_classes = ['progress-bar', 'bg-' + variant] %}
+{% if striped %}{% set _ = bar_classes.append('progress-bar-striped') %}{% endif %}
+{% if animated %}{% set _ = bar_classes.append('progress-bar-animated') %}{% endif %}
+{% if classes %}{% set _ = progress_classes.append(classes) %}{% endif %}
+
+<div class="{{ progress_classes|join(' ') }}" {% if height %}style="height: {{ height }}"{% endif %} role="progressbar" aria-valuenow="{{ value }}" aria-valuemin="0" aria-valuemax="100">
+    <div class="{{ bar_classes|join(' ') }}" style="width: {{ value }}%">
+        {% if label %}{{ value }}%{% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{#
+  Form Input Macro
+  Creates a form input with label and validation
+  
+  Parameters:
+  - name: Input name attribute
+  - label: Input label
+  - type: Input type (text, email, password, etc.)
+  - value: Input value
+  - placeholder: Placeholder text
+  - required: Boolean for required field
+  - disabled: Boolean to disable input
+  - help_text: Help text below input
+  - error_message: Error message to display
+  - classes: Additional CSS classes for input
+  - attributes: Additional HTML attributes
+#}
+{% macro form_input(name, label='', type='text', value='', placeholder='', required=false, disabled=false, help_text='', error_message='', classes='', attributes='') %}
+{% set input_classes = ['form-control'] %}
+{% set has_error = error_message|length > 0 %}
+{% if has_error %}{% set _ = input_classes.append('is-invalid') %}{% endif %}
+{% if classes %}{% set _ = input_classes.append(classes) %}{% endif %}
+
+<div class="mb-3">
+    {% if label %}
+    <label for="{{ name }}" class="form-label">
+        {{ label }}
+        {% if required %}<span class="text-danger">*</span>{% endif %}
+    </label>
+    {% endif %}
+    
+    <input type="{{ type }}" 
+           class="{{ input_classes|join(' ') }}" 
+           id="{{ name }}" 
+           name="{{ name }}"
+           {% if value %}value="{{ value }}"{% endif %}
+           {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+           {% if required %}required{% endif %}
+           {% if disabled %}disabled{% endif %}
+           {{ attributes|safe }}>
+    
+    {% if help_text %}
+    <div class="form-text">{{ help_text }}</div>
+    {% endif %}
+    
+    {% if error_message %}
+    <div class="invalid-feedback">{{ error_message }}</div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{#
+  Form Select Macro
+  Creates a form select dropdown with options
+  
+  Parameters:
+  - name: Select name attribute
+  - label: Select label
+  - options: List of option dictionaries with 'value' and 'text' keys
+  - selected: Currently selected value
+  - required: Boolean for required field
+  - disabled: Boolean to disable select
+  - help_text: Help text below select
+  - error_message: Error message to display
+  - classes: Additional CSS classes
+  - attributes: Additional HTML attributes
+#}
+{% macro form_select(name, label='', options=[], selected='', required=false, disabled=false, help_text='', error_message='', classes='', attributes='') %}
+{% set select_classes = ['form-select'] %}
+{% set has_error = error_message|length > 0 %}
+{% if has_error %}{% set _ = select_classes.append('is-invalid') %}{% endif %}
+{% if classes %}{% set _ = select_classes.append(classes) %}{% endif %}
+
+<div class="mb-3">
+    {% if label %}
+    <label for="{{ name }}" class="form-label">
+        {{ label }}
+        {% if required %}<span class="text-danger">*</span>{% endif %}
+    </label>
+    {% endif %}
+    
+    <select class="{{ select_classes|join(' ') }}" 
+            id="{{ name }}" 
+            name="{{ name }}"
+            {% if required %}required{% endif %}
+            {% if disabled %}disabled{% endif %}
+            {{ attributes|safe }}>
+        
+        {% for option in options %}
+        <option value="{{ option.value }}" {% if option.value == selected %}selected{% endif %}>
+            {{ option.text }}
+        </option>
+        {% endfor %}
+    </select>
+    
+    {% if help_text %}
+    <div class="form-text">{{ help_text }}</div>
+    {% endif %}
+    
+    {% if error_message %}
+    <div class="invalid-feedback">{{ error_message }}</div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{#
+  Loading Spinner Macro
+  Creates a loading spinner with optional text
+  
+  Parameters:
+  - size: Spinner size (sm, lg, or custom size like '2rem')
+  - variant: Bootstrap color variant
+  - text: Loading text
+  - center: Boolean to center the spinner
+  - classes: Additional CSS classes
+#}
+{% macro loading_spinner(size='', variant='primary', text='Loading...', center=true, classes='') %}
+{% set spinner_classes = ['spinner-border'] %}
+{% if size == 'sm' %}{% set _ = spinner_classes.append('spinner-border-sm') %}{% endif %}
+{% if variant != 'primary' %}{% set _ = spinner_classes.append('text-' + variant) %}{% endif %}
+{% if classes %}{% set _ = spinner_classes.append(classes) %}{% endif %}
+
+{% set container_classes = [] %}
+{% if center %}{% set _ = container_classes.extend(['text-center', 'py-3']) %}{% endif %}
+
+<div {% if container_classes %}class="{{ container_classes|join(' ') }}"{% endif %}>
+    <div class="{{ spinner_classes|join(' ') }}" 
+         role="status"
+         {% if size not in ['sm', ''] %}style="width: {{ size }}; height: {{ size }};"{% endif %}>
+        <span class="visually-hidden">{{ text }}</span>
+    </div>
+    {% if text and not center %}
+    <span class="ms-2">{{ text }}</span>
+    {% elif text and center %}
+    <div class="mt-2 text-muted">{{ text }}</div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{#
+  Alert Macro
+  Creates a Bootstrap alert with optional icon and dismissible option
+  
+  Parameters:
+  - message: Alert message
+  - variant: Bootstrap variant (primary, success, warning, danger, etc.)
+  - icon: Font Awesome icon class
+  - dismissible: Boolean to make alert dismissible
+  - classes: Additional CSS classes
+#}
+{% macro alert(message, variant='info', icon='', dismissible=false, classes='') %}
+{% set alert_classes = ['alert', 'alert-' + variant] %}
+{% if dismissible %}{% set _ = alert_classes.append('alert-dismissible') %}{% endif %}
+{% if classes %}{% set _ = alert_classes.append(classes) %}{% endif %}
+
+<div class="{{ alert_classes|join(' ') }}" role="alert">
+    {% if icon %}<i class="{{ icon }} me-2"></i>{% endif %}
+    {{ message|safe }}
+    
+    {% if dismissible %}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{#
+  Card Macro
+  Creates a Bootstrap card with header, body, and optional footer
+  
+  Parameters:
+  - title: Card title
+  - body: Card body content
+  - footer: Card footer content
+  - icon: Icon for card header
+  - variant: Card variant (border color)
+  - classes: Additional CSS classes
+#}
+{% macro card(title='', body='', footer='', icon='', variant='', classes='') %}
+{% set card_classes = ['card'] %}
+{% if variant %}{% set _ = card_classes.append('border-' + variant) %}{% endif %}
+{% if classes %}{% set _ = card_classes.append(classes) %}{% endif %}
+
+<div class="{{ card_classes|join(' ') }}">
+    {% if title %}
+    <div class="card-header">
+        {% if icon %}<i class="{{ icon }} me-2"></i>{% endif %}
+        {{ title }}
+    </div>
+    {% endif %}
+    
+    {% if body %}
+    <div class="card-body">
+        {{ body|safe }}
+    </div>
+    {% endif %}
+    
+    {% if footer %}
+    <div class="card-footer">
+        {{ footer|safe }}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{#
+  Icon Macro
+  Creates a Font Awesome icon with optional styling
+  
+  Parameters:
+  - icon: Font Awesome icon class
+  - size: Icon size (xs, sm, lg, 2x, 3x, etc.)
+  - variant: Bootstrap color variant
+  - classes: Additional CSS classes
+  - attributes: Additional HTML attributes
+#}
+{% macro icon(icon, size='', variant='', classes='', attributes='') %}
+{% set icon_classes = [icon] %}
+{% if size %}{% set _ = icon_classes.append('fa-' + size) %}{% endif %}
+{% if variant %}{% set _ = icon_classes.append('text-' + variant) %}{% endif %}
+{% if classes %}{% set _ = icon_classes.append(classes) %}{% endif %}
+
+<i class="{{ icon_classes|join(' ') }}" {{ attributes|safe }}></i>
+{% endmacro %}

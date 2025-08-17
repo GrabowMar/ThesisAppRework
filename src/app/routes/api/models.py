@@ -6,7 +6,7 @@ API endpoints for AI model management and information.
 """
 
 import logging
-from flask import jsonify
+from flask import jsonify, render_template
 
 from ..response_utils import json_success, handle_exceptions
 
@@ -57,6 +57,21 @@ def api_models_list():
     except Exception as e:
         logger.error(f"Error getting models list: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/models/list-options')
+def api_models_list_options():
+    """HTMX endpoint: Render <option> list for model selects.
+
+    Returns HTML <option> tags for use in selects. Includes an "All Models" placeholder.
+    """
+    try:
+        models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        return render_template('partials/models/_model_options.html', models=models)
+    except Exception as e:
+        logger.error(f"Error rendering model options: {e}")
+        # Minimal safe fallback options
+        return '<option value="">All Models</option>', 200
 
 
 @api_bp.route('/models/stats/total')

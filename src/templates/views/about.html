@@ -1,0 +1,341 @@
+{#
+About Page - Project Information
+===============================
+
+Full-width page displaying project information, features, and technical details
+about the AI Model Analysis Platform.
+
+Route: /about
+Layout: single-page.html
+Components: None
+HTMX: None
+
+Technical Implementation:
+- Uses single-page layout for clean presentation
+- Includes project overview, feature list, and technical stack
+- Responsive cards and sections
+- Links to documentation and resources
+#}
+
+{% extends "layouts/single-page.html" %}
+
+{% block title %}About - AI Model Analysis Platform{% endblock %}
+
+{% block head %}
+<style>
+.feature-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 1rem;
+}
+
+.tech-stack-badge {
+    background: var(--bs-light);
+    border: 2px solid var(--bs-gray-300);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.tech-stack-badge:hover {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-subtle);
+}
+
+.hero-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 4rem 0;
+    margin-bottom: 3rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section text-center">
+    <div class="container">
+        <h1 class="display-4 fw-bold mb-3">AI Model Analysis Platform</h1>
+        <p class="lead mb-4">
+            A comprehensive research platform for analyzing AI-generated web applications 
+            across multiple models and providers.
+        </p>
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <p class="mb-0">
+                    Built with Flask, Docker, and modern web technologies to provide 
+                    real-time analysis and insights into AI model performance.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Project Overview -->
+    <div class="row mb-5">
+        <div class="col-lg-8 mx-auto">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="h3 mb-3">
+                        <i class="fas fa-info-circle text-primary me-2"></i>
+                        Project Overview
+                    </h2>
+                    <p class="mb-3">
+                        This platform enables researchers and developers to systematically 
+                        analyze AI-generated web applications across different models including 
+                        GPT, Claude, Gemini, and more.
+                    </p>
+                    <p class="mb-0">
+                        The system combines a Flask-based web interface with containerized 
+                        analysis services to provide comprehensive security, performance, 
+                        and AI-powered analysis capabilities.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Features -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h2 class="h3 text-center mb-4">Key Features</h2>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="text-center">
+                <div class="feature-icon mx-auto">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <h4>Multi-Model Support</h4>
+                <p class="text-muted">
+                    Support for multiple AI providers including OpenAI, Anthropic, 
+                    Google, and more with unified analysis capabilities.
+                </p>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="text-center">
+                <div class="feature-icon mx-auto">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <h4>Security Analysis</h4>
+                <p class="text-muted">
+                    Comprehensive security scanning with containerized analysis 
+                    services and detailed vulnerability reporting.
+                </p>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="text-center">
+                <div class="feature-icon mx-auto">
+                    <i class="fas fa-tachometer-alt"></i>
+                </div>
+                <h4>Performance Testing</h4>
+                <p class="text-muted">
+                    Real-time performance monitoring and analysis with 
+                    detailed metrics and comparative insights.
+                </p>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="text-center">
+                <div class="feature-icon mx-auto">
+                    <i class="fas fa-chart-bar"></i>
+                </div>
+                <h4>Real-time Dashboard</h4>
+                <p class="text-muted">
+                    Live dashboard with HTMX-powered updates showing 
+                    system status, analysis progress, and key metrics.
+                </p>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="text-center">
+                <div class="feature-icon mx-auto">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <h4>Batch Processing</h4>
+                <p class="text-muted">
+                    Efficient batch analysis capabilities with Celery 
+                    for processing multiple applications simultaneously.
+                </p>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="text-center">
+                <div class="feature-icon mx-auto">
+                    <i class="fas fa-docker"></i>
+                </div>
+                <h4>Containerized Services</h4>
+                <p class="text-muted">
+                    Docker-based architecture with isolated analysis 
+                    services for security and scalability.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Technical Stack -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-code text-primary me-2"></i>
+                        Technical Stack
+                    </h2>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <h5 class="fw-semibold mb-3">Backend</h5>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="tech-stack-badge">Flask</span>
+                                <span class="tech-stack-badge">SQLAlchemy</span>
+                                <span class="tech-stack-badge">Celery</span>
+                                <span class="tech-stack-badge">Redis</span>
+                                <span class="tech-stack-badge">Docker</span>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-4">
+                            <h5 class="fw-semibold mb-3">Frontend</h5>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="tech-stack-badge">HTMX</span>
+                                <span class="tech-stack-badge">Bootstrap 5</span>
+                                <span class="tech-stack-badge">AdminLTE</span>
+                                <span class="tech-stack-badge">Chart.js</span>
+                                <span class="tech-stack-badge">WebSocket</span>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-4">
+                            <h5 class="fw-semibold mb-3">Analysis Services</h5>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="tech-stack-badge">Security Scanner</span>
+                                <span class="tech-stack-badge">Performance Monitor</span>
+                                <span class="tech-stack-badge">Dynamic Analysis</span>
+                                <span class="tech-stack-badge">AI Analysis</span>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-4">
+                            <h5 class="fw-semibold mb-3">Infrastructure</h5>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="tech-stack-badge">Docker Compose</span>
+                                <span class="tech-stack-badge">PostgreSQL</span>
+                                <span class="tech-stack-badge">Python 3.11+</span>
+                                <span class="tech-stack-badge">Nginx</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Architecture -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-sitemap text-primary me-2"></i>
+                        Architecture Overview
+                    </h2>
+                    
+                    <div class="row">
+                        <div class="col-lg-6 mb-4">
+                            <h5 class="fw-semibold">Web Platform</h5>
+                            <p class="text-muted mb-3">
+                                Flask-based web application with HTMX for dynamic updates, 
+                                managing models, applications, and analysis results.
+                            </p>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Real-time dashboard</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Model management</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Analysis orchestration</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Results visualization</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="col-lg-6 mb-4">
+                            <h5 class="fw-semibold">Analyzer Services</h5>
+                            <p class="text-muted mb-3">
+                                Containerized microservices for security, performance, 
+                                and AI-powered analysis with WebSocket communication.
+                            </p>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Isolated analysis environments</li>
+                                <li><i class="fas fa-check text-success me-2"></i>WebSocket communication</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Parallel processing</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Scalable architecture</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resources -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 text-center">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-book text-primary me-2"></i>
+                        Resources & Documentation
+                    </h2>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-tachometer-alt me-2"></i>
+                                Dashboard
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="{{ url_for('analysis.analysis_hub') }}" class="btn btn-outline-primary btn-lg w-100">
+                                <i class="fas fa-search me-2"></i>
+                                Analysis Hub
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="{{ url_for('models.models_overview') }}" class="btn btn-outline-primary btn-lg w-100">
+                                <i class="fas fa-robot me-2"></i>
+                                Models Overview
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="{{ url_for('main.system_status') }}" class="btn btn-outline-primary btn-lg w-100">
+                                <i class="fas fa-server me-2"></i>
+                                System Status
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-code-branch me-1"></i>
+                        Built for research and development in AI-generated application analysis
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

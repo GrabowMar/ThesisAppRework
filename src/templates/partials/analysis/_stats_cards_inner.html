@@ -1,0 +1,79 @@
+{#
+Analysis Stats Cards Inner Partial
+=================================
+
+Inner content for analysis statistics cards, used for HTMX updates.
+
+Parameters:
+- stats (dict): Statistics data with counts for different analysis types
+
+Usage:
+- HTMX endpoint /analysis/api/stats
+- Real-time stats updates
+#}
+
+<div class="row">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="fas fa-shield-alt fa-2x"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">{{ stats.security_analyses or 0 }}</h4>
+                        <small>Security Analyses</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="fas fa-tachometer-alt fa-2x"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">{{ stats.performance_tests or 0 }}</h4>
+                        <small>Performance Tests</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="fas fa-play fa-2x"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">{{ stats.dynamic_analyses or 0 }}</h4>
+                        <small>Dynamic Analyses</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="fas fa-clock fa-2x"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">{{ stats.active_tasks or 0 }}</h4>
+                        <small>Active Tasks</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

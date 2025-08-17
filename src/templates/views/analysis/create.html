@@ -1,0 +1,833 @@
+{#
+    Analysis Creation Wizard View
+    Route: /analysis/create
+    Purpose: Step-by-step wizard for creating new analyses with model and app selection
+    
+    Features:
+    - Multi-step wizard interface with progress indication
+    - Model selection with capabilities filtering
+    - Application selection with status validation
+    - Analysis configuration options
+    - Real-time validation and preview
+    
+    Layout: Uses base.html layout with wizard-specific styling
+    Components: Uses form components, model selector, app selector
+    JavaScript: Wizard navigation, real-time validation
+#}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}Create Analysis - AI Model Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>
+                        Create New Analysis
+                    </h1>
+                    <p class="text-muted mb-0">Set up a comprehensive analysis for your AI-generated application</p>
+                </div>
+                <div>
+                    <a href="/analysis" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Analyses
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wizard Progress -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body py-3">
+                    <div class="wizard-progress">
+                        <div class="progress mb-3" style="height: 8px;">
+                            <div class="progress-bar bg-primary" 
+                                 role="progressbar" 
+                                 style="width: 25%" 
+                                 id="wizard-progress-bar">
+                            </div>
+                        </div>
+                        <div class="row text-center">
+                            <div class="col-3">
+                                <div class="wizard-step active" data-step="1">
+                                    <div class="wizard-step-icon">
+                                        <i class="fas fa-brain"></i>
+                                    </div>
+                                    <div class="wizard-step-label">Select Model</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="wizard-step" data-step="2">
+                                    <div class="wizard-step-icon">
+                                        <i class="fas fa-rocket"></i>
+                                    </div>
+                                    <div class="wizard-step-label">Choose Application</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="wizard-step" data-step="3">
+                                    <div class="wizard-step-icon">
+                                        <i class="fas fa-cogs"></i>
+                                    </div>
+                                    <div class="wizard-step-label">Configure Analysis</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="wizard-step" data-step="4">
+                                    <div class="wizard-step-icon">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                    <div class="wizard-step-label">Review & Launch</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wizard Content -->
+    <form id="analysis-wizard-form" method="POST" action="/analysis/create">
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Step 1: Model Selection -->
+                <div class="wizard-panel active" data-panel="1">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-brain me-2"></i>Step 1: Select AI Model
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <p class="text-muted">Choose the AI model you want to analyze. Each model has different capabilities and pricing.</p>
+                            </div>
+
+                            <!-- Model Filters -->
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <label class="form-label">Provider</label>
+                                    <select class="form-select" id="provider-filter" onchange="filterModels()">
+                                        <option value="">All Providers</option>
+                                        <option value="openai">OpenAI</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="google">Google</option>
+                                        <option value="meta">Meta</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Capability</label>
+                                    <select class="form-select" id="capability-filter" onchange="filterModels()">
+                                        <option value="">All Capabilities</option>
+                                        <option value="coding">Coding</option>
+                                        <option value="analysis">Analysis</option>
+                                        <option value="reasoning">Reasoning</option>
+                                        <option value="multimodal">Multimodal</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Price Range</label>
+                                    <select class="form-select" id="price-filter" onchange="filterModels()">
+                                        <option value="">All Prices</option>
+                                        <option value="low">Low ($0-$0.01)</option>
+                                        <option value="medium">Medium ($0.01-$0.05)</option>
+                                        <option value="high">High ($0.05+)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Model Grid -->
+                            <div id="model-selection-grid" 
+                                 hx-get="/api/models/grid?selectable=true" 
+                                 hx-trigger="load">
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading models...</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Selected Model Preview -->
+                            <div id="selected-model-preview" class="mt-4" style="display: none;">
+                                <div class="alert alert-info">
+                                    <h6 class="alert-heading">Selected Model</h6>
+                                    <div id="selected-model-details"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Application Selection -->
+                <div class="wizard-panel" data-panel="2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-rocket me-2"></i>Step 2: Choose Application
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <p class="text-muted">Select which application generated by your chosen model you want to analyze.</p>
+                            </div>
+
+                            <!-- Application List -->
+                            <div id="application-selection-list" class="mb-4">
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-info-circle fa-2x mb-2"></i>
+                                    <p>Please select a model first to see available applications.</p>
+                                </div>
+                            </div>
+
+                            <!-- Selected Application Preview -->
+                            <div id="selected-app-preview" class="mt-4" style="display: none;">
+                                <div class="alert alert-success">
+                                    <h6 class="alert-heading">Selected Application</h6>
+                                    <div id="selected-app-details"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Analysis Configuration -->
+                <div class="wizard-panel" data-panel="3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-cogs me-2"></i>Step 3: Configure Analysis
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <p class="text-muted">Choose the type of analysis and configure specific parameters.</p>
+                            </div>
+
+                            <!-- Analysis Type Selection -->
+                            <div class="mb-4">
+                                <label class="form-label">Analysis Type <span class="text-danger">*</span></label>
+                                <div class="row">
+                                    <div class="col-lg-6">
+                                        <div class="list-group">
+                                            <div class="list-group-item">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="analysis_type" id="security" value="security" onchange="updateAnalysisConfig()">
+                                                    <label class="form-check-label w-100" for="security">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="mb-1">
+                                                                    <i class="fas fa-shield-alt text-danger me-2"></i>Security Analysis
+                                                                </h6>
+                                                                <p class="mb-1 text-muted small">
+                                                                    Comprehensive security scanning including vulnerability detection, 
+                                                                    dependency analysis, and security best practices validation.
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-clock me-1"></i>~5-10 minutes
+                                                                    <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.05-$0.15
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="list-group-item">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="analysis_type" id="performance" value="performance" onchange="updateAnalysisConfig()">
+                                                    <label class="form-check-label w-100" for="performance">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="mb-1">
+                                                                    <i class="fas fa-tachometer-alt text-info me-2"></i>Performance Analysis
+                                                                </h6>
+                                                                <p class="mb-1 text-muted small">
+                                                                    Load testing, response time analysis, resource utilization, 
+                                                                    and scalability assessment.
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-clock me-1"></i>~3-8 minutes
+                                                                    <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.03-$0.12
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <div class="list-group">
+                                            <div class="list-group-item">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="analysis_type" id="dynamic" value="dynamic" onchange="updateAnalysisConfig()">
+                                                    <label class="form-check-label w-100" for="dynamic">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="mb-1">
+                                                                    <i class="fas fa-play text-warning me-2"></i>Dynamic Analysis
+                                                                </h6>
+                                                                <p class="mb-1 text-muted small">
+                                                                    Runtime behavior analysis, API interaction testing, 
+                                                                    and functional verification.
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-clock me-1"></i>~7-15 minutes
+                                                                    <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.08-$0.25
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="list-group-item">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="analysis_type" id="comprehensive" value="comprehensive" onchange="updateAnalysisConfig()">
+                                                    <label class="form-check-label w-100" for="comprehensive">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="mb-1">
+                                                                    <i class="fas fa-chart-line text-success me-2"></i>Comprehensive Analysis
+                                                                </h6>
+                                                                <p class="mb-1 text-muted small">
+                                                                    Full security, performance, and dynamic analysis combined 
+                                                                    with detailed reporting.
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-clock me-1"></i>~15-30 minutes
+                                                                    <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.15-$0.45
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Analysis Configuration Options -->
+                            <div id="analysis-config-options" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Priority Level</label>
+                                            <select class="form-select" name="priority">
+                                                <option value="normal">Normal</option>
+                                                <option value="high">High (faster execution)</option>
+                                                <option value="low">Low (cost optimized)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Email Notification</label>
+                                            <select class="form-select" name="notification">
+                                                <option value="completion">On completion</option>
+                                                <option value="failure">On failure only</option>
+                                                <option value="none">No notifications</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Advanced Options -->
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="advanced-options-toggle">
+                                        <label class="form-check-label" for="advanced-options-toggle">
+                                            Show advanced configuration options
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="advanced-options" class="collapse">
+                                    <div class="border rounded p-3 bg-light">
+                                        <h6 class="mb-3">Advanced Configuration</h6>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Timeout (minutes)</label>
+                                                    <input type="number" class="form-control" name="timeout" value="30" min="5" max="120">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Concurrent Workers</label>
+                                                    <input type="number" class="form-control" name="workers" value="2" min="1" max="8">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Custom Parameters (JSON)</label>
+                                            <textarea class="form-control" name="custom_params" rows="3" placeholder="{}"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Review & Launch -->
+                <div class="wizard-panel" data-panel="4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-circle me-2"></i>Step 4: Review & Launch
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <p class="text-muted">Review your analysis configuration before launching.</p>
+                            </div>
+
+                            <div id="analysis-summary">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <h6 class="mb-3">Analysis Summary</h6>
+                                        <dl class="row">
+                                            <dt class="col-sm-4">Model:</dt>
+                                            <dd class="col-sm-8" id="summary-model">-</dd>
+                                            
+                                            <dt class="col-sm-4">Application:</dt>
+                                            <dd class="col-sm-8" id="summary-app">-</dd>
+                                            
+                                            <dt class="col-sm-4">Analysis Type:</dt>
+                                            <dd class="col-sm-8" id="summary-type">-</dd>
+                                            
+                                            <dt class="col-sm-4">Priority:</dt>
+                                            <dd class="col-sm-8" id="summary-priority">-</dd>
+                                            
+                                            <dt class="col-sm-4">Estimated Time:</dt>
+                                            <dd class="col-sm-8" id="summary-time">-</dd>
+                                            
+                                            <dt class="col-sm-4">Estimated Cost:</dt>
+                                            <dd class="col-sm-8" id="summary-cost">-</dd>
+                                        </dl>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h6 class="card-title">Ready to Launch</h6>
+                                                <p class="card-text small text-muted">
+                                                    Your analysis will be queued and executed automatically. 
+                                                    You'll receive notifications based on your preferences.
+                                                </p>
+                                                <div class="analysis-status-icon">
+                                                    <i class="fas fa-rocket fa-3x text-primary"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <div class="card sticky-top" style="top: 100px;">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>Analysis Guide
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="step-help" class="step-help">
+                            <!-- Step 1 Help -->
+                            <div class="help-content active" data-help="1">
+                                <h6>Choosing the Right Model</h6>
+                                <ul class="small">
+                                    <li><strong>Coding Focus:</strong> Choose models optimized for code generation</li>
+                                    <li><strong>Provider Reliability:</strong> Consider uptime and support</li>
+                                    <li><strong>Cost vs Quality:</strong> Balance analysis depth with budget</li>
+                                    <li><strong>Capabilities:</strong> Match model strengths to your needs</li>
+                                </ul>
+                                <div class="alert alert-info small">
+                                    <i class="fas fa-lightbulb me-1"></i>
+                                    <strong>Tip:</strong> Models with better coding capabilities typically generate more analyzable applications.
+                                </div>
+                            </div>
+
+                            <!-- Step 2 Help -->
+                            <div class="help-content" data-help="2">
+                                <h6>Application Selection</h6>
+                                <ul class="small">
+                                    <li><strong>Status:</strong> Only active applications can be analyzed</li>
+                                    <li><strong>Complexity:</strong> More complex apps provide richer analysis</li>
+                                    <li><strong>Age:</strong> Newer applications may have more recent patterns</li>
+                                    <li><strong>Size:</strong> Larger applications take longer to analyze</li>
+                                </ul>
+                                <div class="alert alert-warning small">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    <strong>Note:</strong> Applications must be running for dynamic analysis.
+                                </div>
+                            </div>
+
+                            <!-- Step 3 Help -->
+                            <div class="help-content" data-help="3">
+                                <h6>Analysis Types</h6>
+                                <ul class="small">
+                                    <li><strong>Security:</strong> Best for production-bound applications</li>
+                                    <li><strong>Performance:</strong> Ideal for high-traffic applications</li>
+                                    <li><strong>Dynamic:</strong> Great for API-heavy applications</li>
+                                    <li><strong>Comprehensive:</strong> Complete analysis for critical apps</li>
+                                </ul>
+                                <div class="alert alert-success small">
+                                    <i class="fas fa-check me-1"></i>
+                                    <strong>Recommendation:</strong> Start with comprehensive for your most important applications.
+                                </div>
+                            </div>
+
+                            <!-- Step 4 Help -->
+                            <div class="help-content" data-help="4">
+                                <h6>Before You Launch</h6>
+                                <ul class="small">
+                                    <li><strong>Double-check:</strong> Verify model and app selection</li>
+                                    <li><strong>Resources:</strong> Ensure sufficient system resources</li>
+                                    <li><strong>Timing:</strong> Consider system load and peak hours</li>
+                                    <li><strong>Notifications:</strong> Set up appropriate alerts</li>
+                                </ul>
+                                <div class="alert alert-primary small">
+                                    <i class="fas fa-clock me-1"></i>
+                                    <strong>Scheduling:</strong> Analysis will start immediately upon launch.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wizard Navigation -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-outline-secondary" id="prev-btn" onclick="previousStep()" disabled>
+                                <i class="fas fa-chevron-left me-1"></i>Previous
+                            </button>
+                            <div class="wizard-info text-muted small">
+                                Step <span id="current-step">1</span> of 4
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-primary" id="next-btn" onclick="nextStep()">
+                                    Next <i class="fas fa-chevron-right ms-1"></i>
+                                </button>
+                                <button type="submit" class="btn btn-success" id="launch-btn" style="display: none;">
+                                    <i class="fas fa-rocket me-1"></i>Launch Analysis
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.wizard-step {
+    transition: all 0.3s ease;
+}
+
+.wizard-step.active .wizard-step-icon {
+    background: #007bff;
+    color: white;
+    border: 2px solid #007bff;
+}
+
+.wizard-step.completed .wizard-step-icon {
+    background: #28a745;
+    color: white;
+    border: 2px solid #28a745;
+}
+
+.wizard-step-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+    background: white;
+    color: #6c757d;
+    font-size: 1.2rem;
+}
+
+.wizard-step-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.wizard-step.active .wizard-step-label,
+.wizard-step.completed .wizard-step-label {
+    color: #495057;
+    font-weight: 600;
+}
+
+.wizard-panel {
+    display: none;
+}
+
+.wizard-panel.active {
+    display: block;
+}
+
+.help-content {
+    display: none;
+}
+
+.help-content.active {
+    display: block;
+}
+
+.list-group-item .form-check {
+    margin: 0;
+}
+
+.list-group-item .form-check-input {
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .wizard-step-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+    
+    .wizard-step-label {
+        font-size: 0.8rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentStep = 1;
+let selectedModel = null;
+let selectedApp = null;
+let selectedAnalysisType = null;
+
+function nextStep() {
+    if (validateCurrentStep()) {
+        if (currentStep < 4) {
+            currentStep++;
+            updateWizardStep();
+        }
+    }
+}
+
+function previousStep() {
+    if (currentStep > 1) {
+        currentStep--;
+        updateWizardStep();
+    }
+}
+
+function updateWizardStep() {
+    // Update progress bar
+    const progressPercent = (currentStep / 4) * 100;
+    document.getElementById('wizard-progress-bar').style.width = progressPercent + '%';
+    
+    // Update step indicators
+    document.querySelectorAll('.wizard-step').forEach((step, index) => {
+        step.classList.remove('active', 'completed');
+        if (index + 1 < currentStep) {
+            step.classList.add('completed');
+        } else if (index + 1 === currentStep) {
+            step.classList.add('active');
+        }
+    });
+    
+    // Update panels
+    document.querySelectorAll('.wizard-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    document.querySelector(`[data-panel="${currentStep}"]`).classList.add('active');
+    
+    // Update help content
+    document.querySelectorAll('.help-content').forEach(help => {
+        help.classList.remove('active');
+    });
+    document.querySelector(`[data-help="${currentStep}"]`).classList.add('active');
+    
+    // Update navigation buttons
+    document.getElementById('prev-btn').disabled = currentStep === 1;
+    document.getElementById('current-step').textContent = currentStep;
+    
+    if (currentStep === 4) {
+        document.getElementById('next-btn').style.display = 'none';
+        document.getElementById('launch-btn').style.display = 'inline-block';
+        updateAnalysisSummary();
+    } else {
+        document.getElementById('next-btn').style.display = 'inline-block';
+        document.getElementById('launch-btn').style.display = 'none';
+    }
+}
+
+function validateCurrentStep() {
+    switch (currentStep) {
+        case 1:
+            if (!selectedModel) {
+                alert('Please select a model to continue.');
+                return false;
+            }
+            loadApplicationsForModel(selectedModel);
+            return true;
+        case 2:
+            if (!selectedApp) {
+                alert('Please select an application to continue.');
+                return false;
+            }
+            return true;
+        case 3:
+            if (!selectedAnalysisType) {
+                alert('Please select an analysis type to continue.');
+                return false;
+            }
+            return true;
+        default:
+            return true;
+    }
+}
+
+function selectModel(modelSlug, modelName) {
+    selectedModel = { slug: modelSlug, name: modelName };
+    
+    // Update UI to show selection
+    document.querySelectorAll('.model-card').forEach(card => {
+        card.classList.remove('border-primary', 'selected');
+    });
+    
+    const selectedCard = document.querySelector(`[data-model="${modelSlug}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('border-primary', 'selected');
+    }
+    
+    // Show preview
+    const preview = document.getElementById('selected-model-preview');
+    const details = document.getElementById('selected-model-details');
+    details.innerHTML = `<strong>${modelName}</strong> selected for analysis`;
+    preview.style.display = 'block';
+}
+
+function loadApplicationsForModel(model) {
+    const appList = document.getElementById('application-selection-list');
+    appList.innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"></div></div>';
+    
+    htmx.ajax('GET', `/api/models/${model.slug}/applications`, {
+        target: '#application-selection-list'
+    });
+}
+
+function selectApp(appNumber, appInfo) {
+    selectedApp = { number: appNumber, info: appInfo };
+    
+    // Update UI
+    document.querySelectorAll('.app-card').forEach(card => {
+        card.classList.remove('border-success', 'selected');
+    });
+    
+    const selectedCard = document.querySelector(`[data-app="${appNumber}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('border-success', 'selected');
+    }
+    
+    // Show preview
+    const preview = document.getElementById('selected-app-preview');
+    const details = document.getElementById('selected-app-details');
+    details.innerHTML = `<strong>Application #${appNumber}</strong> selected for analysis`;
+    preview.style.display = 'block';
+}
+
+function updateAnalysisConfig() {
+    const selected = document.querySelector('input[name="analysis_type"]:checked');
+    if (selected) {
+        selectedAnalysisType = selected.value;
+        document.getElementById('analysis-config-options').style.display = 'block';
+    }
+}
+
+function updateAnalysisSummary() {
+    if (selectedModel) {
+        document.getElementById('summary-model').textContent = selectedModel.name;
+    }
+    if (selectedApp) {
+        document.getElementById('summary-app').textContent = `Application #${selectedApp.number}`;
+    }
+    if (selectedAnalysisType) {
+        document.getElementById('summary-type').textContent = selectedAnalysisType.charAt(0).toUpperCase() + selectedAnalysisType.slice(1);
+    }
+    
+    const priority = document.querySelector('select[name="priority"]').value;
+    document.getElementById('summary-priority').textContent = priority.charAt(0).toUpperCase() + priority.slice(1);
+    
+    // Estimate time and cost based on analysis type
+    const estimates = {
+        security: { time: '5-10 minutes', cost: '$0.05-$0.15' },
+        performance: { time: '3-8 minutes', cost: '$0.03-$0.12' },
+        dynamic: { time: '7-15 minutes', cost: '$0.08-$0.25' },
+        comprehensive: { time: '15-30 minutes', cost: '$0.15-$0.45' }
+    };
+    
+    if (selectedAnalysisType && estimates[selectedAnalysisType]) {
+        document.getElementById('summary-time').textContent = estimates[selectedAnalysisType].time;
+        document.getElementById('summary-cost').textContent = estimates[selectedAnalysisType].cost;
+    }
+}
+
+function filterModels() {
+    const provider = document.getElementById('provider-filter').value;
+    const capability = document.getElementById('capability-filter').value;
+    const price = document.getElementById('price-filter').value;
+    
+    const params = new URLSearchParams();
+    if (provider) params.append('provider', provider);
+    if (capability) params.append('capability', capability);
+    if (price) params.append('price', price);
+    params.append('selectable', 'true');
+    
+    htmx.ajax('GET', `/api/models/grid?${params.toString()}`, {
+        target: '#model-selection-grid'
+    });
+}
+
+// Advanced options toggle
+document.addEventListener('DOMContentLoaded', function() {
+    const advancedToggle = document.getElementById('advanced-options-toggle');
+    const advancedOptions = document.getElementById('advanced-options');
+    
+    advancedToggle.addEventListener('change', function() {
+        const collapse = new bootstrap.Collapse(advancedOptions, {
+            toggle: false
+        });
+        
+        if (this.checked) {
+            collapse.show();
+        } else {
+            collapse.hide();
+        }
+    });
+});
+</script>
+{% endblock %}

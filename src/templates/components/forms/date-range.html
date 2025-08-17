@@ -1,0 +1,1108 @@
+{# 
+Form Date Range Picker Component
+
+Purpose: Date range selection with calendar picker and preset options
+Usage: {{ date_range(name='date_range', start_date='2025-08-01', end_date='2025-08-17') }}
+Routes: Used in analysis filtering, report generation, and data visualization views
+Features:
+- Calendar-based date selection with visual range highlighting
+- Quick preset options (Today, Yesterday, Last 7 days, etc.)
+- Timezone support and display
+- Real-time validation and formatting
+- Custom date ranges with min/max constraints
+- Accessibility support with keyboard navigation
+- Mobile-friendly interface with touch support
+- Integration with analysis date filtering
+Technical: Bootstrap 5 forms, vanilla JavaScript calendar, date validation
+Dependencies: Bootstrap 5 forms, date manipulation utilities, timezone libraries
+#}
+
+{# Set default values for optional parameters #}
+{%- set name = name or 'date_range' -%}
+{%- set start_date = start_date or None -%}
+{%- set end_date = end_date or None -%}
+{%- set placeholder = placeholder or 'Select date range...' -%}
+{%- set required = required if required is not none else false -%}
+{%- set component_id = id or 'date-range-' ~ range(1000, 9999) | random -%}
+{%- set size = size or 'normal' -%}
+{%- set disabled = disabled if disabled is not none else false -%}
+{%- set show_presets = show_presets if show_presets is not none else true -%}
+{%- set show_time = show_time if show_time is not none else false -%}
+{%- set min_date = min_date or None -%}
+{%- set max_date = max_date or None -%}
+{%- set timezone = timezone or 'UTC' -%}
+{%- set format = format or 'YYYY-MM-DD' -%}
+{%- set separator = separator or ' to ' -%}
+{%- set allow_single_date = allow_single_date if allow_single_date is not none else false -%}
+{%- set auto_apply = auto_apply if auto_apply is not none else true -%}
+{%- set show_clear = show_clear if show_clear is not none else true -%}
+
+{# Define preset date ranges #}
+{%- set presets = [
+    {'label': 'Today', 'value': 'today', 'days': 0},
+    {'label': 'Yesterday', 'value': 'yesterday', 'days': -1},
+    {'label': 'Last 7 days', 'value': 'last_7_days', 'days': -7},
+    {'label': 'Last 30 days', 'value': 'last_30_days', 'days': -30},
+    {'label': 'Last 90 days', 'value': 'last_90_days', 'days': -90},
+    {'label': 'This week', 'value': 'this_week', 'type': 'week'},
+    {'label': 'This month', 'value': 'this_month', 'type': 'month'},
+    {'label': 'This year', 'value': 'this_year', 'type': 'year'},
+    {'label': 'Last week', 'value': 'last_week', 'type': 'week', 'offset': -1},
+    {'label': 'Last month', 'value': 'last_month', 'type': 'month', 'offset': -1},
+    {'label': 'Custom range', 'value': 'custom', 'custom': true}
+] -%}
+
+<div class="date-range-container" id="{{ component_id }}-container">
+    <div class="form-group">
+        {% if label %}
+            <label for="{{ component_id }}" class="form-label">
+                {{ label }}
+                {% if required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+        {% endif %}
+        
+        {# Date Range Input Display #}
+        <div class="date-range-input-wrapper">
+            <div class="input-group">
+                <input type="text" 
+                       class="form-control date-range-display {{ 'is-invalid' if error else '' }}"
+                       id="{{ component_id }}"
+                       {% if required %}required{% endif %}
+                       {% if disabled %}disabled{% endif %}
+                       placeholder="{{ placeholder }}"
+                       readonly
+                       aria-describedby="{{ component_id }}-help"
+                       data-bs-toggle="dropdown"
+                       aria-expanded="false">
+                       
+                <button class="btn btn-outline-secondary dropdown-toggle" 
+                        type="button"
+                        {% if disabled %}disabled{% endif %}
+                        data-bs-toggle="dropdown" 
+                        aria-expanded="false">
+                    <i class="fas fa-calendar-alt"></i>
+                </button>
+                
+                {# Hidden inputs for form submission #}
+                <input type="hidden" 
+                       name="{{ name }}_start" 
+                       id="{{ component_id }}-start" 
+                       value="{{ start_date or '' }}">
+                <input type="hidden" 
+                       name="{{ name }}_end" 
+                       id="{{ component_id }}-end" 
+                       value="{{ end_date or '' }}">
+                       
+                {% if show_clear %}
+                    <button class="btn btn-outline-secondary date-range-clear" 
+                            type="button"
+                            {% if disabled %}disabled{% endif %}
+                            title="Clear selection">
+                        <i class="fas fa-times"></i>
+                    </button>
+                {% endif %}
+            </div>
+            
+            {# Dropdown Calendar Interface #}
+            <div class="dropdown-menu date-range-dropdown" style="width: 600px; max-width: 90vw;">
+                <div class="p-3">
+                    <div class="row">
+                        {# Preset Options #}
+                        {% if show_presets %}
+                            <div class="col-md-4 border-end">
+                                <h6 class="dropdown-header">Quick Select</h6>
+                                <div class="preset-options">
+                                    {% for preset in presets %}
+                                        <button type="button" 
+                                                class="btn btn-link btn-sm d-block w-100 text-start preset-option"
+                                                data-preset="{{ preset.value }}"
+                                                {% if preset.days %}data-days="{{ preset.days }}"{% endif %}
+                                                {% if preset.type %}data-type="{{ preset.type }}"{% endif %}
+                                                {% if preset.offset %}data-offset="{{ preset.offset }}"{% endif %}
+                                                {% if preset.custom %}data-custom="true"{% endif %}>
+                                            {{ preset.label }}
+                                        </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        {# Calendar Interface #}
+                        <div class="{% if show_presets %}col-md-8{% else %}col-12{% endif %}">
+                            <div class="calendar-container">
+                                {# Calendar Header #}
+                                <div class="calendar-header d-flex justify-content-between align-items-center mb-3">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary calendar-prev">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <div class="calendar-title">
+                                        <span class="current-month-year"></span>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary calendar-next">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                                
+                                {# Calendar Grid #}
+                                <div class="calendar-grid">
+                                    {# Weekday Headers #}
+                                    <div class="weekday-headers d-flex mb-2">
+                                        <div class="weekday-header text-center" style="flex: 1">Sun</div>
+                                        <div class="weekday-header text-center" style="flex: 1">Mon</div>
+                                        <div class="weekday-header text-center" style="flex: 1">Tue</div>
+                                        <div class="weekday-header text-center" style="flex: 1">Wed</div>
+                                        <div class="weekday-header text-center" style="flex: 1">Thu</div>
+                                        <div class="weekday-header text-center" style="flex: 1">Fri</div>
+                                        <div class="weekday-header text-center" style="flex: 1">Sat</div>
+                                    </div>
+                                    
+                                    {# Calendar Days #}
+                                    <div class="calendar-days" id="{{ component_id }}-calendar-days">
+                                        <!-- Days will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                                
+                                {% if show_time %}
+                                    {# Time Selection #}
+                                    <div class="time-selection mt-3 pt-3 border-top">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <label class="form-label small">Start Time</label>
+                                                <input type="time" class="form-control form-control-sm start-time">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small">End Time</label>
+                                                <input type="time" class="form-control form-control-sm end-time">
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                                
+                                {# Action Buttons #}
+                                <div class="calendar-actions mt-3 pt-3 border-top d-flex justify-content-between">
+                                    <div class="selected-range-display small text-muted">
+                                        <span class="selected-range-text">Select date range</span>
+                                    </div>
+                                    <div class="action-buttons">
+                                        {% if not auto_apply %}
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-2 cancel-selection">
+                                                Cancel
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-primary apply-selection">
+                                                Apply
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {# Help text #}
+        {% if help_text %}
+            <div class="form-text" id="{{ component_id }}-help">{{ help_text }}</div>
+        {% endif %}
+        
+        {# Error message #}
+        {% if error %}
+            <div class="invalid-feedback">{{ error }}</div>
+        {% endif %}
+    </div>
+</div>
+
+{# JavaScript for date range picker functionality #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('{{ component_id }}-container');
+    const display = document.getElementById('{{ component_id }}');
+    const startInput = document.getElementById('{{ component_id }}-start');
+    const endInput = document.getElementById('{{ component_id }}-end');
+    const dropdown = container.querySelector('.date-range-dropdown');
+    const calendarDays = document.getElementById('{{ component_id }}-calendar-days');
+    const monthYearDisplay = container.querySelector('.current-month-year');
+    const prevButton = container.querySelector('.calendar-prev');
+    const nextButton = container.querySelector('.calendar-next');
+    const presetOptions = container.querySelectorAll('.preset-option');
+    const clearButton = container.querySelector('.date-range-clear');
+    const selectedRangeText = container.querySelector('.selected-range-text');
+    const applyButton = container.querySelector('.apply-selection');
+    const cancelButton = container.querySelector('.cancel-selection');
+    
+    if (!container || !display) return;
+    
+    // Configuration
+    const config = {
+        timezone: '{{ timezone }}',
+        format: '{{ format }}',
+        separator: '{{ separator }}',
+        showTime: {{ show_time|lower }},
+        autoApply: {{ auto_apply|lower }},
+        allowSingleDate: {{ allow_single_date|lower }},
+        minDate: {{ ("'" + min_date + "'") if min_date else 'null' }},
+        maxDate: {{ ("'" + max_date + "'") if max_date else 'null' }}
+    };
+    
+    // State
+    let currentDate = new Date();
+    let selectedStart = {{ ("new Date('" + start_date + "')") if start_date else 'null' }};
+    let selectedEnd = {{ ("new Date('" + end_date + "')") if end_date else 'null' }};
+    let tempStart = null;
+    let tempEnd = null;
+    let isSelecting = false;
+    
+    // Initialize date range picker
+    initializeDateRangePicker();
+    
+    function initializeDateRangePicker() {
+        // Initialize display
+        updateDisplay();
+        
+        // Render initial calendar
+        renderCalendar();
+        
+        // Event listeners
+        prevButton.addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        });
+        
+        nextButton.addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        });
+        
+        // Preset options
+        presetOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                handlePresetSelection(this);
+            });
+        });
+        
+        // Clear button
+        if (clearButton) {
+            clearButton.addEventListener('click', clearSelection);
+        }
+        
+        // Apply/Cancel buttons
+        if (applyButton) {
+            applyButton.addEventListener('click', applySelection);
+        }
+        
+        if (cancelButton) {
+            cancelButton.addEventListener('click', cancelSelection);
+        }
+        
+        // Close dropdown on outside click
+        document.addEventListener('click', function(e) {
+            if (!container.contains(e.target)) {
+                // Reset temp selection if not applied
+                if (!config.autoApply && (tempStart || tempEnd)) {
+                    tempStart = null;
+                    tempEnd = null;
+                    renderCalendar();
+                    updateSelectedRangeDisplay();
+                }
+            }
+        });
+        
+        // Keyboard navigation
+        display.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                display.click();
+            }
+        });
+    }
+    
+    function renderCalendar() {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        
+        // Update header
+        monthYearDisplay.textContent = new Date(year, month).toLocaleDateString('en-US', {
+            month: 'long',
+            year: 'numeric'
+        });
+        
+        // Calculate first day of month and number of days
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDayOfWeek = firstDay.getDay();
+        
+        // Generate calendar days
+        let daysHtml = '';
+        let dayCount = 1;
+        
+        // Create calendar grid (6 weeks * 7 days)
+        for (let week = 0; week < 6; week++) {
+            daysHtml += '<div class="calendar-week d-flex">';
+            
+            for (let day = 0; day < 7; day++) {
+                const dayIndex = week * 7 + day;
+                let dayNumber = '';
+                let dayClasses = 'calendar-day text-center';
+                let dayData = '';
+                
+                if (week === 0 && day < startingDayOfWeek) {
+                    // Previous month days
+                    const prevMonth = new Date(year, month - 1, 0);
+                    dayNumber = prevMonth.getDate() - (startingDayOfWeek - day - 1);
+                    dayClasses += ' other-month';
+                    dayData = `data-date="${year}-${String(month).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}"`;
+                } else if (dayCount <= daysInMonth) {
+                    // Current month days
+                    dayNumber = dayCount;
+                    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayCount).padStart(2, '0')}`;
+                    dayData = `data-date="${dateString}"`;
+                    
+                    // Add classes based on state
+                    const dayDate = new Date(year, month, dayCount);
+                    
+                    if (isToday(dayDate)) {
+                        dayClasses += ' today';
+                    }
+                    
+                    if (isSelected(dayDate)) {
+                        dayClasses += ' selected';
+                    }
+                    
+                    if (isInRange(dayDate)) {
+                        dayClasses += ' in-range';
+                    }
+                    
+                    if (isRangeStart(dayDate)) {
+                        dayClasses += ' range-start';
+                    }
+                    
+                    if (isRangeEnd(dayDate)) {
+                        dayClasses += ' range-end';
+                    }
+                    
+                    if (isDisabled(dayDate)) {
+                        dayClasses += ' disabled';
+                    }
+                    
+                    dayCount++;
+                } else {
+                    // Next month days
+                    const nextMonthDay = dayCount - daysInMonth;
+                    dayNumber = nextMonthDay;
+                    dayClasses += ' other-month';
+                    dayData = `data-date="${year}-${String(month + 2).padStart(2, '0')}-${String(nextMonthDay).padStart(2, '0')}"`;
+                    dayCount++;
+                }
+                
+                daysHtml += `<div class="${dayClasses}" style="flex: 1; padding: 8px; cursor: pointer;" ${dayData} role="button" tabindex="0">
+                    ${dayNumber}
+                </div>`;
+            }
+            
+            daysHtml += '</div>';
+            
+            // Stop if we've filled the month and next month start
+            if (dayCount > daysInMonth + 7) break;
+        }
+        
+        calendarDays.innerHTML = daysHtml;
+        
+        // Add click handlers to days
+        const dayElements = calendarDays.querySelectorAll('.calendar-day:not(.disabled)');
+        dayElements.forEach(dayEl => {
+            dayEl.addEventListener('click', function() {
+                handleDayClick(this.dataset.date);
+            });
+            
+            dayEl.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleDayClick(this.dataset.date);
+                }
+            });
+        });
+        
+        updateSelectedRangeDisplay();
+    }
+    
+    function handleDayClick(dateString) {
+        const clickedDate = new Date(dateString);
+        
+        if (config.allowSingleDate) {
+            // Single date mode
+            if (!tempStart || tempEnd) {
+                tempStart = clickedDate;
+                tempEnd = null;
+            } else {
+                tempEnd = clickedDate;
+                // Ensure start is before end
+                if (tempEnd < tempStart) {
+                    [tempStart, tempEnd] = [tempEnd, tempStart];
+                }
+            }
+        } else {
+            // Range mode
+            if (!tempStart || (tempStart && tempEnd)) {
+                // Start new selection
+                tempStart = clickedDate;
+                tempEnd = null;
+                isSelecting = true;
+            } else if (tempStart && !tempEnd) {
+                // Complete selection
+                tempEnd = clickedDate;
+                // Ensure start is before end
+                if (tempEnd < tempStart) {
+                    [tempStart, tempEnd] = [tempEnd, tempStart];
+                }
+                isSelecting = false;
+            }
+        }
+        
+        renderCalendar();
+        
+        if (config.autoApply && tempStart && (tempEnd || config.allowSingleDate)) {
+            applySelection();
+        }
+    }
+    
+    function handlePresetSelection(option) {
+        const preset = option.dataset.preset;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Clear active preset styling
+        presetOptions.forEach(opt => opt.classList.remove('active'));
+        option.classList.add('active');
+        
+        if (preset === 'custom') {
+            // Clear selection for custom range
+            tempStart = null;
+            tempEnd = null;
+            renderCalendar();
+            return;
+        }
+        
+        let start, end;
+        
+        if (option.dataset.days !== undefined) {
+            // Days-based presets
+            const days = parseInt(option.dataset.days);
+            if (days === 0) {
+                // Today
+                start = new Date(today);
+                end = new Date(today);
+            } else if (days < 0) {
+                // Last N days
+                start = new Date(today);
+                start.setDate(today.getDate() + days + 1);
+                end = new Date(today);
+            }
+        } else if (option.dataset.type) {
+            // Period-based presets
+            const type = option.dataset.type;
+            const offset = parseInt(option.dataset.offset || 0);
+            
+            if (type === 'week') {
+                start = getWeekStart(today, offset);
+                end = getWeekEnd(start);
+            } else if (type === 'month') {
+                start = getMonthStart(today, offset);
+                end = getMonthEnd(start);
+            } else if (type === 'year') {
+                start = getYearStart(today, offset);
+                end = getYearEnd(start);
+            }
+        }
+        
+        if (start && end) {
+            tempStart = start;
+            tempEnd = end;
+            renderCalendar();
+            
+            if (config.autoApply) {
+                applySelection();
+            }
+        }
+    }
+    
+    function applySelection() {
+        selectedStart = tempStart;
+        selectedEnd = tempEnd;
+        updateDisplay();
+        updateHiddenInputs();
+        
+        // Close dropdown
+        const dropdown = container.querySelector('.dropdown-menu');
+        const bsDropdown = bootstrap.Dropdown.getInstance(display.nextElementSibling);
+        if (bsDropdown) {
+            bsDropdown.hide();
+        }
+        
+        // Emit change event
+        const event = new CustomEvent('dateRangeChange', {
+            detail: {
+                startDate: selectedStart,
+                endDate: selectedEnd,
+                componentId: '{{ component_id }}'
+            }
+        });
+        document.dispatchEvent(event);
+    }
+    
+    function cancelSelection() {
+        tempStart = selectedStart;
+        tempEnd = selectedEnd;
+        renderCalendar();
+        updateSelectedRangeDisplay();
+    }
+    
+    function clearSelection() {
+        selectedStart = null;
+        selectedEnd = null;
+        tempStart = null;
+        tempEnd = null;
+        updateDisplay();
+        updateHiddenInputs();
+        renderCalendar();
+        
+        // Clear active presets
+        presetOptions.forEach(opt => opt.classList.remove('active'));
+        
+        // Emit change event
+        const event = new CustomEvent('dateRangeChange', {
+            detail: {
+                startDate: null,
+                endDate: null,
+                componentId: '{{ component_id }}'
+            }
+        });
+        document.dispatchEvent(event);
+    }
+    
+    function updateDisplay() {
+        if (selectedStart && selectedEnd) {
+            const startStr = formatDate(selectedStart, config.format);
+            const endStr = formatDate(selectedEnd, config.format);
+            display.value = `${startStr}${config.separator}${endStr}`;
+        } else if (selectedStart && config.allowSingleDate) {
+            display.value = formatDate(selectedStart, config.format);
+        } else {
+            display.value = '';
+        }
+        
+        // Update placeholder
+        if (!display.value) {
+            display.setAttribute('placeholder', '{{ placeholder }}');
+        }
+    }
+    
+    function updateHiddenInputs() {
+        startInput.value = selectedStart ? formatDate(selectedStart, 'YYYY-MM-DD') : '';
+        endInput.value = selectedEnd ? formatDate(selectedEnd, 'YYYY-MM-DD') : '';
+        
+        {% if show_time %}
+            const startTime = container.querySelector('.start-time');
+            const endTime = container.querySelector('.end-time');
+            
+            if (startTime && selectedStart) {
+                startInput.value += selectedStart.toISOString().slice(11, 16);
+            }
+            
+            if (endTime && selectedEnd) {
+                endInput.value += selectedEnd.toISOString().slice(11, 16);
+            }
+        {% endif %}
+    }
+    
+    function updateSelectedRangeDisplay() {
+        const currentStart = tempStart || selectedStart;
+        const currentEnd = tempEnd || selectedEnd;
+        
+        if (currentStart && currentEnd) {
+            const startStr = formatDate(currentStart, 'MMM DD, YYYY');
+            const endStr = formatDate(currentEnd, 'MMM DD, YYYY');
+            selectedRangeText.textContent = `${startStr} - ${endStr}`;
+        } else if (currentStart) {
+            selectedRangeText.textContent = `Start: ${formatDate(currentStart, 'MMM DD, YYYY')}`;
+        } else {
+            selectedRangeText.textContent = 'Select date range';
+        }
+    }
+    
+    // Helper functions
+    function isToday(date) {
+        const today = new Date();
+        return date.toDateString() === today.toDateString();
+    }
+    
+    function isSelected(date) {
+        const current = tempStart || selectedStart;
+        return current && date.toDateString() === current.toDateString();
+    }
+    
+    function isInRange(date) {
+        const start = tempStart || selectedStart;
+        const end = tempEnd || selectedEnd;
+        return start && end && date >= start && date <= end;
+    }
+    
+    function isRangeStart(date) {
+        const start = tempStart || selectedStart;
+        return start && date.toDateString() === start.toDateString();
+    }
+    
+    function isRangeEnd(date) {
+        const end = tempEnd || selectedEnd;
+        return end && date.toDateString() === end.toDateString();
+    }
+    
+    function isDisabled(date) {
+        if (config.minDate && date < new Date(config.minDate)) {
+            return true;
+        }
+        if (config.maxDate && date > new Date(config.maxDate)) {
+            return true;
+        }
+        return false;
+    }
+    
+    function formatDate(date, format) {
+        // Simple date formatting - in real app, use a proper date library
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        
+        return format
+            .replace('YYYY', year)
+            .replace('MM', month)
+            .replace('DD', day)
+            .replace('MMM', date.toLocaleDateString('en-US', { month: 'short' }));
+    }
+    
+    function getWeekStart(date, offset = 0) {
+        const d = new Date(date);
+        d.setDate(d.getDate() + (offset * 7) - d.getDay());
+        return d;
+    }
+    
+    function getWeekEnd(startDate) {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + 6);
+        return d;
+    }
+    
+    function getMonthStart(date, offset = 0) {
+        const d = new Date(date.getFullYear(), date.getMonth() + offset, 1);
+        return d;
+    }
+    
+    function getMonthEnd(startDate) {
+        const d = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+        return d;
+    }
+    
+    function getYearStart(date, offset = 0) {
+        const d = new Date(date.getFullYear() + offset, 0, 1);
+        return d;
+    }
+    
+    function getYearEnd(startDate) {
+        const d = new Date(startDate.getFullYear(), 11, 31);
+        return d;
+    }
+    
+    // Public API
+    window.DateRange = window.DateRange || {};
+    window.DateRange['{{ component_id }}'] = {
+        getStartDate: () => selectedStart,
+        getEndDate: () => selectedEnd,
+        setDateRange: (start, end) => {
+            selectedStart = start ? new Date(start) : null;
+            selectedEnd = end ? new Date(end) : null;
+            updateDisplay();
+            updateHiddenInputs();
+            renderCalendar();
+        },
+        clear: clearSelection,
+        getFormattedRange: () => display.value,
+        disable: () => { display.disabled = true; },
+        enable: () => { display.disabled = false; }
+    };
+});
+</script>
+
+{# CSS for date range picker styling #}
+<style>
+.date-range-container {
+    position: relative;
+}
+
+.date-range-input-wrapper {
+    position: relative;
+}
+
+.date-range-display {
+    cursor: pointer;
+    background-color: #fff;
+}
+
+.date-range-display:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.date-range-dropdown {
+    padding: 0;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    z-index: 1055;
+}
+
+/* Preset options styling */
+.preset-options {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.preset-option {
+    padding: 0.5rem 0.75rem;
+    border: none;
+    color: #495057;
+    transition: all 0.2s ease;
+}
+
+.preset-option:hover,
+.preset-option.active {
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+}
+
+/* Calendar styling */
+.calendar-container {
+    min-width: 280px;
+}
+
+.calendar-header {
+    user-select: none;
+}
+
+.calendar-title {
+    font-weight: 600;
+    color: #495057;
+}
+
+.weekday-headers {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5rem;
+}
+
+.weekday-header {
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 0.875rem;
+    padding: 0.25rem;
+}
+
+.calendar-days {
+    font-size: 0.875rem;
+}
+
+.calendar-week {
+    margin-bottom: 2px;
+}
+
+.calendar-day {
+    position: relative;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+    user-select: none;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-day:hover:not(.disabled) {
+    background-color: #e9ecef;
+    transform: scale(1.05);
+}
+
+.calendar-day:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 1px;
+}
+
+.calendar-day.other-month {
+    color: #adb5bd;
+    cursor: default;
+}
+
+.calendar-day.other-month:hover {
+    background-color: transparent;
+    transform: none;
+}
+
+.calendar-day.today {
+    background-color: #007bff;
+    color: white;
+    font-weight: 600;
+}
+
+.calendar-day.today:hover {
+    background-color: #0056b3;
+}
+
+.calendar-day.selected,
+.calendar-day.range-start,
+.calendar-day.range-end {
+    background-color: #007bff;
+    color: white;
+    font-weight: 600;
+}
+
+.calendar-day.in-range {
+    background-color: rgba(13, 110, 253, 0.2);
+    color: #007bff;
+}
+
+.calendar-day.range-start {
+    border-radius: 0.25rem 0 0 0.25rem;
+}
+
+.calendar-day.range-end {
+    border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.calendar-day.range-start.range-end {
+    border-radius: 0.25rem;
+}
+
+.calendar-day.disabled {
+    color: #adb5bd;
+    cursor: not-allowed;
+    background-color: #f8f9fa;
+}
+
+.calendar-day.disabled:hover {
+    background-color: #f8f9fa;
+    transform: none;
+}
+
+/* Time selection */
+.time-selection .form-control {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+
+/* Calendar actions */
+.calendar-actions {
+    align-items: center;
+}
+
+.selected-range-display {
+    font-weight: 500;
+    color: #495057;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.date-range-dropdown {
+    animation: fadeIn 0.2s ease;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .date-range-dropdown {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        width: 95vw !important;
+        max-width: 400px !important;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+    
+    .preset-options {
+        display: none;
+    }
+    
+    .row {
+        margin: 0;
+    }
+    
+    .col-md-4,
+    .col-md-8 {
+        padding: 0;
+    }
+    
+    .calendar-container {
+        min-width: auto;
+    }
+    
+    .calendar-day {
+        min-height: 40px;
+        font-size: 1rem;
+    }
+    
+    .weekday-header {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.25rem;
+    }
+    
+    .calendar-actions {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .action-buttons {
+        width: 100%;
+    }
+    
+    .action-buttons .btn {
+        width: 48%;
+    }
+}
+
+@media (max-width: 576px) {
+    .input-group .btn {
+        padding: 0.375rem 0.5rem;
+    }
+    
+    .input-group .btn i {
+        font-size: 0.875rem;
+    }
+    
+    .date-range-dropdown {
+        max-width: 350px !important;
+    }
+    
+    .calendar-day {
+        min-height: 36px;
+        font-size: 0.875rem;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .date-range-dropdown {
+        background-color: #343a40;
+        border-color: #495057;
+        color: #e9ecef;
+    }
+    
+    .calendar-day:hover:not(.disabled) {
+        background-color: #495057;
+    }
+    
+    .calendar-day.in-range {
+        background-color: rgba(13, 110, 253, 0.3);
+    }
+    
+    .preset-option {
+        color: #e9ecef;
+    }
+    
+    .preset-option:hover,
+    .preset-option.active {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .weekday-headers {
+        border-color: #495057;
+    }
+    
+    .calendar-actions {
+        border-color: #495057;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .calendar-day {
+        border: 1px solid transparent;
+    }
+    
+    .calendar-day.today,
+    .calendar-day.selected,
+    .calendar-day.range-start,
+    .calendar-day.range-end {
+        border-color: #ffffff;
+    }
+    
+    .calendar-day.in-range {
+        border-color: #007bff;
+    }
+    
+    .preset-option:hover,
+    .preset-option.active {
+        border: 2px solid #ffffff;
+    }
+}
+
+/* Print styles */
+@media print {
+    .date-range-dropdown {
+        display: none !important;
+    }
+    
+    .date-range-display {
+        border: 1px solid #000000;
+        background-color: transparent;
+    }
+}
+
+/* Loading states */
+.date-range-display[disabled] {
+    background-color: #e9ecef;
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.input-group .btn[disabled] {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Focus management */
+.date-range-display:focus-visible {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+.calendar-day:focus-visible {
+    outline: 2px solid #007bff;
+    outline-offset: 1px;
+}
+
+.preset-option:focus-visible {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+    .calendar-day,
+    .preset-option,
+    .date-range-dropdown {
+        transition: none;
+        animation: none;
+    }
+    
+    .calendar-day:hover:not(.disabled) {
+        transform: none;
+    }
+}
+</style>

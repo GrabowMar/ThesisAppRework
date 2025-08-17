@@ -1,0 +1,1017 @@
+{#
+  Step Indicator Component - Multi-Step Process Progress Indicator
+  
+  Purpose: Visual progress indicator for multi-step processes with validation states
+  
+  Usage:
+    {% include 'components/navigation/step-indicator.html' with {
+        steps: [
+            {'id': 'model', 'name': 'Select Model', 'description': 'Choose AI model', 'status': 'completed', 'icon': 'fas fa-brain'},
+            {'id': 'config', 'name': 'Configuration', 'description': 'Set analysis parameters', 'status': 'current', 'icon': 'fas fa-cogs'},
+            {'id': 'review', 'name': 'Review', 'description': 'Confirm settings', 'status': 'pending', 'icon': 'fas fa-eye'},
+            {'id': 'execute', 'name': 'Execute', 'description': 'Run analysis', 'status': 'pending', 'icon': 'fas fa-play'}
+        ],
+        orientation: "horizontal",
+        show_descriptions: true,
+        clickable: true,
+        show_progress_bar: true
+    } %}
+  
+  Dependencies:
+    - Bootstrap 5.3+ (for responsive grid and utilities)
+    - Font Awesome 6+ (for icons)
+  
+  Features:
+    - Horizontal and vertical orientations
+    - Multiple status states (pending, current, completed, error, warning)
+    - Clickable navigation between steps
+    - Progress bar with percentage completion
+    - Icon and description support
+    - Responsive design
+    - Validation state indicators
+    - Keyboard navigation support
+    - Custom step content support
+#}
+
+{%- set steps = steps|default([]) -%}
+{%- set orientation = orientation|default("horizontal") -%}
+{%- set show_descriptions = show_descriptions|default(true) -%}
+{%- set show_icons = show_icons|default(true) -%}
+{%- set clickable = clickable|default(false) -%}
+{%- set show_progress_bar = show_progress_bar|default(true) -%}
+{%- set compact_mode = compact_mode|default(false) -%}
+{%- set enable_validation = enable_validation|default(true) -%}
+
+{# Calculate progress percentage #}
+{%- set completed_steps = steps|selectattr('status', 'equalto', 'completed')|list|length -%}
+{%- set total_steps = steps|length -%}
+{%- set progress_percentage = ((completed_steps / total_steps) * 100)|round|int if total_steps > 0 else 0 -%}
+
+{# Find current step #}
+{%- set current_step_index = (steps|selectattr('status', 'equalto', 'current')|list|first|default({})).loop.index0 if steps|selectattr('status', 'equalto', 'current')|list else 0 -%}
+
+<div class="step-indicator-container step-indicator-{{ orientation }} {{ 'compact' if compact_mode else '' }}" 
+     id="step-indicator"
+     role="navigation" 
+     aria-label="Step-by-step progress"
+     data-current-step="{{ current_step_index }}"
+     data-total-steps="{{ total_steps }}">
+
+  <!-- Progress Bar (if enabled) -->
+  {% if show_progress_bar and orientation == "horizontal" %}
+  <div class="step-progress-bar-container mb-4" role="progressbar" 
+       aria-valuenow="{{ progress_percentage }}" 
+       aria-valuemin="0" 
+       aria-valuemax="100" 
+       aria-label="Overall progress: {{ progress_percentage }}% complete">
+    
+    <div class="step-progress-bar">
+      <div class="step-progress-fill" style="width: {{ progress_percentage }}%">
+        <span class="step-progress-text">{{ progress_percentage }}% Complete</span>
+      </div>
+    </div>
+    
+    <div class="step-progress-labels d-flex justify-content-between mt-1">
+      <small class="text-muted">Start</small>
+      <small class="text-muted">{{ progress_percentage }}%</small>
+      <small class="text-muted">Complete</small>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Steps Container -->
+  <div class="steps-container {{ 'd-flex' if orientation == 'horizontal' else '' }}">
+    
+    {% for step in steps %}
+    {%- set step_index = loop.index0 -%}
+    {%- set step_number = loop.index -%}
+    {%- set step_id = step.id|default('step-' ~ step_number) -%}
+    {%- set step_status = step.status|default('pending') -%}
+    {%- set is_current = step_status == 'current' -%}
+    {%- set is_completed = step_status == 'completed' -%}
+    {%- set is_error = step_status == 'error' -%}
+    {%- set is_warning = step_status == 'warning' -%}
+    {%- set is_clickable = clickable and (is_completed or is_current or step.clickable|default(false)) -%}
+    
+    <div class="step-item step-{{ step_status }} {{ 'clickable' if is_clickable else '' }} {{ 'flex-fill' if orientation == 'horizontal' else '' }}"
+         id="{{ step_id }}"
+         role="button"
+         tabindex="{{ '0' if is_clickable else '-1' }}"
+         aria-current="{{ 'step' if is_current else 'false' }}"
+         data-step-index="{{ step_index }}"
+         data-step-id="{{ step_id }}"
+         {{ 'aria-disabled="false"' if is_clickable else 'aria-disabled="true"' }}
+         {{ 'onclick="navigateToStep(' ~ step_index ~ ')"' if is_clickable else '' }}>
+
+      <!-- Step Connector (horizontal layout) -->
+      {% if orientation == "horizontal" and not loop.first %}
+      <div class="step-connector {{ 'completed' if steps[loop.index0 - 1].status == 'completed' else '' }}">
+        <div class="step-connector-line"></div>
+      </div>
+      {% endif %}
+
+      <!-- Step Circle/Icon -->
+      <div class="step-circle d-flex align-items-center justify-content-center">
+        
+        {% if is_completed %}
+        <!-- Completed step - checkmark -->
+        <i class="fas fa-check step-check-icon" aria-hidden="true"></i>
+        
+        {% elif is_error %}
+        <!-- Error step - X icon -->
+        <i class="fas fa-times step-error-icon" aria-hidden="true"></i>
+        
+        {% elif is_warning %}
+        <!-- Warning step - exclamation -->
+        <i class="fas fa-exclamation step-warning-icon" aria-hidden="true"></i>
+        
+        {% elif show_icons and step.icon %}
+        <!-- Custom icon -->
+        <i class="{{ step.icon }} step-custom-icon" aria-hidden="true"></i>
+        
+        {% else %}
+        <!-- Step number -->
+        <span class="step-number">{{ step_number }}</span>
+        
+        {% endif %}
+      </div>
+
+      <!-- Step Content -->
+      <div class="step-content {{ 'ms-3' if orientation == 'vertical' else '' }}">
+        
+        <!-- Step Name -->
+        <div class="step-name">
+          {{ step.name }}
+          
+          <!-- Validation indicators -->
+          {% if enable_validation %}
+          {% if step.required %}
+          <span class="step-required text-danger" title="Required step" aria-label="Required">*</span>
+          {% endif %}
+          
+          {% if step.validation_errors %}
+          <i class="fas fa-exclamation-circle text-danger ms-1" 
+             title="{{ step.validation_errors|length }} validation error(s)"
+             aria-label="{{ step.validation_errors|length }} validation errors"></i>
+          {% endif %}
+          {% endif %}
+        </div>
+
+        <!-- Step Description -->
+        {% if show_descriptions and step.description and not compact_mode %}
+        <div class="step-description text-muted">
+          {{ step.description }}
+        </div>
+        {% endif %}
+
+        <!-- Step Time/Duration -->
+        {% if step.duration %}
+        <div class="step-duration">
+          <small class="text-muted">
+            <i class="fas fa-clock me-1" aria-hidden="true"></i>
+            {{ step.duration }}
+          </small>
+        </div>
+        {% endif %}
+
+        <!-- Step Actions -->
+        {% if step.actions and is_current %}
+        <div class="step-actions mt-2">
+          {% for action in step.actions %}
+          <button type="button" 
+                  class="btn btn-{{ action.style|default('primary') }} btn-sm me-2"
+                  onclick="{{ action.onclick if action.onclick else 'performStepAction(\'' + step_id + '\', \'' + action.id + '\')' }}"
+                  {{ 'disabled' if action.disabled else '' }}>
+            {% if action.icon %}
+            <i class="{{ action.icon }} me-1" aria-hidden="true"></i>
+            {% endif %}
+            {{ action.label }}
+          </button>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Validation Errors -->
+        {% if enable_validation and step.validation_errors and is_current %}
+        <div class="step-validation-errors mt-2">
+          <div class="alert alert-danger alert-sm" role="alert">
+            <div class="d-flex align-items-center mb-2">
+              <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>
+              <strong>Validation Errors</strong>
+            </div>
+            <ul class="mb-0 ps-3">
+              {% for error in step.validation_errors %}
+              <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Vertical Connector (vertical layout) -->
+      {% if orientation == "vertical" and not loop.last %}
+      <div class="step-connector-vertical {{ 'completed' if is_completed else '' }}">
+        <div class="step-connector-line-vertical"></div>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Step Summary (if enabled) -->
+  {% if show_progress_bar and orientation == "vertical" %}
+  <div class="step-summary mt-4 p-3 bg-light rounded">
+    <div class="row text-center">
+      <div class="col">
+        <div class="step-summary-number">{{ completed_steps }}</div>
+        <div class="step-summary-label text-muted">Completed</div>
+      </div>
+      <div class="col">
+        <div class="step-summary-number">{{ total_steps - completed_steps - (1 if steps|selectattr('status', 'equalto', 'current')|list else 0) }}</div>
+        <div class="step-summary-label text-muted">Remaining</div>
+      </div>
+      <div class="col">
+        <div class="step-summary-number">{{ progress_percentage }}%</div>
+        <div class="step-summary-label text-muted">Progress</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Step Indicator JavaScript -->
+<script>
+class StepIndicatorManager {
+  constructor(containerId) {
+    this.container = document.getElementById(containerId);
+    this.steps = this.container?.querySelectorAll('.step-item') || [];
+    this.currentStepIndex = parseInt(this.container?.dataset.currentStep) || 0;
+    this.totalSteps = parseInt(this.container?.dataset.totalSteps) || 0;
+    
+    this.init();
+  }
+  
+  init() {
+    this.setupKeyboardNavigation();
+    this.setupStepEvents();
+    this.updateProgressBar();
+  }
+  
+  setupKeyboardNavigation() {
+    this.steps.forEach((step, index) => {
+      step.addEventListener('keydown', (e) => {
+        switch (e.key) {
+          case 'Enter':
+          case ' ':
+            e.preventDefault();
+            if (step.getAttribute('aria-disabled') !== 'true') {
+              this.navigateToStep(index);
+            }
+            break;
+          case 'ArrowRight':
+          case 'ArrowDown':
+            e.preventDefault();
+            this.focusNextStep(index);
+            break;
+          case 'ArrowLeft':
+          case 'ArrowUp':
+            e.preventDefault();
+            this.focusPrevStep(index);
+            break;
+          case 'Home':
+            e.preventDefault();
+            this.focusFirstStep();
+            break;
+          case 'End':
+            e.preventDefault();
+            this.focusLastStep();
+            break;
+        }
+      });
+    });
+  }
+  
+  focusNextStep(currentIndex) {
+    const nextIndex = Math.min(currentIndex + 1, this.steps.length - 1);
+    const nextStep = this.steps[nextIndex];
+    if (nextStep && nextStep.getAttribute('aria-disabled') !== 'true') {
+      nextStep.focus();
+    }
+  }
+  
+  focusPrevStep(currentIndex) {
+    const prevIndex = Math.max(currentIndex - 1, 0);
+    const prevStep = this.steps[prevIndex];
+    if (prevStep && prevStep.getAttribute('aria-disabled') !== 'true') {
+      prevStep.focus();
+    }
+  }
+  
+  focusFirstStep() {
+    const firstStep = Array.from(this.steps).find(step => 
+      step.getAttribute('aria-disabled') !== 'true'
+    );
+    if (firstStep) {
+      firstStep.focus();
+    }
+  }
+  
+  focusLastStep() {
+    const lastStep = Array.from(this.steps).reverse().find(step => 
+      step.getAttribute('aria-disabled') !== 'true'
+    );
+    if (lastStep) {
+      lastStep.focus();
+    }
+  }
+  
+  setupStepEvents() {
+    this.steps.forEach((step, index) => {
+      step.addEventListener('click', (e) => {
+        if (step.getAttribute('aria-disabled') !== 'true') {
+          this.navigateToStep(index);
+        }
+      });
+      
+      // Hover effects for clickable steps
+      if (step.classList.contains('clickable')) {
+        step.addEventListener('mouseenter', () => {
+          step.classList.add('hover');
+        });
+        
+        step.addEventListener('mouseleave', () => {
+          step.classList.remove('hover');
+        });
+      }
+    });
+  }
+  
+  navigateToStep(stepIndex) {
+    if (stepIndex < 0 || stepIndex >= this.steps.length) return;
+    
+    const step = this.steps[stepIndex];
+    const stepId = step.dataset.stepId;
+    
+    // Dispatch navigation event
+    const navigateEvent = new CustomEvent('step:navigate', {
+      detail: {
+        fromStep: this.currentStepIndex,
+        toStep: stepIndex,
+        stepId: stepId,
+        step: step
+      },
+      cancelable: true
+    });
+    
+    this.container.dispatchEvent(navigateEvent);
+    
+    // If event wasn't cancelled, proceed with navigation
+    if (!navigateEvent.defaultPrevented) {
+      this.setCurrentStep(stepIndex);
+    }
+  }
+  
+  setCurrentStep(stepIndex) {
+    // Remove current state from all steps
+    this.steps.forEach(step => {
+      step.classList.remove('step-current');
+      step.setAttribute('aria-current', 'false');
+    });
+    
+    // Set new current step
+    const newCurrentStep = this.steps[stepIndex];
+    if (newCurrentStep) {
+      newCurrentStep.classList.add('step-current');
+      newCurrentStep.setAttribute('aria-current', 'step');
+      
+      this.currentStepIndex = stepIndex;
+      this.container.dataset.currentStep = stepIndex;
+      
+      // Update progress
+      this.updateProgressBar();
+      
+      // Dispatch step changed event
+      this.container.dispatchEvent(new CustomEvent('step:changed', {
+        detail: {
+          stepIndex: stepIndex,
+          stepId: newCurrentStep.dataset.stepId,
+          step: newCurrentStep
+        }
+      }));
+    }
+  }
+  
+  markStepCompleted(stepIndex) {
+    const step = this.steps[stepIndex];
+    if (step) {
+      step.classList.remove('step-current', 'step-pending', 'step-error', 'step-warning');
+      step.classList.add('step-completed');
+      
+      // Update step circle content
+      const circle = step.querySelector('.step-circle');
+      if (circle) {
+        circle.innerHTML = '<i class="fas fa-check step-check-icon" aria-hidden="true"></i>';
+      }
+      
+      // Update connector if horizontal layout
+      const connector = step.querySelector('.step-connector');
+      if (connector) {
+        connector.classList.add('completed');
+      }
+      
+      this.updateProgressBar();
+      
+      // Dispatch step completed event
+      this.container.dispatchEvent(new CustomEvent('step:completed', {
+        detail: {
+          stepIndex: stepIndex,
+          stepId: step.dataset.stepId,
+          step: step
+        }
+      }));
+    }
+  }
+  
+  markStepError(stepIndex, errors = []) {
+    const step = this.steps[stepIndex];
+    if (step) {
+      step.classList.remove('step-current', 'step-pending', 'step-completed', 'step-warning');
+      step.classList.add('step-error');
+      
+      // Update step circle content
+      const circle = step.querySelector('.step-circle');
+      if (circle) {
+        circle.innerHTML = '<i class="fas fa-times step-error-icon" aria-hidden="true"></i>';
+      }
+      
+      // Show validation errors
+      if (errors.length > 0) {
+        this.showValidationErrors(step, errors);
+      }
+      
+      // Dispatch step error event
+      this.container.dispatchEvent(new CustomEvent('step:error', {
+        detail: {
+          stepIndex: stepIndex,
+          stepId: step.dataset.stepId,
+          step: step,
+          errors: errors
+        }
+      }));
+    }
+  }
+  
+  showValidationErrors(step, errors) {
+    // Remove existing validation errors
+    const existingErrors = step.querySelector('.step-validation-errors');
+    if (existingErrors) {
+      existingErrors.remove();
+    }
+    
+    // Create new validation errors display
+    const errorsContainer = document.createElement('div');
+    errorsContainer.className = 'step-validation-errors mt-2';
+    errorsContainer.innerHTML = `
+      <div class="alert alert-danger alert-sm" role="alert">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>
+          <strong>Validation Errors</strong>
+        </div>
+        <ul class="mb-0 ps-3">
+          ${errors.map(error => `<li>${error}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+    
+    const stepContent = step.querySelector('.step-content');
+    if (stepContent) {
+      stepContent.appendChild(errorsContainer);
+    }
+  }
+  
+  updateProgressBar() {
+    const progressBar = this.container.querySelector('.step-progress-fill');
+    const progressText = this.container.querySelector('.step-progress-text');
+    const progressLabel = this.container.querySelectorAll('.step-progress-labels small')[1];
+    
+    if (progressBar) {
+      const completedSteps = Array.from(this.steps).filter(step => 
+        step.classList.contains('step-completed')
+      ).length;
+      
+      const progressPercentage = Math.round((completedSteps / this.totalSteps) * 100);
+      
+      progressBar.style.width = `${progressPercentage}%`;
+      
+      if (progressText) {
+        progressText.textContent = `${progressPercentage}% Complete`;
+      }
+      
+      if (progressLabel) {
+        progressLabel.textContent = `${progressPercentage}%`;
+      }
+      
+      // Update aria attributes
+      const progressBarContainer = this.container.querySelector('.step-progress-bar-container');
+      if (progressBarContainer) {
+        progressBarContainer.setAttribute('aria-valuenow', progressPercentage);
+        progressBarContainer.setAttribute('aria-label', `Overall progress: ${progressPercentage}% complete`);
+      }
+    }
+  }
+  
+  // Public API
+  goToStep(stepIndex) {
+    this.navigateToStep(stepIndex);
+  }
+  
+  nextStep() {
+    this.navigateToStep(this.currentStepIndex + 1);
+  }
+  
+  prevStep() {
+    this.navigateToStep(this.currentStepIndex - 1);
+  }
+  
+  completeStep(stepIndex = this.currentStepIndex) {
+    this.markStepCompleted(stepIndex);
+  }
+  
+  errorStep(stepIndex = this.currentStepIndex, errors = []) {
+    this.markStepError(stepIndex, errors);
+  }
+  
+  resetSteps() {
+    this.steps.forEach((step, index) => {
+      step.classList.remove('step-current', 'step-completed', 'step-error', 'step-warning');
+      step.classList.add('step-pending');
+      step.setAttribute('aria-current', 'false');
+      
+      // Reset step circle
+      const circle = step.querySelector('.step-circle');
+      const stepNumber = index + 1;
+      if (circle) {
+        circle.innerHTML = `<span class="step-number">${stepNumber}</span>`;
+      }
+      
+      // Remove validation errors
+      const errors = step.querySelector('.step-validation-errors');
+      if (errors) {
+        errors.remove();
+      }
+    });
+    
+    // Set first step as current
+    this.setCurrentStep(0);
+  }
+}
+
+// Global functions for external use
+function navigateToStep(stepIndex) {
+  const container = document.getElementById('step-indicator');
+  if (container && container._stepManager) {
+    container._stepManager.navigateToStep(stepIndex);
+  }
+}
+
+function performStepAction(stepId, actionId) {
+  const container = document.getElementById('step-indicator');
+  if (container) {
+    container.dispatchEvent(new CustomEvent('step:action', {
+      detail: {
+        stepId: stepId,
+        actionId: actionId
+      }
+    }));
+  }
+}
+
+// Initialize step indicator
+document.addEventListener('DOMContentLoaded', () => {
+  const stepIndicators = document.querySelectorAll('.step-indicator-container');
+  stepIndicators.forEach(container => {
+    const manager = new StepIndicatorManager(container.id);
+    
+    // Store manager instance for external access
+    container._stepManager = manager;
+  });
+});
+</script>
+
+<!-- Step Indicator Styles -->
+<style>
+.step-indicator-container {
+  font-family: inherit;
+}
+
+/* Progress Bar Styles */
+.step-progress-bar-container {
+  position: relative;
+}
+
+.step-progress-bar {
+  height: 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.step-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff 0%, #28a745 100%);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+  position: relative;
+}
+
+.step-progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Horizontal Layout */
+.step-indicator-horizontal .steps-container {
+  position: relative;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.step-indicator-horizontal .step-item {
+  text-align: center;
+  position: relative;
+  min-height: 120px;
+}
+
+.step-indicator-horizontal .step-connector {
+  position: absolute;
+  top: 20px;
+  left: -50%;
+  right: 50%;
+  height: 2px;
+  background-color: #e9ecef;
+  z-index: 1;
+}
+
+.step-indicator-horizontal .step-connector.completed {
+  background-color: #28a745;
+}
+
+.step-indicator-horizontal .step-connector-line {
+  width: 100%;
+  height: 100%;
+}
+
+/* Vertical Layout */
+.step-indicator-vertical .step-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+.step-indicator-vertical .step-connector-vertical {
+  position: absolute;
+  top: 50px;
+  left: 20px;
+  width: 2px;
+  height: calc(100% + 2rem);
+  background-color: #e9ecef;
+  z-index: 1;
+}
+
+.step-indicator-vertical .step-connector-vertical.completed {
+  background-color: #28a745;
+}
+
+.step-indicator-vertical .step-connector-line-vertical {
+  width: 100%;
+  height: 100%;
+}
+
+/* Step Circle */
+.step-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #e9ecef;
+  color: #6c757d;
+  font-weight: 600;
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.step-pending .step-circle {
+  background-color: #e9ecef;
+  color: #6c757d;
+}
+
+.step-current .step-circle {
+  background-color: #007bff;
+  color: white;
+  box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.2);
+}
+
+.step-completed .step-circle {
+  background-color: #28a745;
+  color: white;
+}
+
+.step-error .step-circle {
+  background-color: #dc3545;
+  color: white;
+}
+
+.step-warning .step-circle {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+/* Step Content */
+.step-content {
+  flex-grow: 1;
+}
+
+.step-name {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.25rem;
+  font-size: 0.95rem;
+}
+
+.step-current .step-name {
+  color: #007bff;
+}
+
+.step-completed .step-name {
+  color: #28a745;
+}
+
+.step-error .step-name {
+  color: #dc3545;
+}
+
+.step-description {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
+
+.step-duration {
+  margin-top: 0.25rem;
+}
+
+/* Step Actions */
+.step-actions {
+  margin-top: 0.75rem;
+}
+
+.step-actions .btn {
+  font-size: 0.8rem;
+}
+
+/* Clickable Steps */
+.step-item.clickable {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.step-item.clickable:hover {
+  transform: translateY(-2px);
+}
+
+.step-item.clickable:hover .step-circle {
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.step-item.clickable:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* Compact Mode */
+.step-indicator-container.compact .step-circle {
+  width: 32px;
+  height: 32px;
+  font-size: 0.8rem;
+}
+
+.step-indicator-container.compact .step-name {
+  font-size: 0.85rem;
+}
+
+.step-indicator-container.compact .step-description {
+  font-size: 0.75rem;
+}
+
+/* Validation */
+.step-required {
+  font-size: 0.9em;
+  margin-left: 0.25rem;
+}
+
+.step-validation-errors .alert {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.step-validation-errors .alert ul {
+  margin-bottom: 0;
+}
+
+/* Step Summary */
+.step-summary {
+  border: 1px solid #dee2e6;
+}
+
+.step-summary-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #007bff;
+}
+
+.step-summary-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Icons */
+.step-check-icon {
+  font-size: 1.1rem;
+}
+
+.step-error-icon {
+  font-size: 1rem;
+}
+
+.step-warning-icon {
+  font-size: 1rem;
+}
+
+.step-custom-icon {
+  font-size: 1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .step-indicator-horizontal .steps-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .step-indicator-horizontal .step-item {
+    text-align: left;
+    display: flex;
+    align-items: flex-start;
+    min-height: auto;
+    margin-bottom: 1.5rem;
+  }
+  
+  .step-indicator-horizontal .step-content {
+    margin-left: 1rem;
+  }
+  
+  .step-indicator-horizontal .step-connector {
+    display: none;
+  }
+  
+  .step-progress-text {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .step-circle {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .step-name {
+    font-size: 0.9rem;
+  }
+  
+  .step-description {
+    font-size: 0.8rem;
+  }
+}
+
+/* Theme Variants */
+[data-theme="dark"] .step-progress-bar {
+  background-color: #495057;
+}
+
+[data-theme="dark"] .step-pending .step-circle {
+  background-color: #495057;
+  color: #adb5bd;
+}
+
+[data-theme="dark"] .step-name {
+  color: #f8f9fa;
+}
+
+[data-theme="dark"] .step-current .step-name {
+  color: #4dabf7;
+}
+
+[data-theme="dark"] .step-description {
+  color: #adb5bd;
+}
+
+[data-theme="dark"] .step-summary {
+  background-color: #495057 !important;
+  border-color: #6c757d;
+  color: #f8f9fa;
+}
+
+[data-theme="dark"] .step-connector,
+[data-theme="dark"] .step-connector-vertical {
+  background-color: #495057;
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .step-circle {
+    border: 2px solid;
+  }
+  
+  .step-item.clickable:focus {
+    outline: 3px solid;
+    outline-offset: 2px;
+  }
+  
+  .step-progress-bar {
+    border: 1px solid;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .step-circle,
+  .step-item.clickable,
+  .step-progress-fill {
+    transition: none;
+  }
+  
+  .step-item.clickable:hover {
+    transform: none;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .step-indicator-container {
+    break-inside: avoid;
+  }
+  
+  .step-actions {
+    display: none;
+  }
+}
+
+/* Animation for step changes */
+@keyframes stepPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.step-current .step-circle {
+  animation: stepPulse 2s infinite;
+}
+
+.step-completed .step-circle {
+  animation: none;
+}
+
+/* Loading states for async operations */
+.step-loading .step-circle {
+  position: relative;
+  overflow: hidden;
+}
+
+.step-loading .step-circle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+</style>

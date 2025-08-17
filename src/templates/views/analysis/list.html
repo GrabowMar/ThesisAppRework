@@ -1,0 +1,1028 @@
+{#
+    Analysis Results List View
+    
+    Purpose: Comprehensive tabular display of analysis results with advanced filtering,
+             sorting, bulk operations, and detailed status tracking for all analysis types.
+             
+    Routes:
+    - GET /analysis/list - Display analysis results list
+    - GET /analysis/list?type=security - Filter by analysis type
+    - GET /analysis/list?model=model_slug - Filter by model
+    - GET /analysis/list?status=completed - Filter by status
+    - POST /api/analysis/bulk-action - Perform bulk operations
+    
+    Features:
+    - Advanced multi-column filtering and search
+    - Real-time status updates with WebSocket integration
+    - Bulk operations (delete, export, retry, compare)
+    - Sortable columns with persistent preferences
+    - Pagination with customizable page sizes
+    - Detailed analysis preview in expandable rows
+    - Export functionality (CSV, JSON, PDF reports)
+    - Analysis comparison selection
+    - Quick action buttons for common operations
+    - Real-time progress tracking for running analyses
+    
+    Technical Implementation:
+    - HTMX for dynamic filtering and pagination
+    - WebSocket updates for real-time status changes
+    - Bootstrap 5 responsive data tables
+    - Local storage for user preferences
+    - Accessibility with screen reader support
+    - Progressive enhancement with JavaScript
+    
+    Dependencies:
+    - layouts/base.html - Base layout with navigation
+    - components/statistics/data-table.html - Enhanced data table component
+    - components/common/loading.html - Loading states
+    - components/common/empty-state.html - Empty state display
+    - fragments/tables/analysis-rows.html - Table row fragments
+    - utils/macros/ui.html - UI helper macros
+    
+    Data Expected:
+    - analyses: Paginated list of analysis results
+    - filter_options: Available filter values for dropdowns
+    - user_preferences: Saved sorting and display preferences
+    - bulk_actions: Available bulk operations
+    - real_time_updates: WebSocket connection status
+#}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}Analysis Results - AI Analysis Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+.analysis-list-container {
+    background: #f8f9fa;
+    min-height: calc(100vh - 200px);
+}
+
+.filters-card {
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+}
+
+.filter-pill {
+    display: inline-block;
+    background: #e9ecef;
+    border-radius: 1rem;
+    padding: 0.25rem 0.75rem;
+    margin: 0.25rem;
+    font-size: 0.875rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-pill.active {
+    background: #0d6efd;
+    color: white;
+}
+
+.filter-pill:hover {
+    background: #6c757d;
+    color: white;
+}
+
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.status-running {
+    background: #cff4fc;
+    color: #055160;
+    border: 1px solid #b6effb;
+}
+
+.status-completed {
+    background: #d1e7dd;
+    color: #0f5132;
+    border: 1px solid #badbcc;
+}
+
+.status-failed {
+    background: #f8d7da;
+    color: #842029;
+    border: 1px solid #f5c6cb;
+}
+
+.status-pending {
+    background: #fff3cd;
+    color: #664d03;
+    border: 1px solid #ffecb5;
+}
+
+.progress-cell {
+    min-width: 120px;
+}
+
+.progress-bar-animated {
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+    0% { background-position: 1rem 0; }
+    100% { background-position: 0 0; }
+}
+
+.analysis-type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.model-badge {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bulk-actions-bar {
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 0.375rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    display: none;
+}
+
+.bulk-actions-bar.show {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.selected-count {
+    font-weight: 600;
+    color: #1565c0;
+}
+
+.analysis-details-row {
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+}
+
+.analysis-details {
+    padding: 1rem;
+    font-size: 0.875rem;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.metric-item {
+    background: white;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    border: 1px solid #dee2e6;
+    text-align: center;
+}
+
+.metric-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+}
+
+@media (max-width: 768px) {
+    .analysis-list-container {
+        padding: 0.5rem;
+    }
+    
+    .filters-card {
+        margin-bottom: 1rem;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .model-badge {
+        max-width: 100px;
+    }
+    
+    .bulk-actions-bar {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .metric-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1>
+                        <i class="fas fa-list-alt me-2"></i>
+                        Analysis Results
+                    </h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url_for('analysis.analysis_hub') }}">Analysis</a></li>
+                        <li class="breadcrumb-item active">Results List</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="content">
+        <div class="container-fluid analysis-list-container">
+            
+            <!-- Filters and Search -->
+            <div class="card filters-card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-filter me-2"></i>
+                                Filters & Search
+                            </h5>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <button type="button" 
+                                    class="btn btn-outline-secondary btn-sm me-2"
+                                    onclick="clearAllFilters()">
+                                <i class="fas fa-times me-1"></i>
+                                Clear All
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-primary btn-sm"
+                                    onclick="saveFilterPreferences()">
+                                <i class="fas fa-save me-1"></i>
+                                Save Preferences
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <!-- Search Input -->
+                        <div class="col-lg-4 mb-2">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="search-input"
+                                       placeholder="Search analyses..."
+                                       value="{{ request.args.get('search', '') }}"
+                                       hx-get="/analysis/list"
+                                       hx-target="#analysis-table-container"
+                                       hx-trigger="input changed delay:300ms"
+                                       hx-include="[data-filter]">
+                                <button class="btn btn-outline-secondary" 
+                                        type="button"
+                                        onclick="document.getElementById('search-input').value=''; htmx.trigger('#search-input', 'input')">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Date Range -->
+                        <div class="col-lg-4 mb-2">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-calendar"></i>
+                                </span>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="date-from"
+                                       data-filter="date_from"
+                                       value="{{ request.args.get('date_from', '') }}"
+                                       hx-get="/analysis/list"
+                                       hx-target="#analysis-table-container"
+                                       hx-trigger="change"
+                                       hx-include="[data-filter], #search-input">
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="date-to"
+                                       data-filter="date_to"
+                                       value="{{ request.args.get('date_to', '') }}"
+                                       hx-get="/analysis/list"
+                                       hx-target="#analysis-table-container"
+                                       hx-trigger="change"
+                                       hx-include="[data-filter], #search-input">
+                            </div>
+                        </div>
+                        
+                        <!-- Quick Actions -->
+                        <div class="col-lg-4 mb-2">
+                            <div class="btn-group w-100">
+                                <button type="button" 
+                                        class="btn btn-success"
+                                        onclick="location.href='{{ url_for('analysis.analyses_create_page') }}'">
+                                    <i class="fas fa-plus me-1"></i>
+                                    New Analysis
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-outline-info"
+                                        onclick="refreshAnalysisList()">
+                                    <i class="fas fa-sync me-1"></i>
+                                    Refresh
+                                </button>
+                                <div class="btn-group">
+                                    <button type="button" 
+                                            class="btn btn-outline-primary dropdown-toggle" 
+                                            data-bs-toggle="dropdown">
+                                        <i class="fas fa-download me-1"></i>
+                                        Export
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="#" onclick="exportAnalyses('csv')">
+                                            <i class="fas fa-file-csv me-2"></i>CSV
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="exportAnalyses('json')">
+                                            <i class="fas fa-file-code me-2"></i>JSON
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="exportAnalyses('pdf')">
+                                            <i class="fas fa-file-pdf me-2"></i>PDF Report
+                                        </a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Pills -->
+                    <div class="row">
+                        <div class="col-12">
+                            <!-- Status Filters -->
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Status:</label>
+                                <div class="d-inline-block ms-2">
+                                    {% set statuses = [
+                                        {'value': 'all', 'label': 'All', 'count': total_count},
+                                        {'value': 'completed', 'label': 'Completed', 'count': completed_count},
+                                        {'value': 'running', 'label': 'Running', 'count': running_count},
+                                        {'value': 'failed', 'label': 'Failed', 'count': failed_count},
+                                        {'value': 'pending', 'label': 'Pending', 'count': pending_count}
+                                    ] %}
+                                    {% for status in statuses %}
+                                    <button type="button" 
+                                            class="filter-pill {% if request.args.get('status', 'all') == status.value %}active{% endif %}"
+                                            data-filter="status"
+                                            data-value="{{ status.value }}"
+                                            hx-get="/analysis/list"
+                                            hx-target="#analysis-table-container"
+                                            hx-include="[data-filter]:not([data-filter='status']), #search-input">
+                                        {{ status.label }}
+                                        {% if status.count > 0 %}
+                                        <span class="badge bg-secondary ms-1">{{ status.count }}</span>
+                                        {% endif %}
+                                    </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <!-- Analysis Type Filters -->
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Type:</label>
+                                <div class="d-inline-block ms-2">
+                                    {% set types = [
+                                        {'value': 'all', 'label': 'All Types'},
+                                        {'value': 'security', 'label': 'Security'},
+                                        {'value': 'performance', 'label': 'Performance'},
+                                        {'value': 'dynamic', 'label': 'Dynamic'},
+                                        {'value': 'comprehensive', 'label': 'Comprehensive'}
+                                    ] %}
+                                    {% for type in types %}
+                                    <button type="button" 
+                                            class="filter-pill {% if request.args.get('type', 'all') == type.value %}active{% endif %}"
+                                            data-filter="type"
+                                            data-value="{{ type.value }}"
+                                            hx-get="/analysis/list"
+                                            hx-target="#analysis-table-container"
+                                            hx-include="[data-filter]:not([data-filter='type']), #search-input">
+                                        {{ type.label }}
+                                    </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <!-- Model Filters -->
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Model:</label>
+                                <div class="d-inline-block ms-2">
+                                    <select class="form-select d-inline-block" 
+                                            style="width: auto; min-width: 200px;"
+                                            data-filter="model"
+                                            hx-get="/analysis/list"
+                                            hx-target="#analysis-table-container"
+                                            hx-trigger="change"
+                                            hx-include="[data-filter]:not([data-filter='model']), #search-input">
+                                        <option value="">All Models</option>
+                                        {% for model in filter_options.models %}
+                                        <option value="{{ model.slug }}" 
+                                                {% if request.args.get('model') == model.slug %}selected{% endif %}>
+                                            {{ model.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Actions Bar -->
+            <div class="bulk-actions-bar" id="bulk-actions-bar">
+                <div class="selected-count">
+                    <span id="selected-count">0</span> analyses selected
+                </div>
+                <div class="bulk-actions">
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" 
+                                class="btn btn-outline-primary"
+                                onclick="compareSelected()">
+                            <i class="fas fa-balance-scale me-1"></i>
+                            Compare
+                        </button>
+                        <button type="button" 
+                                class="btn btn-outline-success"
+                                onclick="exportSelected()">
+                            <i class="fas fa-download me-1"></i>
+                            Export
+                        </button>
+                        <button type="button" 
+                                class="btn btn-outline-warning"
+                                onclick="retrySelected()">
+                            <i class="fas fa-redo me-1"></i>
+                            Retry Failed
+                        </button>
+                        <button type="button" 
+                                class="btn btn-outline-danger"
+                                onclick="deleteSelected()">
+                            <i class="fas fa-trash me-1"></i>
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Table -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="card-title mb-0">
+                                Analysis Results
+                                <span class="badge bg-primary ms-2" id="total-count">{{ pagination.total }}</span>
+                            </h5>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group btn-group-sm">
+                                <input type="checkbox" class="btn-check" id="auto-refresh" autocomplete="off">
+                                <label class="btn btn-outline-info" for="auto-refresh">
+                                    <i class="fas fa-sync me-1"></i>
+                                    Auto Refresh
+                                </label>
+                                
+                                <select class="form-select form-select-sm" 
+                                        style="width: auto;"
+                                        id="page-size-selector"
+                                        onchange="changePageSize(this.value)">
+                                    <option value="10" {% if pagination.per_page == 10 %}selected{% endif %}>10 per page</option>
+                                    <option value="25" {% if pagination.per_page == 25 %}selected{% endif %}>25 per page</option>
+                                    <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50 per page</option>
+                                    <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100 per page</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="analysis-table-container">
+                        {% include 'components/statistics/data-table.html' with {
+                            'table_id': 'analysis-results',
+                            'columns': [
+                                {'name': 'checkbox', 'label': '', 'type': 'checkbox', 'sortable': false, 'width': '40px'},
+                                {'name': 'id', 'label': 'ID', 'type': 'text', 'sortable': true, 'width': '80px'},
+                                {'name': 'type', 'label': 'Type', 'type': 'badge', 'sortable': true},
+                                {'name': 'model', 'label': 'Model', 'type': 'text', 'sortable': true},
+                                {'name': 'status', 'label': 'Status', 'type': 'badge', 'sortable': true},
+                                {'name': 'progress', 'label': 'Progress', 'type': 'progress', 'sortable': false},
+                                {'name': 'score', 'label': 'Score', 'type': 'number', 'sortable': true},
+                                {'name': 'created_at', 'label': 'Created', 'type': 'date', 'sortable': true},
+                                {'name': 'duration', 'label': 'Duration', 'type': 'text', 'sortable': true},
+                                {'name': 'actions', 'label': 'Actions', 'type': 'actions', 'sortable': false}
+                            ],
+                            'data': analyses,
+                            'searchable': false,
+                            'paginated': true,
+                            'selectable': true,
+                            'exportable': true,
+                            'sortable': true
+                        } %}
+                    </div>
+                </div>
+                
+                {% if pagination %}
+                <div class="card-footer">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="table-info text-muted">
+                                Showing {{ pagination.start }} to {{ pagination.end }} of {{ pagination.total }} analyses
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <nav aria-label="Analysis results pagination">
+                                <ul class="pagination pagination-sm justify-content-end mb-0">
+                                    {% if pagination.has_prev %}
+                                    <li class="page-item">
+                                        <a class="page-link" 
+                                           href="#"
+                                           hx-get="/analysis/list?page={{ pagination.prev_num }}"
+                                           hx-target="#analysis-table-container"
+                                           hx-include="[data-filter], #search-input">
+                                            <i class="fas fa-chevron-left"></i>
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                    
+                                    {% for page_num in pagination.iter_pages() %}
+                                        {% if page_num %}
+                                            {% if page_num != pagination.page %}
+                                            <li class="page-item">
+                                                <a class="page-link" 
+                                                   href="#"
+                                                   hx-get="/analysis/list?page={{ page_num }}"
+                                                   hx-target="#analysis-table-container"
+                                                   hx-include="[data-filter], #search-input">
+                                                    {{ page_num }}
+                                                </a>
+                                            </li>
+                                            {% else %}
+                                            <li class="page-item active">
+                                                <span class="page-link">{{ page_num }}</span>
+                                            </li>
+                                            {% endif %}
+                                        {% else %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">…</span>
+                                        </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    
+                                    {% if pagination.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" 
+                                           href="#"
+                                           hx-get="/analysis/list?page={{ pagination.next_num }}"
+                                           hx-target="#analysis-table-container"
+                                           hx-include="[data-filter], #search-input">
+                                            <i class="fas fa-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize analysis list functionality
+    initializeAnalysisList();
+    
+    // Setup real-time updates if enabled
+    setupRealTimeUpdates();
+    
+    // Load user preferences
+    loadUserPreferences();
+});
+
+function initializeAnalysisList() {
+    // Setup bulk selection
+    setupBulkSelection();
+    
+    // Setup filter interactions
+    setupFilterInteractions();
+    
+    // Setup auto-refresh
+    setupAutoRefresh();
+    
+    // Setup keyboard shortcuts
+    setupKeyboardShortcuts();
+}
+
+function setupBulkSelection() {
+    // Handle master checkbox
+    const masterCheckbox = document.getElementById('select-all-analyses');
+    if (masterCheckbox) {
+        masterCheckbox.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.analysis-checkbox');
+            checkboxes.forEach(cb => cb.checked = this.checked);
+            updateBulkActionsBar();
+        });
+    }
+    
+    // Handle individual checkboxes
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('analysis-checkbox')) {
+            updateBulkActionsBar();
+        }
+    });
+}
+
+function updateBulkActionsBar() {
+    const selectedBoxes = document.querySelectorAll('.analysis-checkbox:checked');
+    const bulkBar = document.getElementById('bulk-actions-bar');
+    const countSpan = document.getElementById('selected-count');
+    
+    if (selectedBoxes.length > 0) {
+        bulkBar.classList.add('show');
+        countSpan.textContent = selectedBoxes.length;
+    } else {
+        bulkBar.classList.remove('show');
+    }
+}
+
+function setupFilterInteractions() {
+    // Filter pill interactions
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('filter-pill')) {
+            const filterType = e.target.dataset.filter;
+            const filterValue = e.target.dataset.value;
+            
+            // Update active state
+            document.querySelectorAll(`[data-filter="${filterType}"]`).forEach(pill => {
+                pill.classList.remove('active');
+            });
+            e.target.classList.add('active');
+            
+            // Store filter state
+            setFilterValue(filterType, filterValue);
+        }
+    });
+}
+
+function setupAutoRefresh() {
+    const autoRefreshToggle = document.getElementById('auto-refresh');
+    let refreshInterval = null;
+    
+    if (autoRefreshToggle) {
+        autoRefreshToggle.addEventListener('change', function() {
+            if (this.checked) {
+                refreshInterval = setInterval(refreshAnalysisList, 30000); // 30 seconds
+            } else {
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                    refreshInterval = null;
+                }
+            }
+        });
+    }
+}
+
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + R: Refresh
+        if ((e.ctrlKey || e.metaKey) && e.key === 'r' && !e.shiftKey) {
+            e.preventDefault();
+            refreshAnalysisList();
+        }
+        
+        // Ctrl/Cmd + A: Select all
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a' && e.target.tagName !== 'INPUT') {
+            e.preventDefault();
+            const masterCheckbox = document.getElementById('select-all-analyses');
+            if (masterCheckbox) {
+                masterCheckbox.checked = true;
+                masterCheckbox.dispatchEvent(new Event('change'));
+            }
+        }
+        
+        // Delete key: Delete selected
+        if (e.key === 'Delete' && document.querySelectorAll('.analysis-checkbox:checked').length > 0) {
+            deleteSelected();
+        }
+    });
+}
+
+function refreshAnalysisList() {
+    htmx.ajax('GET', '/analysis/list', {
+        target: '#analysis-table-container',
+        values: gatherFilterValues()
+    });
+}
+
+function gatherFilterValues() {
+    const values = {};
+    
+    // Get search input
+    const searchInput = document.getElementById('search-input');
+    if (searchInput && searchInput.value) {
+        values.search = searchInput.value;
+    }
+    
+    // Get active filter pills
+    document.querySelectorAll('.filter-pill.active').forEach(pill => {
+        const filterType = pill.dataset.filter;
+        const filterValue = pill.dataset.value;
+        if (filterValue !== 'all') {
+            values[filterType] = filterValue;
+        }
+    });
+    
+    // Get select filters
+    document.querySelectorAll('[data-filter]').forEach(element => {
+        if (element.tagName === 'SELECT' && element.value) {
+            values[element.dataset.filter] = element.value;
+        }
+        if (element.type === 'date' && element.value) {
+            values[element.dataset.filter] = element.value;
+        }
+    });
+    
+    return values;
+}
+
+function setFilterValue(filterType, value) {
+    // Update hidden inputs or data attributes as needed
+    const filterElement = document.querySelector(`[data-filter="${filterType}"]`);
+    if (filterElement && filterElement.tagName === 'SELECT') {
+        filterElement.value = value;
+    }
+}
+
+function clearAllFilters() {
+    // Clear search
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) searchInput.value = '';
+    
+    // Clear date inputs
+    document.querySelectorAll('input[type="date"][data-filter]').forEach(input => {
+        input.value = '';
+    });
+    
+    // Reset filter pills to 'all'
+    document.querySelectorAll('.filter-pill').forEach(pill => {
+        pill.classList.remove('active');
+        if (pill.dataset.value === 'all') {
+            pill.classList.add('active');
+        }
+    });
+    
+    // Reset selects
+    document.querySelectorAll('select[data-filter]').forEach(select => {
+        select.selectedIndex = 0;
+    });
+    
+    // Refresh list
+    refreshAnalysisList();
+}
+
+function changePageSize(size) {
+    const values = gatherFilterValues();
+    values.per_page = size;
+    values.page = 1; // Reset to first page
+    
+    htmx.ajax('GET', '/analysis/list', {
+        target: '#analysis-table-container',
+        values: values
+    });
+}
+
+// Bulk Actions
+function compareSelected() {
+    const selected = getSelectedAnalysisIds();
+    if (selected.length < 2) {
+        alert('Please select at least 2 analyses to compare');
+        return;
+    }
+    if (selected.length > 5) {
+        alert('Maximum 5 analyses can be compared at once');
+        return;
+    }
+    
+    const compareUrl = '/analysis/compare?' + selected.map(id => `ids=${id}`).join('&');
+    window.open(compareUrl, '_blank');
+}
+
+function exportSelected() {
+    const selected = getSelectedAnalysisIds();
+    if (selected.length === 0) {
+        alert('Please select analyses to export');
+        return;
+    }
+    
+    const format = prompt('Export format (csv, json, pdf):', 'csv');
+    if (format) {
+        exportAnalyses(format, selected);
+    }
+}
+
+function retrySelected() {
+    const selected = getSelectedAnalysisIds();
+    if (selected.length === 0) {
+        alert('Please select analyses to retry');
+        return;
+    }
+    
+    if (confirm(`Retry ${selected.length} selected analyses?`)) {
+        htmx.ajax('POST', '/api/analysis/bulk-retry', {
+            values: { analysis_ids: selected.join(',') }
+        }).then(() => {
+            refreshAnalysisList();
+        });
+    }
+}
+
+function deleteSelected() {
+    const selected = getSelectedAnalysisIds();
+    if (selected.length === 0) {
+        alert('Please select analyses to delete');
+        return;
+    }
+    
+    if (confirm(`Delete ${selected.length} selected analyses? This action cannot be undone.`)) {
+        htmx.ajax('POST', '/api/analysis/bulk-delete', {
+            values: { analysis_ids: selected.join(',') }
+        }).then(() => {
+            refreshAnalysisList();
+        });
+    }
+}
+
+function getSelectedAnalysisIds() {
+    const selected = [];
+    document.querySelectorAll('.analysis-checkbox:checked').forEach(cb => {
+        selected.push(cb.value);
+    });
+    return selected;
+}
+
+function exportAnalyses(format, analysisIds = null) {
+    let url = `/api/analysis/export?format=${format}`;
+    
+    if (analysisIds) {
+        url += '&ids=' + analysisIds.join(',');
+    } else {
+        // Export with current filters
+        const filters = gatherFilterValues();
+        const params = new URLSearchParams(filters);
+        url += '&' + params.toString();
+    }
+    
+    window.open(url, '_blank');
+}
+
+// User Preferences
+function saveFilterPreferences() {
+    const preferences = {
+        filters: gatherFilterValues(),
+        pageSize: document.getElementById('page-size-selector').value,
+        autoRefresh: document.getElementById('auto-refresh').checked
+    };
+    
+    localStorage.setItem('analysis-list-preferences', JSON.stringify(preferences));
+    
+    // Show confirmation
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.textContent = 'Filter preferences saved!';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function loadUserPreferences() {
+    const saved = localStorage.getItem('analysis-list-preferences');
+    if (!saved) return;
+    
+    try {
+        const preferences = JSON.parse(saved);
+        
+        // Apply page size
+        if (preferences.pageSize) {
+            document.getElementById('page-size-selector').value = preferences.pageSize;
+        }
+        
+        // Apply auto refresh
+        if (preferences.autoRefresh) {
+            document.getElementById('auto-refresh').checked = true;
+            document.getElementById('auto-refresh').dispatchEvent(new Event('change'));
+        }
+        
+        // Note: Filters will be applied by URL parameters from the server
+    } catch (e) {
+        console.error('Failed to load user preferences:', e);
+    }
+}
+
+// Real-time Updates
+function setupRealTimeUpdates() {
+    // WebSocket connection for real-time status updates
+    if (window.WebSocket) {
+        const wsUrl = `ws://${window.location.host}/ws/analysis-updates`;
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'analysis_update') {
+                updateAnalysisRow(data.analysis_id, data.analysis_data);
+            }
+        };
+        
+        ws.onerror = function(error) {
+            console.warn('WebSocket connection failed, falling back to polling');
+            // Fallback to periodic refresh
+            setInterval(refreshRunningAnalyses, 10000); // 10 seconds
+        };
+    } else {
+        // Fallback for browsers without WebSocket support
+        setInterval(refreshRunningAnalyses, 10000);
+    }
+}
+
+function updateAnalysisRow(analysisId, analysisData) {
+    // Update specific row with new data without full refresh
+    const row = document.querySelector(`[data-analysis-id="${analysisId}"]`);
+    if (row) {
+        // Update status, progress, etc.
+        const statusCell = row.querySelector('.status-cell');
+        const progressCell = row.querySelector('.progress-cell');
+        
+        if (statusCell) {
+            statusCell.innerHTML = getStatusBadge(analysisData.status);
+        }
+        
+        if (progressCell && analysisData.progress !== undefined) {
+            progressCell.innerHTML = getProgressBar(analysisData.progress);
+        }
+    }
+}
+
+function refreshRunningAnalyses() {
+    // Only refresh running analyses to avoid full table reload
+    htmx.ajax('GET', '/api/analysis/running-status', {
+        target: '#running-analyses-container'
+    });
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="status-indicator status-pending"><i class="fas fa-clock"></i> Pending</span>',
+        'running': '<span class="status-indicator status-running"><i class="fas fa-spinner fa-spin"></i> Running</span>',
+        'completed': '<span class="status-indicator status-completed"><i class="fas fa-check"></i> Completed</span>',
+        'failed': '<span class="status-indicator status-failed"><i class="fas fa-times"></i> Failed</span>'
+    };
+    return badges[status] || badges['pending'];
+}
+
+function getProgressBar(progress) {
+    return `
+        <div class="progress" style="height: 8px;">
+            <div class="progress-bar ${progress < 100 ? 'progress-bar-animated progress-bar-striped' : ''}" 
+                 role="progressbar" 
+                 style="width: ${progress}%" 
+                 aria-valuenow="${progress}" 
+                 aria-valuemin="0" 
+                 aria-valuemax="100">
+            </div>
+        </div>
+        <small class="text-muted">${progress}%</small>
+    `;
+}
+</script>
+{% endblock %}

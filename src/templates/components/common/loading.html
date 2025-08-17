@@ -1,0 +1,641 @@
+{# 
+Common Loading Component
+
+Purpose: Reusable loading indicators for various states (spinner, skeleton, progress, etc.)
+Usage: {{ loading(type="spinner", size="md", message="Loading...", overlay=false) }}
+Routes: Used throughout the application for loading states
+Features:
+- Multiple loading types (spinner, dots, skeleton, progress, pulse)
+- Various sizes (sm, md, lg, xl)
+- Overlay functionality for blocking UI
+- Customizable messages and colors
+- Skeleton loaders for content placeholders
+- Progress bars with percentage
+- Auto-hide functionality
+- Accessibility support with screen reader text
+Technical: CSS animations, JavaScript timing, Bootstrap 5 spinners
+Dependencies: Bootstrap 5 utilities, CSS custom properties
+#}
+
+{# Set default values for optional parameters #}
+{%- set type = type or 'spinner' -%} {# spinner, dots, skeleton, progress, pulse, bars, ring, wave #}
+{%- set size = size or 'md' -%} {# sm, md, lg, xl #}
+{%- set color = color or 'primary' -%} {# primary, secondary, success, danger, warning, info, light, dark #}
+{%- set message = message or None -%}
+{%- set overlay = overlay if overlay is not none else false -%}
+{%- set center = center if center is not none else true -%}
+{%- set inline = inline if inline is not none else false -%}
+{%- set loading_id = id or ('loading-' ~ range(1000, 9999) | random) -%}
+{%- set auto_hide = auto_hide if auto_hide is not none else false -%}
+{%- set hide_delay = hide_delay or 3000 -%}
+{%- set progress_value = progress_value or 0 -%}
+{%- set show_percentage = show_percentage if show_percentage is not none else false -%}
+
+{# Size mappings for different loading types #}
+{% set size_classes = {
+    'sm': 'loading-sm',
+    'md': 'loading-md', 
+    'lg': 'loading-lg',
+    'xl': 'loading-xl'
+} %}
+
+<div class="loading-container {{ 
+    'loading-overlay' if overlay else '' 
+}}{{ 
+    ' loading-center' if center and not inline else '' 
+}}{{ 
+    ' loading-inline' if inline else '' 
+}}{{ 
+    ' ' + size_classes.get(size, 'loading-md') 
+}}" 
+     id="{{ loading_id }}"
+     role="status" 
+     aria-live="polite"
+     aria-label="{{ message or 'Loading' }}"
+     data-auto-hide="{{ auto_hide | lower }}"
+     data-hide-delay="{{ hide_delay }}">
+
+    {# Overlay background #}
+    {% if overlay %}
+        <div class="loading-backdrop"></div>
+    {% endif %}
+    
+    {# Loading content #}
+    <div class="loading-content">
+        {% if type == 'spinner' %}
+            {# Bootstrap Spinner #}
+            <div class="spinner-border text-{{ color }}" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        
+        {% elif type == 'dots' %}
+            {# Bouncing Dots #}
+            <div class="loading-dots">
+                <div class="dot bg-{{ color }}"></div>
+                <div class="dot bg-{{ color }}"></div>
+                <div class="dot bg-{{ color }}"></div>
+            </div>
+        
+        {% elif type == 'skeleton' %}
+            {# Skeleton Loading #}
+            <div class="loading-skeleton">
+                <div class="skeleton-line skeleton-title"></div>
+                <div class="skeleton-line skeleton-text"></div>
+                <div class="skeleton-line skeleton-text"></div>
+                <div class="skeleton-line skeleton-text skeleton-short"></div>
+            </div>
+        
+        {% elif type == 'progress' %}
+            {# Progress Bar #}
+            <div class="loading-progress">
+                <div class="progress" style="height: {{ '8px' if size == 'sm' else '12px' if size == 'md' else '16px' if size == 'lg' else '20px' }};">
+                    <div class="progress-bar bg-{{ color }}" 
+                         role="progressbar" 
+                         style="width: {{ progress_value }}%"
+                         aria-valuenow="{{ progress_value }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100">
+                        {% if show_percentage and progress_value > 20 %}
+                            {{ progress_value }}%
+                        {% endif %}
+                    </div>
+                </div>
+                {% if show_percentage and progress_value <= 20 %}
+                    <small class="text-muted mt-1 d-block text-center">{{ progress_value }}%</small>
+                {% endif %}
+            </div>
+        
+        {% elif type == 'pulse' %}
+            {# Pulsing Circle #}
+            <div class="loading-pulse">
+                <div class="pulse-ring bg-{{ color }}"></div>
+                <div class="pulse-ring bg-{{ color }}"></div>
+                <div class="pulse-ring bg-{{ color }}"></div>
+            </div>
+        
+        {% elif type == 'bars' %}
+            {# Animated Bars #}
+            <div class="loading-bars">
+                <div class="bar bg-{{ color }}"></div>
+                <div class="bar bg-{{ color }}"></div>
+                <div class="bar bg-{{ color }}"></div>
+                <div class="bar bg-{{ color }}"></div>
+                <div class="bar bg-{{ color }}"></div>
+            </div>
+        
+        {% elif type == 'ring' %}
+            {# Spinning Ring #}
+            <div class="loading-ring">
+                <div class="ring text-{{ color }}"></div>
+            </div>
+        
+        {% elif type == 'wave' %}
+            {# Wave Animation #}
+            <div class="loading-wave">
+                <div class="wave-bar bg-{{ color }}"></div>
+                <div class="wave-bar bg-{{ color }}"></div>
+                <div class="wave-bar bg-{{ color }}"></div>
+                <div class="wave-bar bg-{{ color }}"></div>
+                <div class="wave-bar bg-{{ color }}"></div>
+            </div>
+        
+        {% else %}
+            {# Default fallback to spinner #}
+            <div class="spinner-border text-{{ color }}" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        {% endif %}
+        
+        {# Loading message #}
+        {% if message %}
+            <div class="loading-message text-{{ color }} mt-2">
+                {{ message }}
+            </div>
+        {% endif %}
+        
+        {# Custom content slot #}
+        {% if caller %}
+            <div class="loading-custom-content">
+                {{ caller() }}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{# JavaScript for Loading Management #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const loadingElement = document.getElementById('{{ loading_id }}');
+    
+    if (loadingElement) {
+        const autoHide = loadingElement.getAttribute('data-auto-hide') === 'true';
+        const hideDelay = parseInt(loadingElement.getAttribute('data-hide-delay'));
+        
+        // Auto-hide functionality
+        if (autoHide) {
+            setTimeout(() => {
+                hideLoading('{{ loading_id }}');
+            }, hideDelay);
+        }
+        
+        // Custom events
+        loadingElement.addEventListener('loading:show', function() {
+            loadingElement.style.display = 'flex';
+            loadingElement.classList.add('loading-visible');
+        });
+        
+        loadingElement.addEventListener('loading:hide', function() {
+            loadingElement.classList.add('loading-hidden');
+            setTimeout(() => {
+                loadingElement.style.display = 'none';
+                loadingElement.classList.remove('loading-visible', 'loading-hidden');
+            }, 300);
+        });
+    }
+    
+    // Global loading functions
+    window.showLoading = function(loadingId, options = {}) {
+        const element = document.getElementById(loadingId);
+        if (element) {
+            // Update message if provided
+            if (options.message) {
+                const messageElement = element.querySelector('.loading-message');
+                if (messageElement) {
+                    messageElement.textContent = options.message;
+                }
+            }
+            
+            // Update progress if provided
+            if (options.progress !== undefined) {
+                const progressBar = element.querySelector('.progress-bar');
+                if (progressBar) {
+                    progressBar.style.width = options.progress + '%';
+                    progressBar.setAttribute('aria-valuenow', options.progress);
+                    
+                    const percentageText = progressBar.textContent.trim();
+                    if (percentageText.includes('%')) {
+                        progressBar.textContent = options.progress + '%';
+                    }
+                }
+            }
+            
+            element.dispatchEvent(new CustomEvent('loading:show'));
+        }
+    };
+    
+    window.hideLoading = function(loadingId) {
+        const element = document.getElementById(loadingId);
+        if (element) {
+            element.dispatchEvent(new CustomEvent('loading:hide'));
+        }
+    };
+    
+    window.updateLoadingProgress = function(loadingId, progress, message) {
+        const element = document.getElementById(loadingId);
+        if (element) {
+            const progressBar = element.querySelector('.progress-bar');
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+                progressBar.setAttribute('aria-valuenow', progress);
+                
+                // Update percentage text
+                const showPercentage = progressBar.textContent.includes('%') || element.querySelector('.text-muted');
+                if (showPercentage) {
+                    if (progress > 20) {
+                        progressBar.textContent = progress + '%';
+                        const externalPercentage = element.querySelector('.text-muted');
+                        if (externalPercentage) externalPercentage.textContent = '';
+                    } else {
+                        progressBar.textContent = '';
+                        const externalPercentage = element.querySelector('.text-muted');
+                        if (externalPercentage) externalPercentage.textContent = progress + '%';
+                    }
+                }
+            }
+            
+            // Update message
+            if (message) {
+                const messageElement = element.querySelector('.loading-message');
+                if (messageElement) {
+                    messageElement.textContent = message;
+                }
+            }
+        }
+    };
+    
+    // Create loading overlay dynamically
+    window.showLoadingOverlay = function(options = {}) {
+        const loadingId = 'loading-overlay-' + Math.random().toString(36).substr(2, 9);
+        const type = options.type || 'spinner';
+        const message = options.message || 'Loading...';
+        const color = options.color || 'primary';
+        
+        const overlayHTML = `
+            <div class="loading-container loading-overlay loading-center loading-md" 
+                 id="${loadingId}" 
+                 role="status" 
+                 aria-live="polite"
+                 aria-label="${message}">
+                <div class="loading-backdrop"></div>
+                <div class="loading-content">
+                    <div class="spinner-border text-${color}" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <div class="loading-message text-${color} mt-2">${message}</div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', overlayHTML);
+        
+        const overlayElement = document.getElementById(loadingId);
+        overlayElement.style.display = 'flex';
+        overlayElement.classList.add('loading-visible');
+        
+        return loadingId;
+    };
+    
+    window.hideLoadingOverlay = function(loadingId) {
+        const element = document.getElementById(loadingId);
+        if (element) {
+            element.classList.add('loading-hidden');
+            setTimeout(() => {
+                if (element.parentNode) {
+                    element.parentNode.removeChild(element);
+                }
+            }, 300);
+        }
+    };
+});
+</script>
+
+{# CSS for Loading Animations and Styling #}
+<style>
+/* Loading container base styles */
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease;
+}
+
+.loading-container.loading-hidden {
+    opacity: 0;
+}
+
+.loading-container.loading-visible {
+    opacity: 1;
+}
+
+/* Overlay styles */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1050;
+    display: flex !important;
+}
+
+.loading-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(2px);
+}
+
+/* Center positioning */
+.loading-center {
+    justify-content: center;
+    align-items: center;
+}
+
+/* Inline positioning */
+.loading-inline {
+    display: inline-flex;
+}
+
+/* Loading content */
+.loading-content {
+    position: relative;
+    z-index: 1051;
+    text-align: center;
+}
+
+.loading-message {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Size variations */
+.loading-sm .spinner-border {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.loading-md .spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+.loading-lg .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+.loading-xl .spinner-border {
+    width: 4rem;
+    height: 4rem;
+}
+
+/* Bouncing Dots Animation */
+.loading-dots {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.loading-dots .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: dotBounce 1.4s infinite ease-in-out both;
+}
+
+.loading-sm .loading-dots .dot { width: 6px; height: 6px; }
+.loading-lg .loading-dots .dot { width: 10px; height: 10px; }
+.loading-xl .loading-dots .dot { width: 12px; height: 12px; }
+
+.loading-dots .dot:nth-child(1) { animation-delay: -0.32s; }
+.loading-dots .dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes dotBounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+}
+
+/* Skeleton Loading */
+.loading-skeleton {
+    width: 100%;
+    max-width: 300px;
+}
+
+.skeleton-line {
+    height: 1rem;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeletonLoading 1.5s infinite;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.skeleton-title {
+    height: 1.5rem;
+    width: 80%;
+}
+
+.skeleton-text {
+    height: 1rem;
+    width: 100%;
+}
+
+.skeleton-short {
+    width: 60%;
+}
+
+@keyframes skeletonLoading {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Progress Bar Enhancements */
+.loading-progress {
+    width: 100%;
+    max-width: 300px;
+}
+
+.loading-progress .progress {
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.loading-progress .progress-bar {
+    transition: width 0.3s ease;
+    border-radius: 1rem;
+}
+
+/* Pulsing Animation */
+.loading-pulse {
+    position: relative;
+    width: 40px;
+    height: 40px;
+}
+
+.pulse-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    opacity: 0.6;
+    animation: pulseRing 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.pulse-ring:nth-child(1) { animation-delay: 0s; }
+.pulse-ring:nth-child(2) { animation-delay: 0.33s; }
+.pulse-ring:nth-child(3) { animation-delay: 0.66s; }
+
+@keyframes pulseRing {
+    0% {
+        transform: scale(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0;
+    }
+}
+
+/* Animated Bars */
+.loading-bars {
+    display: flex;
+    gap: 0.125rem;
+    align-items: end;
+    height: 2rem;
+}
+
+.loading-bars .bar {
+    width: 0.25rem;
+    height: 0.5rem;
+    animation: barScale 1s infinite ease-in-out;
+}
+
+.loading-bars .bar:nth-child(1) { animation-delay: -0.4s; }
+.loading-bars .bar:nth-child(2) { animation-delay: -0.3s; }
+.loading-bars .bar:nth-child(3) { animation-delay: -0.2s; }
+.loading-bars .bar:nth-child(4) { animation-delay: -0.1s; }
+.loading-bars .bar:nth-child(5) { animation-delay: 0s; }
+
+@keyframes barScale {
+    0%, 40%, 100% {
+        transform: scaleY(0.4);
+    }
+    20% {
+        transform: scaleY(1);
+    }
+}
+
+/* Spinning Ring */
+.loading-ring {
+    width: 40px;
+    height: 40px;
+}
+
+.ring {
+    width: 100%;
+    height: 100%;
+    border: 3px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: ringRotate 1s linear infinite;
+}
+
+@keyframes ringRotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Wave Animation */
+.loading-wave {
+    display: flex;
+    gap: 0.125rem;
+    align-items: center;
+    height: 2rem;
+}
+
+.wave-bar {
+    width: 0.25rem;
+    height: 2rem;
+    animation: waveScale 1.2s infinite ease-in-out;
+}
+
+.wave-bar:nth-child(1) { animation-delay: -1.1s; }
+.wave-bar:nth-child(2) { animation-delay: -1.0s; }
+.wave-bar:nth-child(3) { animation-delay: -0.9s; }
+.wave-bar:nth-child(4) { animation-delay: -0.8s; }
+.wave-bar:nth-child(5) { animation-delay: -0.7s; }
+
+@keyframes waveScale {
+    0%, 40%, 100% {
+        transform: scaleY(0.4);
+    }
+    20% {
+        transform: scaleY(1);
+    }
+}
+
+/* Size adjustments for custom animations */
+.loading-sm .loading-pulse { width: 24px; height: 24px; }
+.loading-lg .loading-pulse { width: 60px; height: 60px; }
+.loading-xl .loading-pulse { width: 80px; height: 80px; }
+
+.loading-sm .loading-ring { width: 24px; height: 24px; }
+.loading-lg .loading-ring { width: 60px; height: 60px; }
+.loading-xl .loading-ring { width: 80px; height: 80px; }
+
+.loading-sm .loading-bars { height: 1.5rem; }
+.loading-lg .loading-bars { height: 2.5rem; }
+.loading-xl .loading-bars { height: 3rem; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .loading-overlay .loading-content {
+        padding: 1rem;
+    }
+    
+    .loading-message {
+        font-size: 0.75rem;
+    }
+    
+    .loading-skeleton {
+        max-width: 250px;
+    }
+    
+    .loading-progress {
+        max-width: 250px;
+    }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+    .loading-container,
+    .loading-dots .dot,
+    .skeleton-line,
+    .pulse-ring,
+    .loading-bars .bar,
+    .ring,
+    .wave-bar {
+        animation: none !important;
+    }
+    
+    .spinner-border {
+        animation: none !important;
+        border: 3px solid currentColor;
+        border-radius: 50%;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .loading-backdrop {
+        background: rgba(0, 0, 0, 0.8);
+    }
+    
+    .skeleton-line {
+        background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+        background-size: 200% 100%;
+    }
+}
+</style>

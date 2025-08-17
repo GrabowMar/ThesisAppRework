@@ -1,0 +1,46 @@
+{#
+Dynamic Analysis List Partial
+============================
+
+Dynamic-specific analysis list for HTMX updates.
+
+Parameters:
+- items (list): Dynamic analysis items
+
+Usage: /analysis/api/recent/dynamic endpoint
+#}
+
+{% for item in items %}
+<div class="d-flex align-items-center mb-2 p-2 border rounded">
+    <div class="me-3">
+        <span class="badge bg-info">
+            <i class="fas fa-play"></i>
+        </span>
+    </div>
+    <div class="flex-grow-1">
+        <div class="fw-semibold">
+            {{ item.application.model_slug if item.application else 'Unknown Model' }} - 
+            App {{ item.application.app_number if item.application else 'N/A' }}
+        </div>
+        <div class="small text-muted">
+            {{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else 'No date' }}
+        </div>
+    </div>
+    <div>
+        {% if item.status == 'completed' %}
+            <span class="badge bg-success">Completed</span>
+        {% elif item.status == 'running' %}
+            <span class="badge bg-info">Running</span>
+        {% elif item.status == 'failed' %}
+            <span class="badge bg-danger">Failed</span>
+        {% else %}
+            <span class="badge bg-secondary">{{ item.status|title }}</span>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="text-center py-3 text-muted">
+    <i class="fas fa-play fa-2x mb-2"></i>
+    <div>No dynamic analyses yet</div>
+</div>
+{% endfor %}

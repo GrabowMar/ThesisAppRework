@@ -1,0 +1,7 @@
+{# Single page wrapper that works with current layouts #}
+{% extends 'layouts/single-page.html' %}
+
+{# The layouts/single-page.html already renders dynamic content via HTMX if initial_content_url is provided
+   and includes main_partial directly when set. This wrapper exists for routes calling render_template('single_page.html'). #}
+
+{% block title %}{{ page_title|default('AI Model Analysis Platform') }}{% endblock %}

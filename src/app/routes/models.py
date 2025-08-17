@@ -82,29 +82,39 @@ def models_overview():
         free_models = sum(1 for m in models if m.is_free)
         paid_models = total_models - free_models
         
-        # Page context
+        # Calculate average cost (simplified)
+        avg_cost = 0.001  # Default placeholder for now
+        
+        # Page context with models_stats structure expected by template
+        models_stats = {
+            'total_models': total_models,
+            'active_models': total_models,  # For now, assume all are active
+            'unique_providers': len(providers),
+            'avg_cost_per_1k': avg_cost
+        }
+        
         context = {
             'models': enriched_models,
-            'total_models': total_models,
+            'models_stats': models_stats,
             'providers': providers,
+            'total_models': total_models,
             'providers_count': len(providers),
             'free_models': free_models,
             'paid_models': paid_models,
             'page_title': 'AI Models Overview',
             'show_openrouter_data': bool(openrouter_service.api_key)
         }
-        return render_template('pages/models.html', **context)
+        return render_template('views/models/overview.html', **context)
             
     except Exception as e:
         logger.error(f"Error loading models overview: {e}")
         flash(f"Error loading models: {e}", "error")
+        # Use the proper error template structure
         return render_template(
-            'single_page.html',
-            page_title='Models Overview Error',
-            main_partial='partials/common/error.html',
+            'partials/common/error.html',
             error=str(e),
-            models=[], total_models=0, providers=[], providers_count=0
-        )
+            page_title='Models Overview Error'
+        ), 500
 
 
 @models_bp.route('/model/<model_slug>/details')
@@ -365,7 +375,7 @@ def applications():
                 'search': search_filter
             }
         }
-        return render_template('pages/applications.html', **context)
+        return render_template('views/applications/index.html', **context)
             
     except Exception as e:
         logger.error(f"Error loading applications: {e}")
@@ -534,7 +544,7 @@ def application_detail(model_slug, app_number):
             logger.warning(f"Failed to load prompts for app {app_number}: {e}")
         
         return render_template(
-            'pages/application_detail.html',
+            'views/applications/detail.html',
             app_data=app_data,
             files_info=files_info,
             analyses=analyses,

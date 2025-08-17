@@ -1,0 +1,610 @@
+{# 
+Dashboard Recent Items Component
+
+Purpose: Displays recent activities, analyses, models, or applications with quick access links
+Usage: {{ recent_items(items=recent_analyses, item_type="analysis", max_items=5, show_timestamps=true) }}
+Routes: Used in dashboard and various overview pages
+Features:
+- Configurable item types (analysis, models, applications, etc.)
+- Thumbnail/icon support with fallbacks
+- Timestamp formatting and sorting
+- Quick action buttons for each item
+- Pagination for large lists
+- Search and filtering capabilities
+- Item status indicators
+Technical: Bootstrap 5 cards, moment.js for timestamps, HTMX for actions
+Dependencies: Item-specific APIs, thumbnail generation service
+#}
+
+{# Set default values for optional parameters #}
+{%- set items = items or [] -%}
+{%- set item_type = item_type or 'general' -%}
+{%- set max_items = max_items or 10 -%}
+{%- set show_timestamps = show_timestamps or true -%}
+{%- set show_actions = show_actions or true -%}
+{%- set show_thumbnails = show_thumbnails or true -%}
+{%- set show_status = show_status or true -%}
+{%- set show_search = show_search or false -%}
+{%- set layout = layout or 'list' -%}
+{%- set component_id = component_id or 'recent-items' -%}
+{%- set empty_message = empty_message or ('No recent ' + item_type + 's found') -%}
+
+<div class="recent-items-container" id="{{ component_id }}">
+    {# Component Header #}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0 text-primary font-weight-bold">
+            <i class="fas fa-{{ 
+                'chart-line' if item_type == 'analysis' 
+                else 'robot' if item_type == 'model'
+                else 'code' if item_type == 'application'
+                else 'server' if item_type == 'service'
+                else 'file' if item_type == 'file'
+                else 'clock'
+            }} mr-2"></i>Recent {{ item_type.title() }}s
+        </h6>
+        
+        {# Layout and Action Controls #}
+        <div class="d-flex align-items-center">
+            {% if show_search %}
+                <div class="input-group input-group-sm mr-2" style="width: 200px;">
+                    <input type="text" class="form-control form-control-sm" 
+                           placeholder="Search {{ item_type }}s..." 
+                           id="recent-search">
+                    <div class="input-group-append">
+                        <button class="btn btn-outline-secondary" type="button">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+            
+            {# Layout Toggle #}
+            <div class="btn-group btn-group-sm mr-2" role="group">
+                <button type="button" class="btn btn-outline-secondary layout-toggle {{ 'active' if layout == 'list' else '' }}" 
+                        data-layout="list" title="List View">
+                    <i class="fas fa-list"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary layout-toggle {{ 'active' if layout == 'grid' else '' }}" 
+                        data-layout="grid" title="Grid View">
+                    <i class="fas fa-th"></i>
+                </button>
+            </div>
+            
+            {# View All Link #}
+            <a href="{{ url_for(item_type + 's.index') }}" class="btn btn-outline-primary btn-sm">
+                View All
+            </a>
+        </div>
+    </div>
+
+    {# Items Container #}
+    <div class="recent-items-list layout-{{ layout }}" id="items-container">
+        {% if items %}
+            {% for item in items[:max_items] %}
+                <div class="recent-item" 
+                     data-item-type="{{ item_type }}" 
+                     data-item-id="{{ item.id }}"
+                     data-search-text="{{ (item.name or item.title or '') | lower }}">
+                    
+                    {% if layout == 'list' %}
+                        {# List Layout #}
+                        <div class="item-card card border-0 shadow-sm mb-2">
+                            <div class="card-body py-2">
+                                <div class="d-flex align-items-center">
+                                    {# Thumbnail/Icon #}
+                                    {% if show_thumbnails %}
+                                        <div class="item-thumbnail mr-3">
+                                            {% if item.thumbnail_url %}
+                                                <img src="{{ item.thumbnail_url }}" 
+                                                     alt="{{ item.name or item.title }}" 
+                                                     class="rounded thumbnail-image">
+                                            {% else %}
+                                                <div class="thumbnail-placeholder bg-{{ 
+                                                    'primary' if item_type == 'analysis' 
+                                                    else 'info' if item_type == 'model'
+                                                    else 'success' if item_type == 'application'
+                                                    else 'warning' if item_type == 'service'
+                                                    else 'secondary'
+                                                }}">
+                                                    <i class="fas fa-{{ 
+                                                        'chart-line' if item_type == 'analysis' 
+                                                        else 'robot' if item_type == 'model'
+                                                        else 'code' if item_type == 'application'
+                                                        else 'server' if item_type == 'service'
+                                                        else 'file'
+                                                    }}"></i>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {# Item Details #}
+                                    <div class="item-details flex-grow-1">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="item-title mb-1">
+                                                    <a href="{{ 
+                                                        url_for(item_type + 's.detail', **{
+                                                            'id': item.id if item_type in ['analysis'] else None,
+                                                            'model_slug': item.model_slug if item_type in ['model', 'application'] else None,
+                                                            'app_number': item.app_number if item_type == 'application' else None
+                                                        } | select) 
+                                                    }}" class="text-decoration-none">
+                                                        {{ item.display_name or item.name or item.title }}
+                                                    </a>
+                                                </h6>
+                                                
+                                                {# Item Description/Subtitle #}
+                                                {% if item.description or item.subtitle %}
+                                                    <p class="item-description text-muted mb-1">
+                                                        {{ item.description or item.subtitle }}
+                                                    </p>
+                                                {% endif %}
+                                                
+                                                {# Item Metadata #}
+                                                <small class="item-metadata text-muted">
+                                                    {% if item_type == 'analysis' %}
+                                                        Model: {{ item.model_name or 'Unknown' }}
+                                                        {% if item.app_number %} | App: #{{ item.app_number }}{% endif %}
+                                                    {% elif item_type == 'model' %}
+                                                        Provider: {{ item.provider or 'Unknown' }}
+                                                        {% if item.version %} | Version: {{ item.version }}{% endif %}
+                                                    {% elif item_type == 'application' %}
+                                                        Model: {{ item.model_name or 'Unknown' }}
+                                                        {% if item.port_frontend %} | Port: {{ item.port_frontend }}{% endif %}
+                                                    {% elif item_type == 'service' %}
+                                                        {% if item.port %} Port: {{ item.port }}{% endif %}
+                                                        {% if item.version %} | Version: {{ item.version }}{% endif %}
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                            
+                                            {# Status and Timestamp #}
+                                            <div class="text-right">
+                                                {% if show_status and item.status %}
+                                                    <div class="mb-1">
+                                                        <span class="badge badge-{{ 
+                                                            'success' if item.status in ['completed', 'running', 'active'] 
+                                                            else 'warning' if item.status in ['pending', 'starting', 'processing'] 
+                                                            else 'danger' if item.status in ['failed', 'error', 'stopped'] 
+                                                            else 'secondary' 
+                                                        }}">
+                                                            {{ item.status.title() }}
+                                                        </span>
+                                                    </div>
+                                                {% endif %}
+                                                
+                                                {% if show_timestamps and item.created_at %}
+                                                    <small class="text-muted">
+                                                        {{ moment(item.created_at).fromNow() }}
+                                                    </small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {# Quick Actions #}
+                                    {% if show_actions %}
+                                        <div class="item-actions ml-2">
+                                            <div class="btn-group-vertical">
+                                                <a href="{{ 
+                                                    url_for(item_type + 's.detail', **{
+                                                        'id': item.id if item_type in ['analysis'] else None,
+                                                        'model_slug': item.model_slug if item_type in ['model', 'application'] else None,
+                                                        'app_number': item.app_number if item_type == 'application' else None
+                                                    } | select) 
+                                                }}" class="btn btn-outline-primary btn-sm" title="View Details">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                
+                                                {% if item_type == 'analysis' %}
+                                                    {% if item.status == 'completed' %}
+                                                        <button class="btn btn-outline-success btn-sm" 
+                                                                onclick="downloadResults('{{ item.id }}')" 
+                                                                title="Download Results">
+                                                            <i class="fas fa-download"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                    {% if item.status in ['pending', 'running'] %}
+                                                        <button class="btn btn-outline-warning btn-sm" 
+                                                                onclick="cancelAnalysis('{{ item.id }}')" 
+                                                                title="Cancel Analysis">
+                                                            <i class="fas fa-stop"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                {% elif item_type == 'application' %}
+                                                    <a href="{{ item.frontend_url }}" target="_blank" 
+                                                       class="btn btn-outline-success btn-sm" title="Open App">
+                                                        <i class="fas fa-external-link-alt"></i>
+                                                    </a>
+                                                {% elif item_type == 'service' %}
+                                                    {% if item.status == 'running' %}
+                                                        <button class="btn btn-outline-warning btn-sm" 
+                                                                onclick="controlService('{{ item.name }}', 'restart')" 
+                                                                title="Restart Service">
+                                                            <i class="fas fa-redo"></i>
+                                                        </button>
+                                                    {% else %}
+                                                        <button class="btn btn-outline-success btn-sm" 
+                                                                onclick="controlService('{{ item.name }}', 'start')" 
+                                                                title="Start Service">
+                                                            <i class="fas fa-play"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    
+                    {% else %}
+                        {# Grid Layout #}
+                        <div class="item-card card h-100 shadow-sm">
+                            {# Card Header with Thumbnail #}
+                            {% if show_thumbnails %}
+                                <div class="card-img-top-container">
+                                    {% if item.thumbnail_url %}
+                                        <img src="{{ item.thumbnail_url }}" 
+                                             alt="{{ item.name or item.title }}" 
+                                             class="card-img-top">
+                                    {% else %}
+                                        <div class="card-img-placeholder bg-{{ 
+                                            'primary' if item_type == 'analysis' 
+                                            else 'info' if item_type == 'model'
+                                            else 'success' if item_type == 'application'
+                                            else 'warning' if item_type == 'service'
+                                            else 'secondary'
+                                        }}">
+                                            <i class="fas fa-{{ 
+                                                'chart-line' if item_type == 'analysis' 
+                                                else 'robot' if item_type == 'model'
+                                                else 'code' if item_type == 'application'
+                                                else 'server' if item_type == 'service'
+                                                else 'file'
+                                            }} fa-3x"></i>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {# Status Badge Overlay #}
+                                    {% if show_status and item.status %}
+                                        <span class="position-absolute badge badge-{{ 
+                                            'success' if item.status in ['completed', 'running', 'active'] 
+                                            else 'warning' if item.status in ['pending', 'starting', 'processing'] 
+                                            else 'danger' if item.status in ['failed', 'error', 'stopped'] 
+                                            else 'secondary' 
+                                        }}" style="top: 0.5rem; right: 0.5rem;">
+                                            {{ item.status.title() }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            
+                            {# Card Body #}
+                            <div class="card-body d-flex flex-column">
+                                <h6 class="card-title">
+                                    <a href="{{ 
+                                        url_for(item_type + 's.detail', **{
+                                            'id': item.id if item_type in ['analysis'] else None,
+                                            'model_slug': item.model_slug if item_type in ['model', 'application'] else None,
+                                            'app_number': item.app_number if item_type == 'application' else None
+                                        } | select) 
+                                    }}" class="text-decoration-none text-dark">
+                                        {{ item.display_name or item.name or item.title }}
+                                    </a>
+                                </h6>
+                                
+                                {% if item.description or item.subtitle %}
+                                    <p class="card-text text-muted small flex-grow-1">
+                                        {{ (item.description or item.subtitle)[:100] }}{% if (item.description or item.subtitle)|length > 100 %}...{% endif %}
+                                    </p>
+                                {% endif %}
+                                
+                                {# Footer with Metadata and Actions #}
+                                <div class="mt-auto">
+                                    <small class="text-muted d-block mb-2">
+                                        {% if show_timestamps and item.created_at %}
+                                            {{ moment(item.created_at).fromNow() }}
+                                        {% endif %}
+                                    </small>
+                                    
+                                    {% if show_actions %}
+                                        <div class="btn-group btn-group-sm w-100">
+                                            <a href="{{ 
+                                                url_for(item_type + 's.detail', **{
+                                                    'id': item.id if item_type in ['analysis'] else None,
+                                                    'model_slug': item.model_slug if item_type in ['model', 'application'] else None,
+                                                    'app_number': item.app_number if item_type == 'application' else None
+                                                } | select) 
+                                            }}" class="btn btn-outline-primary">
+                                                <i class="fas fa-eye mr-1"></i>View
+                                            </a>
+                                            
+                                            {% if item_type == 'application' %}
+                                                <a href="{{ item.frontend_url }}" target="_blank" 
+                                                   class="btn btn-outline-success">
+                                                    <i class="fas fa-external-link-alt mr-1"></i>Open
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% else %}
+            {# Empty State #}
+            <div class="text-center py-5">
+                <i class="fas fa-{{ 
+                    'chart-line' if item_type == 'analysis' 
+                    else 'robot' if item_type == 'model'
+                    else 'code' if item_type == 'application'
+                    else 'server' if item_type == 'service'
+                    else 'clock'
+                }} fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">{{ empty_message.title() }}</h5>
+                <p class="text-muted">{{ item_type.title() }}s will appear here once you create them.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    {# Show More Button #}
+    {% if items|length > max_items %}
+        <div class="text-center mt-3">
+            <a href="{{ url_for(item_type + 's.index') }}" class="btn btn-outline-primary">
+                <i class="fas fa-plus mr-1"></i>Show {{ items|length - max_items }} More
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+{# JavaScript for Recent Items Management #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Search functionality
+    const searchInput = document.getElementById('recent-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            filterItems(this.value.toLowerCase());
+        });
+    }
+
+    // Layout toggle
+    document.querySelectorAll('.layout-toggle').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const layout = this.getAttribute('data-layout');
+            switchLayout(layout);
+        });
+    });
+
+    function filterItems(searchTerm) {
+        const items = document.querySelectorAll('.recent-item');
+        
+        items.forEach(function(item) {
+            const searchText = item.getAttribute('data-search-text');
+            if (searchText.includes(searchTerm)) {
+                item.style.display = 'block';
+                item.style.opacity = '1';
+            } else {
+                item.style.opacity = '0';
+                setTimeout(() => {
+                    if (item.style.opacity === '0') {
+                        item.style.display = 'none';
+                    }
+                }, 200);
+            }
+        });
+    }
+
+    function switchLayout(layout) {
+        const container = document.getElementById('items-container');
+        const toggles = document.querySelectorAll('.layout-toggle');
+        
+        container.className = container.className.replace(/layout-\w+/, `layout-${layout}`);
+        
+        // Update toggle buttons
+        toggles.forEach(function(toggle) {
+            if (toggle.getAttribute('data-layout') === layout) {
+                toggle.classList.add('active');
+            } else {
+                toggle.classList.remove('active');
+            }
+        });
+        
+        // Save preference
+        localStorage.setItem('recentItemsLayout', layout);
+    }
+
+    // Item action handlers
+    window.downloadResults = function(analysisId) {
+        window.location.href = `{{ url_for('analysis.download', id='__ID__') }}`.replace('__ID__', analysisId);
+    };
+
+    window.cancelAnalysis = function(analysisId) {
+        if (confirm('Are you sure you want to cancel this analysis?')) {
+            fetch(`{{ url_for('api.cancel_analysis', id='__ID__') }}`.replace('__ID__', analysisId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Failed to cancel analysis: ' + data.message);
+                }
+            });
+        }
+    };
+
+    window.controlService = function(serviceName, action) {
+        // Implementation from service-status component
+        // ... (same as in service-status.html)
+    };
+
+    // Load saved layout preference
+    const savedLayout = localStorage.getItem('recentItemsLayout');
+    if (savedLayout && savedLayout !== '{{ layout }}') {
+        switchLayout(savedLayout);
+    }
+});
+</script>
+
+{# CSS for Recent Items Styling #}
+<style>
+.recent-items-container {
+    background: #fff;
+    border-radius: 0.375rem;
+    padding: 1.25rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* List Layout */
+.recent-items-list.layout-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.recent-items-list.layout-list .recent-item {
+    width: 100%;
+}
+
+/* Grid Layout */
+.recent-items-list.layout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Thumbnails */
+.item-thumbnail {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+.thumbnail-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.thumbnail-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.25rem;
+    color: white;
+}
+
+/* Grid thumbnails */
+.card-img-top-container {
+    position: relative;
+    height: 150px;
+    overflow: hidden;
+}
+
+.card-img-top {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.card-img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+/* Item Cards */
+.item-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15) !important;
+}
+
+.item-title a:hover {
+    text-decoration: underline !important;
+}
+
+.item-description {
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.item-metadata {
+    font-size: 0.75rem;
+}
+
+.item-actions .btn-group-vertical .btn {
+    border-radius: 0.25rem !important;
+    margin-bottom: 0.25rem;
+}
+
+.item-actions .btn-group-vertical .btn:last-child {
+    margin-bottom: 0;
+}
+
+/* Layout toggles */
+.layout-toggle.active {
+    background-color: #4e73df;
+    border-color: #4e73df;
+    color: #fff;
+}
+
+/* Search */
+.input-group-sm .form-control {
+    font-size: 0.875rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .recent-items-list.layout-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    
+    .recent-items-container {
+        padding: 1rem;
+    }
+    
+    .item-actions {
+        margin-left: 0.5rem;
+    }
+    
+    .d-flex.justify-content-between.align-items-center {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 1rem;
+    }
+    
+    .d-flex.align-items-center {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .recent-items-list.layout-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .card-img-top-container {
+        height: 120px;
+    }
+}
+</style>

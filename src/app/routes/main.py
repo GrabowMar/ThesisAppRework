@@ -55,9 +55,9 @@ def dashboard():
             status=JobStatus.RUNNING
         ).all()
         
-        # Use new page wrapper template (pages/dashboard.html)
+        # Use new dashboard template structure
         return render_template(
-            'pages/dashboard.html',
+            'views/dashboard/index.html',
             stats=stats,
             recent_apps=recent_apps,
             recent_analyses=recent_analyses,
@@ -66,30 +66,18 @@ def dashboard():
     except Exception as e:
         logger.error(f"Error loading dashboard: {e}")
         flash('Error loading dashboard', 'error')
-        from datetime import datetime
-        import sys
-        import flask
+        # Use the proper error template structure
         return render_template(
-            'single_page.html',
-            page_title='Error',
-            main_partial='partials/common/error.html',
-            error_code=500,
-            error_title='Dashboard Error',
-            error_message=str(e),
+            'partials/common/error.html',
             error=str(e),
-            timestamp=datetime.now().isoformat(),
-            request_id='dashboard-error',
-            python_version=sys.version,
-            flask_version=getattr(flask, '__version__', 'unknown'),
-            debug_mode=current_app.debug,
-            environment=current_app.config.get('ENV', 'unknown')
-        )
+            page_title='Dashboard Error'
+        ), 500
 
 
 @main_bp.route('/about')
 def about():
     """About page with project information."""
-    return render_template('pages/about.html')
+    return render_template('views/about.html')
 
 
 @main_bp.route('/system-status')
@@ -103,16 +91,15 @@ def system_status():
             'security_scans': SecurityAnalysis.query.count(),
             'performance_tests': PerformanceTest.query.count()
         }
-        return render_template('pages/system_status.html', stats=stats)
+        return render_template('views/system/status.html', stats=stats)
     except Exception as e:
         logger.error(f"Error loading system status: {e}")
         flash('Error loading system status', 'error')
         return render_template(
-            'single_page.html',
-            page_title='System Status Error',
-            main_partial='partials/common/error.html',
-            error_message=str(e)
-        )
+            'partials/common/error.html',
+            error=str(e),
+            page_title='System Status Error'
+        ), 500
 
 
 @main_bp.route('/test-platform')
@@ -125,13 +112,10 @@ def testing():
         logger.error(f"Error redirecting testing page: {e}")
         flash('Error loading testing page', 'error')
         return render_template(
-            'single_page.html',
-            page_title='Error',
-            main_partial='partials/common/error.html',
-            error_code=500,
-            error_title='Testing Page Error',
-            error_message=str(e)
-        )
+            'partials/common/error.html',
+            error=str(e),
+            page_title='Testing Page Error'
+        ), 500
 
 
 @main_bp.route('/models_overview')
