@@ -1,0 +1,39 @@
+{#
+  Dashboard Top Models Panel
+  Expected by: hx-get="/api/dashboard/top-models" into #top-models
+#}
+<div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th style="width: 4ch;">#</th>
+        <th>Model</th>
+        <th>Provider</th>
+        <th class="text-end" style="width: 10ch;">Apps</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if top_models and top_models|length > 0 %}
+        {% for m in top_models %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>
+            <span class="fw-semibold">{{ m.model_name }}</span>
+            <div class="small text-muted">{{ m.model_slug }}</div>
+          </td>
+          <td>{{ m.provider|title }}</td>
+          <td class="text-end">
+            <span class="badge bg-primary">{{ m.app_count }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="4" class="text-center py-3 text-muted">
+            <i class="fas fa-info-circle me-1"></i>No model data available yet
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>

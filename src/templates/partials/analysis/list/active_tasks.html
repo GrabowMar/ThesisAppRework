@@ -5,13 +5,16 @@ Active Tasks List Partial
 Active tasks display for HTMX updates.
 
 Parameters:
-- active (list): Currently active tasks/analyses
+- active (list|mapping): Currently active tasks/analyses. May be a list of task dicts
+    or a mapping of id -> task dict.
 
 Usage: /analysis/api/active-tasks endpoint
 #}
 
 {% if active %}
-    {% for task in active %}
+    {# Normalize to iterable of task dicts even if 'active' is a mapping #}
+    {% set tasks = active.values() if active is mapping else active %}
+    {% for task in tasks %}
     <div class="d-flex align-items-center mb-2 p-3 border rounded bg-light">
         <div class="me-3">
             <div class="spinner-border spinner-border-sm text-primary" role="status">
@@ -19,22 +22,43 @@ Usage: /analysis/api/active-tasks endpoint
             </div>
         </div>
         <div class="flex-grow-1">
-            <div class="fw-semibold">{{ task.task_type|title }} Analysis</div>
+            {# Title: prefer explicit name/task_name, fallback to task_type Analysis #}
+            {% set title = task.name or task.get('name') or task.task_name or task.get('task_name') %}
+            {% if not title %}
+                {% set title = (task.task_type ~ ' Analysis') if task.task_type else 'Analysis' %}
+            {% endif %}
+            <div class="fw-semibold">{{ title }}</div>
             <div class="small text-muted">
-                {{ task.application.model_slug if task.application else 'Unknown Model' }} - 
-                App {{ task.application.app_number if task.application else 'N/A' }}
+                {{ (task.application.model_slug if task.application else task.get('model_slug')) or 'Unknown Model' }} - 
+                App {{ (task.application.app_number if task.application else task.get('app_number')) or 'N/A' }}
             </div>
             <div class="small text-muted">
-                Started {{ task.started_at.strftime('%H:%M:%S') if task.started_at else 'Unknown time' }}
+                {% set started = task.started_at or task.get('started_at') or task.get('start_time') %}
+                Started {{ started if started else 'Unknown time' }}
             </div>
         </div>
         <div class="text-end">
-            <span class="badge bg-info">
+            {% set state = (task.status or task.get('status') or task.state or task.get('state') or '') | upper %}
+            {% set badge = 'secondary' %}
+            {% if state in ['RUNNING','STARTED','IN_PROGRESS'] %}
+                {% set badge = 'info' %}
+            {% elif state in ['PENDING','QUEUED'] %}
+                {% set badge = 'warning' %}
+            {% elif state in ['SUCCESS','COMPLETED','DONE'] %}
+                {% set badge = 'success' %}
+            {% elif state in ['FAILED','ERROR'] %}
+                {% set badge = 'danger' %}
+            {% endif %}
+            <span class="badge bg-{{ badge }}">
                 <i class="fas fa-clock me-1"></i>
-                Running
+                {{ state.title() if state else 'Running' }}
             </span>
             <div class="small text-muted mt-1">
-                {{ task.progress }}% complete
+                {% if task.progress is defined or task.get('progress') is not none %}
+                    {{ task.progress if task.progress is defined else task.get('progress') }}% complete
+                {% else %}
+                    
+                {% endif %}
             </div>
         </div>
     </div>

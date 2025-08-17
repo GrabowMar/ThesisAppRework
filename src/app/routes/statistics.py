@@ -113,9 +113,9 @@ def statistics_overview():
         # Load external data from misc folder
         external_data = _load_external_statistics()
 
-        # Render new wrapper page which includes the partial
+        # Render existing statistics overview view
         return render_template(
-            'pages/statistics.html',
+            'views/statistics/overview.html',
             stats=generation_stats,
             analysis_stats=analysis_stats,
             batch_stats=batch_stats,

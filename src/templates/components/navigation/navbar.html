@@ -40,34 +40,32 @@
 #}
 
 {%- set brand_text = brand_text|default("AI Model Analysis") -%}
-{%- set show_search = show_search|default(true) -%}
-{%- set show_notifications = show_notifications|default(true) -%}
-{%- set show_user_menu = show_user_menu|default(true) -%}
+{%- set show_search = show_search|default(false) -%}
+{%- set show_notifications = show_notifications|default(false) -%}
+{%- set show_user_menu = show_user_menu|default(false) -%}
 {%- set fixed_top = fixed_top|default(true) -%}
 {%- set variant = variant|default("light") -%}
 {%- set enable_breadcrumbs = enable_breadcrumbs|default(false) -%}
 {%- set notification_count = notification_count|default(0) -%}
 
-<nav class="navbar navbar-expand-lg navbar-{{ variant }} {{ 'bg-' + variant if variant != 'transparent' else '' }} {{ 'fixed-top' if fixed_top else '' }} shadow-sm" 
+<nav class="navbar navbar-expand-lg navbar-{{ variant }} {{ 'bg-' + variant if variant != 'transparent' else '' }} {{ 'fixed-top' if fixed_top else '' }} shadow-sm thin-navbar" 
      id="main-navbar" 
      role="navigation" 
      aria-label="Main navigation">
   
   <div class="container-fluid">
     <!-- Sidebar toggle (desktop) -->
-    <button class="btn btn-outline-secondary d-none d-lg-inline-flex me-2" type="button" aria-label="Toggle sidebar" onclick="window.dispatchEvent(new CustomEvent('toggle:sidebar'))">
+  <button class="btn btn-outline-secondary btn-sm d-none d-lg-inline-flex me-2" type="button" aria-label="Toggle sidebar" onclick="window.dispatchEvent(new CustomEvent('toggle:sidebar'))">
       <i class="fas fa-bars"></i>
     </button>
     
     <!-- Brand/Logo -->
-  <a class="navbar-brand d-flex align-items-center" href="{{ url_for('main.dashboard') }}" aria-label="Go to dashboard">
-      <i class="fas fa-robot me-2 text-primary" aria-hidden="true"></i>
-      <span class="fw-bold">{{ brand_text }}</span>
-      <small class="ms-2 text-muted d-none d-md-inline">v2.0</small>
+  <a class="navbar-brand d-flex align-items-center py-0" href="{{ url_for('main.dashboard') }}" aria-label="Go to dashboard">
+      <i class="fas fa-robot text-primary" aria-hidden="true"></i>
     </a>
 
     <!-- Mobile hamburger menu toggle + sidebar offcanvas trigger -->
-    <button class="navbar-toggler" 
+    <button class="navbar-toggler py-0 px-2" 
             type="button" 
             data-bs-toggle="collapse" 
             data-bs-target="#navbarContent" 
@@ -77,130 +75,14 @@
       <span class="navbar-toggler-icon"></span>
     </button>
 
-    <button class="btn btn-outline-secondary d-inline-flex d-lg-none ms-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobile-sidebar" aria-controls="mobile-sidebar" aria-label="Open menu">
+    <button class="btn btn-outline-secondary btn-sm d-inline-flex d-lg-none ms-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobile-sidebar" aria-controls="mobile-sidebar" aria-label="Open menu">
       <i class="fas fa-bars"></i>
     </button>
 
     <!-- Collapsible navbar content -->
     <div class="collapse navbar-collapse" id="navbarContent">
-      
-      <!-- Main navigation links -->
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-       <a class="nav-link {{ 'active' if request.endpoint == 'main.dashboard' else '' }}" 
-         href="{{ url_for('main.dashboard') }}" 
-         aria-current="{{ 'page' if request.endpoint == 'main.dashboard' else 'false' }}">
-            <i class="fas fa-tachometer-alt me-1" aria-hidden="true"></i>
-            Dashboard
-          </a>
-        </li>
-        <li class="nav-item">
-       <a class="nav-link {{ 'active' if request.endpoint and 'analysis' in request.endpoint else '' }}" 
-         href="{{ url_for('analysis.analysis_hub') }}">
-            <i class="fas fa-chart-line me-1" aria-hidden="true"></i>
-            Analysis
-          </a>
-        </li>
-        <li class="nav-item">
-       <a class="nav-link {{ 'active' if request.endpoint and 'models' in request.endpoint else '' }}" 
-         href="{{ url_for('models.models_overview') }}">
-            <i class="fas fa-brain me-1" aria-hidden="true"></i>
-            Models
-          </a>
-        </li>
-        <li class="nav-item">
-       <a class="nav-link {{ 'active' if request.endpoint and 'applications' in request.endpoint else '' }}" 
-         href="{{ url_for('models.applications') }}">
-            <i class="fas fa-boxes me-1" aria-hidden="true"></i>
-            Applications
-          </a>
-        </li>
-        <li class="nav-item">
-       <a class="nav-link {{ 'active' if request.endpoint and 'batch' in request.endpoint else '' }}" 
-         href="{{ url_for('batch.batch_overview') }}">
-            <i class="fas fa-tasks me-1" aria-hidden="true"></i>
-            Batch Jobs
-          </a>
-        </li>
-        <li class="nav-item">
-       <a class="nav-link {{ 'active' if request.endpoint and 'statistics' in request.endpoint else '' }}" 
-         href="{{ url_for('statistics.statistics_overview') }}">
-            <i class="fas fa-chart-bar me-1" aria-hidden="true"></i>
-            Statistics
-          </a>
-        </li>
-      </ul>
-
-      <!-- Search form (if enabled) -->
-      {% if show_search %}
-  <form class="d-flex me-3 position-relative" 
-            role="search" 
-            id="navbar-search-form"
-    hx-post="{{ url_for('api.quick_search') }}"
-            hx-target="#search-results"
-            hx-trigger="submit"
-            hx-indicator="#search-spinner">
-        
-        <div class="input-group">
-          <input class="form-control" 
-                 type="search" 
-                 placeholder="Search models, apps, analyses..." 
-                 aria-label="Global search"
-                 id="navbar-search-input"
-                 name="query"
-                 autocomplete="off"
-                 data-bs-toggle="dropdown"
-                 data-bs-auto-close="outside">
-          
-          <button class="btn btn-outline-primary" 
-                  type="submit" 
-                  aria-label="Execute search">
-            <span id="search-spinner" class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-            <i class="fas fa-search" id="search-icon" aria-hidden="true"></i>
-          </button>
-        </div>
-
-        <!-- Search suggestions dropdown -->
-        <div class="dropdown-menu dropdown-menu-end mt-1 shadow border-0" 
-             id="search-suggestions" 
-             style="min-width: 320px; max-height: 400px; overflow-y: auto;">
-          
-          <!-- Recent searches -->
-          <div class="dropdown-header d-flex align-items-center">
-            <i class="fas fa-clock me-1" aria-hidden="true"></i>
-            Recent Searches
-          </div>
-          <div id="recent-searches">
-            <!-- Populated by JavaScript -->
-          </div>
-          
-          <div class="dropdown-divider"></div>
-          
-          <!-- Quick links -->
-          <div class="dropdown-header d-flex align-items-center">
-            <i class="fas fa-bolt me-1" aria-hidden="true"></i>
-            Quick Actions
-          </div>
-          <a class="dropdown-item" href="{{ url_for('analysis.analyses_create_page') }}">
-            <i class="fas fa-plus me-2" aria-hidden="true"></i>
-            New Analysis
-          </a>
-          <a class="dropdown-item" href="{{ url_for('batch.create_batch') }}">
-            <i class="fas fa-layer-group me-2" aria-hidden="true"></i>
-            New Batch Job
-          </a>
-          {# Comparison route not implemented; link removed to avoid 404 #}
-        </div>
-        
-        <!-- Search results container (hidden by default) -->
-        <div id="search-results" class="position-absolute top-100 start-0 end-0 bg-white shadow-lg border rounded mt-1 d-none" style="z-index: 1050; max-height: 500px; overflow-y: auto;">
-          <!-- Search results populated by HTMX -->
-        </div>
-      </form>
-      {% endif %}
-
-      <!-- Right side items -->
-      <ul class="navbar-nav">
+      <!-- Icon-only right side items -->
+      <ul class="navbar-nav ms-auto">
         
         <!-- Theme toggle -->
         <li class="nav-item">
@@ -229,83 +111,7 @@
           </a>
         </li>
 
-        <!-- Notifications (if enabled) -->
-        {% if show_notifications %}
-        <li class="nav-item">
-          <span class="nav-link position-relative disabled" aria-disabled="true" title="Notifications coming soon">
-            <i class="fas fa-bell" aria-hidden="true"></i>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-secondary" 
-                  style="font-size: 0.6em;"
-                  hx-get="{{ url_for('api.notifications_count') }}" hx-trigger="load, every 60s" hx-swap="innerHTML">0</span>
-          </span>
-        </li>
-        {% endif %}
-
-        <!-- User menu (if enabled) -->
-        {% if show_user_menu %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle d-flex align-items-center" 
-             href="#" 
-             role="button" 
-             data-bs-toggle="dropdown" 
-             aria-expanded="false"
-             aria-label="User menu">
-            <img src="{{ current_user.avatar_url if current_user and current_user.avatar_url else url_for('static', filename='images/default-avatar.svg') }}" 
-                 class="rounded-circle me-2" 
-                 width="24" 
-                 height="24" 
-                 alt="User avatar">
-            <span class="d-none d-md-inline">{{ current_user.name if current_user else 'Guest' }}</span>
-          </a>
-          
-          <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-            {% if current_user %}
-            <li class="dropdown-header">
-              {{ current_user.email }}
-            </li>
-            <li><hr class="dropdown-divider"></li>
-            <li>
-              <a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">
-                <i class="fas fa-user me-2" aria-hidden="true"></i>
-                Profile (not available)
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">
-                <i class="fas fa-cog me-2" aria-hidden="true"></i>
-                Settings (not available)
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">
-                <i class="fas fa-key me-2" aria-hidden="true"></i>
-                API Keys (not available)
-              </a>
-            </li>
-            <li><hr class="dropdown-divider"></li>
-            <li>
-              <button type="button" class="dropdown-item text-muted" disabled>
-                <i class="fas fa-sign-out-alt me-2" aria-hidden="true"></i>
-                Logout (not available)
-              </button>
-            </li>
-            {% else %}
-            <li>
-              <a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">
-                <i class="fas fa-sign-in-alt me-2" aria-hidden="true"></i>
-                Login (not available)
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">
-                <i class="fas fa-user-plus me-2" aria-hidden="true"></i>
-                Register (not available)
-              </a>
-            </li>
-            {% endif %}
-          </ul>
-        </li>
-        {% endif %}
+  {# User menu and notifications removed for minimal, icon-only navbar #}
       </ul>
     </div>
   </div>
@@ -322,9 +128,9 @@
 <script>
 class NavbarManager {
   constructor() {
-    this.searchInput = document.getElementById('navbar-search-input');
-    this.searchForm = document.getElementById('navbar-search-form');
-    this.searchResults = document.getElementById('search-results');
+  this.searchInput = document.getElementById('navbar-search-input');
+  this.searchForm = document.getElementById('navbar-search-form');
+  this.searchResults = document.getElementById('search-results');
     this.themeToggle = document.getElementById('theme-toggle');
     this.themeIcon = document.getElementById('theme-icon');
     this.systemStatusBadge = document.getElementById('system-status-badge');
@@ -336,12 +142,11 @@ class NavbarManager {
   }
   
   init() {
-    this.setupSearch();
+  // Search removed in minimal navbar
     this.setupThemeToggle();
     this.setupSystemStatus();
-    this.setupKeyboardShortcuts();
+  // Keep basic keyboard shortcuts only for theme
     this.setupMobileMenu();
-    this.loadRecentSearches();
     
     // Apply initial theme
     this.setTheme(this.currentTheme);
@@ -353,91 +158,7 @@ class NavbarManager {
     });
   }
   
-  setupSearch() {
-    if (!this.searchInput) return;
-    
-    // Real-time search suggestions
-    this.searchInput.addEventListener('input', (e) => {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = setTimeout(() => {
-        this.showSearchSuggestions(e.target.value);
-      }, 300);
-    });
-    
-    // Show suggestions on focus
-    this.searchInput.addEventListener('focus', () => {
-      this.showSearchSuggestions(this.searchInput.value);
-    });
-    
-    // Hide results on outside click
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('#navbar-search-form')) {
-        this.hideSearchResults();
-      }
-    });
-    
-    // Handle search form submission
-    if (this.searchForm) {
-      this.searchForm.addEventListener('submit', (e) => {
-        this.saveRecentSearch(this.searchInput.value);
-      });
-    }
-  }
-  
-  showSearchSuggestions(query) {
-    const suggestions = document.getElementById('search-suggestions');
-    if (!suggestions || query.length < 2) {
-      suggestions.style.display = 'none';
-      return;
-    }
-    
-    // Show suggestions dropdown
-    suggestions.style.display = 'block';
-    
-    // Load recent searches
-    this.loadRecentSearches();
-  }
-  
-  hideSearchResults() {
-    if (this.searchResults) {
-      this.searchResults.classList.add('d-none');
-    }
-    
-    const suggestions = document.getElementById('search-suggestions');
-    if (suggestions) {
-      suggestions.style.display = 'none';
-    }
-  }
-  
-  saveRecentSearch(query) {
-    if (!query.trim()) return;
-    
-    let recentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
-    recentSearches = recentSearches.filter(search => search !== query);
-    recentSearches.unshift(query);
-    recentSearches = recentSearches.slice(0, 5);
-    
-    localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
-  }
-  
-  loadRecentSearches() {
-    const container = document.getElementById('recent-searches');
-    if (!container) return;
-    
-    const recentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
-    
-    if (recentSearches.length === 0) {
-      container.innerHTML = '<div class="dropdown-item text-muted">No recent searches</div>';
-      return;
-    }
-    
-    container.innerHTML = recentSearches.map(search => `
-      <a class="dropdown-item" href="#" onclick="this.closest('form').querySelector('input').value='${search.replace(/'/g, "\\'")}'; this.closest('form').submit(); return false;">
-        <i class="fas fa-search me-2 text-muted" aria-hidden="true"></i>
-        ${search}
-      </a>
-    `).join('');
-  }
+  // Search-related methods removed
   
   setupThemeToggle() {
     if (!this.themeToggle) return;
@@ -515,26 +236,7 @@ class NavbarManager {
     }
   }
   
-  setupKeyboardShortcuts() {
-    document.addEventListener('keydown', (e) => {
-      // Ctrl/Cmd + K for global search
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        if (this.searchInput) {
-          this.searchInput.focus();
-          this.searchInput.select();
-        }
-      }
-      
-      // Escape to close search
-      if (e.key === 'Escape') {
-        this.hideSearchResults();
-        if (document.activeElement === this.searchInput) {
-          this.searchInput.blur();
-        }
-      }
-    });
-  }
+  setupKeyboardShortcuts() {}
   
   setupMobileMenu() {
     // Enhanced mobile menu behavior
@@ -551,31 +253,7 @@ class NavbarManager {
       }
     });
     
-    // Update navbar style on scroll (for fixed navbar)
-    let lastScroll = 0;
-    window.addEventListener('scroll', () => {
-      const currentScroll = window.pageYOffset;
-      const navbar = document.getElementById('main-navbar');
-      
-      if (navbar.classList.contains('fixed-top')) {
-        if (currentScroll > lastScroll && currentScroll > 100) {
-          // Scrolling down
-          navbar.style.transform = 'translateY(-100%)';
-        } else {
-          // Scrolling up
-          navbar.style.transform = 'translateY(0)';
-        }
-        
-        // Add shadow when scrolled
-        if (currentScroll > 0) {
-          navbar.classList.add('shadow');
-        } else {
-          navbar.classList.remove('shadow');
-        }
-      }
-      
-      lastScroll = currentScroll;
-    });
+  // Keep navbar visible on scroll (no hide-on-scroll behavior)
   }
 }
 
@@ -599,6 +277,12 @@ document.body.addEventListener('htmx:afterRequest', (event) => {
 <style>
 .navbar {
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.thin-navbar {
+  min-height: var(--navbar-height);
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
 }
 
 .navbar-brand {

@@ -393,6 +393,29 @@ def dashboard_stats_fragment():
         })
 
 
+# Aliases expected by templates/JS
+@api_bp.route('/dashboard/chart-data')
+def api_dashboard_chart_data_alias():
+    """Alias that returns same payload as /dashboard/charts for template JS fetch."""
+    return api_dashboard_charts()
+
+
+@api_bp.route('/dashboard/stats-update')
+def api_dashboard_stats_update_alias():
+    """Alias that returns stats fragment HTML for periodic refresh."""
+    return dashboard_stats_fragment()
+
+
+@api_bp.route('/dashboard/refresh')
+def api_dashboard_refresh():
+    """Lightweight refresh endpoint for HTMX. Returns an empty 204 or small message."""
+    try:
+        # Could assemble a composite partial; for now, let client panels refresh independently
+        return Response(status=204)
+    except Exception:
+        return Response('', status=204)
+
+
 @api_bp.route('/recent_activity')
 def recent_activity():
     """HTMX endpoint for recent activity timeline."""
@@ -907,3 +930,49 @@ def dashboard_analyzer_services():
     except Exception as e:
         logger.error(f"Error rendering analyzer services: {e}")
         return render_template('partials/dashboard/analyzer_services.html', analyzer_services=[])
+    
+
+# Alias route expected by templates: /api/dashboard/services -> same as analyzer-services
+@api_bp.route('/dashboard/services')
+def dashboard_services_alias():
+    """Alias for analyzer services to match template expectations."""
+    return dashboard_analyzer_services()
+
+
+@api_bp.route('/dashboard/top-models')
+def dashboard_top_models():
+    """HTMX endpoint rendering a compact Top Models panel for the dashboard.
+
+    Ranks models by number of generated applications and shows a simple list.
+    """
+    try:
+        # Get top models by app count
+        top = (
+            db.session.query(
+                GeneratedApplication.model_slug.label('model_slug'),
+                func.count(GeneratedApplication.id).label('app_count')
+            )
+            .group_by(GeneratedApplication.model_slug)
+            .order_by(desc('app_count'))
+            .limit(10)
+            .all()
+        )
+
+        # Fetch names/providers for slugs
+        slug_to_meta = {m.canonical_slug: m for m in db.session.query(ModelCapability).all()}
+        models = []
+        for row in top:
+            meta = slug_to_meta.get(row.model_slug)
+            models.append({
+                'model_slug': row.model_slug,
+                'model_name': getattr(meta, 'model_name', row.model_slug),
+                'provider': getattr(meta, 'provider', 'unknown'),
+                'app_count': int(row.app_count or 0),
+                # Placeholder success rate until a real metric is available
+                'success_rate': 0
+            })
+
+        return render_template('partials/dashboard/top_models.html', top_models=models)
+    except Exception as e:
+        logger.error(f"Error rendering top models panel: {e}")
+        return render_template('partials/dashboard/top_models.html', top_models=[])

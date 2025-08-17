@@ -6,7 +6,7 @@ API endpoints for AI model management and information.
 """
 
 import logging
-from flask import jsonify, render_template
+from flask import jsonify, render_template, request
 
 from ..response_utils import json_success, handle_exceptions
 
@@ -118,6 +118,139 @@ def api_models_providers():
         return jsonify({'error': str(e)}), 500
 
 
+# =================================================================
+# MODELS VIEW SUPPORT ENDPOINTS EXPECTED BY TEMPLATES
+# =================================================================
+
+@api_bp.route('/models/all')
+def api_models_all():
+    """Return models and simple statistics for Models Overview page.
+
+    This matches the JS expectations in templates/views/models/overview.html.
+    """
+    try:
+        models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        # Map to the fields referenced by the page's JS
+        def map_model(m: ModelCapability):
+            caps = m.get_capabilities() or {}
+            # Derive some fields with safe defaults
+            return {
+                'slug': m.canonical_slug,
+                'name': m.model_name,
+                'provider': m.provider,
+                'provider_logo': '/static/img/providers/default.png',
+                'capabilities': caps.get('capabilities') or list(caps.keys()) or [],
+                'input_price_per_1k': round((m.input_price_per_token or 0.0) * 1000, 6),
+                'output_price_per_1k': round((m.output_price_per_token or 0.0) * 1000, 6),
+                'context_length': m.context_window or 0,
+                'performance_score': int((m.cost_efficiency or 0.0) * 10) if (m.cost_efficiency or 0) <= 1 else int(m.cost_efficiency or 0),
+                'status': 'active',
+                'description': (m.get_metadata() or {}).get('description')
+            }
+
+        models_list = [map_model(m) for m in models]
+        providers = {m.provider for m in models}
+        stats = {
+            'total_models': len(models_list),
+            'active_models': len(models_list),
+            'unique_providers': len(providers),
+            'avg_cost_per_1k': round(sum(x['input_price_per_1k'] for x in models_list) / max(len(models_list), 1), 6)
+        }
+        return jsonify({'models': models_list, 'statistics': stats})
+    except Exception as e:
+        logger.error(f"Error building models/all payload: {e}")
+        return jsonify({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
+
+
+@api_bp.route('/models/grid')
+def api_models_grid_fragment():
+    """Render the models grid fragment used by the Models Overview page."""
+    try:
+        # Simple fetch without filters for now; can be extended to read request.args
+        models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+
+        # Transform for fragment expected fields
+        items = []
+        for m in models:
+            caps = m.get_capabilities() or {}
+            items.append({
+                'slug': m.canonical_slug,
+                'display_name': m.model_name,
+                'name': m.model_name,
+                'provider': m.provider,
+                'status': 'active',
+                'capabilities': caps.get('capabilities') or list(caps.keys()) or [],
+                'context_length': m.context_window or 0,
+                'max_tokens': m.max_output_tokens or 0,
+                'pricing': {
+                    'input_cost': (m.input_price_per_token or 0.0) * 1000,
+                    'output_cost': (m.output_price_per_token or 0.0) * 1000,
+                },
+                'statistics': {
+                    'total_analyses': db.session.query(SecurityAnalysis).join(GeneratedApplication, SecurityAnalysis.application_id == GeneratedApplication.id).filter(GeneratedApplication.model_slug == m.canonical_slug).count()
+                }
+            })
+
+        context = {
+            'models': items,
+            'total_models': len(items),
+            'filters_applied': False,
+            'active_filters': {},
+            'query_params': ''
+        }
+        return render_template('fragments/api/model-grid.html', **context)
+    except Exception as e:
+        logger.error(f"Error rendering models grid fragment: {e}")
+        return render_template('fragments/api/model-grid.html', models=[], total_models=0, filters_applied=False, active_filters={}, query_params='')
+
+
+@api_bp.route('/models/filtered')
+def api_models_filtered():
+    """Return filtered models list matching the structure used by /models/all.
+
+    Supports query params: search, provider, capability, price, status, context, size, release, specialization
+    """
+    try:
+        q = ModelCapability.query
+        search = request.args.get('search')
+        provider = request.args.get('provider')
+
+        if provider:
+            q = q.filter(ModelCapability.provider == provider)
+        if search:
+            like = f"%{search}%"
+            q = q.filter((ModelCapability.model_name.ilike(like)) | (ModelCapability.provider.ilike(like)))
+
+        models = q.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+
+        def map_model(m: ModelCapability):
+            caps = m.get_capabilities() or {}
+            return {
+                'slug': m.canonical_slug,
+                'name': m.model_name,
+                'provider': m.provider,
+                'provider_logo': '/static/img/providers/default.png',
+                'capabilities': caps.get('capabilities') or list(caps.keys()) or [],
+                'input_price_per_1k': round((m.input_price_per_token or 0.0) * 1000, 6),
+                'output_price_per_1k': round((m.output_price_per_token or 0.0) * 1000, 6),
+                'context_length': m.context_window or 0,
+                'performance_score': int((m.cost_efficiency or 0.0) * 10) if (m.cost_efficiency or 0) <= 1 else int(m.cost_efficiency or 0),
+                'status': 'active',
+                'description': (m.get_metadata() or {}).get('description')
+            }
+
+        models_list = [map_model(m) for m in models]
+        providers = {m.provider for m in models}
+        stats = {
+            'total_models': len(models_list),
+            'active_models': len(models_list),
+            'unique_providers': len(providers),
+            'avg_cost_per_1k': round(sum(x['input_price_per_1k'] for x in models_list) / max(len(models_list), 1), 6)
+        }
+        return jsonify({'models': models_list, 'statistics': stats})
+    except Exception as e:
+        logger.error(f"Error building models/filtered payload: {e}")
+        return jsonify({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
 # =================================================================
 # MODEL CONTAINER AND STATUS ENDPOINTS
 # =================================================================

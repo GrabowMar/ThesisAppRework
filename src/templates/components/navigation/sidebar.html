@@ -44,8 +44,8 @@
 {%- set collapsed = collapsed|default(false) -%}
 {%- set variant = variant|default("dark") -%}
 {%- set show_user_info = show_user_info|default(true) -%}
-{%- set show_search = show_search|default(true) -%}
-{%- set show_quick_stats = show_quick_stats|default(true) -%}
+{%- set show_search = show_search|default(false) -%}
+{%- set show_quick_stats = show_quick_stats|default(false) -%}
 {%- set fixed_position = fixed_position|default(true) -%}
 {%- set enable_tooltips = enable_tooltips|default(true) -%}
 
@@ -94,41 +94,9 @@
   {% endif %}
 
   <!-- Search within sidebar (if enabled) -->
-  {% if show_search %}
-  <div class="sidebar-search p-3 border-bottom border-secondary">
-    <div class="position-relative">
-      <input type="text" 
-             class="form-control form-control-sm bg-dark border-secondary text-white" 
-             placeholder="Search menu..."
-             id="sidebar-search-input"
-             aria-label="Search sidebar menu">
-      <i class="fas fa-search position-absolute top-50 end-0 translate-middle-y me-2 text-white-50" aria-hidden="true"></i>
-    </div>
-  </div>
-  {% endif %}
+  {# Sidebar search removed per request #}
 
-  <!-- Quick stats (if enabled) -->
-  {% if show_quick_stats %}
-  <div class="sidebar-stats p-3 border-bottom border-secondary"
-       hx-get="{{ url_for('api.sidebar_stats') }}"
-       hx-trigger="load, every 60s"
-       hx-swap="innerHTML">
-    <div class="row g-2 text-center">
-      <div class="col">
-        <div class="small text-white-50">Active</div>
-        <div class="fw-bold text-success sidebar-stat-number">--</div>
-      </div>
-      <div class="col">
-        <div class="small text-white-50">Models</div>
-        <div class="fw-bold text-primary sidebar-stat-number">--</div>
-      </div>
-      <div class="col">
-        <div class="small text-white-50">Apps</div>
-        <div class="fw-bold text-info sidebar-stat-number">--</div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
+  {# Quick stats removed to simplify UI per request #}
 
   <!-- Main navigation menu -->
   <nav class="sidebar-nav flex-grow-1" role="navigation" aria-label="Sidebar navigation menu">
@@ -521,10 +489,11 @@ class SidebarManager {
   collapseSidebar() {
     if (!this.sidebar) return;
     
-    this.sidebar.classList.add('collapsed');
+  this.sidebar.classList.add('collapsed');
     this.isCollapsed = true;
     localStorage.setItem('sidebarCollapsed', 'true');
   document.body.classList.add('with-sidebar');
+  document.body.classList.add('sidebar-collapsed');
     
     // Update collapse button icon
     const collapseIcon = document.querySelector('.sidebar-collapse-icon');
@@ -547,10 +516,11 @@ class SidebarManager {
   expandSidebar() {
     if (!this.sidebar) return;
     
-    this.sidebar.classList.remove('collapsed');
+  this.sidebar.classList.remove('collapsed');
     this.isCollapsed = false;
     localStorage.setItem('sidebarCollapsed', 'false');
   document.body.classList.add('with-sidebar');
+  document.body.classList.remove('sidebar-collapsed');
     
     // Update collapse button icon
     const collapseIcon = document.querySelector('.sidebar-collapse-icon');
@@ -625,8 +595,13 @@ window.addEventListener('toggle:sidebar', () => {
 
 <!-- Sidebar Styles -->
 <style>
+:root {
+  --navbar-height: 48px;
+  --sidebar-width: 220px;
+  --sidebar-width-collapsed: 64px;
+}
 .sidebar {
-  width: 260px;
+  width: var(--sidebar-width);
   min-height: 100vh;
   background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
   transition: all 0.3s ease;
@@ -635,13 +610,13 @@ window.addEventListener('toggle:sidebar', () => {
 }
 
 .sidebar.collapsed {
-  width: 70px;
+  width: var(--sidebar-width-collapsed);
 }
 
 .sidebar.position-fixed {
-  top: 0;
+  top: var(--navbar-height);
   left: 0;
-  height: 100vh;
+  height: calc(100vh - var(--navbar-height));
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -678,23 +653,11 @@ window.addEventListener('toggle:sidebar', () => {
   display: none;
 }
 
-/* Stats section */
-.sidebar-stats {
-  transition: all 0.3s ease;
-}
-
-.sidebar.collapsed .sidebar-stats {
-  display: none;
-}
-
-.sidebar-stat-number {
-  font-size: 1.1em;
-  font-weight: 600;
-}
+/* Stats section removed */
 
 /* Navigation */
 .sidebar-nav {
-  padding: 1rem 0;
+  padding: 0.5rem 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -706,7 +669,7 @@ window.addEventListener('toggle:sidebar', () => {
 .sidebar-nav .nav-link {
   display: flex;
   align-items: center;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   color: rgba(255, 255, 255, 0.8);
   border-radius: 0;
   border: none;
@@ -735,8 +698,8 @@ window.addEventListener('toggle:sidebar', () => {
 }
 
 .nav-icon {
-  width: 20px;
-  margin-right: 0.75rem;
+  width: 18px;
+  margin-right: 0.5rem;
   text-align: center;
   flex-shrink: 0;
 }
@@ -779,7 +742,7 @@ window.addEventListener('toggle:sidebar', () => {
 }
 
 .nav-sub .nav-link {
-  padding-left: 3rem;
+  padding-left: 2.25rem;
   font-size: 0.9em;
 }
 
@@ -873,15 +836,7 @@ window.addEventListener('toggle:sidebar', () => {
   background: rgba(255, 255, 255, 0.5);
 }
 
-/* Animation for stats */
-.sidebar-stat-number {
-  transition: all 0.3s ease;
-}
-
-.sidebar-stat-number.updated {
-  transform: scale(1.1);
-  color: #28a745;
-}
+/* Stats animation removed */
 
 /* High contrast mode */
 @media (prefers-contrast: high) {
@@ -906,24 +861,24 @@ window.addEventListener('toggle:sidebar', () => {
   }
 }
 
-/* Content adjustment for fixed sidebar */
+/* Content adjustment for fixed header + sidebar */
 .main-content {
-  margin-left: 260px;
-  transition: margin-left 0.3s ease;
+  padding-left: 0;
+  padding-top: var(--navbar-height);
+  transition: padding-left 0.3s ease;
 }
 
-.sidebar.collapsed + .main-content {
-  margin-left: 70px;
+body.with-sidebar .main-content {
+  padding-left: var(--sidebar-width);
 }
 
-/* Ensure content shifts only when a sidebar exists */
-body:not(.with-sidebar) .main-content {
-  margin-left: 0;
+body.with-sidebar.sidebar-collapsed .main-content {
+  padding-left: var(--sidebar-width-collapsed);
 }
 
 @media (max-width: 991.98px) {
   .main-content {
-    margin-left: 0;
+    padding-left: 0;
   }
 }
 </style>

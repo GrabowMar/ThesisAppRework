@@ -54,13 +54,20 @@
     
     <!-- Project theme -->
     <link href="{{ url_for('static', filename='css/theme.css') }}" rel="stylesheet">
+        <style>
+            :root {
+                --navbar-height: 48px;
+                --sidebar-width: 260px;
+                --sidebar-width-collapsed: 70px;
+            }
+        </style>
     {% endblock %}
     
     {# Additional head content #}
     {% block extra_head %}{% endblock %}
 </head>
 
-<body class="{% block body_class %}bg-body-tertiary{% endblock %}">
+<body class="{% block body_class %}bg-body-tertiary with-sidebar{% endblock %}">
     {# Global loading indicator #}
     <div id="global-spinner" class="htmx-indicator position-fixed top-0 end-0 p-3" style="z-index: 9999;">
         <div class="spinner-border text-primary" role="status">
@@ -81,30 +88,32 @@
     {% endblock %}
     
     {# Main Content Container #}
-    <main class="main-content {% block main_class %}container-fluid py-4{% endblock %}">
-        {# Breadcrumb Navigation #}
-        {% if show_breadcrumbs|default(true) %}
-        {% block breadcrumbs %}
-        <nav aria-label="breadcrumb" class="mb-4">
-            <!-- Breadcrumb content will be implemented -->
-        </nav>
-        {% endblock %}
-        {% endif %}
-        
-        {# Flash Messages #}
-        {% block flash_messages %}
-        <div id="flash-messages">
-            <!-- Flash messages will be implemented -->
+    <main class="main-content {% block main_class %}py-4{% endblock %}">
+        <div class="content-container container-fluid px-3">
+            {# Breadcrumb Navigation #}
+            {% if show_breadcrumbs|default(true) %}
+            {% block breadcrumbs %}
+            <nav aria-label="breadcrumb" class="mb-4">
+                <!-- Breadcrumb content will be implemented -->
+            </nav>
+            {% endblock %}
+            {% endif %}
+
+            {# Flash Messages #}
+            {% block flash_messages %}
+            <div id="flash-messages">
+                <!-- Flash messages will be implemented -->
+            </div>
+            {% endblock %}
+
+            {# Page Content #}
+            {% block content %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Base template loaded. Page content should be implemented in child templates.
+            </div>
+            {% endblock %}
         </div>
-        {% endblock %}
-        
-        {# Page Content #}
-        {% block content %}
-        <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            Base template loaded. Page content should be implemented in child templates.
-        </div>
-        {% endblock %}
     </main>
     
     {# Footer #}

@@ -80,6 +80,53 @@ def about():
     return render_template('views/about.html')
 
 
+# =================================================================
+# SPA PARTIAL ROUTES
+# These routes return inner content to be injected into the SPA shell
+# at layouts/single-page.html#spa-content
+# =================================================================
+
+@main_bp.route('/spa/dashboard')
+def spa_dashboard():
+    """SPA: Dashboard inner content."""
+    try:
+        # Reuse the main dashboard view content
+        return render_template('spa/dashboard_content.html')
+    except Exception as e:
+        logger.error(f"Error loading SPA dashboard: {e}")
+        return render_template('partials/common/error.html', error=str(e)), 500
+
+
+@main_bp.route('/spa/analysis')
+def spa_analysis():
+    """SPA: Analysis hub inner content."""
+    try:
+        return render_template('spa/analysis_content.html')
+    except Exception as e:
+        logger.error(f"Error loading SPA analysis: {e}")
+        return render_template('partials/common/error.html', error=str(e)), 500
+
+
+@main_bp.route('/spa/models')
+def spa_models():
+    """SPA: Models overview inner content."""
+    try:
+        return render_template('spa/models_content.html')
+    except Exception as e:
+        logger.error(f"Error loading SPA models: {e}")
+        return render_template('partials/common/error.html', error=str(e)), 500
+
+
+@main_bp.route('/spa/applications')
+def spa_applications():
+    """SPA: Applications overview inner content."""
+    try:
+        return render_template('spa/applications_content.html')
+    except Exception as e:
+        logger.error(f"Error loading SPA applications: {e}")
+        return render_template('partials/common/error.html', error=str(e)), 500
+
+
 @main_bp.route('/system-status')
 def system_status():
     """System status / runtime health page (wrapper template)."""
