@@ -10,7 +10,7 @@ import time
 from functools import wraps
 
 from flask import Blueprint, request, jsonify, render_template
-from flask import Response
+from flask import Response, redirect, url_for
 
 from ..services.task_manager import TaskManager
 from ..services import results_loader
@@ -112,18 +112,13 @@ def analyses_list_page():
 
 @analysis_bp.get('/create')
 def analyses_create_page():
-    """Create new analyses page (unified forms for security and dynamic)."""
+    """Create page: show the multi-step analysis creation wizard view.
+
+    This returns the full-page template at views/analysis/create.html,
+    which handles model/app selection and analysis configuration.
+    """
     try:
-        # Unified: use the improved batch form for all creation
-        from ..models import ModelCapability
-        models = ModelCapability.query.all()
-        return render_template(
-            'single_page.html',
-            page_title='Create Batch Task',
-            page_icon='fa-layer-group',
-            main_partial='partials/analysis/create/batch_form.html',
-            models=models
-        )
+        return render_template('views/analysis/create.html')
     except Exception as e:  # pragma: no cover
         logger.error(f"Error loading create analysis page: {e}")
         return render_template('partials/common/error.html', error=str(e)), 500
@@ -131,54 +126,26 @@ def analyses_create_page():
 
 @analysis_bp.get('/create/security')
 def analyses_create_security_page():
-    """Create page focused on Security form only."""
-    try:
-        # Deprecated: redirect to unified batch creator
-        from flask import redirect, url_for
-        return redirect(url_for('analysis.analyses_create_page'))
-    except Exception as e:
-        logger.error(f"Error loading security create page: {e}")
-        return render_template('partials/common/error.html', error=str(e)), 500
+    """Create page focused on Security form only (redirects to unified wizard)."""
+    return redirect(url_for('analysis.analyses_create_page'))
 
 
 @analysis_bp.get('/create/dynamic')
 def analyses_create_dynamic_page():
-    """Create page focused on Dynamic (ZAP) form only."""
-    try:
-        from flask import redirect, url_for
-        return redirect(url_for('analysis.analyses_create_page'))
-    except Exception as e:
-        logger.error(f"Error loading dynamic create page: {e}")
-        return render_template('partials/common/error.html', error=str(e)), 500
+    """Create page focused on Dynamic (ZAP) form only (redirects to unified wizard)."""
+    return redirect(url_for('analysis.analyses_create_page'))
 
 
 @analysis_bp.get('/create/performance')
 def analyses_create_performance_page():
-    """Create page focused on Performance test form only."""
-    try:
-        from flask import redirect, url_for
-        return redirect(url_for('analysis.analyses_create_page'))
-    except Exception as e:
-        logger.error(f"Error loading performance create page: {e}")
-        return render_template('partials/common/error.html', error=str(e)), 500
+    """Create page focused on Performance test form only (redirects to unified wizard)."""
+    return redirect(url_for('analysis.analyses_create_page'))
 
 
 @analysis_bp.get('/create/batch')
 def analyses_create_batch_page():
-    """Create page focused on Batch analysis form only."""
-    try:
-        from ..models import ModelCapability
-        models = ModelCapability.query.all()
-        return render_template(
-            'single_page.html',
-            page_title='Create Batch Analysis',
-            page_icon='fa-layer-group',
-            main_partial='partials/analysis/create/batch_form.html',
-            models=models
-        )
-    except Exception as e:
-        logger.error(f"Error loading batch create page: {e}")
-        return render_template('partials/common/error.html', error=str(e)), 500
+    """Create page focused on Batch analysis form only (redirects to unified wizard)."""
+    return redirect(url_for('analysis.analyses_create_page'))
 
 
 @analysis_bp.get('/preview/<model_slug>/<int:app_number>')
