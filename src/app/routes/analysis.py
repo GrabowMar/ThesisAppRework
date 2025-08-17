@@ -752,7 +752,7 @@ def start_batch_analysis():
                     continue
             apps = cleaned
 
-    # Start batch analysis (returns task id)
+        # Start batch analysis (returns task id)
         task_id = task_manager.start_batch_analysis(
             models=models or [],
             apps=apps or [],

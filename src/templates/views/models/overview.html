@@ -6,7 +6,6 @@
     Features:
     - Interactive model grid with filtering and search
     - Provider-based categorization and statistics
-    - Model capability comparison matrix
     - Pricing analysis and cost estimation tools
     - Performance metrics and usage statistics
     - Batch operations for model management
@@ -42,6 +41,11 @@
                     <button class="btn btn-outline-success" onclick="exportModelsData()">
                         <i class="fas fa-download me-1"></i>Export Data
                     </button>
+                    {% if models_stats.total_models == 0 %}
+                    <button class="btn btn-outline-warning" onclick="initData()" title="Load demo model data">
+                        <i class="fas fa-database me-1"></i>Initialize Data
+                    </button>
+                    {% endif %}
                     <div class="btn-group">
                         <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
                             <i class="fas fa-plus me-1"></i>Actions
@@ -54,9 +58,7 @@
                                 <i class="fas fa-upload me-2"></i>Import Models
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/models/comparison">
-                                <i class="fas fa-balance-scale me-2"></i>Compare Models
-                            </a></li>
+                            
                             <li><a class="dropdown-item" href="/models/benchmarks">
                                 <i class="fas fa-chart-bar me-2"></i>Benchmarks
                             </a></li>
@@ -140,17 +142,7 @@
                         <h5 class="mb-0">
                             <i class="fas fa-filter me-2"></i>Filters & Search
                         </h5>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-secondary active" data-view="grid" onclick="switchView('grid')">
-                                <i class="fas fa-th-large me-1"></i>Grid
-                            </button>
-                            <button class="btn btn-outline-secondary" data-view="table" onclick="switchView('table')">
-                                <i class="fas fa-table me-1"></i>Table
-                            </button>
-                            <button class="btn btn-outline-secondary" data-view="comparison" onclick="switchView('comparison')">
-                                <i class="fas fa-balance-scale me-1"></i>Compare
-                            </button>
-                        </div>
+                        <div class="text-muted small">Table view</div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -210,6 +202,12 @@
                             <button class="btn btn-outline-danger d-block" onclick="clearAllFilters()" title="Clear Filters">
                                 <i class="fas fa-eraser"></i>
                             </button>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="installed-filter" onchange="applyFilters()">
+                                <label class="form-check-label" for="installed-filter">Installed only</label>
+                            </div>
                         </div>
                     </div>
 
@@ -273,29 +271,9 @@
         </div>
     </div>
 
-    <!-- Models Display Area -->
+    <!-- Models Table Area -->
     <div id="models-display-area">
-        <!-- Grid View (Default) -->
-        <div id="grid-view" class="view-container active">
-            <div class="row" id="models-grid" 
-                 hx-get="/api/models/grid" 
-                 hx-trigger="load"
-                 hx-indicator="#loading-spinner">
-                <!-- Models grid will be populated here -->
-            </div>
-            
-            <!-- Pagination -->
-            <div class="row mt-4">
-                <div class="col-12">
-                    <nav id="models-pagination">
-                        <!-- Pagination will be populated here -->
-                    </nav>
-                </div>
-            </div>
-        </div>
-
-        <!-- Table View -->
-        <div id="table-view" class="view-container">
+        <div id="table-view" class="view-container active">
             <div class="card">
                 <div class="card-body">
                     <div class="table-responsive">
@@ -336,33 +314,7 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Comparison View -->
-        <div id="comparison-view" class="view-container">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Model Comparison Matrix</h5>
-                        <div>
-                            <span class="text-muted me-3">Select up to 5 models to compare</span>
-                            <button class="btn btn-sm btn-primary" onclick="generateComparisonReport()" disabled id="comparison-report-btn">
-                                <i class="fas fa-chart-bar me-1"></i>Generate Report
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="comparison-matrix">
-                        <div class="text-center py-5 text-muted">
-                            <i class="fas fa-balance-scale fa-3x mb-3"></i>
-                            <h5>Select Models to Compare</h5>
-                            <p>Choose models from the grid above to see a detailed comparison matrix</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    </div>
     </div>
 
     <!-- Loading Indicator -->
@@ -374,28 +326,14 @@
     </div>
 </div>
 
-<!-- Model Detail Modal -->
-<div class="modal fade" id="modelDetailModal" tabindex="-1">
+<!-- Model Detail Modal: server-rendered content will include header/body/footer -->
+<div class="modal fade" id="modelDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Model Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="modal-model-details">
-                    <!-- Model details will be loaded here -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="analyzeModel()">
-                    <i class="fas fa-play me-1"></i>Analyze Model
-                </button>
-            </div>
+        <div class="modal-content" id="model-details-modal-content">
+            <!-- Content loaded dynamically from /models/model/<slug>/more-info -->
         </div>
     </div>
-</div>
+    </div>
 
 <!-- Batch Operations Modal -->
 <div class="modal fade" id="batchOperationsModal" tabindex="-1">
@@ -414,9 +352,7 @@
                     <button class="list-group-item list-group-item-action" onclick="batchExport()">
                         <i class="fas fa-download me-2"></i>Export Selected Models
                     </button>
-                    <button class="list-group-item list-group-item-action" onclick="batchCompare()">
-                        <i class="fas fa-balance-scale me-2"></i>Compare Selected Models
-                    </button>
+                    
                     <button class="list-group-item list-group-item-action text-warning" onclick="batchUpdateStatus()">
                         <i class="fas fa-edit me-2"></i>Update Status
                     </button>
@@ -522,26 +458,7 @@
     content: '\f0dd'; /* fa-sort-down */
 }
 
-.comparison-matrix-table th {
-    writing-mode: vertical-lr;
-    text-orientation: mixed;
-    min-width: 120px;
-    text-align: center;
-}
-
-.comparison-cell {
-    text-align: center;
-    font-size: 0.875rem;
-}
-
-.comparison-cell.winner {
-    background-color: #d4edda !important;
-    font-weight: bold;
-}
-
-.comparison-cell.loser {
-    background-color: #f8d7da !important;
-}
+/* comparison view removed */
 
 @media (max-width: 768px) {
     .model-card {
@@ -562,11 +479,28 @@
 
 {% block extra_js %}
 <script>
-let currentView = 'grid';
+let currentView = 'table';
 let selectedModels = [];
 let currentSort = { field: null, direction: 'asc' };
 let searchTimeout;
 let modelsData = [];
+
+// Defensive helpers
+function toArrayCaps(val) {
+    if (val == null) return [];
+    if (Array.isArray(val)) return val.map(String);
+    if (typeof val === 'string') return [val];
+    if (typeof val === 'object') {
+        // If it's a dict, use truthy keys else all keys
+        const keys = Object.keys(val);
+        const anyBool = keys.some(k => typeof val[k] === 'boolean');
+        return anyBool ? keys.filter(k => !!val[k]) : keys;
+    }
+    try {
+        if (Symbol.iterator in Object(val)) return [...val].map(String);
+    } catch (_) {}
+    return [];
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     // Load initial data
@@ -588,56 +522,27 @@ function debounceSearch() {
     }, 300);
 }
 
-function switchView(viewType) {
-    // Update button states
-    document.querySelectorAll('[data-view]').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelector(`[data-view="${viewType}"]`).classList.add('active');
-
-    // Update view containers
-    document.querySelectorAll('.view-container').forEach(container => {
-        container.classList.remove('active');
-    });
-    document.getElementById(`${viewType}-view`).classList.add('active');
-
-    currentView = viewType;
-
-    // Load appropriate data for the view
-    switch(viewType) {
-        case 'grid':
-            loadModelsGrid();
-            break;
-        case 'table':
-            loadModelsTable();
-            break;
-        case 'comparison':
-            loadComparisonView();
-            break;
-    }
-}
+// Table-only view; no view switching function
 
 function loadModels() {
     showLoading(true);
-    
-    fetch('/api/models/all')
+    // Respect Installed-only toggle on initial load as well
+    const installedOnly = document.getElementById('installed-filter')?.checked;
+    const url = installedOnly ? '/api/models/all?installed=1' : '/api/models/all';
+
+    fetch(url)
     .then(response => response.json())
     .then(data => {
         modelsData = data.models;
         updateStatistics(data.statistics);
         
-        // Load current view
-        switch(currentView) {
-            case 'grid':
-                renderModelsGrid(data.models);
-                break;
-            case 'table':
-                renderModelsTable(data.models);
-                break;
-            case 'comparison':
-                renderComparisonView(data.models);
-                break;
+        // If no models are present, attempt a one-time auto-initialize
+        if ((modelsData?.length || 0) === 0) {
+            attemptAutoInitializeData();
         }
+        
+    // Render table only
+    renderModelsTable(data.models);
         
         showLoading(false);
     })
@@ -667,6 +572,9 @@ function applyFilters() {
     Object.entries(filters).forEach(([key, value]) => {
         if (value) params.append(key, value);
     });
+    if (document.getElementById('installed-filter')?.checked) {
+        params.append('installed', '1');
+    }
 
     fetch(`/api/models/filtered?${params.toString()}`)
     .then(response => response.json())
@@ -674,18 +582,8 @@ function applyFilters() {
         modelsData = data.models;
         updateStatistics(data.statistics);
         
-        // Render current view with filtered data
-        switch(currentView) {
-            case 'grid':
-                renderModelsGrid(data.models);
-                break;
-            case 'table':
-                renderModelsTable(data.models);
-                break;
-            case 'comparison':
-                renderComparisonView(data.models);
-                break;
-        }
+    // Render table only
+    renderModelsTable(data.models);
         
         showLoading(false);
     })
@@ -703,6 +601,9 @@ function clearAllFilters() {
     document.getElementById('capability-filter').value = '';
     document.getElementById('price-filter').value = '';
     document.getElementById('status-filter').value = 'active';
+    if (document.getElementById('installed-filter')) {
+        document.getElementById('installed-filter').checked = false;
+    }
     
     // Advanced filters
     if (document.getElementById('context-filter')) {
@@ -721,85 +622,7 @@ function clearSearch() {
     applyFilters();
 }
 
-function renderModelsGrid(models) {
-    const grid = document.getElementById('models-grid');
-    
-    if (models.length === 0) {
-        grid.innerHTML = `
-            <div class="col-12 text-center py-5">
-                <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No models found</h5>
-                <p class="text-muted">Try adjusting your search criteria or filters.</p>
-            </div>
-        `;
-        return;
-    }
-
-    grid.innerHTML = models.map(model => `
-        <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card model-card h-100 ${selectedModels.includes(model.slug) ? 'selected' : ''}" 
-                 data-model-slug="${model.slug}" 
-                 onclick="toggleModelSelection('${model.slug}', this)">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                        <img src="${model.provider_logo}" alt="${model.provider}" 
-                             class="me-2" style="width: 20px; height: 20px;">
-                        <strong>${model.name}</strong>
-                    </div>
-                    <span class="badge bg-${getStatusColor(model.status)}">${model.status}</span>
-                </div>
-                <div class="card-body">
-                    <div class="mb-2">
-                        <small class="text-muted">${model.provider}</small>
-                    </div>
-                    
-                    <!-- Capabilities -->
-                    <div class="mb-3">
-                        ${model.capabilities.map(cap => 
-                            `<span class="badge bg-info capability-badge">${cap}</span>`
-                        ).join('')}
-                    </div>
-                    
-                    <!-- Pricing -->
-                    <div class="pricing-info mb-2">
-                        <div class="d-flex justify-content-between">
-                            <span>Input:</span>
-                            <span>$${model.input_price_per_1k}</span>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>Output:</span>
-                            <span>$${model.output_price_per_1k}</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Context Length -->
-                    <div class="mb-2">
-                        <small class="text-muted">Context: ${formatContextLength(model.context_length)}</small>
-                    </div>
-                    
-                    <!-- Performance -->
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="small text-muted">Performance:</span>
-                        <div class="d-flex align-items-center">
-                            <div class="performance-indicator me-2" data-score="${model.performance_score}"></div>
-                            <span class="small">${model.performance_score}/10</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <div class="btn-group w-100">
-                        <button class="btn btn-sm btn-outline-primary" onclick="viewModelDetails('${model.slug}'); event.stopPropagation();">
-                            <i class="fas fa-eye me-1"></i>Details
-                        </button>
-                        <button class="btn btn-sm btn-outline-success" onclick="analyzeModel('${model.slug}'); event.stopPropagation();">
-                            <i class="fas fa-play me-1"></i>Analyze
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `).join('');
-}
+// Grid view removed
 
 function renderModelsTable(models) {
     const tbody = document.getElementById('models-table-body');
@@ -816,7 +639,9 @@ function renderModelsTable(models) {
         return;
     }
 
-    tbody.innerHTML = models.map(model => `
+    tbody.innerHTML = models.map(model => {
+        const caps = toArrayCaps(model.capabilities);
+        return `
         <tr class="${selectedModels.includes(model.slug) ? 'table-primary' : ''}">
             <td>
                 <input type="checkbox" ${selectedModels.includes(model.slug) ? 'checked' : ''} 
@@ -831,10 +656,10 @@ function renderModelsTable(models) {
             </td>
             <td>${model.provider}</td>
             <td>
-                ${model.capabilities.slice(0, 2).map(cap => 
+                ${caps.slice(0, 2).map(cap => 
                     `<span class="badge bg-info capability-badge">${cap}</span>`
                 ).join('')}
-                ${model.capabilities.length > 2 ? `<span class="text-muted small">+${model.capabilities.length - 2} more</span>` : ''}
+                ${caps.length > 2 ? `<span class="text-muted small">+${caps.length - 2} more</span>` : ''}
             </td>
             <td>$${model.input_price_per_1k} / $${model.output_price_per_1k}</td>
             <td>${formatContextLength(model.context_length)}</td>
@@ -856,7 +681,7 @@ function renderModelsTable(models) {
                 </div>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
 }
 
 function toggleModelSelection(modelSlug, cardElement = null) {
@@ -878,21 +703,10 @@ function toggleModelSelection(modelSlug, cardElement = null) {
 }
 
 function updateSelectionUI() {
-    // Update comparison report button
-    const comparisonBtn = document.getElementById('comparison-report-btn');
-    if (comparisonBtn) {
-        comparisonBtn.disabled = selectedModels.length < 2;
-    }
-
     // Update batch operations count
     const countSpan = document.getElementById('selected-models-count');
     if (countSpan) {
         countSpan.textContent = selectedModels.length;
-    }
-
-    // If in comparison view, update the matrix
-    if (currentView === 'comparison' && selectedModels.length >= 2) {
-        renderComparisonMatrix();
     }
 }
 
@@ -938,17 +752,23 @@ function formatContextLength(length) {
 }
 
 function viewModelDetails(modelSlug) {
-    fetch(`/api/models/${modelSlug}/details`)
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('modal-model-details').innerHTML = renderModelDetailsHTML(data);
-        const modal = new bootstrap.Modal(document.getElementById('modelDetailModal'));
-        modal.show();
-    })
-    .catch(error => {
-        console.error('Failed to load model details:', error);
-        alert('Failed to load model details.');
-    });
+    // Use server-rendered modal body with comprehensive OpenRouter details
+    const target = document.getElementById('model-details-modal-content') || document.getElementById('modal-model-details');
+    if (!target) return;
+    target.innerHTML = '<div class="p-3 text-muted">Loading details…</div>';
+    fetch(`/models/model/${encodeURIComponent(modelSlug)}/more-info`)
+        .then(r => r.text())
+        .then(html => {
+            target.innerHTML = html;
+            const modal = new bootstrap.Modal(document.getElementById('modelDetailsModal'));
+            modal.show();
+        })
+        .catch(err => {
+            console.error('Details load failed', err);
+            target.innerHTML = '<div class="alert alert-danger">Failed to load model details.</div>';
+            const modal = new bootstrap.Modal(document.getElementById('modelDetailsModal'));
+            modal.show();
+        });
 }
 
 function analyzeModel(modelSlug) {
@@ -967,6 +787,125 @@ function exportModelsData() {
     if (exportFormat) {
         window.open(`/api/models/export?format=${exportFormat}`, '_blank');
     }
+}
+
+// Data initialization helpers
+let _initAttempted = false;
+function attemptAutoInitializeData() {
+    if (_initAttempted) return;
+    _initAttempted = true;
+    // Check server-side status first to avoid unnecessary init
+    fetch('/api/data/status')
+        .then(r => r.json())
+        .then(status => {
+            if ((status?.models_count || 0) === 0 && status?.model_capabilities_file_exists) {
+                initData(true);
+            }
+        })
+        .catch(() => {/* non-fatal */});
+}
+
+function initData(silent = false) {
+    showLoading(true);
+    fetch('/api/data/initialize', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+            if (!silent) {
+                alert(res?.success ? 'Data initialization complete.' : `Initialization encountered issues: ${res?.errors?.join?.(', ') || 'unknown error'}`);
+            }
+            // Reload models after init
+            loadModels();
+        })
+        .catch(err => {
+            if (!silent) alert('Failed to initialize data. Check server logs.');
+            console.error('Init error:', err);
+        })
+        .finally(() => showLoading(false));
+}
+
+// Comparison view rendering
+// Comparison view removed
+
+// Table interactions
+function toggleSelectAll() {
+    const master = document.getElementById('select-all-models');
+    const checkboxes = Array.from(document.querySelectorAll('#models-table-body input[type="checkbox"]'));
+    const toSelect = !!(master && master.checked);
+    checkboxes.forEach(cb => {
+        const row = cb.closest('tr');
+        const slugMatch = row && row.querySelector('button')?.getAttribute('onclick');
+        // Fallback: find slug via dataset in selectedModels mapping by name match
+        // We'll parse from onchange handler argument present on checkbox
+        let slug = null;
+        const attr = cb.getAttribute('onchange') || '';
+        const m = attr.match(/toggleModelSelection\('([^']+)'\)/);
+        if (m && m[1]) slug = m[1];
+        if (!slug) return;
+        cb.checked = toSelect;
+        const idx = selectedModels.indexOf(slug);
+        if (toSelect && idx === -1 && selectedModels.length < 5) {
+            selectedModels.push(slug);
+        } else if (!toSelect && idx > -1) {
+            selectedModels.splice(idx, 1);
+        }
+    });
+    updateSelectionUI();
+}
+
+function sortTable(field) {
+    // Toggle sort direction when same field
+    if (currentSort.field === field) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.field = field;
+        currentSort.direction = 'asc';
+    }
+
+    const dir = currentSort.direction === 'asc' ? 1 : -1;
+    const by = (a, b) => (a > b ? 1 : a < b ? -1 : 0) * dir;
+
+    const sorted = [...modelsData].sort((a, b) => {
+        switch (field) {
+            case 'name':
+                return by((a.name || '').toLowerCase(), (b.name || '').toLowerCase());
+            case 'provider':
+                return by((a.provider || '').toLowerCase(), (b.provider || '').toLowerCase());
+            case 'capabilities': {
+                const al = toArrayCaps(a.capabilities).length;
+                const bl = toArrayCaps(b.capabilities).length;
+                return by(al, bl);
+            }
+            case 'pricing': {
+                const ap = (Number(a.input_price_per_1k) || 0) + (Number(a.output_price_per_1k) || 0);
+                const bp = (Number(b.input_price_per_1k) || 0) + (Number(b.output_price_per_1k) || 0);
+                return by(ap, bp);
+            }
+            case 'context_length':
+                return by(Number(a.context_length) || 0, Number(b.context_length) || 0);
+            case 'status':
+                return by((a.status || '').toLowerCase(), (b.status || '').toLowerCase());
+            case 'performance_score':
+                return by(Number(a.performance_score) || 0, Number(b.performance_score) || 0);
+            default:
+                return 0;
+        }
+    });
+
+    // Re-render table with sorted data
+    renderModelsTable(sorted);
+
+    // Update sort icon state
+    document.querySelectorAll('#models-table thead th').forEach(th => th.classList.remove('sort-asc', 'sort-desc'));
+    const th = document.querySelector(`#models-table thead th.sortable[onclick*="${field}"]`);
+    if (th) th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+}
+
+function generateComparisonReport() {
+// Comparison report removed
+}
+
+function renderModelDetailsHTML(data) {
+// Client-side details rendering removed; server-rendered modal body is used
 }
 </script>
 {% endblock %}

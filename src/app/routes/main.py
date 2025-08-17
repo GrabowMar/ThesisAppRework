@@ -216,6 +216,18 @@ def api_data_status():
         return jsonify({'error': str(e)}), 500
 
 
+@main_bp.route('/api/data/reload', methods=['POST'])
+def api_reload_core_data():
+    """API endpoint to reload core JSON files (capabilities, summary, ports)."""
+    try:
+        results = data_init_service.reload_core_files()
+        status_code = 200 if results.get('success', True) and not results.get('errors') else 207
+        return jsonify(results), status_code
+    except Exception as e:
+        logger.error(f"Error reloading core data: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @main_bp.route('/api/system/health')
 def api_system_health():
     """API endpoint for system health status."""

@@ -55,6 +55,32 @@ def template_get_provider_color(provider):
     return get_provider_color(provider)
 
 
+@models_bp.app_template_filter('abbreviate_number')
+def abbreviate_number_filter(value):
+    """Format large integers as human-readable abbreviations (e.g., 1.2K, 3.4M).
+
+    Accepts int/float/str; returns the input unchanged if it can't be parsed as a number.
+    """
+    try:
+        num = float(value or 0)
+    except (ValueError, TypeError):
+        return value
+
+    sign = '-' if num < 0 else ''
+    n = abs(num)
+    for threshold, suffix in ((1_000_000_000_000, 'T'), (1_000_000_000, 'B'), (1_000_000, 'M'), (1_000, 'K')):
+        if n >= threshold:
+            val = n / threshold
+            # Trim trailing .0
+            s = f"{val:.1f}"
+            if s.endswith('.0'):
+                s = s[:-2]
+            return f"{sign}{s}{suffix}"
+    # For small numbers, keep as int if close to integer
+    if n.is_integer():
+        return f"{int(num)}"
+    return f"{num:.2f}"
+
 @models_bp.route('/')
 def models_overview():
     """Static models overview page showing table of AI models with OpenRouter data."""
@@ -77,6 +103,10 @@ def models_overview():
         # Get summary statistics
         providers = db.session.query(ModelCapability.provider.distinct()).all()
         providers = [p[0] for p in providers if p[0]]
+        available_providers = [
+            {'id': prov, 'name': (prov or '').title()}
+            for prov in providers
+        ]
         
         total_models = len(models)
         free_models = sum(1 for m in models if m.is_free)
@@ -97,6 +127,7 @@ def models_overview():
             'models': enriched_models,
             'models_stats': models_stats,
             'providers': providers,
+            'available_providers': available_providers,
             'total_models': total_models,
             'providers_count': len(providers),
             'free_models': free_models,

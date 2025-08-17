@@ -280,7 +280,8 @@
 <!-- JavaScript for Models Grid -->
 <script>
 document.addEventListener('htmx:afterSwap', function(event) {
-    if (event.detail.target.closest('#models-grid-container')) {
+    const tgt = event.detail && event.detail.target ? event.detail.target : null;
+    if (tgt && typeof tgt.closest === 'function' && tgt.closest('#models-grid-container')) {
         // Initialize tooltips
         const tooltips = event.detail.target.querySelectorAll('[data-bs-toggle="tooltip"]');
         tooltips.forEach(tooltip => new bootstrap.Tooltip(tooltip));
@@ -301,16 +302,20 @@ document.addEventListener('htmx:afterSwap', function(event) {
 
 // Model card hover effects
 document.addEventListener('mouseenter', function(event) {
-    if (event.target.closest('.model-card')) {
-        const card = event.target.closest('.model-card');
+    const target = event && event.target;
+    const hasClosest = target && typeof target.closest === 'function';
+    if (hasClosest && target.closest('.model-card')) {
+        const card = target.closest('.model-card');
         card.style.transform = 'translateY(-5px)';
         card.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
     }
 }, true);
 
 document.addEventListener('mouseleave', function(event) {
-    if (event.target.closest('.model-card')) {
-        const card = event.target.closest('.model-card');
+    const target = event && event.target;
+    const hasClosest = target && typeof target.closest === 'function';
+    if (hasClosest && target.closest('.model-card')) {
+        const card = target.closest('.model-card');
         card.style.transform = 'translateY(0)';
         card.style.boxShadow = '';
     }

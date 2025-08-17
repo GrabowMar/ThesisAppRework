@@ -6,7 +6,10 @@ API endpoints for AI model management and information.
 """
 
 import logging
+from typing import Any, Iterable, List
 from flask import jsonify, render_template, request
+import os
+from flask import current_app
 
 from ..response_utils import json_success, handle_exceptions
 
@@ -16,6 +19,40 @@ from ...extensions import db
 
 # Set up logger
 logger = logging.getLogger(__name__)
+
+
+def _norm_caps(value: Any) -> List[str]:
+    """Normalize various capability shapes into a list of strings.
+
+    Accepts:
+    - list/tuple of strings -> returns list
+    - dict -> returns keys where value is truthy, or all keys if non-bool
+    - string -> single-item list
+    - None/other -> []
+    """
+    try:
+        if value is None:
+            return []
+        if isinstance(value, (list, tuple)):
+            # Coerce all to strings just in case
+            return [str(x) for x in value]
+        if isinstance(value, dict):
+            # Prefer truthy keys if boolean map, else all keys
+            keys = []
+            any_bool = any(isinstance(v, bool) for v in value.values())
+            if any_bool:
+                keys = [str(k) for k, v in value.items() if v]
+            else:
+                keys = [str(k) for k in value.keys()]
+            return keys
+        if isinstance(value, str):
+            return [value]
+        # Fallback: try to iterate
+        if isinstance(value, Iterable):  # type: ignore[arg-type]
+            return [str(x) for x in value]
+    except Exception:
+        pass
+    return []
 
 
 @api_bp.route('/models')
@@ -67,6 +104,13 @@ def api_models_list_options():
     """
     try:
         models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        # Optional installed-only filter via query param
+        installed_param = request.args.get('installed') or request.args.get('installed_only')
+        installed_only = str(installed_param).lower() in {'1', 'true', 'yes', 'on'}
+        if installed_only:
+            repo_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+            models_base = os.path.join(repo_root, 'misc', 'models')
+            models = [m for m in models if os.path.isdir(os.path.join(models_base, m.canonical_slug))]
         return render_template('partials/models/_model_options.html', models=models)
     except Exception as e:
         logger.error(f"Error rendering model options: {e}")
@@ -132,14 +176,15 @@ def api_models_all():
         models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
         # Map to the fields referenced by the page's JS
         def map_model(m: ModelCapability):
-            caps = m.get_capabilities() or {}
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
             # Derive some fields with safe defaults
             return {
                 'slug': m.canonical_slug,
                 'name': m.model_name,
                 'provider': m.provider,
-                'provider_logo': '/static/img/providers/default.png',
-                'capabilities': caps.get('capabilities') or list(caps.keys()) or [],
+                'provider_logo': '/static/images/default-avatar.svg',
+                'capabilities': caps_list,
                 'input_price_per_1k': round((m.input_price_per_token or 0.0) * 1000, 6),
                 'output_price_per_1k': round((m.output_price_per_token or 0.0) * 1000, 6),
                 'context_length': m.context_window or 0,
@@ -172,14 +217,15 @@ def api_models_grid_fragment():
         # Transform for fragment expected fields
         items = []
         for m in models:
-            caps = m.get_capabilities() or {}
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
             items.append({
                 'slug': m.canonical_slug,
                 'display_name': m.model_name,
                 'name': m.model_name,
                 'provider': m.provider,
                 'status': 'active',
-                'capabilities': caps.get('capabilities') or list(caps.keys()) or [],
+                'capabilities': caps_list,
                 'context_length': m.context_window or 0,
                 'max_tokens': m.max_output_tokens or 0,
                 'pricing': {
@@ -222,15 +268,23 @@ def api_models_filtered():
             q = q.filter((ModelCapability.model_name.ilike(like)) | (ModelCapability.provider.ilike(like)))
 
         models = q.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        # Optional installed-only filter
+        installed_param = request.args.get('installed') or request.args.get('installed_only')
+        installed_only = str(installed_param).lower() in {'1', 'true', 'yes', 'on'}
+        if installed_only:
+            repo_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+            models_base = os.path.join(repo_root, 'misc', 'models')
+            models = [m for m in models if os.path.isdir(os.path.join(models_base, m.canonical_slug))]
 
         def map_model(m: ModelCapability):
-            caps = m.get_capabilities() or {}
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
             return {
                 'slug': m.canonical_slug,
                 'name': m.model_name,
                 'provider': m.provider,
-                'provider_logo': '/static/img/providers/default.png',
-                'capabilities': caps.get('capabilities') or list(caps.keys()) or [],
+                'provider_logo': '/static/images/default-avatar.svg',
+                'capabilities': caps_list,
                 'input_price_per_1k': round((m.input_price_per_token or 0.0) * 1000, 6),
                 'output_price_per_1k': round((m.output_price_per_token or 0.0) * 1000, 6),
                 'context_length': m.context_window or 0,

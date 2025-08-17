@@ -63,6 +63,11 @@
         hx-swap="innerHTML">
     <i class="fas fa-robot me-1"></i>Select Model
 </button>
+<button type="button" class="btn btn-outline-warning btn-sm"
+        onclick="reloadCoreData(this)"
+        title="Reload model capabilities, summary and port config from misc/*.json">
+    <i class="fas fa-database me-1"></i>Reload Data
+</button>
 {% endblock %}
 
 {# Hidden container for model quick-select responses #}
@@ -409,5 +414,43 @@
             this.querySelector('.modal-content').innerHTML = '';
         });
     });
+
+    async function reloadCoreData(btn) {
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Reloading...';
+        try {
+            const resp = await fetch('/api/data/reload', { method: 'POST' });
+            const data = await resp.json();
+            const ok = resp.ok && data.success !== false;
+            const msg = ok ? 'Data reloaded.' : 'Reload completed with warnings.';
+            // Quick toast-like feedback
+            const el = document.createElement('div');
+            el.className = 'alert ' + (ok ? 'alert-success' : 'alert-warning');
+            el.style.position = 'fixed';
+            el.style.top = '70px';
+            el.style.right = '20px';
+            el.style.zIndex = '1080';
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 2500);
+            // Refresh stats panels
+            htmx.ajax('GET', '/api/dashboard/stats-update', '#dashboard-stats');
+            htmx.ajax('GET', '/api/dashboard/system-health-fragment', '#system-health-content');
+        } catch (e) {
+            const el = document.createElement('div');
+            el.className = 'alert alert-danger';
+            el.style.position = 'fixed';
+            el.style.top = '70px';
+            el.style.right = '20px';
+            el.style.zIndex = '1080';
+            el.textContent = 'Error reloading data: ' + e;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    }
 </script>
 {% endblock %}
