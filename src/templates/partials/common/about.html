@@ -1,0 +1,11 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='About This Platform', classes='module-about') %}
+  <p class="mb-2">Research platform for analyzing AI model generated applications across security, performance, and quality dimensions.</p>
+  <ul class="small text-muted mb-0">
+    <li>Flask + HTMX unified dynamic shell</li>
+    <li>Analyzer microservices (security, performance, dynamic)</li>
+    <li>Celery tasks, Redis broker, Docker-managed containers</li>
+  </ul>
+{% endcall %}

@@ -1,0 +1,63 @@
+{# AdminLTE (dist) integration note #}
+{% macro status_badge(status) -%}
+  {% set s = (status or 'UNKNOWN') %}
+  {% set cls = 'bg-secondary' %}
+  {% if s in ['PENDING','RECEIVED','QUEUED'] %}{% set cls = 'bg-primary' %}{% endif %}
+  {% if s in ['STARTED','RETRY','RUNNING'] %}{% set cls = 'bg-warning text-dark' %}{% endif %}
+  {% if s in ['SUCCESS','COMPLETED'] %}{% set cls = 'bg-success' %}{% endif %}
+  {% if s in ['FAILURE','FAILED','REVOKED'] %}{% set cls = 'bg-danger' %}{% endif %}
+  <span class="badge {{ cls }} text-uppercase">{{ s }}</span>
+{%- endmacro %}
+
+{% macro app_cell(a) -%}
+  <div class="d-flex flex-column">
+    {% if a.model_slug and a.app_number %}
+      <span><code>{{ a.model_slug }}</code> / app {{ a.app_number }}</span>
+    {% else %}
+      <span class="text-muted">app {{ a.application_id }}</span>
+    {% endif %}
+    {% if a.created_at %}<span class="small text-muted">{{ a.created_at }}</span>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro security_row(a) -%}
+  <tr>
+    <td>#{{ a.id }}</td>
+    <td>{{ app_cell(a) }}</td>
+    <td>{{ status_badge(a.status) }}</td>
+    <td>
+      <span class="badge bg-danger me-1">High {{ a.high_count or 0 }}</span>
+      <span class="badge bg-warning text-dark me-1">Med {{ a.medium_count or 0 }}</span>
+      <span class="badge bg-info text-dark">Low {{ a.low_count or 0 }}</span>
+    </td>
+    <td class="text-end">
+  <a class="btn btn-sm btn-outline-primary" href="{% if a.model_slug and a.app_number %}/analysis/results/{{ a.model_slug }}/{{ a.app_number }}{% else %}/analysis/security/{{ a.id }}/results/view{% endif %}">Open</a>
+    </td>
+  </tr>
+{%- endmacro %}
+
+{% macro dynamic_row(a) -%}
+  <tr>
+    <td>#{{ a.id }}</td>
+    <td>{{ app_cell(a) }}</td>
+    <td>{{ status_badge(a.status) }}</td>
+    <td><span class="badge bg-secondary">{{ a.scan_type or 'baseline' }}</span></td>
+    <td class="text-end">
+  <a class="btn btn-sm btn-outline-primary" href="{% if a.model_slug and a.app_number %}/analysis/results/{{ a.model_slug }}/{{ a.app_number }}{% else %}/analysis/dynamic/{{ a.id }}{% endif %}">Open</a>
+    </td>
+  </tr>
+{%- endmacro %}
+
+{% macro performance_row(t) -%}
+  <tr>
+    <td>#{{ t.id }}</td>
+    <td>{{ app_cell(t) }}</td>
+    <td>{{ status_badge(t.status) }}</td>
+    <td><span class="badge bg-secondary">{{ t.test_type or 'load' }}</span></td>
+    <td class="text-end">
+  <a class="btn btn-sm btn-outline-secondary {% if not (t.model_slug and t.app_number) %}disabled{% endif %}"
+     href="{% if t.model_slug and t.app_number %}/analysis/results/{{ t.model_slug }}/{{ t.app_number }}{% else %}#
+     {% endif %}">Open</a>
+    </td>
+  </tr>
+{%- endmacro %}

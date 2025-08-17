@@ -1,0 +1,82 @@
+{# Rows for combined recent analyses table (security + performance) #}
+{% set all_recent = [] %}
+{% for item in recent_security or [] %}
+  {% set _ = all_recent.append({'id': item.id, 'status': item.status, 'model_slug': item.model_slug, 'app_number': item.app_number, 'created_at': item.created_at, 'updated_at': item.updated_at, 'findings_count': item.findings_count, 'analysis_type': 'security'}) %}
+{% endfor %}
+{% for item in recent_performance or [] %}
+  {% set _ = all_recent.append({'id': item.id, 'status': item.status, 'model_slug': item.model_slug, 'app_number': item.app_number, 'created_at': item.created_at, 'updated_at': item.updated_at, 'response_time': item.response_time, 'analysis_type': 'performance'}) %}
+{% endfor %}
+{% set sorted_recent = all_recent | sort(attribute='created_at', reverse=true) %}
+
+{% if sorted_recent %}
+  {% for item in sorted_recent[:50] %}
+  <tr>
+    <td><span class="analysis-id">#{{ item.id }}</span></td>
+    <td>
+      <span class="badge {{ 'text-bg-primary' if item.analysis_type == 'security' else 'text-bg-success' }} status-compact">
+        {{ item.analysis_type[:3]|upper }}
+      </span>
+    </td>
+    <td>
+      <span class="badge status-compact {{ 
+        'text-bg-success' if item.status == 'completed' 
+        else 'text-bg-warning' if item.status == 'running' 
+        else 'text-bg-danger' if item.status == 'failed'
+        else 'text-bg-secondary' }}">
+        {{ (item.status or 'unknown')[:8] }}
+      </span>
+    </td>
+    <td class="model-cell">
+      <div class="text-truncate" title="{{ item.model_slug or 'N/A' }}">
+        {{ (item.model_slug|replace('_', ' ')|title)[:25] if item.model_slug else 'N/A' }}
+      </div>
+    </td>
+    <td class="text-center">{{ item.app_number or '-' }}</td>
+    <td class="time-cell">
+      {% if item.created_at %}
+        {{ item.created_at.strftime('%m/%d %H:%M') }}
+      {% else %}
+        N/A
+      {% endif %}
+    </td>
+    <td class="duration-cell">
+      {% if item.created_at and item.updated_at and item.status == 'completed' %}
+        {{ ((item.updated_at - item.created_at).total_seconds() / 60) | round(1) }}m
+      {% else %}
+        -
+      {% endif %}
+    </td>
+    <td class="small">
+      {% if item.analysis_type == 'security' and item.status == 'completed' %}
+        <span class="utility-badge badge text-bg-info">{{ item.findings_count or 0 }} findings</span>
+      {% elif item.analysis_type == 'performance' and item.status == 'completed' %}
+        <span class="utility-badge badge text-bg-success">{{ item.response_time or 'N/A' }}ms</span>
+      {% else %}
+        <span class="text-muted">-</span>
+      {% endif %}
+    </td>
+    <td>
+      <div class="btn-group btn-group-sm">
+  <a href="/analysis/{{ 'security/' ~ item.id ~ '/results/view' if item.analysis_type == 'security' else 'performance/' ~ item.id }}" 
+           class="btn btn-outline-secondary btn-xs">
+          <i class="bi bi-eye"></i>
+        </a>
+        {% if item.status == 'completed' %}
+  <a href="/analysis/{{ item.analysis_type }}/{{ item.id }}/export" 
+           class="btn btn-outline-primary btn-xs">
+          <i class="bi bi-download"></i>
+        </a>
+        {% endif %}
+      </div>
+    </td>
+  </tr>
+  {% endfor %}
+{% else %}
+  <tr>
+    <td colspan="9" class="text-center text-muted py-3">
+      No analyses found. 
+  <a href="/analysis/create#security" class="link-primary">Start a security scan</a> or 
+  <a href="/analysis/create#performance" class="link-success">run a performance test</a>.
+    </td>
+  </tr>
+{% endif %}

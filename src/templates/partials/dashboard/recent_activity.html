@@ -1,0 +1,162 @@
+<!-- Recent Activity Panel (HTMX) -->
+<div id="recent-activity-panel"
+    data-refresh-interval="30s"
+    hx-get="{{ url_for('api.recent_activity') }}"
+    hx-trigger="load, every 30s"
+    hx-target="#recent-activity-panel"
+    hx-swap="innerHTML"
+    hx-indicator="#global-spinner">
+{% if recent_activity %}
+    <div class="activity-timeline">
+        {% for activity in recent_activity %}
+        <div class="activity-item {% if loop.index > 5 %}d-none{% endif %}" 
+             data-timestamp="{{ activity.timestamp.isoformat() if activity.timestamp else '' }}">
+            
+            <!-- Activity Header -->
+            <div class="activity-header d-flex align-items-start">
+                <div class="activity-icon mr-2">
+                    {% if activity.type == 'analysis_started' %}
+                        <i class="fas fa-play-circle text-primary"></i>
+                    {% elif activity.type == 'analysis_completed' %}
+                        {% from 'macros/ui.html' import timeline %}
+                        {% if recent_activity %}
+                            {{ timeline(recent_activity) }}
+                        {% else %}
+                    <div class="stat-value text-primary">{{ activity_stats.running_now or 0 }}</div>
+                    <div class="stat-label">Running</div>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="stat-mini">
+                    <div class="stat-value text-danger">{{ activity_stats.failed_today or 0 }}</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="stat-mini">
+                    <div class="stat-value text-info">{{ activity_stats.avg_duration or 'N/A' }}</div>
+                    <div class="stat-label">Avg Time</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Activity Controls -->
+    <div class="activity-controls mt-3">
+        <div class="btn-group btn-group-sm w-100" role="group">
+            <button class="btn btn-outline-primary" onclick="dashboard.refreshActivity()">
+                <i class="fas fa-sync mr-1"></i> Refresh
+            </button>
+            <button class="btn btn-outline-secondary" onclick="clearActivityHistory()">
+                <i class="fas fa-trash mr-1"></i> Clear
+            </button>
+            <button class="btn btn-outline-info" onclick="exportActivityLog()">
+                <i class="fas fa-download mr-1"></i> Export
+            </button>
+        </div>
+    </div>
+
+{% else %}
+    <!-- No Recent Activity -->
+    <div class="empty-state text-center py-4">
+        <i class="fas fa-history fa-2x text-muted mb-2"></i>
+        <div class="text-muted mb-2">No recent activity</div>
+        <small class="text-muted">Activity will appear here as you use the platform</small>
+        <div class="mt-3">
+            <button class="btn btn-outline-primary btn-sm" onclick="dashboard.refreshActivity()">
+                <i class="fas fa-sync mr-1"></i> Check for Activity
+            </button>
+        </div>
+    </div>
+{% endif %}
+
+<!-- Auto-refresh timer -->
+<div class="activity-refresh-timer mt-2 text-center">
+    <small class="text-muted">
+        Auto-refresh in <span id="activityRefreshCountdown">30</span>s
+    </small>
+</div>
+
+
+
+<script>
+function toggleActivityHistory() {
+    const hiddenItems = document.querySelectorAll('.activity-item.d-none');
+    const showMoreBtn = document.querySelector('.show-more');
+    const showLessBtn = document.querySelector('.show-less');
+    
+    if (hiddenItems.length > 0) {
+        // Show more
+        hiddenItems.forEach(item => item.classList.remove('d-none'));
+        showMoreBtn.classList.add('d-none');
+        showLessBtn.classList.remove('d-none');
+    } else {
+        // Show less
+        const items = document.querySelectorAll('.activity-item');
+        items.forEach((item, index) => {
+            if (index >= 5) {
+                item.classList.add('d-none');
+            }
+        });
+        showMoreBtn.classList.remove('d-none');
+        showLessBtn.classList.add('d-none');
+    }
+}
+
+function clearActivityHistory() {
+    if (confirm('Are you sure you want to clear the activity history?')) {
+        fetch('/api/activity/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(response => {
+            if (response.ok) {
+                dashboard.refreshActivity();
+                dashboard.showToast('Activity history cleared', 'success');
+            } else {
+                dashboard.showToast('Failed to clear activity history', 'error');
+            }
+        }).catch(error => {
+            console.error('Error clearing activity:', error);
+            dashboard.showToast('Error clearing activity history', 'error');
+        });
+    }
+}
+
+function exportActivityLog() {
+    const link = document.createElement('a');
+    link.href = '/api/activity/export?format=csv';
+    link.download = `activity_log_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    dashboard.showToast('Activity log exported', 'success');
+}
+
+// Auto-refresh countdown with proper scoping
+(function() {
+    let localActivityRefreshCountdown = 30;
+    const interval = setInterval(() => {
+        localActivityRefreshCountdown--;
+        const countdownEl = document.getElementById('activityRefreshCountdown');
+        if (countdownEl) {
+            countdownEl.textContent = localActivityRefreshCountdown;
+        }
+        
+        if (localActivityRefreshCountdown <= 0) {
+            localActivityRefreshCountdown = 30;
+            if (typeof dashboard !== 'undefined' && dashboard.refreshActivity) {
+                dashboard.refreshActivity();
+            }
+        }
+        
+        // Clean up if element no longer exists
+        if (!document.getElementById('activityRefreshCountdown')) {
+            clearInterval(interval);
+        }
+    }, 1000);
+})();
+</script>
+<!-- end HTMX wrapper -->
+</div>

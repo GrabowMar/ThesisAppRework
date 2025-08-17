@@ -1,0 +1,33 @@
+{# AdminLTE (dist) integration note #}
+<div class="border rounded p-2 bg-light-subtle">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <div class="fw-semibold">Dynamic Analysis #{{ analysis.id }}</div>
+      <div class="text-muted small">
+        {{ analysis.created_at.strftime('%Y-%m-%d %H:%M') if analysis.created_at else '—' }}
+        • Status: {{ analysis.status or 'done' }}
+      </div>
+    </div>
+    <div>
+      <a class="btn btn-sm btn-outline-primary" href="/analysis/dynamic/{{ analysis.id }}" target="_blank">
+        <i class="fas fa-external-link-alt me-1"></i>Open full
+      </a>
+    </div>
+  </div>
+  <div class="mt-2 small">
+    <span class="badge text-bg-danger me-1">High: {{ counts.high }}</span>
+    <span class="badge text-bg-warning text-dark me-1">Medium: {{ counts.medium }}</span>
+    <span class="badge text-bg-secondary me-1">Low: {{ counts.low }}</span>
+    <span class="badge text-bg-info">Info: {{ counts.info }}</span>
+  </div>
+  {% if zap_report and zap_report.site and zap_report.site[0] and zap_report.site[0].alerts %}
+    <details class="mt-2">
+      <summary class="small">First 5 alerts</summary>
+      <ul class="small mt-2 mb-0">
+        {% for alert in zap_report.site[0].alerts[:5] %}
+          <li>{{ alert.alert or alert['alert'] }} (risk: {{ alert.risk or alert['risk'] }})</li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+</div>

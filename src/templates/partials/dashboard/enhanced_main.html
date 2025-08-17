@@ -1,0 +1,657 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Enhanced Dashboard', classes='module-enhanced-main') %}
+<!-- Enhanced Dashboard with Real-time Stats and Data Initialization -->
+<div class="container-fluid">
+  <!-- Stats Cards Row -->
+  <div class="row">
+    <!-- Models Card -->
+    <div class="col-lg-3 col-md-6">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-robot fa-2x me-3"></i>
+            <div>
+              <h5 class="card-title mb-0" id="modelsCount">{{ stats.total_models or 0 }}</h5>
+              <p class="card-text">AI Models</p>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <small class="text-white-50">
+            <i class="fas fa-sync-alt me-1"></i>
+            <span id="modelsLastUpdate">Loading...</span>
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Applications Card -->
+    <div class="col-lg-3 col-md-6">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-code fa-2x me-3"></i>
+            <div>
+              <h5 class="card-title mb-0" id="appsCount">{{ stats.total_applications or 0 }}</h5>
+              <p class="card-text">Applications</p>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <small class="text-white-50">
+            <i class="fas fa-play-circle me-1"></i>
+            <span id="runningApps">0</span> running
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Tests Card -->
+    <div class="col-lg-3 col-md-6">
+      <div class="card bg-warning text-white">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-shield-alt fa-2x me-3"></i>
+            <div>
+              <h5 class="card-title mb-0" id="securityCount">{{ stats.total_security_analyses or 0 }}</h5>
+              <p class="card-text">Security Tests</p>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <small class="text-white-50">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            <span id="securityIssues">0</span> issues found
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance Tests Card -->
+    <div class="col-lg-3 col-md-6">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-tachometer-alt fa-2x me-3"></i>
+            <div>
+              <h5 class="card-title mb-0" id="performanceCount">{{ stats.total_performance_tests or 0 }}</h5>
+              <p class="card-text">Performance Tests</p>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <small class="text-white-50">
+            <i class="fas fa-clock me-1"></i>
+            Avg: <span id="avgResponseTime">0ms</span>
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Control Panel Row -->
+  <div class="row mt-4">
+    <!-- Data Initialization Panel -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="fas fa-database me-2"></i>Data Initialization
+          </h5>
+        </div>
+        <div class="card-body">
+          <div id="dataInitStatus" class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <span>Database Status:</span>
+              <span class="badge bg-secondary" id="dbStatusBadge">Checking...</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <span>Models Loaded:</span>
+              <span id="modelsLoadedCount">{{ stats.total_models or 0 }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <span>Applications Found:</span>
+              <span id="appsFoundCount">{{ stats.total_applications or 0 }}</span>
+            </div>
+          </div>
+          
+          <div class="d-grid gap-2">
+            <button type="button" class="btn btn-primary" id="initializeDataBtn" onclick="initializeData()">
+              <i class="fas fa-download me-1"></i>Load Data from Files
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="checkDataStatus()">
+              <i class="fas fa-sync me-1"></i>Refresh Status
+            </button>
+          </div>
+          
+          <!-- Progress Bar (hidden by default) -->
+          <div id="initProgressContainer" class="mt-3 d-none">
+            <div class="progress h-4px">
+              <div class="progress-bar" role="progressbar" data-width="0%"></div>
+            </div>
+            <small class="text-muted mt-1" id="initProgressText">Initializing...</small>
+          </div>
+          
+          <!-- Results Display -->
+          <div id="initResults" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Health Panel -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="fas fa-heartbeat me-2"></i>System Health
+          </h5>
+        </div>
+        <div class="card-body">
+          <div id="systemHealth">
+            <!-- Docker Status -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span>
+                <i class="fab fa-docker me-1"></i>Docker
+              </span>
+              <span class="badge bg-secondary" id="dockerStatus">Checking...</span>
+            </div>
+            
+            <!-- Database Status -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span>
+                <i class="fas fa-database me-1"></i>Database
+              </span>
+              <span class="badge bg-secondary" id="databaseStatus">Checking...</span>
+            </div>
+            
+            <!-- Analyzer Services -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span>
+                <i class="fas fa-cogs me-1"></i>Analyzer Services
+              </span>
+              <span class="badge bg-secondary" id="analyzersStatus">Checking...</span>
+            </div>
+            
+            <!-- Memory Usage -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span>
+                <i class="fas fa-memory me-1"></i>Memory Usage
+              </span>
+              <span id="memoryUsage">N/A</span>
+            </div>
+          </div>
+          
+          <div class="mt-3 d-grid gap-2">
+            <button type="button" class="btn btn-outline-primary" onclick="refreshSystemHealth()">
+              <i class="fas fa-sync me-1"></i>Refresh Health Check
+            </button>
+            <button type="button" class="btn btn-outline-success" onclick="startAnalyzerServices()">
+              <i class="fas fa-play me-1"></i>Start Analyzer Services
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity Row -->
+  <div class="row mt-4">
+    <!-- Recent Models -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="fas fa-clock me-2"></i>Recent Models
+          </h5>
+        </div>
+        <div class="card-body">
+          <div id="recentModels">
+            <div class="text-center text-muted">
+              <i class="fas fa-spinner fa-spin me-1"></i>Loading recent models...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Applications -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="fas fa-history me-2"></i>Recent Applications
+          </h5>
+        </div>
+        <div class="card-body">
+          <div id="recentApps">
+            <div class="text-center text-muted">
+              <i class="fas fa-spinner fa-spin me-1"></i>Loading recent applications...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics Row -->
+  <div class="row mt-4">
+    <!-- Provider Distribution -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="fas fa-chart-pie me-2"></i>Provider Distribution
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="providerChart" width="400" height="200"></canvas>
+          <div id="providerLegend" class="chart-legend"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Framework Distribution -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="fas fa-chart-bar me-2"></i>Framework Distribution
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="frameworkChart" width="400" height="200"></canvas>
+          <div id="frameworkLegend" class="chart-legend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endcall %}
+
+<script>
+// Dashboard functionality
+let dashboardData = {};
+let healthCheckInterval;
+let statsRefreshInterval;
+
+// Initialize dashboard on page load
+document.addEventListener('DOMContentLoaded', function() {
+  checkDataStatus();
+  refreshSystemHealth();
+  loadDashboardStats();
+  
+  // Set up auto-refresh intervals
+  healthCheckInterval = setInterval(refreshSystemHealth, 30000); // Every 30 seconds
+  statsRefreshInterval = setInterval(loadDashboardStats, 60000); // Every minute
+});
+
+// Data initialization functions
+async function initializeData() {
+  const btn = document.getElementById('initializeDataBtn');
+  const progressContainer = document.getElementById('initProgressContainer');
+  const resultsDiv = document.getElementById('initResults');
+  
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Initializing...';
+  progressContainer.style.display = 'block';
+  
+  try {
+    const response = await fetch('/api/data/initialize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      resultsDiv.innerHTML = `
+        <div class="alert alert-success">
+          <h6>Data Initialization Completed!</h6>
+          <ul class="mb-0">
+            <li>Models loaded: ${result.models_loaded}</li>
+            <li>Applications loaded: ${result.applications_loaded}</li>
+          </ul>
+          ${result.errors.length > 0 ? `<small class="text-warning">Warnings: ${result.errors.join(', ')}</small>` : ''}
+        </div>
+      `;
+      
+      // Refresh stats after successful initialization
+      setTimeout(() => {
+        loadDashboardStats();
+        checkDataStatus();
+      }, 1000);
+    } else {
+      resultsDiv.innerHTML = `
+        <div class="alert alert-danger">
+          <h6>Initialization Failed</h6>
+          <p>${result.error}</p>
+          ${result.errors && result.errors.length > 0 ? `<ul>${result.errors.map(e => `<li>${e}</li>`).join('')}</ul>` : ''}
+        </div>
+      `;
+    }
+  } catch (error) {
+    resultsDiv.innerHTML = `
+      <div class="alert alert-danger">
+        <h6>Network Error</h6>
+        <p>${error.message}</p>
+      </div>
+    `;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-download me-1"></i>Load Data from Files';
+    progressContainer.style.display = 'none';
+  }
+}
+
+async function checkDataStatus() {
+  try {
+    const response = await fetch('/api/data/status');
+    const status = await response.json();
+    
+    document.getElementById('modelsLoadedCount').textContent = status.models_count || 0;
+    document.getElementById('appsFoundCount').textContent = status.applications_count || 0;
+    
+    const badge = document.getElementById('dbStatusBadge');
+    if (status.models_count > 0 && status.applications_count > 0) {
+      badge.className = 'badge bg-success';
+      badge.textContent = 'Ready';
+    } else if (status.models_count > 0) {
+      badge.className = 'badge bg-warning';
+      badge.textContent = 'Partial';
+    } else {
+      badge.className = 'badge bg-danger';
+      badge.textContent = 'Empty';
+    }
+  } catch (error) {
+    console.error('Error checking data status:', error);
+  }
+}
+
+// System health functions
+async function refreshSystemHealth() {
+  try {
+  const response = await fetch('/api/system/health');
+  const health = await response.json();
+    
+    // Update Docker status
+    const dockerBadge = document.getElementById('dockerStatus');
+    if (health.docker.available) {
+      dockerBadge.className = 'badge bg-success';
+      dockerBadge.textContent = `Running (${health.docker.containers_running} containers)`;
+    } else {
+      dockerBadge.className = 'badge bg-danger';
+      dockerBadge.textContent = 'Unavailable';
+    }
+    
+    // Update Database status
+    const dbBadge = document.getElementById('databaseStatus');
+    if (health.database.available) {
+      dbBadge.className = 'badge bg-success';
+      dbBadge.textContent = 'Connected';
+    } else {
+      dbBadge.className = 'badge bg-danger';
+      dbBadge.textContent = 'Error';
+    }
+    
+    // Update Analyzer status via dedicated endpoint for more detail
+    const analyzerBadge = document.getElementById('analyzersStatus');
+    try {
+      const aResp = await fetch('/api/analyzer/status');
+      const a = await aResp.json();
+      if (a.status === 'available') {
+        const running = Object.values(a.services || {}).filter(s => s.status === 'running').length;
+        analyzerBadge.className = running > 0 ? 'badge bg-success' : 'badge bg-secondary';
+        analyzerBadge.textContent = running > 0 ? `Running (${running})` : 'Available';
+      } else if (a.status === 'unavailable') {
+        analyzerBadge.className = 'badge bg-warning';
+        analyzerBadge.textContent = 'Unavailable';
+      } else {
+        analyzerBadge.className = 'badge bg-danger';
+        analyzerBadge.textContent = 'Error';
+      }
+    } catch (e) {
+      analyzerBadge.className = 'badge bg-warning';
+      analyzerBadge.textContent = 'Unknown';
+    }
+    
+  } catch (error) {
+    console.error('Error refreshing system health:', error);
+  }
+}
+
+// Dashboard stats functions
+async function loadDashboardStats() {
+  try {
+  const response = await fetch('/api/dashboard/stats');
+  dashboardData = await response.json();
+    
+    // Update counts
+    document.getElementById('modelsCount').textContent = dashboardData.counts.models;
+    document.getElementById('appsCount').textContent = dashboardData.counts.applications;
+    document.getElementById('securityCount').textContent = dashboardData.counts.security_tests;
+    document.getElementById('performanceCount').textContent = dashboardData.counts.performance_tests;
+    
+    // Update recent models
+    updateRecentModels(dashboardData.recent_models);
+    
+    // Update recent applications
+    updateRecentApps(dashboardData.recent_apps);
+    
+  // Update charts
+    updateProviderChart(dashboardData.providers);
+    updateFrameworkChart(dashboardData.frameworks);
+
+  // Update last updated timestamp
+  const ts = document.getElementById('modelsLastUpdate');
+  if (ts) ts.textContent = new Date().toLocaleTimeString();
+    
+  } catch (error) {
+    console.error('Error loading dashboard stats:', error);
+  }
+}
+
+function updateRecentModels(models) {
+  const container = document.getElementById('recentModels');
+  if (!models || models.length === 0) {
+    container.innerHTML = '<div class="text-muted">No recent models found</div>';
+    return;
+  }
+  
+  container.innerHTML = models.slice(0, 5).map(model => `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <strong>${model.provider}/${model.model_name}</strong>
+        <br>
+        <small class="text-muted">${model.canonical_slug}</small>
+      </div>
+      <div class="text-end">
+        <span class="badge bg-primary">${model.context_window ? (model.context_window/1000 + 'K') : 'N/A'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateRecentApps(apps) {
+  const container = document.getElementById('recentApps');
+  if (!apps || apps.length === 0) {
+    container.innerHTML = '<div class="text-muted">No recent applications found</div>';
+    return;
+  }
+  
+  container.innerHTML = apps.slice(0, 5).map(app => `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <strong>${app.model_slug}/app_${app.app_number}</strong>
+        <br>
+        <small class="text-muted">${app.backend_framework || 'Unknown framework'}</small>
+      </div>
+      <div class="text-end">
+        <span class="badge bg-${app.container_status === 'running' ? 'success' : 'secondary'}">${app.container_status}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Chart.js integration
+let providerChartInstance = null;
+let frameworkChartInstance = null;
+
+function ensureCharts() {
+  if (typeof Chart === 'undefined') return;
+
+  const providerCtx = document.getElementById('providerChart');
+  if (providerCtx && !providerChartInstance) {
+    const styles = getComputedStyle(document.documentElement);
+    const textColor = styles.getPropertyValue('--bs-body-color').trim() || '#212529';
+    const gridColor = styles.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,.1)';
+    providerChartInstance = new Chart(providerCtx, {
+      type: 'doughnut',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        color: textColor,
+      }
+    });
+  }
+
+  const frameworkCtx = document.getElementById('frameworkChart');
+  if (frameworkCtx && !frameworkChartInstance) {
+    const styles = getComputedStyle(document.documentElement);
+    const textColor = styles.getPropertyValue('--bs-body-color').trim() || '#212529';
+    const gridColor = styles.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,.1)';
+    frameworkChartInstance = new Chart(frameworkCtx, {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: 'rgba(13,110,253,.6)' }] },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: { color: textColor }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: gridColor },
+            ticks: { color: textColor }
+          }
+        },
+        color: textColor
+      }
+    });
+  }
+}
+
+function updateProviderChart(providers) {
+  ensureCharts();
+  if (!providerChartInstance || !providers) return;
+  const labels = Object.keys(providers || {});
+  const data = labels.map(k => providers[k] || 0);
+  const palette = ['#0d6efd','#198754','#0dcaf0','#ffc107','#dc3545','#6f42c1','#20c997'];
+  const colors = labels.map((_, i) => palette[i % palette.length]);
+  providerChartInstance.data.labels = labels;
+  providerChartInstance.data.datasets[0].data = data;
+  providerChartInstance.data.datasets[0].backgroundColor = colors;
+  providerChartInstance.update();
+
+  // Render legend
+  const legend = document.getElementById('providerLegend');
+  if (legend) {
+    legend.innerHTML = labels.map((l, i) => `
+      <span class="legend-item"><span class="legend-swatch" style="background:${colors[i]}"></span>${l}</span>
+    `).join('');
+  }
+}
+
+function updateFrameworkChart(frameworks) {
+  ensureCharts();
+  if (!frameworkChartInstance || !frameworks) return;
+  const labels = Object.keys(frameworks || {});
+  const data = labels.map(k => frameworks[k] || 0);
+  frameworkChartInstance.data.labels = labels;
+  frameworkChartInstance.data.datasets[0].data = data;
+  frameworkChartInstance.update();
+
+  const legend = document.getElementById('frameworkLegend');
+  if (legend) {
+    const color = 'rgba(13,110,253,.6)';
+    legend.innerHTML = labels.map(l => `
+      <span class="legend-item"><span class="legend-swatch" style="background:${color}"></span>${l}</span>
+    `).join('');
+  }
+}
+
+// Listen for theme changes to update chart colors
+window.addEventListener('themechange', function(e){
+  const styles = getComputedStyle(document.documentElement);
+  const textColor = styles.getPropertyValue('--bs-body-color').trim() || '#212529';
+  const gridColor = styles.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,.1)';
+  if (providerChartInstance) {
+    providerChartInstance.options.color = textColor;
+    providerChartInstance.update('none');
+  }
+  if (frameworkChartInstance) {
+    frameworkChartInstance.options.color = textColor;
+    if (frameworkChartInstance.options.scales && frameworkChartInstance.options.scales.x) {
+      frameworkChartInstance.options.scales.x.grid.color = gridColor;
+      frameworkChartInstance.options.scales.x.ticks.color = textColor;
+    }
+    if (frameworkChartInstance.options.scales && frameworkChartInstance.options.scales.y) {
+      frameworkChartInstance.options.scales.y.grid.color = gridColor;
+      frameworkChartInstance.options.scales.y.ticks.color = textColor;
+    }
+    frameworkChartInstance.update('none');
+  }
+});
+
+// Analyzer service management
+async function startAnalyzerServices() {
+  try {
+    const response = await fetch('/api/analyzer/start', {
+      method: 'POST'
+    });
+    const result = await response.json();
+    
+    if (result.success) {
+      showNotification('Analyzer services starting...', 'success');
+      setTimeout(refreshSystemHealth, 2000);
+    } else {
+      showNotification('Failed to start analyzer services: ' + result.error, 'error');
+    }
+  } catch (error) {
+    showNotification('Error starting analyzer services: ' + error.message, 'error');
+  }
+}
+
+// Utility functions
+function showNotification(message, type = 'info') {
+  // Create and show notification
+  const notification = document.createElement('div');
+  notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+  notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+  notification.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.remove();
+    }
+  }, 5000);
+}
+
+// Cleanup intervals on page unload
+window.addEventListener('beforeunload', function() {
+  if (healthCheckInterval) clearInterval(healthCheckInterval);
+  if (statsRefreshInterval) clearInterval(statsRefreshInterval);
+});
+</script>

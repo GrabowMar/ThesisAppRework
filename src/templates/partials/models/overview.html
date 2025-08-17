@@ -1,0 +1,89 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+{% from 'macros/ui.html' import small_box %}
+
+{% call module_card(title='Models Overview', classes='module-models-overview') %}
+{# Extracted from former pages/models_overview.html (CSS/JS removed) #}
+<div class="row mb-4">
+  <div class="col-lg-3 col-6">{{ small_box(total_models or 0, 'Total Models', 'primary', 'fas fa-robot') }}</div>
+  <div class="col-lg-3 col-6">{{ small_box(free_models or 0, 'Free Models', 'success', 'fas fa-gift') }}</div>
+  <div class="col-lg-3 col-6">{{ small_box(paid_models or 0, 'Paid Models', 'warning', 'fas fa-credit-card') }}</div>
+  <div class="col-lg-3 col-6">{{ small_box(providers_count or 0, 'Providers', 'info', 'fas fa-building') }}</div>
+  </div>
+
+{% call module_card(title='Models Database', classes='module-models-table', body_classes='p-0') %}
+  <div class="d-flex justify-content-between align-items-center p-2">
+    <div>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('models.export_models_csv') }}" title="Export CSV">
+        <i class="fas fa-file-csv me-1"></i> Export CSV
+      </a>
+    </div>
+    {% if show_openrouter_data %}
+      <span class="badge bg-success"><i class="fas fa-wifi"></i> OpenRouter Connected</span>
+    {% else %}
+      <span class="badge bg-warning"><i class="fas fa-wifi-slash"></i> OpenRouter Offline</span>
+    {% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-striped table-hover mb-0">
+      <thead><tr><th>Provider</th><th>Model Name</th><th>Type</th><th>Context</th><th>Pricing</th><th>Capabilities</th><th>Apps</th><th>Actions</th></tr></thead>
+  <tbody>
+        {% for model in models %}
+  <tr>
+          <td><span class="badge provider-dynamic" data-provider-color="{{ get_provider_color(model.provider) }}">{{ model.provider }}</span></td>
+          <td>
+            <strong>{{ model.model_name }}</strong>
+            {% if model.openrouter_data and model.openrouter_data.name %}
+              <br><small class="text-muted">{{ model.openrouter_data.name }}</small>
+            {% endif %}
+            {% if model.openrouter_variants %}
+              <div class="mt-1 d-flex flex-wrap gap-1">
+                {% for v in model.openrouter_variants %}
+                  <span class="badge bg-dark">{{ v }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </td>
+          <td>{% if model.openrouter_data and model.openrouter_data.architecture %}<span class="badge bg-info">{{ model.openrouter_data.architecture.modality or 'Text' }}</span>{% else %}<span class="badge bg-secondary">Unknown</span>{% endif %}</td>
+          <td>{% if model.openrouter_data and model.openrouter_data.context_length %}<span class="badge bg-primary">{{ "{:,}".format(model.openrouter_data.context_length) }}</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+          <td>{% if model.openrouter_data and model.openrouter_data.pricing %}{% if model.openrouter_data.pricing.prompt %}<small class="text-success">In: ${{ "%.6f"|format(model.openrouter_data.pricing.prompt|float) }}</small><br>{% endif %}{% if model.openrouter_data.pricing.completion %}<small class="text-warning">Out: ${{ "%.6f"|format(model.openrouter_data.pricing.completion|float) }}</small>{% endif %}{% else %}<span class="text-muted">-</span>{% endif %}</td>
+          <td><div class="d-flex flex-wrap gap-1">
+            {% if model.supports_vision %}<span class="badge bg-purple">Vision</span>{% endif %}
+            {% if model.supports_tool_calling %}<span class="badge bg-green">Tools</span>{% endif %}
+            {% if model.supports_json %}<span class="badge bg-blue">JSON</span>{% endif %}
+            {% if model.is_free %}<span class="badge bg-success">Free</span>{% endif %}
+          </div></td>
+          <td><span class="badge bg-primary">{{ model.apps_count or 0 }}</span></td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <a href="{{ url_for('models.applications') }}?model={{ model.canonical_slug }}" class="btn btn-outline-success" title="View Applications"><i class="fas fa-th"></i></a>
+              <button class="btn btn-outline-info" title="More Info" data-bs-toggle="modal" data-bs-target="#modelMoreInfoModal" 
+                hx-get="{{ url_for('models.model_more_info', model_slug=model.canonical_slug) }}" hx-target="#modelMoreInfoBody" hx-swap="innerHTML">
+                <i class="fas fa-circle-info"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <!-- More Info Modal -->
+  <div class="modal fade" id="modelMoreInfoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-circle-info me-2"></i>Model More Info</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="modelMoreInfoBody">
+          <div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading...</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endcall %}
+{% endcall %}

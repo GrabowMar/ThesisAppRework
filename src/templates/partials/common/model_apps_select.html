@@ -1,0 +1,18 @@
+{# AdminLTE (dist) integration note #}
+{% set _id = select_id or None %}
+{% if apps %}
+<select class="form-select" name="app_number" {% if _id %}id="{{ _id }}"{% endif %} required>
+    <option value="">Choose an application...</option>
+    {% for app in apps %}
+    <option value="{{ app.app_number }}">App {{ app.app_number }}</option>
+    {% endfor %}
+</select>
+{% elif model_slug %}
+<select class="form-select" name="app_number" {% if _id %}id="{{ _id }}"{% endif %} disabled>
+    <option value="">No applications found for this model</option>
+</select>
+{% else %}
+<select class="form-select" name="app_number" {% if _id %}id="{{ _id }}"{% endif %} disabled>
+    <option value="">Choose a model first...</option>
+</select>
+{% endif %}

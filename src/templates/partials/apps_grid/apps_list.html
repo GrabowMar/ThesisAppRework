@@ -1,0 +1,61 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Applications List', classes='module-apps-list') %}
+<div class="apps-list-container">
+    {% for entry in application_grid %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>{{ entry.model.display_name or entry.model.model_name or entry.model.canonical_slug }}</strong>
+                    <small class="text-muted"> • {{ entry.apps_count }} apps</small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-success" onclick="startModelApps('{{ entry.model.canonical_slug }}')"><i class="fas fa-play me-1"></i>Start all</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="stopModelApps('{{ entry.model.canonical_slug }}')"><i class="fas fa-stop me-1"></i>Stop all</button>
+                </div>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for app in entry.apps %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="badge bg-{{ 'success' if app.status=='running' else 'secondary' }}">{{ app.status.replace('_',' ').title() }}</span>
+                            <div>
+                                <div>#{{ app.app_number }} <small class="text-muted">{{ app.app_type }}</small></div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="viewAppDetails('{{ entry.model.canonical_slug }}', {{ app.app_number }})">Details</button>
+                                        {% if app.ports and app.ports.frontend %}
+                                            <a class="btn btn-sm btn-success" target="_blank" href="http://localhost:{{ app.ports.frontend }}">Website</a>
+                                        {% endif %}
+                            {% if app.exists %}
+                                {% if app.status == 'running' %}
+                                    <button class="btn btn-sm btn-warning" onclick="stopApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})">Stop</button>
+                                {% else %}
+                                    <button class="btn btn-sm btn-primary" onclick="startApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})">Start</button>
+                                {% endif %}
+                                <button class="btn btn-sm btn-info" onclick="restartApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})">Restart</button>
+                                            {% if app.has_docker_compose %}
+                                                <button class="btn btn-sm btn-outline-secondary" onclick="fetch('/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build', {method:'POST'}).then(r=>r.json()).then(d=>showOperationStatus(d.message||'Build requested','info')).catch(e=>showOperationStatus('Build error: '+e.message,'error'))">Build</button>
+                                            {% endif %}
+                            {% else %}
+                                <button class="btn btn-sm btn-outline-secondary" disabled>Not created</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+
+    {% if not application_grid %}
+        <div class="apps-empty text-center py-5">
+            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+            <h4>No Applications Found</h4>
+            <p class="text-muted">No applications match your current filter criteria.</p>
+        </div>
+    {% endif %}
+</div>
+{% endcall %}
+

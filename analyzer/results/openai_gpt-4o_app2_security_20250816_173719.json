@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "model_slug": "openai_gpt-4o",
+    "app_number": 2,
+    "analysis_type": "security",
+    "timestamp": "2025-08-16T17:37:19.679455",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "static_analysis_result",
+    "status": "success",
+    "service": "static-analyzer",
+    "analysis": {
+      "status": "error",
+      "error": "Model path not found: /app/sources/openai_gpt-4o/app2"
+    },
+    "timestamp": "2025-08-16T15:37:19.603007"
+  }
+}

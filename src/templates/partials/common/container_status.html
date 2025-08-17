@@ -1,0 +1,42 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='', classes='module-container-status body-compact', body_classes='p-0') %}
+<div class="container-status p-2">
+    {% if status == 'running' %}
+    <span class="badge bg-success">
+        <i class="fas fa-play me-1"></i>
+        Running
+    </span>
+    {% elif status == 'stopped' %}
+    <span class="badge bg-secondary">
+        <i class="fas fa-stop me-1"></i>
+        Stopped
+    </span>
+    {% elif status == 'error' %}
+    <span class="badge bg-danger">
+        <i class="fas fa-exclamation-triangle me-1"></i>
+        Error
+    </span>
+    {% elif status == 'building' %}
+    <span class="badge bg-warning">
+        <i class="fas fa-cog fa-spin me-1"></i>
+        Building
+    </span>
+    {% elif status == 'starting' %}
+    <span class="badge bg-info">
+        <i class="fas fa-circle-notch fa-spin me-1"></i>
+        Starting
+    </span>
+    {% else %}
+    <span class="badge bg-light text-dark">
+        <i class="fas fa-question me-1"></i>
+        Unknown
+    </span>
+    {% endif %}
+    
+    {% if timestamp %}
+    <small class="text-muted ms-2">{{ timestamp }}</small>
+    {% endif %}
+</div>
+{% endcall %}

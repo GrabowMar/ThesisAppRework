@@ -1,0 +1,49 @@
+{# AdminLTE (dist) integration note #}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="card-title mb-0"><i class="fas fa-lightbulb me-2"></i>Backend Prompt</h6>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary" onclick="copyAdjacentPre(this)"><i class="fas fa-copy me-1"></i>Copy</button>
+      <button class="btn btn-outline-primary" onclick="togglePrompt(this)"><i class="fas fa-angle-down me-1"></i>Expand</button>
+    </div>
+  </div>
+  <div class="card-body p-0 position-relative">
+    <pre class="m-0 p-3 font-mono-sm prompt-collapsed" style="white-space: pre-wrap; max-height: 220px; overflow: hidden;">{{ prompts.backend or 'No backend prompt found for app ' ~ app_data.app_number }}</pre>
+    <div class="fade-edge"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="card-title mb-0"><i class="fas fa-lightbulb me-2"></i>Frontend Prompt</h6>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary" onclick="copyAdjacentPre(this)"><i class="fas fa-copy me-1"></i>Copy</button>
+      <button class="btn btn-outline-primary" onclick="togglePrompt(this)"><i class="fas fa-angle-down me-1"></i>Expand</button>
+    </div>
+  </div>
+  <div class="card-body p-0 position-relative">
+    <pre class="m-0 p-3 font-mono-sm prompt-collapsed" style="white-space: pre-wrap; max-height: 220px; overflow: hidden;">{{ prompts.frontend or 'No frontend prompt found for app ' ~ app_data.app_number }}</pre>
+    <div class="fade-edge"></div>
+  </div>
+</div>
+
+<style>
+/* subtle bottom fade to indicate overflow */
+.fade-edge{position:absolute;left:0;right:0;bottom:0;height:32px;background:linear-gradient(to bottom, rgba(255,255,255,0), var(--bs-card-bg));}
+.prompt-expanded{max-height:none!important;}
+</style>
+<script>
+function togglePrompt(btn){
+  const body = btn.closest('.card').querySelector('.card-body');
+  const pre = body.querySelector('pre');
+  const faded = body.querySelector('.fade-edge');
+  const expanded = pre.classList.toggle('prompt-expanded');
+  if (expanded){
+    btn.innerHTML = '<i class="fas fa-angle-up me-1"></i>Collapse';
+    if (faded) faded.style.display='none';
+  } else {
+    btn.innerHTML = '<i class="fas fa-angle-down me-1"></i>Expand';
+    if (faded) faded.style.display='block';
+  }
+}
+</script>

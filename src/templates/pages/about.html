@@ -1,0 +1,82 @@
+{# AdminLTE (dist) integrated template #}
+{% extends 'single_page.html' %}
+{% block title %}About{% endblock %}
+
+{% block pre_content %}
+<div class="row mb-3">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body py-3 d-flex align-items-center justify-content-between">
+        <div>
+          <h1 class="h4 mb-1"><i class="fas fa-info-circle text-primary me-2"></i> About This Platform</h1>
+          <p class="text-muted mb-0">Research platform for analyzing AI-generated applications across multiple models.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block main_content %}
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header bg-primary text-white py-2">
+        <strong>Purpose & Goals</strong>
+      </div>
+      <div class="card-body">
+        <p>This platform orchestrates generation and multi-dimensional analysis (security, performance, static/dynamic scanning, AI code review) of thousands of small AI-generated web apps produced by diverse foundation models (Anthropic Claude, OpenAI GPT, Google Gemini, etc.).</p>
+        <ul class="mb-0">
+          <li>Benchmark cross-model code generation characteristics</li>
+          <li>Surface systemic security & quality patterns</li>
+          <li>Correlate model capabilities with runtime/container behavior</li>
+          <li>Enable reproducible comparative research at scale</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header bg-secondary text-white py-2"><strong>Architecture Highlights</strong></div>
+      <div class="card-body small">
+        <ul class="list-unstyled mb-0">
+          <li><i class="fas fa-layer-group text-primary me-1"></i> Flask + HTMX adaptive UI shell</li>
+          <li><i class="fas fa-diagram-project text-primary me-1"></i> Containerized analyzer microservices (security, performance, AI)</li>
+          <li><i class="fas fa-database text-primary me-1"></i> Flexible JSON-centric persistence for heterogeneous analysis outputs</li>
+          <li><i class="fas fa-network-wired text-primary me-1"></i> WebSocket + Celery task pipeline bridging UI & analyzers</li>
+          <li><i class="fas fa-chart-line text-primary me-1"></i> Aggregated metrics, trends, batch orchestration</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header bg-info text-white py-2"><strong>Key Components</strong></div>
+      <div class="card-body small">
+        <ul class="mb-2">
+          <li><code>ServiceLocator</code> mediated business orchestration</li>
+          <li>Dynamic port & app allocation (precomputed)</li>
+          <li>Unified task manager abstraction</li>
+          <li>Composable partial-driven page wrappers</li>
+        </ul>
+        <p class="mb-1 text-muted">See <code>docs/DEVELOPMENT.md</code> for deeper details.</p>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header bg-dark text-white py-2"><strong>Research Themes</strong></div>
+      <div class="card-body small">
+        <ul class="mb-0">
+          <li>Multi-model comparative generation economics</li>
+          <li>Security posture drift across iterations</li>
+          <li>Static vs dynamic tool concordance</li>
+          <li>LLM self-analysis reliability</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Placeholder for future interactive about metrics
+</script>
+{% endblock %}

@@ -1,0 +1,156 @@
+{# AdminLTE (dist) integrated macros | UI Macros for nav links and badges #}
+{% macro nav_link(label, endpoint, icon_class=None) -%}
+  {%- set href = url_for(endpoint) -%}
+  {%- set is_active = (request.path == href) or (request.endpoint and request.endpoint.startswith(endpoint.split('.')[0])) -%}
+  <a href="{{ href }}" class="nav-link {{ 'active' if is_active }}" aria-current="{{ 'page' if is_active }}">
+    {%- if icon_class %}<i class="{{ icon_class }} nav-icon"></i>{% endif -%}
+    <p>{{ label }}</p>
+  </a>
+{%- endmacro %}
+
+{% macro badge(text, color='secondary') -%}
+  <span class="badge badge-{{ color }}">{{ text }}</span>
+{%- endmacro %}
+
+{# AdminLTE widgets #}
+{% macro small_box(value, text, color='primary', icon='fas fa-circle') -%}
+  <div class="small-box bg-{{ color }}">
+    <div class="inner">
+      <h3>{{ value }}</h3>
+      <p>{{ text }}</p>
+    </div>
+    <div class="icon"><i class="{{ icon }}"></i></div>
+  </div>
+{%- endmacro %}
+
+{% macro info_box(label, value, color='secondary', icon='fas fa-circle') -%}
+  <div class="info-box">
+    <span class="info-box-icon bg-{{ color }}"><i class="{{ icon }}"></i></span>
+    <div class="info-box-content">
+      <span class="info-box-text">{{ label }}</span>
+      <span class="info-box-number">{{ value }}</span>
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro callout(kind='info', title='', body='') -%}
+  <div class="alert alert-{{ kind }}">
+    {% if title %}<strong class="me-2">{{ title }}</strong>{% endif %}
+    {{ body|safe }}
+  </div>
+{%- endmacro %}
+
+{% macro card(title='', body_classes='', classes='') -%}
+  <div class="card {{ classes }}">
+    {% if title %}
+    <div class="card-header"><h5 class="card-title mb-0">{{ title }}</h5></div>
+    {% endif %}
+    <div class="card-body {{ body_classes }}">
+      {{ caller() }}
+    </div>
+  </div>
+{%- endmacro %}
+
+{# Standard card with table body and optional header actions #}
+{% macro card_table(title='', headers=[], actions='', classes='', table_classes='table table-striped table-hover mb-0', body_classes='p-0') -%}
+  <div class="card {{ classes }}">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="card-title mb-0">{{ title }}</h5>
+      <div class="card-actions">{{ actions|safe }}</div>
+    </div>
+    <div class="card-body {{ body_classes }}">
+      <div class="table-responsive">
+        <table class="{{ table_classes }}">
+          {% if headers and headers|length %}
+          <thead>
+            <tr>
+              {% for h in headers %}<th>{{ h }}</th>{% endfor %}
+            </tr>
+          </thead>
+          {% endif %}
+          <tbody>
+            {{ caller() }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{%- endmacro %}
+
+{# Timeline macro for activity feeds #}
+{% macro timeline(items=[]) -%}
+  <div class="activity-timeline">
+    {% for activity in items %}
+    <div class="activity-item {% if loop.index > 5 %}d-none{% endif %}" data-timestamp="{{ activity.timestamp.isoformat() if activity.timestamp else '' }}">
+      <div class="activity-header d-flex align-items-start">
+        <div class="activity-icon mr-2">
+          {% if activity.type == 'analysis_started' %}
+            <i class="fas fa-play-circle text-primary"></i>
+          {% elif activity.type == 'analysis_completed' %}
+            <i class="fas fa-check-circle text-success"></i>
+          {% elif activity.type == 'analysis_failed' %}
+            <i class="fas fa-times-circle text-danger"></i>
+          {% elif activity.type == 'container_started' %}
+            <i class="fas fa-power-off text-success"></i>
+          {% elif activity.type == 'container_stopped' %}
+            <i class="fas fa-stop-circle text-warning"></i>
+          {% elif activity.type == 'service_health_check' %}
+            <i class="fas fa-heartbeat text-info"></i>
+          {% elif activity.type == 'batch_analysis' %}
+            <i class="fas fa-layer-group text-purple"></i>
+          {% elif activity.type == 'security_scan' %}
+            <i class="fas fa-shield-alt text-danger"></i>
+          {% elif activity.type == 'performance_test' %}
+            <i class="fas fa-tachometer-alt text-info"></i>
+          {% elif activity.type == 'docker_event' %}
+            <i class="fab fa-docker text-info"></i>
+          {% elif activity.type == 'system_alert' %}
+            <i class="fas fa-exclamation-triangle text-warning"></i>
+          {% else %}
+            <i class="fas fa-circle text-muted"></i>
+          {% endif %}
+        </div>
+        <div class="activity-content flex-grow-1">
+          <div class="activity-title">{{ activity.title or 'Activity' }}</div>
+          <div class="activity-description text-muted">{{ activity.description or 'No description available' }}</div>
+          {% if activity.details %}
+          <div class="activity-details mt-1">
+            {% if activity.details.model %}
+              <span class="badge bg-light text-dark me-1">{{ activity.details.model }}</span>
+            {% endif %}
+            {% if activity.details.app_number %}
+              <span class="badge bg-light text-dark me-1">App {{ activity.details.app_number }}</span>
+            {% endif %}
+            {% if activity.details.duration %}
+              <span class="badge bg-secondary me-1">{{ activity.details.duration }}</span>
+            {% endif %}
+            {% if activity.details.status %}
+              <span class="badge bg-{% if activity.details.status == 'success' %}success{% elif activity.details.status == 'error' %}danger{% else %}warning{% endif %} me-1">{{ activity.details.status|title }}</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        <div class="activity-time text-muted">
+          {% if activity.timestamp %}<small>{{ activity.timestamp.strftime('%H:%M') }}</small>{% else %}<small>--:--</small>{% endif %}
+        </div>
+      </div>
+      {% if activity.progress is defined and activity.status == 'running' %}
+      <div class="activity-progress mt-2">
+        <div class="progress h-4px">
+          <div class="progress-bar" data-width="{{ activity.progress }}%" aria-valuenow="{{ activity.progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <small class="text-muted">{{ activity.progress }}% complete</small>
+      </div>
+      {% endif %}
+      {% if activity.error and activity.status == 'failed' %}
+      <div class="activity-error mt-2">
+        <div class="alert alert-danger alert-sm py-1 px-2 mb-0">
+          <i class="fas fa-exclamation-circle mr-1"></i>
+          <small>{{ activity.error }}</small>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+{%- endmacro %}

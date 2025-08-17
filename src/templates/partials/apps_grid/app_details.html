@@ -1,0 +1,181 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Application Details', classes='module-app-details') %}
+<div class="app-details-container">
+    <div class="row">
+        <!-- Basic Information -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Application Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Model:</dt>
+                        <dd class="col-sm-8">{{ app.model_slug }}</dd>
+                        
+                        <dt class="col-sm-4">Provider:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-primary">{{ app.provider.title() }}</span>
+                        </dd>
+                        
+                        <dt class="col-sm-4">App Number:</dt>
+                        <dd class="col-sm-8">#{{ app.app_number }}</dd>
+                        
+                        <dt class="col-sm-4">Type:</dt>
+                        <dd class="col-sm-8">{{ app.app_type or 'Unknown' }}</dd>
+                        
+                        <dt class="col-sm-4">Status:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-{{ 'success' if container_status == 'running' else 'secondary' }}">
+                                {{ container_status.title() }}
+                            </span>
+                        </dd>
+                        
+                        <dt class="col-sm-4">Created:</dt>
+                        <dd class="col-sm-8">
+                            {{ app.created_at.strftime('%Y-%m-%d %H:%M') if app.created_at else 'Unknown' }}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Port Configuration -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-network-wired me-2"></i>
+                        Port Configuration
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if ports %}
+                    <dl class="row">
+                        {% if ports.frontend %}
+                        <dt class="col-sm-4">Frontend:</dt>
+                        <dd class="col-sm-8">
+                            <code>{{ ports.frontend }}</code>
+                            {% if container_status == 'running' %}
+                            <a href="http://localhost:{{ ports.frontend }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                <i class="fas fa-external-link-alt"></i> Open
+                            </a>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+                        
+                        {% if ports.backend %}
+                        <dt class="col-sm-4">Backend:</dt>
+                        <dd class="col-sm-8">
+                            <code>{{ ports.backend }}</code>
+                            {% if container_status == 'running' %}
+                            <a href="http://localhost:{{ ports.backend }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
+                                <i class="fas fa-external-link-alt"></i> API
+                            </a>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+                    </dl>
+                    {% else %}
+                    <p class="text-muted">No port configuration available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- File Structure and Stats -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-folder me-2"></i>
+                        File Structure & Statistics
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if file_structure %}
+                    <div class="file-structure">
+                        <!-- File structure would be rendered here -->
+                        <p class="text-muted">File structure display coming soon...</p>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No file structure available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Docker Information -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fab fa-docker me-2"></i>
+                        Docker Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if docker_info %}
+                    <p class="text-muted">Docker information display coming soon...</p>
+                    {% else %}
+                    <p class="text-muted">No Docker information available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Container Logs -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-terminal me-2"></i>
+                        Container Logs
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if logs %}
+                    <pre class="container-logs font-mono-sm scroll-box-200">{{ logs | join('\n') }}</pre>
+                    {% else %}
+                    <p class="text-muted">No logs available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analysis History -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        Analysis History
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if analyses %}
+                    <div class="analysis-history">
+                        <!-- Analysis history would be rendered here -->
+                        <p class="text-muted">Analysis history display coming soon...</p>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No analysis history available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endcall %}
+

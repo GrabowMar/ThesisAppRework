@@ -1,286 +1,232 @@
+{# AdminLTE (dist) integrated base #}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}AI Research Platform{% endblock %}</title>
-    
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-    
-    <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/json-enc.js"></script>
-    
-    {% block extra_css %}{% endblock %}
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{% block title %}AI Model Analysis Platform{% endblock %}</title>
+
+	<!-- Bootstrap 5 (via CDN) -->
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+	<!-- AdminLTE stylesheet (local vendor copy) -->
+	<link href="{{ url_for('static', filename='vendor/adminlte/css/adminlte.min.css') }}" rel="stylesheet">
+
+	<!-- Project theme overrides and BS4->BS5 compat helpers -->
+	<link href="{{ url_for('static', filename='css/theme.css') }}" rel="stylesheet">
+
+	<!-- Font Awesome for icons -->
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" referrerpolicy="no-referrer" />
+
+	{% block extra_head %}{% endblock %}
+
 </head>
-<body>
-    <!-- Navigation -->
-    <nav class="navbar">
-        <a href="{{ url_for('main.dashboard') }}" class="navbar-brand">
-            <div class="brand-icon">AI</div>
-            <span>Research Platform</span>
-        </a>
-        
-        <div class="navbar-nav">
-            <a href="{{ url_for('main.dashboard') }}" class="nav-link" data-page="dashboard">
-                <i class="fas fa-tachometer-alt"></i>
-                <span>Dashboard</span>
-            </a>
-            <a href="{{ url_for('main.models_overview') }}" class="nav-link" data-page="models">
-                <i class="fas fa-robot"></i>
-                <span>Models</span>
-            </a>
-            <a href="{{ url_for('testing.test_dashboard') }}" class="nav-link" data-page="testing">
-                <i class="fas fa-flask"></i>
-                <span>Testing</span>
-            </a>
-            <a href="{{ url_for('statistics.statistics_overview') }}" class="nav-link" data-page="statistics">
-                <i class="fas fa-chart-bar"></i>
-                <span>Analytics</span>
-            </a>
-        </div>
-    </nav>
+<body class="bg-body-tertiary">
+	<header class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+		<div class="container-fluid">
+			<a class="navbar-brand d-flex align-items-center gap-2" href="/">
+				<i class="fa-solid fa-microscope"></i>
+				<span>AI Analysis Platform</span>
+			</a>
+			<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+			<div class="collapse navbar-collapse" id="navbarNav">
+				<ul class="navbar-nav me-auto">
+					<li class="nav-item"><a class="nav-link" href="/">Dashboard</a></li>
+					<li class="nav-item"><a class="nav-link" href="/analysis/">Analysis</a></li>
+					<li class="nav-item"><a class="nav-link" href="/models/">Models</a></li>
+					<li class="nav-item"><a class="nav-link" href="/models/applications">Applications</a></li>
+					<li class="nav-item"><a class="nav-link" href="/statistics/">Statistics</a></li>
+					<li class="nav-item"><a class="nav-link" href="/system-status">System</a></li>
+					<li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+				</ul>
+				<div class="d-flex align-items-center gap-3">
+					<button class="btn btn-sm btn-outline-light d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasSidebar" aria-controls="offcanvasSidebar">
+						<i class="fa-solid fa-bars"></i>
+					</button>
+					<button id="theme-toggle" class="btn btn-sm btn-outline-light" type="button" title="Toggle theme" aria-label="Toggle theme">
+						<i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
+					</button>
+					<div id="global-spinner" class="hx-indicator text-light small">
+						<i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…
+					</div>
+				</div>
+			</div>
+		</div>
+	</header>
 
-    <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-content">
-            <!-- Quick Stats Section -->
-            <div class="sidebar-section">
-                <div class="sidebar-title">Quick Stats</div>
-                <div class="quick-stats" id="quick-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">Models</span>
-                        <span class="stat-value" id="stat-models">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Apps</span>
-                        <span class="stat-value" id="stat-apps">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Active</span>
-                        <span class="stat-value" id="stat-active">-</span>
-                    </div>
-                </div>
-            </div>
+	<!-- Offcanvas Sidebar -->
+	<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasSidebar" aria-labelledby="offcanvasSidebarLabel">
+		<div class="offcanvas-header">
+			<h5 class="offcanvas-title" id="offcanvasSidebarLabel"><i class="fa-solid fa-microscope me-2"></i>Navigation</h5>
+			<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+		</div>
+		<div class="offcanvas-body">
+			{% include 'partials/common/sidebar_stats.html' %}
+			<hr>
+			{% include 'partials/common/sidebar_links.html' %}
+		</div>
+	</div>
 
-            <!-- Activity Feed Section -->
-            <div class="sidebar-section">
-                <div class="sidebar-title">Recent Activity</div>
-                <div class="activity-feed" id="activity-feed">
-                    <div class="activity-item">
-                        <div class="activity-icon">
-                            <i class="fas fa-info"></i>
-                        </div>
-                        <div>Loading activities...</div>
-                    </div>
-                </div>
-            </div>
+	<!-- Main content -->
+	<div class="container-fluid px-3 px-lg-4">
+		<main class="content-area py-3">
+			<!-- Flash messages -->
+			{% with messages = get_flashed_messages(with_categories=True) %}
+			{% if messages %}
+			<div class="mb-3">
+				{% for category, message in messages %}
+				<div class="alert alert-{{ 'warning' if category=='error' else category }} alert-dismissible fade show" role="alert">
+					{{ message }}
+					<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+				</div>
+				{% endfor %}
+			</div>
+			{% endif %}
+			{% endwith %}
 
-            <!-- Quick Actions Section -->
-            <div class="sidebar-section">
-                <div class="sidebar-title">Quick Actions</div>
-                <div class="quick-actions">
-                    <a href="{{ url_for('testing.test_creation_page') }}" class="btn btn-primary btn-sm">
-                        <i class="fas fa-plus"></i> New Test
-                    </a>
-                    <button class="btn btn-secondary btn-sm" onclick="AppManager.refreshData()">
-                        <i class="fas fa-sync-alt"></i> Refresh
-                    </button>
-                </div>
-            </div>
-        </div>
-    </aside>
+			{% block content %}{% endblock %}
+		</main>
+	</div>
 
-    <!-- Main Content Area -->
-    <main class="main-content" id="main-content">
-        {% block content %}{% endblock %}
-    </main>
+	{% block modals %}{% endblock %}
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toast-container"></div>
+	<!-- Scripts: HTMX, _hyperscript, Bootstrap -->
+	<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+	<script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+	<!-- Chart.js for dashboard charts -->
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-    <!-- Core Scripts -->
-    <script>
-        // Application namespace
-        const AppManager = {
-            // Initialize the application
-            init() {
-                this.setupNavigation();
-                this.loadStats();
-                this.loadActivityFeed();
-                this.setupHTMXHandlers();
-                this.setupKeyboardShortcuts();
-            },
+	<!-- AdminLTE JS (local vendor copy) -->
+	<script src="{{ url_for('static', filename='vendor/adminlte/js/adminlte.min.js') }}"></script>
 
-            // Setup navigation active states
-            setupNavigation() {
-                const currentPath = window.location.pathname;
-                const navLinks = document.querySelectorAll('.nav-link');
-                
-                navLinks.forEach(link => {
-                    link.classList.remove('active');
-                    const href = link.getAttribute('href');
-                    
-                    if (href === currentPath || 
-                        (currentPath === '/' && link.dataset.page === 'dashboard') ||
-                        (currentPath.includes('/testing') && link.dataset.page === 'testing') ||
-                        (currentPath.includes('/models') && link.dataset.page === 'models')) {
-                        link.classList.add('active');
-                    }
-                });
-            },
+	<script>
+	// Theme toggle with localStorage persistence and OS preference default
+	(function() {
+		const KEY = 'ui-theme';
+		function applyTheme(theme) {
+			const html = document.documentElement;
+			if (theme === 'dark') {
+				html.setAttribute('data-bs-theme', 'dark');
+				const btn = document.getElementById('theme-toggle');
+				const icon = document.getElementById('theme-toggle-icon');
+				if (btn) { btn.classList.remove('btn-outline-light'); btn.classList.add('btn-outline-warning'); }
+				if (icon) { icon.classList.remove('fa-moon'); icon.classList.add('fa-sun'); }
+			} else {
+				html.setAttribute('data-bs-theme', 'light');
+				const btn = document.getElementById('theme-toggle');
+				const icon = document.getElementById('theme-toggle-icon');
+				if (btn) { btn.classList.remove('btn-outline-warning'); btn.classList.add('btn-outline-light'); }
+				if (icon) { icon.classList.remove('fa-sun'); icon.classList.add('fa-moon'); }
+			}
+			// Notify listeners
+			try { window.dispatchEvent(new CustomEvent('themechange', { detail: { theme } })); } catch(e) {}
+		}
+		document.addEventListener('DOMContentLoaded', () => {
+			let theme = localStorage.getItem(KEY);
+			if (!theme) {
+				// Prefer OS dark if available
+				const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+				theme = prefersDark ? 'dark' : 'light';
+			}
+			applyTheme(theme);
+			const btn = document.getElementById('theme-toggle');
+			if (btn) {
+				btn.addEventListener('click', () => {
+					theme = (localStorage.getItem(KEY) || theme || 'light') === 'light' ? 'dark' : 'light';
+					localStorage.setItem(KEY, theme);
+					applyTheme(theme);
+				});
+			}
+		});
+	})();
+	</script>
 
-            // Load sidebar statistics
-            async loadStats() {
-                try {
-                    const response = await fetch('/api/quick-stats');
-                    if (response.ok) {
-                        const data = await response.json();
-                        document.getElementById('stat-models').textContent = data.models || '0';
-                        document.getElementById('stat-apps').textContent = data.apps || '0';
-                        document.getElementById('stat-active').textContent = data.active || '0';
-                    }
-                } catch (error) {
-                    console.error('Failed to load stats:', error);
-                }
-            },
+	<script>
+	// Auto-apply HTMX refresh interval based on data-refresh-interval
+	(function() {
+		function applyRefreshIntervals(root) {
+			const scope = root || document;
+			const nodes = scope.querySelectorAll('[data-refresh-interval]');
+			nodes.forEach(el => {
+				const interval = (el.getAttribute('data-refresh-interval') || '').trim();
+				if (!interval) return;
+				// Only set hx-trigger if not explicitly overridden on the element
+				if (!el.hasAttribute('hx-trigger')) {
+					el.setAttribute('hx-trigger', `load, every ${interval}`);
+				}
+				// Ensure an indicator if desired: if data-use-global-indicator present or hx-indicator missing, set to global spinner
+				if (!el.hasAttribute('hx-indicator') && document.getElementById('global-spinner')) {
+					el.setAttribute('hx-indicator', '#global-spinner');
+				}
+			});
+		}
 
-            // Load activity feed
-            async loadActivityFeed() {
-                try {
-                    const response = await fetch('/api/activity-feed');
-                    if (response.ok) {
-                        const html = await response.text();
-                        document.getElementById('activity-feed').innerHTML = html;
-                    }
-                } catch (error) {
-                    console.error('Failed to load activity feed:', error);
-                }
-            },
+		// Initial run on DOM ready
+		document.addEventListener('DOMContentLoaded', function() {
+			applyRefreshIntervals(document);
+		});
 
-            // Setup HTMX event handlers
-            setupHTMXHandlers() {
-                document.body.addEventListener('htmx:afterRequest', (event) => {
-                    if (event.detail.successful) {
-                        this.showToast('Operation completed successfully', 'success');
-                    }
-                });
+		// Re-run after HTMX swaps so dynamically added blocks also get configured
+		document.body.addEventListener('htmx:afterSwap', function(evt) {
+			applyRefreshIntervals(evt.target);
+		});
+	})();
+	</script>
 
-                document.body.addEventListener('htmx:responseError', (event) => {
-                    this.showToast('An error occurred. Please try again.', 'error');
-                    console.error('HTMX Error:', event.detail);
-                });
-            },
+	<script>
+	// Apply data-width on progress bars and dynamic provider colors
+	(function(){
+		function applyProgressAndBadges(root){
+			const scope = root || document;
+			// Progress widths
+			scope.querySelectorAll('.progress [data-width]').forEach(el => {
+				const w = el.getAttribute('data-width');
+				if (w) {
+					el.style.width = w;
+					el.setAttribute('data-init','1');
+				}
+			});
+			// Provider dynamic badges
+			scope.querySelectorAll('.provider-dynamic').forEach(b => {
+				const color = b.getAttribute('data-provider-color');
+				if (color) b.style.setProperty('--provider-color', color);
+			});
+		}
+		document.addEventListener('DOMContentLoaded', function(){ applyProgressAndBadges(document); });
+		document.body.addEventListener('htmx:afterSwap', function(evt){ applyProgressAndBadges(evt.target); });
+	})();
+	</script>
 
-            // Setup keyboard shortcuts
-            setupKeyboardShortcuts() {
-                document.addEventListener('keydown', (e) => {
-                    // Ctrl+K - Focus search
-                    if (e.ctrlKey && e.key === 'k') {
-                        e.preventDefault();
-                        const search = document.querySelector('input[type="search"], input[name="search"]');
-                        if (search) search.focus();
-                    }
+	<script>
+	// Guard: avoid swapping a full HTML document into a partial HTMX target
+	// Safer version: skips when the trigger explicitly uses hx-select or opts out via data-allow-full-document
+	(function(){
+		document.body.addEventListener('htmx:beforeSwap', function(evt) {
+			try {
+				var xhr = evt.detail && evt.detail.xhr;
+				var triggerEl = evt.detail && evt.detail.elt;
+				if (!xhr) return;
+				// Opt-out: allow full doc if the triggering element requests it or uses hx-select to pick a fragment
+				if (triggerEl && (triggerEl.hasAttribute('data-allow-full-document') || triggerEl.hasAttribute('hx-select'))) return;
+				var contentType = xhr.getResponseHeader && xhr.getResponseHeader('Content-Type');
+				var text = xhr.responseText || '';
+				var isHtml = contentType && contentType.indexOf('text/html') !== -1;
+				var looksLikeFullDoc = text.indexOf('<html') !== -1 && text.indexOf('<body') !== -1;
+				if (isHtml && looksLikeFullDoc) {
+					// Only redirect if the swap target isn't the whole document
+					if (evt.target && evt.target.id !== 'document') {
+						evt.preventDefault();
+						window.location.href = xhr.responseURL || window.location.href;
+					}
+				}
+			} catch(e) { /* no-op */ }
+		});
+	})();
+	</script>
 
-                    // Ctrl+R - Refresh data
-                    if (e.ctrlKey && e.key === 'r') {
-                        e.preventDefault();
-                        this.refreshData();
-                    }
-
-                    // Escape - Close modals
-                    if (e.key === 'Escape') {
-                        this.closeAllModals();
-                    }
-
-                    // Enter - Go to dashboard
-                    if (e.key === 'Enter') {
-                        window.location.href = '{{ url_for("main.dashboard") }}';
-                    }
-                });
-            },
-
-            // Show toast notification
-            showToast(message, type = 'info') {
-                const container = document.getElementById('toast-container');
-                const toast = document.createElement('div');
-                toast.className = `toast ${type}`;
-                
-                const icon = {
-                    success: 'check-circle',
-                    error: 'exclamation-circle',
-                    warning: 'exclamation-triangle',
-                    info: 'info-circle'
-                }[type];
-                
-                toast.innerHTML = `
-                    <i class="fas fa-${icon}"></i>
-                    <span>${message}</span>
-                    <button onclick="this.parentElement.remove()" style="margin-left: auto; background: none; border: none; cursor: pointer;">
-                        <i class="fas fa-times"></i>
-                    </button>
-                `;
-                
-                container.appendChild(toast);
-                
-                setTimeout(() => {
-                    toast.style.animation = 'slideIn 0.3s ease reverse';
-                    setTimeout(() => toast.remove(), 300);
-                }, 5000);
-            },
-
-            // Refresh all data
-            refreshData() {
-                this.loadStats();
-                this.loadActivityFeed();
-                
-                // Trigger HTMX refresh for any auto-updating elements
-                document.querySelectorAll('[hx-trigger*="load"]').forEach(el => {
-                    htmx.trigger(el, 'load');
-                });
-                
-                this.showToast('Data refreshed', 'success');
-            },
-
-            // Close all modals
-            closeAllModals() {
-                document.querySelectorAll('.modal.show').forEach(modal => {
-                    modal.classList.remove('show');
-                    modal.style.display = 'none';
-                });
-            },
-
-            // Toggle sidebar (mobile)
-            toggleSidebar() {
-                const sidebar = document.getElementById('sidebar');
-                sidebar.classList.toggle('show');
-            }
-        };
-
-        // Initialize when DOM is ready
-        document.addEventListener('DOMContentLoaded', () => {
-            AppManager.init();
-        });
-
-        // Auto-refresh stats every 30 seconds
-        setInterval(() => {
-            AppManager.loadStats();
-        }, 30000);
-    </script>
-
-    <!-- Load additional scripts -->
-    <script src="{{ url_for('static', filename='js/errorHandling.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dynamic-styles.js') }}"></script>    
-    {% block extra_js %}{% endblock %}
-    {% block scripts %}{% endblock %}
+	{% block scripts %}{% endblock %}
 </body>
 </html>

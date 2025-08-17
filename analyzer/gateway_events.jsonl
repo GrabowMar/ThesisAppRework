@@ -1,0 +1,16 @@
+{"stage": "received", "message": "Message MessageType.STATUS_REQUEST", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:42:45.616966"}
+{"stage": "subscriber_added", "message": "Subscriber added: 127.0.0.1:55175", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:42:45.617275"}
+{"stage": "received", "message": "Message MessageType.STATUS_REQUEST", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:42:48.051969"}
+{"stage": "subscriber_added", "message": "Subscriber added: 127.0.0.1:55188", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:42:48.052316"}
+{"stage": "received", "message": "Message MessageType.STATUS_REQUEST", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:43:44.552254"}
+{"stage": "subscriber_added", "message": "Subscriber added: 127.0.0.1:55271", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:43:44.552449"}
+{"stage": "received", "message": "Message MessageType.STATUS_REQUEST", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:43:48.628537"}
+{"stage": "subscriber_added", "message": "Subscriber added: 127.0.0.1:55283", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:43:48.629052"}
+{"stage": "received", "message": "Message MessageType.STATUS_REQUEST", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:44:25.043148"}
+{"stage": "subscriber_added", "message": "Subscriber added: 127.0.0.1:55360", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:44:25.043387"}
+{"stage": "received", "message": "Message MessageType.STATUS_REQUEST", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:44:25.114604"}
+{"stage": "subscriber_added", "message": "Subscriber added: 127.0.0.1:55352", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:44:25.115195"}
+{"stage": "received", "message": "Message MessageType.STATUS_REQUEST", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:54:32.054768"}
+{"stage": "subscriber_added", "message": "Subscriber added: 127.0.0.1:56343", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:54:32.055023"}
+{"stage": "received", "message": "Message MessageType.STATUS_REQUEST", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:54:35.017787"}
+{"stage": "subscriber_added", "message": "Subscriber added: 127.0.0.1:56353", "service": null, "correlation_id": null, "timestamp": "2025-08-16T12:54:35.018357"}

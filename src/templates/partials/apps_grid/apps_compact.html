@@ -1,0 +1,37 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Apps Compact', classes='module-apps-compact') %}
+<div class="apps-grid">
+    {% for entry in application_grid %}
+        {% for app in entry.apps %}
+            <div class="app-card {{ 'app-exists' if app.exists else 'app-missing' }}" data-model="{{ entry.model.canonical_slug }}" data-app="{{ app.app_number }}" data-status="{{ app.status }}">
+                <div>
+                    <div class="app-number">#{{ app.app_number }}</div>
+                    <div class="status-badge">
+                        <span class="badge bg-{{ 'success' if app.status=='running' else 'secondary' }}">{{ app.status.replace('_',' ').title() }}</span>
+                    </div>
+                </div>
+                <div class="app-actions">
+                    <button class="btn btn-sm btn-outline-primary" title="Open details" onclick="viewAppDetails('{{ entry.model.canonical_slug }}', {{ app.app_number }})"><i class="fas fa-external-link-alt"></i></button>
+                                {% if app.ports and app.ports.frontend %}
+                                    <a class="btn btn-sm btn-success" title="Visit website" target="_blank" href="http://localhost:{{ app.ports.frontend }}"><i class="fas fa-globe"></i></a>
+                                {% endif %}
+                    {% if app.exists %}
+                        {% if app.status == 'running' %}
+                            <button class="btn btn-sm btn-warning" title="Stop" onclick="stopApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})"><i class="fas fa-stop"></i></button>
+                        {% else %}
+                            <button class="btn btn-sm btn-primary" title="Start" onclick="startApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})"><i class="fas fa-play"></i></button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-info" title="Restart" onclick="restartApp('{{ entry.model.canonical_slug }}', {{ app.app_number }})"><i class="fas fa-redo"></i></button>
+                                    {% if app.has_docker_compose %}
+                                        <button class="btn btn-sm btn-outline-secondary" title="Build" onclick="fetch('/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build', {method:'POST'}).then(r=>r.json()).then(d=>{ if(window.showOperationStatus){ showOperationStatus(d.message||'Build requested','info'); } else { alert(d.message||'Build requested'); } }).catch(e=>{ if(window.showOperationStatus){ showOperationStatus('Build error: '+e.message,'error'); } else { alert('Build error: '+e.message); } })"><i class="fas fa-hammer"></i></button>
+                                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% endfor %}
+</div>
+{% endcall %}
+

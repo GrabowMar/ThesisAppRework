@@ -1,0 +1,140 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Active Tasks', classes='module-active-tasks') %}
+<div class="active-tasks-panel">
+    {% if tasks and tasks|length > 0 %}
+        <div class="tasks-header mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-tasks text-primary me-2"></i>
+                    Active Tasks ({{ tasks|length }})
+                </h6>
+                <button class="btn btn-outline-secondary btn-sm" 
+                        hx-get="{{ url_for('api.api_tasks_active') }}" 
+                        hx-target="#active-tasks-panel" 
+                        hx-swap="innerHTML"
+                        title="Refresh tasks"
+                        data-bs-toggle="tooltip">
+                    <i class="fas fa-sync"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="tasks-list">
+            {% for task in tasks %}
+            <div class="task-item mb-2 p-3 border rounded" 
+                 id="task-{{ task.id }}">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="task-info flex-grow-1">
+                        <div class="task-name fw-medium">
+                            {{ task.name or task.task_name or 'Unnamed Task' }}
+                        </div>
+                        <div class="task-details small text-muted">
+                            {% if task.status %}
+                                <span class="badge bg-{{ 
+                                    'success' if task.status == 'completed' else
+                                    'warning' if task.status in ['running', 'pending'] else
+                                    'danger' if task.status == 'failed' else
+                                    'secondary'
+                                }}">{{ task.status|title }}</span>
+                            {% endif %}
+                            
+                            {% if task.progress is defined %}
+                                • {{ task.progress }}% complete
+                            {% endif %}
+                            
+                            {% if task.eta %}
+                                • ETA: {{ task.eta }}
+                            {% endif %}
+                        </div>
+                        
+                        {% if task.progress is defined and task.progress is not none %}
+                        <div class="progress h-4px mt-2">
+                            <div class="progress-bar 
+                                {% if task.status == 'failed' %}bg-danger
+                                {% elif task.status == 'completed' %}bg-success
+                                {% else %}bg-primary
+                                {% endif %}" 
+                                role="progressbar" 
+                                data-width="{{ task.progress }}%"
+                                aria-valuenow="{{ task.progress }}" 
+                                aria-valuemin="0" 
+                                aria-valuemax="100">
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="task-actions ms-2">
+                        {% if task.status in ['running', 'pending'] %}
+                            <button class="btn btn-outline-danger btn-sm" 
+                                    hx-post="{{ url_for('api.api_tasks_cancel', task_id=task.id) }}" 
+                                    hx-target="#task-{{ task.id }}" 
+                                    hx-swap="outerHTML"
+                                    hx-confirm="Cancel this task?"
+                                    title="Cancel task"
+                                    data-bs-toggle="tooltip">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        {% endif %}
+                        
+                        {% if task.log_url or task.details_url %}
+                            <button class="btn btn-outline-info btn-sm" 
+                                    hx-get="{{ task.details_url or '#' }}" 
+                                    hx-target="#modal-container"
+                                    title="View details"
+                                    data-bs-toggle="tooltip">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if task.error_message %}
+                <div class="task-error mt-2 p-2 bg-danger bg-opacity-10 border-danger border rounded">
+                    <small class="text-danger">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        {{ task.error_message }}
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Task Management Actions -->
+        <div class="tasks-footer mt-3 pt-2 border-top">
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                <button class="btn btn-outline-warning btn-sm" 
+                        hx-post="{{ url_for('api.api_tasks_pause_all') }}" 
+                        hx-target="#active-tasks-panel" 
+                        hx-swap="innerHTML"
+                        hx-confirm="Pause all running tasks?">
+                    <i class="fas fa-pause me-1"></i>Pause All
+                </button>
+                <button class="btn btn-outline-danger btn-sm" 
+                        hx-post="{{ url_for('api.api_tasks_cancel_all') }}" 
+                        hx-target="#active-tasks-panel" 
+                        hx-swap="innerHTML"
+                        hx-confirm="Cancel all running tasks?">
+                    <i class="fas fa-stop me-1"></i>Cancel All
+                </button>
+            </div>
+        </div>
+        
+    {% else %}
+        <div class="text-center py-4">
+            <i class="fas fa-check-circle text-success mb-3 fs-3rem"></i>
+            <h6 class="text-muted">No Active Tasks</h6>
+            <p class="text-muted small mb-3">All background processes are idle</p>
+            <a href="{{ url_for('analysis.analysis_hub') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-play me-1"></i>Start New Analysis
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endcall %}
+
+<!-- Modal container for task details -->
+<div id="modal-container"></div>

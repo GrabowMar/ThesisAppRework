@@ -1,0 +1,346 @@
+/* Research-Oriented Analysis Interface - Compact & Utility-Focused */
+
+/* Base Research Layout */
+.research-container {
+  max-width: 100%;
+  padding: 8px 16px;
+}
+
+/* Compact Table Styles */
+.table-research {
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.table-research th {
+  font-weight: 600;
+  background: #f8f9fa;
+  border-top: 0;
+  padding: 8px 12px;
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+}
+
+.table-research th:hover {
+  background: #e9ecef;
+  cursor: pointer;
+}
+
+.table-research td {
+  padding: 6px 12px;
+  vertical-align: middle;
+  border-color: #f1f3f4;
+}
+
+.table-research tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* Zebra striping */
+.table-research.table-striped > tbody > tr:nth-of-type(odd) > * {
+  --bs-table-accent-bg: rgba(0, 0, 0, 0.015);
+  color: inherit;
+}
+
+/* Analysis ID Styling */
+.analysis-id {
+  font-family: 'Courier New', 'Monaco', monospace;
+  font-size: 0.8rem;
+  color: #495057;
+  font-weight: 500;
+}
+
+/* Model Name Cell */
+.model-cell {
+  font-weight: 500;
+  max-width: 200px;
+  min-width: 150px;
+}
+
+.model-cell .text-truncate {
+  cursor: help;
+}
+
+/* Status Badges - Compact */
+.status-compact {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.utility-badge {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  font-weight: 500;
+}
+
+/* Time & Duration Cells */
+.time-cell {
+  color: #6c757d;
+  font-size: 0.8rem;
+  font-family: 'Courier New', monospace;
+}
+
+.duration-cell {
+  font-family: 'Courier New', 'Monaco', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+/* Research Navigation */
+.nav-research {
+  border-bottom: 2px solid #dee2e6;
+  background: #fff;
+}
+
+.nav-research .nav-link {
+  font-size: 0.9rem;
+  padding: 8px 16px;
+  font-weight: 500;
+  color: #495057;
+  border: none;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.nav-research .nav-link:hover {
+  color: #0d6efd;
+  background: #f8f9fa;
+}
+
+.nav-research .nav-link.active {
+  color: #0d6efd;
+  background: #fff;
+  border-bottom-color: #0d6efd;
+  box-shadow: inset 0 -2px 0 #0d6efd;
+}
+
+/* Compact Cards */
+.card-research {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+}
+
+.card-research .card-header {
+  background: linear-gradient(180deg, #fbfcfd 0%, #f8f9fa 100%);
+  border-bottom: 1px solid #dee2e6;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.card-research .card-body {
+  padding: 12px 16px;
+}
+
+/* Research Toolbar */
+.toolbar-research {
+  background: #fff;
+  border-bottom: 1px solid #dee2e6;
+  padding: 6px 0;
+}
+
+/* Compact Buttons */
+.btn-research {
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+.btn-xs {
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.btn-group-sm .btn-xs {
+  border-radius: 3px;
+}
+
+/* Responsive Research Layout */
+@media (min-width: 1200px) {
+  .research-container {
+    padding: 12px 24px;
+  }
+  
+  .table-research {
+    font-size: 0.875rem;
+  }
+  
+  .table-research th,
+  .table-research td {
+    padding: 8px 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .research-container {
+    padding: 6px 12px;
+  }
+  
+  .nav-research .nav-link {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+  }
+  
+  .table-research {
+    font-size: 0.8rem;
+  }
+  
+  .model-cell {
+    max-width: 120px;
+  }
+}
+
+/* Data Density Improvements */
+.table-research tbody tr {
+  height: 36px;
+}
+
+.table-research .text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Research Statistics */
+.stats-inline {
+  display: inline-flex;
+  gap: 20px;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.stats-inline .stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stats-inline strong {
+  font-weight: 600;
+  color: #495057;
+}
+
+/* Research Focus Elements */
+.research-highlight {
+  background: linear-gradient(90deg, #fff3cd 0%, #ffffff 100%);
+  border-left: 3px solid #ffc107;
+  padding: 4px 8px;
+}
+
+.research-metric {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #198754;
+}
+
+/* Loading States for Research */
+.research-loading {
+  background: #f8f9fa;
+  padding: 20px;
+  text-align: center;
+  color: #6c757d;
+}
+
+.research-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #6c757d;
+  background: #fafbfc;
+  border: 1px dashed #dee2e6;
+  border-radius: 6px;
+}
+
+/* Dark mode adjustments */
+[data-bs-theme="dark"] .card-research {
+  border-color: #343a40;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+[data-bs-theme="dark"] .card-research .card-header {
+  background: linear-gradient(180deg, #222 0%, #2a2a2a 100%);
+  color: #e9ecef;
+  border-bottom-color: #343a40;
+}
+[data-bs-theme="dark"] .table-research th {
+  background: #2a2a2a;
+  color: #e9ecef;
+}
+[data-bs-theme="dark"] .table-research tbody tr:hover {
+  background: #1f1f1f;
+}
+[data-bs-theme="dark"] .nav-research {
+  background: #1f1f1f;
+  border-bottom-color: #343a40;
+}
+[data-bs-theme="dark"] .nav-research .nav-link {
+  color: #ced4da;
+}
+[data-bs-theme="dark"] .nav-research .nav-link.active {
+  color: #66b2ff;
+  background: #1f1f1f;
+  box-shadow: inset 0 -2px 0 #66b2ff;
+}
+[data-bs-theme="dark"] .research-empty {
+  background: #1f1f1f;
+  border-color: #343a40;
+  color: #adb5bd;
+}
+
+/* Sort Indicators */
+.table-research th[data-sort]:after {
+  content: '';
+  margin-left: 6px;
+  font-weight: normal;
+  color: #6c757d;
+}
+
+.table-research th[data-sort="asc"]:after {
+  content: '↑';
+  color: #0d6efd;
+}
+
+.table-research th[data-sort="desc"]:after {
+  content: '↓';
+  color: #0d6efd;
+}
+
+/* Research Action Buttons */
+.action-cell .btn-group {
+  display: flex;
+  gap: 2px;
+}
+
+.action-cell .btn {
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+/* Print Optimizations */
+@media print {
+  .nav-research,
+  .toolbar-research,
+  .btn,
+  .action-cell {
+    display: none !important;
+  }
+  
+  .table-research {
+    font-size: 10pt;
+  }
+  
+  .card-research {
+    box-shadow: none;
+    border: 1px solid #333;
+  }
+}

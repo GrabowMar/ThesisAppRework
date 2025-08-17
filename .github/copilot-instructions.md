@@ -1,212 +1,183 @@
-# ThesisAppRework - AI Assistant Instructions
+# AI Model Analysis Platform - Coding Agent Instructions
 
-## Project Overview
-Flask-based web application for researching and testing AI models with HTMX frontend. The system analyzes model-generated web applications stored in `misc/models/` and communicates with containerized testing infrastructure via API contracts.
+This is a Flask-based research platform for analyzing AI-generated web applications across multiple models (GPT, Claude, Gemini, etc.). The system combines web interface management with containerized analysis services.
 
-## ⚠️ CRITICAL: Database First, Not JSON
-**ALWAYS use SQLAlchemy models from `src/models.py` for data operations.**
-- ❌ DO NOT modify files in `misc/` directory - they are reference data only
-- ✅ DO use database queries via SQLAlchemy for all data operations
-- ✅ DO check `misc/port_config.json` for port allocations (READ-ONLY)
-- ✅ DO reference `misc/models/` for app structure (READ-ONLY)
+## 🏗️ Architecture Overview
 
-## Available APIs & Services
+### Dual Architecture Pattern
+- **Web Platform** (`src/`): Flask app with HTMX for managing models, applications, and analysis results
+- **Analyzer Services** (`analyzer/`): Containerized microservices for security, performance, and AI-powered analysis
 
-### Core Service APIs (via ServiceLocator)
+### Service Integration
 ```python
-from src.service_manager import ServiceLocator
+# Core services communicate via:
+from app.services.analyzer_integration import get_analyzer_integration
+analyzer = get_analyzer_integration()  # Bridge between Flask and analyzer containers
+```
 
-# Available services - USE THESE:
-docker_manager = ServiceLocator.get_docker_manager()
-scan_manager = ServiceLocator.get_scan_manager()
+## 🎯 Key Development Patterns
+
+### Service Locator Pattern
+```python
+# All business logic goes through service locator
+from app.services.service_locator import ServiceLocator
 model_service = ServiceLocator.get_model_service()
-port_manager = ServiceLocator.get_port_manager()
 batch_service = ServiceLocator.get_batch_service()
 ```
 
-### Web API Endpoints (HTMX)
-All endpoints return HTML fragments for HTMX, NOT JSON:
-- `GET /` - Dashboard
-- `GET /models` - Models overview
-- `GET /models/<model>/apps` - Model's applications
-- `GET /app/<model>/<app_num>` - App details
-- `POST /app/<model>/<app_num>/start` - Start containers
-- `POST /app/<model>/<app_num>/stop` - Stop containers
-- `GET /app/<model>/<app_num>/logs` - Container logs (HTML fragment)
-- `POST /batch/start` - Start batch analysis
-- `GET /batch/<batch_id>/status` - Batch status (HTML fragment)
-- `POST /analysis/security/<model>/<app_num>` - Run security scan
-- `POST /analysis/performance/<model>/<app_num>` - Run performance test
-
-### Database Models (USE THESE, NOT JSON)
+### Database Models with JSON Fields
 ```python
-from src.models import (
-    ModelCapability,        # AI model metadata
-    PortConfiguration,      # Port allocations
-    GeneratedApplication,   # App instances
-    SecurityAnalysis,       # Security results
-    PerformanceTest,       # Performance results
-    BatchAnalysis,         # Batch jobs
-    ContainerizedTest      # Container test tracking
-)
-
-# Example: Query models from database
-with get_session() as session:
-    models = session.query(ModelCapability).filter_by(provider='anthropic').all()
-    app = session.query(GeneratedApplication).filter_by(
-        model_slug='anthropic_claude-3.7-sonnet',
-        app_number=1
-    ).first()
+# Core pattern: SQLAlchemy models with JSON storage for flexible data
+class SecurityAnalysis(db.Model):
+    results_json = db.Column(db.Text)  # Store complex analysis results
+    
+    def get_results(self) -> Dict[str, Any]:
+        return json.loads(self.results_json) if self.results_json else {}
 ```
 
-## Testing Tools & Infrastructure
-
-### Unified CLI Analyzer (`src/unified_cli_analyzer.py`)
-Primary testing interface that orchestrates all analysis:
-```python
-from src.unified_cli_analyzer import UnifiedCLIAnalyzer
-
-analyzer = UnifiedCLIAnalyzer()
-# Provides batch operations and testing coordination
+### HTMX-Powered Dynamic UI
+Templates use HTMX for dynamic updates without page reloads:
+```html
+<form hx-post="/api/analysis/start" hx-target="#results" hx-indicator="#spinner">
 ```
 
-### Containerized Testing Services
-Located in `testing-infrastructure/containers/`:
-- **security-scanner**: Bandit, Safety, PyLint, ESLint, npm audit
-- **performance-tester**: Locust-based load testing
-- **zap-scanner**: OWASP ZAP security scanning
-- **ai-analyzer**: OpenRouter-based code analysis
+## 🚀 Essential Commands
 
-### API Contracts (Pydantic Models)
-```python
-from testing_infrastructure.shared.api_contracts.testing_api_models import (
-    TestRequest,
-    TestResponse,
-    SecurityTestRequest,
-    PerformanceTestRequest
-)
-```
-
-## Architecture & Key Components
-
-### Core Application (MVC-ish Pattern)
-- **Entry**: `src/app.py` - Flask app with service initialization
-- **Routes**: `src/web_routes.py` - HTMX endpoints returning HTML
-- **Services**: `src/core_services.py` - Business logic
-- **Service Manager**: `src/service_manager.py` - Service registry & locator
-- **Models**: `src/models.py` - SQLAlchemy database models
-- **Database**: SQLite in `src/data/thesis_app.db`
-
-### Model Management (`misc/` - READ ONLY!)
-- Apps in `misc/models/{provider}_{model_name}/app{1-30}/`
-- Port config: `misc/port_config.json` - READ for port lookups
-- Each app has: `backend/`, `frontend/`, `docker-compose.yml`
-
-## Development Patterns
-
-### HTMX + Flask Pattern
-```python
-# CORRECT: Return HTML fragments for HTMX
-@web_routes.route('/analysis/status/<id>')
-def get_status(id):
-    analysis = db.session.query(SecurityAnalysis).get(id)
-    return render_template('partials/analysis_status.html', analysis=analysis)
-
-# WRONG: Don't return JSON to HTMX endpoints
-# return jsonify({"status": "complete"})  # ❌
-```
-
-### Service Access Pattern
-```python
-# CORRECT: Use ServiceLocator
-from src.service_manager import ServiceLocator
-
-docker_manager = ServiceLocator.get_docker_manager()
-if docker_manager:
-    containers = docker_manager.list_containers()
-
-# WRONG: Don't create services directly
-# docker_manager = DockerManager()  # ❌
-```
-
-### Database Pattern
-```python
-# CORRECT: Use database models with context managers
-from src.extensions import get_session
-from src.models import GeneratedApplication
-
-with get_session() as session:
-    app = GeneratedApplication(
-        model_slug="anthropic_claude-3.7-sonnet",
-        app_number=1,
-        provider="anthropic"
-    )
-    session.add(app)
-    session.commit()
-
-# WRONG: Don't modify JSON files
-# with open('misc/some_file.json', 'w') as f:  # ❌
-```
-
-## Critical Workflows
-
-### Starting Analysis (Windows)
+### Development Startup
 ```bash
-# Main app
-python src/app.py
+cd src
+# Full stack (Flask + Celery + Analyzer services)
+powershell .\start.ps1 start
 
-# Testing infrastructure (optional, for containerized tests)
-cd testing-infrastructure
-docker-compose up
+# Flask only for UI development
+powershell .\start.ps1 flask-only
+
+# Check all service status
+powershell .\start.ps1 status
 ```
 
-### Running Tests
+### Analyzer Operations
 ```bash
-# Unit tests
-pytest tests/unit/ -v
-
-# Integration tests (requires infrastructure)
-pytest tests/integration/ -v
+cd analyzer
+# Manage containerized analysis services
+python analyzer_manager.py start        # Start all containers
+python analyzer_manager.py analyze anthropic_claude-3.7-sonnet 1 security
+python analyzer_manager.py batch models.json
 ```
 
-## File Structure Rules
-- **Constants**: `src/constants.py` - Enums and constants
-- **Static**: `src/static/js/` - HTMX extensions, error handling
-- **Templates**: `templates/partials/` - HTMX fragments
-- **Model apps**: READ ONLY from `misc/models/`
+### Database Operations
+```python
+# Initialize database (run from src/)
+from app.extensions import init_db; init_db()
 
-## Windows-Specific Notes
-- Use `pathlib.Path` for file operations
-- Check ports in database (PortConfiguration model)
-- Handle SQLite locks with proper session management
+# CLI app for database operations
+from app.factory import create_cli_app
+app = create_cli_app()
+```
 
-## Common Pitfalls & Solutions
+## 📁 Critical File Locations
 
-### ❌ DON'T:
-1. Return JSON to HTMX endpoints - return HTML fragments
-2. Modify files in `misc/` - they're reference data
-3. Hardcode ports - query PortConfiguration model
-4. Create services directly - use ServiceLocator
-5. Access JSON files for data - use database models
+### Configuration
+- `src/config/settings.py` - Environment-specific configs
+- `misc/port_config.json` - Dynamic port allocation for 1000+ AI apps
+- `misc/model_capabilities.json` - AI model metadata and pricing
 
-### ✅ DO:
-1. Use database models for all data operations
-2. Return HTML fragments from web routes
-3. Use ServiceLocator for service access
-4. Check existing patterns in codebase
-5. Use context managers for database sessions
+### Generated Applications
+- `misc/models/{model_name}/app_{number}/` - AI-generated application code
+- Port allocation: Backend (5000-7000), Frontend (8000-10000) ranges
 
-## Testing Analyzer Integration
-When adding analyzers:
-1. Define models in `testing_api_models.py`
-2. Add service in `core_services.py`
-3. Update `service_manager.py`
-4. Add container in `testing-infrastructure/containers/`
-5. Create database migration if needed
+### Service Integration Points
+- `src/app/services/analyzer_integration.py` - Bridge to analyzer containers
+- `analyzer/shared/protocol.py` - WebSocket communication protocol
+- `src/app/tasks.py` - Celery integration for async analysis
 
-## Key Files Reference
-- Port lookups: Check PortConfiguration model (NOT misc/port_config.json)
-- Model data: Query ModelCapability model
-- App status: Query GeneratedApplication model
-- Analysis results: Query SecurityAnalysis, PerformanceTest models
-- Service access: `src/service_manager.py` ServiceLocator class
+## 🔧 Project-Specific Conventions
+
+### Model Slug Format
+Model identifiers use underscores: `anthropic_claude-3.7-sonnet`, `openai_gpt-4o`
+
+### Analysis Workflow
+1. **Web UI**: User selects model/app via Flask routes
+2. **Task Queue**: Celery dispatches analysis jobs
+3. **Containers**: Analyzer services process via WebSocket
+4. **Results**: JSON stored in database, displayed via HTMX
+
+### Port Management
+```python
+# Port allocation is pre-calculated and stored
+# Each model/app gets unique frontend/backend ports
+# Backend: 6051, Frontend: 9051 for anthropic_claude-3.7-sonnet app 1
+```
+
+### Service Communication
+```python
+# Analyzer services expose WebSocket endpoints on ports 2001-2005
+# Flask app communicates via analyzer_integration service
+# Results flow: Container → WebSocket → Celery Task → Database → UI
+```
+
+## 🧪 Testing Patterns
+
+### Service Testing
+```python
+# Test services in isolation
+def test_security_service(app):
+    security_service = SecurityService()
+    result = security_service.start_security_analysis("test_model", 1)
+```
+
+### Integration Testing
+```python
+# Full workflow testing
+pytest tests/integration/test_celery_integration.py
+```
+
+## 🚨 Important Constraints
+
+### Container Dependencies
+- Docker must be running for analyzer services
+- Redis required for Celery (auto-started by start.ps1)
+- WebSocket connections need proper error handling
+
+### Data Model Relationships
+```python
+# Generated applications link to multiple analysis types
+app = GeneratedApplication.query.filter_by(model_slug="...", app_number=1).first()
+security_analyses = app.security_analyses  # One-to-many relationship
+```
+
+### Performance Considerations
+- Port allocation pre-computed (4500+ entries in port_config.json)
+- Analysis results stored as JSON for flexibility
+- HTMX prevents full page reloads during long-running analyses
+
+## 🔄 Background Processing
+
+### Celery Integration
+```python
+# Tasks defined in src/app/tasks.py
+from app.tasks import run_security_analysis
+task = run_security_analysis.delay(model_slug, app_number)
+```
+
+### Task Monitoring
+```python
+# Check task status via components
+components = get_components()
+task_manager = components.task_manager
+status = task_manager.get_task_status(task_id)
+```
+
+## 📊 Data Flow Examples
+
+### Starting Security Analysis
+```
+User → Flask Route → Celery Task → Analyzer Container → WebSocket → Database → HTMX Update
+```
+
+### Batch Processing
+```
+JSON Config → Batch Service → Multiple Celery Tasks → Parallel Analysis → Aggregated Results
+```
+
+Always check `src/PROJECT_STRUCTURE.md` and `docs/DEVELOPMENT.md` for current implementation status and TODOs.

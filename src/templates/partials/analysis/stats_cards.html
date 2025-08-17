@@ -1,0 +1,77 @@
+{# AdminLTE (dist) integration note - Compact Small Box Widgets #}
+<div id="analysis-stats"
+     class="row g-2"
+     hx-get="/analysis/api/stats"
+     hx-trigger="load, every 30s"
+     hx-target="#analysis-stats"
+     hx-swap="innerHTML"
+     hx-indicator="#global-spinner">
+  
+  <!--begin::Security Stats-->
+  <div class="col-xl-3 col-lg-6 col-md-6 col-6">
+    <div class="small-box text-bg-primary">
+      <div class="inner">
+        <h3>--</h3>
+        <p>Security Scans</p>
+      </div>
+      <svg class="small-box-icon" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path fill-rule="evenodd" d="M12.516 2.17a.75.75 0 00-1.032 0 11.209 11.209 0 01-7.877 3.08.75.75 0 00-.722.515A12.74 12.74 0 002.25 9.75c0 5.814 3.966 10.705 9.329 12.033a.75.75 0 00.842 0C18.784 20.455 22.75 15.564 22.75 9.75c0-1.33-.168-2.618-.487-3.965a.75.75 0 00-.722-.515 11.209 11.209 0 01-7.877-3.08z"></path>
+      </svg>
+  <a href="/analysis/create#security" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
+        Details <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+  <!--end::Security Stats-->
+
+  <!--begin::Performance Stats-->
+  <div class="col-xl-3 col-lg-6 col-md-6 col-6">
+    <div class="small-box text-bg-success">
+      <div class="inner">
+        <h3>--</h3>
+        <p>Performance Tests</p>
+      </div>
+      <svg class="small-box-icon" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M12 1.5a.75.75 0 01.75.75V4.5a.75.75 0 01-1.5 0V2.25A.75.75 0 0112 1.5zM5.636 4.136a.75.75 0 011.06 0l1.592 1.591a.75.75 0 01-1.061 1.061L5.636 5.197a.75.75 0 010-1.061zm12.728 0a.75.75 0 010 1.061l-1.591 1.591a.75.75 0 01-1.061-1.061l1.591-1.591a.75.75 0 011.061 0zm-6.364 4.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zm-7.5 7.5a.75.75 0 01.75-.75H6a.75.75 0 010 1.5H4.5a.75.75 0 01-.75-.75zm15 0a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5H18a.75.75 0 01-.75-.75zm-11.314 5.227a.75.75 0 011.061 0L7.288 20.5a.75.75 0 11-1.061 1.061l-1.591-1.591a.75.75 0 010-1.061zm12.728 0a.75.75 0 010 1.061l-1.591 1.591a.75.75 0 11-1.061-1.061l1.591-1.591a.75.75 0 011.061 0zM12 18a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 18z"></path>
+      </svg>
+  <a href="/analysis/create#performance" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
+        Details <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+  <!--end::Performance Stats-->
+
+  <!--begin::Findings Stats-->
+  <div class="col-xl-3 col-lg-6 col-md-6 col-6">
+    <div class="small-box text-bg-warning">
+      <div class="inner">
+        <h3>--</h3>
+        <p>Total Findings</p>
+      </div>
+      <svg class="small-box-icon" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.061 1.061l-4.69-4.69A8.25 8.25 0 012.25 10.5z"></path>
+      </svg>
+      <a href="/analysis/list" class="small-box-footer link-dark link-underline-opacity-0 link-underline-opacity-50-hover">
+        Details <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+  <!--end::Findings Stats-->
+
+  <!--begin::Apps Stats-->
+  <div class="col-xl-3 col-lg-6 col-md-6 col-6">
+    <div class="small-box text-bg-danger">
+      <div class="inner">
+        <h3>--</h3>
+        <p>Analyzed Apps</p>
+      </div>
+      <svg class="small-box-icon" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M11.644 1.59a.75.75 0 01.712 0l9.75 5.25a.75.75 0 010 1.32L12.356 13.41a.75.75 0 01-.712 0L2.394 8.16a.75.75 0 010-1.32L11.644 1.59zM3.097 10.194l8.903 4.794 8.903-4.794a.75.75 0 011 .894L12 16.644l-9.903-5.356a.75.75 0 011-.894zm0 3.75l8.903 4.794 8.903-4.794a.75.75 0 011 .894L12 20.394l-9.903-5.356a.75.75 0 011-.894z"></path>
+      </svg>
+      <a href="/models" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
+        Details <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+  <!--end::Apps Stats-->
+</div>

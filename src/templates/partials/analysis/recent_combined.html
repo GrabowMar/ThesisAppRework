@@ -1,0 +1,92 @@
+{# Modern Recent Activity Feed #}
+<!--begin::Recent Activity List-->
+<div class="list-group list-group-flush">
+  {% set has_activity = (recent_security and recent_security|length > 0) or (recent_performance and recent_performance|length > 0) %}
+  
+  {% if has_activity %}
+    {% set all_activities = [] %}
+    
+    <!-- Combine and sort all recent activities -->
+    {% for item in recent_security[:5] %}
+      {% set _ = all_activities.append({
+        'type': 'security',
+        'id': item.id,
+        'status': item.status,
+        'created_at': item.created_at,
+        'model_slug': item.model_slug,
+        'app_number': item.app_number,
+        'icon': 'bi bi-shield-check',
+        'color': 'primary'
+      }) %}
+    {% endfor %}
+    
+    {% for item in recent_performance[:5] %}
+      {% set _ = all_activities.append({
+        'type': 'performance',
+        'id': item.id,
+        'status': item.status,
+        'created_at': item.created_at,
+        'model_slug': item.model_slug,
+        'app_number': item.app_number,
+        'icon': 'bi bi-speedometer2',
+        'color': 'success'
+      }) %}
+    {% endfor %}
+    
+    <!-- Sort by created_at desc and take first 8 items -->
+    {% set sorted_activities = all_activities|sort(attribute='created_at', reverse=true)[:8] %}
+    
+    {% for activity in sorted_activities %}
+      <div class="list-group-item list-group-item-action border-0">
+        <div class="d-flex w-100 justify-content-between align-items-start">
+          <div class="d-flex align-items-center">
+            <div class="flex-shrink-0 me-3">
+              <div class="rounded-circle bg-{{ activity.color }}-subtle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                <i class="{{ activity.icon }} text-{{ activity.color }}"></i>
+              </div>
+            </div>
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center mb-1">
+                <h6 class="mb-0 me-2">{{ activity.type|title }} #{{ activity.id }}</h6>
+                <span class="badge text-bg-{{ 'success' if activity.status == 'completed' else 'warning' if activity.status == 'running' else 'secondary' }} badge-sm">
+                  {{ activity.status|title if activity.status else 'Unknown' }}
+                </span>
+              </div>
+              <p class="mb-0 small text-muted">
+                {% if activity.model_slug and activity.app_number %}
+                  {{ activity.model_slug|replace('_', ' ')|title }} - App {{ activity.app_number }}
+                {% else %}
+                  Analysis in progress
+                {% endif %}
+              </p>
+            </div>
+          </div>
+          <small class="text-muted text-nowrap ms-2">
+            {{ activity.created_at.strftime('%H:%M') if activity.created_at else 'N/A' }}
+          </small>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <!--begin::Empty State-->
+    <div class="list-group-item border-0">
+      <div class="text-center py-4">
+        <div class="mb-3">
+          <i class="bi bi-activity display-4 text-muted opacity-25"></i>
+        </div>
+        <h6 class="text-muted mb-2">No Recent Activity</h6>
+        <p class="text-muted small mb-3">Analysis results will appear here</p>
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+          <a href="/analysis/create#security" class="btn btn-primary btn-sm">
+            <i class="bi bi-shield-check me-1"></i>Start Security Scan
+          </a>
+          <a href="/analysis/create#performance" class="btn btn-success btn-sm">
+            <i class="bi bi-speedometer2 me-1"></i>Run Performance Test
+          </a>
+        </div>
+      </div>
+    </div>
+    <!--end::Empty State-->
+  {% endif %}
+</div>
+<!--end::Recent Activity List-->

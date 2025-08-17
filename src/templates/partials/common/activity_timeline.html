@@ -1,0 +1,84 @@
+{# AdminLTE (dist) integration note #}
+<div class="activity-timeline p-2" id="activity-timeline">
+    {% if activities %}
+        {% for activity in activities %}
+        <div class="activity-item mb-3 pb-3 {% if not loop.last %}border-bottom{% endif %}">
+            <div class="d-flex align-items-start">
+                <div class="activity-icon mr-3 mt-1 min-w-20">
+                    {% if activity.type == 'success' %}
+                        <i class="fas fa-check-circle text-success fs-0_9rem"></i>
+                    {% elif activity.type == 'warning' %}
+                        <i class="fas fa-exclamation-triangle text-warning fs-0_9rem"></i>
+                    {% elif activity.type == 'error' %}
+                        <i class="fas fa-times-circle text-danger fs-0_9rem"></i>
+                    {% elif activity.type == 'info' %}
+                        <i class="fas fa-info-circle text-info fs-0_9rem"></i>
+                    {% else %}
+                        <i class="fas fa-circle text-primary fs-0_9rem"></i>
+                    {% endif %}
+                </div>
+                <div class="activity-content flex-grow-1 min-w-0">
+                    <div class="activity-title font-weight-medium mb-1 fs-0_9rem">
+                        {{ activity.title or activity.message or activity.description or 'System Activity' }}
+                    </div>
+                    {% if activity.description and activity.description != (activity.title or activity.message) %}
+                    <div class="activity-description text-muted mb-2 fs-0_85rem">
+                        {{ activity.description }}
+                    </div>
+                    {% endif %}
+                    <div class="activity-meta d-flex align-items-center fs-0_75rem">
+                        <span class="text-muted mr-2">
+                            <i class="fas fa-clock mr-1"></i>
+                            {% if activity.timestamp %}
+                                {{ activity.timestamp.strftime('%H:%M:%S') }}
+                            {% elif activity.created_at %}
+                                {{ activity.created_at.strftime('%H:%M:%S') }}
+                            {% else %}
+                                Just now
+                            {% endif %}
+                        </span>
+                        
+                        {% if activity.source %}
+                            <span class="badge badge-outline-secondary badge-sm mr-2">{{ activity.source }}</span>
+                        {% endif %}
+                        
+                        {% if activity.status %}
+                            <span class="badge badge-{{ 
+                                'success' if activity.status == 'completed' else
+                                'warning' if activity.status == 'running' else
+                                'danger' if activity.status == 'failed' else
+                                'secondary'
+                            }} badge-sm">{{ activity.status.title() }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center py-4">
+            <i class="fas fa-history text-muted mb-3 fs-2_5rem opacity-50"></i>
+            <p class="text-muted mb-1 fs-0_9rem">No recent activity</p>
+            <small class="text-muted fs-0_8rem">System events will appear here</small>
+        </div>
+    {% endif %}
+    
+    <!-- View All Link -->
+    {% if activities and activities|length > 0 %}
+    <div class="text-center mt-3 pt-3 border-top">
+    <small class="text-muted fs-0_75rem">
+            <i class="fas fa-info-circle mr-1"></i>Showing {{ activities|length }} recent activities
+        </small>
+    </div>
+    {% endif %}
+    
+    <!-- View All Link -->
+    {% if activities and activities|length > 0 %}
+    <div class="text-center mt-3 pt-3 border-top">
+    <small class="text-muted fs-0_75rem">
+            <i class="fas fa-info-circle mr-1"></i>Showing {{ activities|length }} recent activities
+        </small>
+    </div>
+    {% endif %}
+</div>
+

@@ -1,0 +1,47 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Create analysis', subtitle='Start new security, dynamic, performance, or batch analysis', classes='module-analyses-create') %}
+  <div class="row g-3" hx-boost="false">
+  <div class="col-12 col-lg-6" id="security">
+      <div class="card h-100">
+        <div class="card-header"><i class="fas fa-shield-alt me-1"></i> Security analysis</div>
+        <div class="card-body">
+          <div hx-get="/analysis/security_test_form" hx-trigger="load" hx-swap="innerHTML">
+            <div class="text-muted">Loading form…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <div class="col-12 col-lg-6" id="dynamic">
+      <div class="card h-100">
+        <div class="card-header"><i class="fas fa-bolt me-1"></i> Dynamic analysis</div>
+        <div class="card-body">
+          <div hx-get="/analysis/dynamic_test_form" hx-trigger="load" hx-swap="innerHTML">
+            <div class="text-muted">Loading form…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <div class="col-12 col-lg-6" id="performance">
+      <div class="card h-100">
+        <div class="card-header"><i class="fas fa-tachometer-alt me-1"></i> Performance test</div>
+        <div class="card-body">
+          <div hx-get="/analysis/performance_test_form" hx-trigger="load" hx-swap="innerHTML">
+            <div class="text-muted">Loading performance form…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <div class="col-12" id="batch">
+      <div class="card h-100">
+        <div class="card-header"><i class="fas fa-layer-group me-1"></i> Batch analysis</div>
+        <div class="card-body">
+          <div hx-get="/analysis/batch_test_form" hx-trigger="load" hx-swap="innerHTML">
+            <div class="text-muted">Loading batch form…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endcall %}

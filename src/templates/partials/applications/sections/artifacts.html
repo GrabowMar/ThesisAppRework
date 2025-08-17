@@ -1,0 +1,41 @@
+{# AdminLTE (dist) integration note #}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="card-title mb-0"><i class="fas fa-book me-2"></i>Artifacts</h6>
+    <div class="small text-muted">Templates and generated files</div>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h6 class="text-muted">Templates</h6>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>Backend Template</span>
+            <span class="badge bg-light text-dark">{{ template_files.backend_file or '—' }}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>Frontend Template</span>
+            <span class="badge bg-light text-dark">{{ template_files.frontend_file or '—' }}</span>
+          </li>
+        </ul>
+      </div>
+      <div class="col-md-6">
+        <h6 class="text-muted">Generated</h6>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>PROJECT_INDEX.md</span>
+            <span class="badge bg-{{ 'success' if artifacts.project_index and artifacts.project_index.exists() else 'secondary' }}">{{ 'present' if artifacts.project_index and artifacts.project_index.exists() else 'missing' }}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>README.md</span>
+            <span class="badge bg-{{ 'success' if artifacts.readme and artifacts.readme.exists() else 'secondary' }}">{{ 'present' if artifacts.readme and artifacts.readme.exists() else 'missing' }}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>docker-compose.yml</span>
+            <span class="badge bg-{{ 'success' if artifacts.compose_path and artifacts.compose_path.exists() else 'secondary' }}">{{ 'present' if artifacts.compose_path and artifacts.compose_path.exists() else 'missing' }}</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>

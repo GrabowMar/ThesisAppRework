@@ -1,0 +1,90 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Models by Group', classes='module-models-grouped-cards') %}
+<!-- Models Cards Grouped View -->
+<div class="models-grouped-container">
+    {% for group_name, group_models in grouped_models.items() %}
+    <div class="model-group">
+        <h4 class="group-header">{{ group_name }} <span class="group-count">({{ group_models|length }})</span></h4>
+        <div class="models-cards-container">
+            {% for model in group_models %}
+            <div class="model-card" data-model-id="{{ model.id }}">
+                <div class="model-card-header">
+                    <div class="model-provider-badge">{{ model.provider.title() }}</div>
+                    <h5 class="model-title">{{ model.model_name }}</h5>
+                    {% if model.get_metadata().get('description') %}
+                    <p class="model-description">{{ model.get_metadata().get('description')[:100] }}{% if model.get_metadata().get('description')|length > 100 %}...{% endif %}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="model-card-body">
+                    <!-- Capabilities -->
+                    <div class="model-capabilities">
+                        {% set capabilities = model.get_capabilities() %}
+                        {% if model.supports_vision %}
+                        <span class="capability-badge vision">
+                            <i class="fas fa-eye"></i> Vision
+                        </span>
+                        {% endif %}
+                        {% if model.supports_function_calling %}
+                        <span class="capability-badge functions">
+                            <i class="fas fa-code"></i> Functions
+                        </span>
+                        {% endif %}
+                        {% if model.supports_streaming %}
+                        <span class="capability-badge streaming">
+                            <i class="fas fa-stream"></i> Streaming
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Performance Metrics -->
+                    {% set performance = model.get_performance_stats() %}
+                    {% if performance %}
+                    <div class="model-performance">
+                        {% if performance.avg_response_time %}
+                        <small class="performance-metric">
+                            <i class="fas fa-clock"></i> {{ "%.2f"|format(performance.avg_response_time) }}s
+                        </small>
+                        {% endif %}
+                        {% if performance.success_rate %}
+                        <small class="performance-metric">
+                            <i class="fas fa-check-circle"></i> {{ "%.1f"|format(performance.success_rate) }}%
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="model-card-footer">
+                    <div class="model-actions">
+                        <button class="btn btn-sm btn-outline-primary" 
+                                hx-get="{{ url_for('models.model_actions', model_slug=model.model_slug) }}"
+                                hx-target="#modal-content"
+                                data-bs-toggle="modal" 
+                                data-bs-target="#dynamicModal">
+                            <i class="fas fa-cog"></i> Configure
+                        </button>
+                        <button class="btn btn-sm btn-outline-info"
+                                hx-get="{{ url_for('models.model_apps', model_slug=model.model_slug) }}"
+                                hx-target="#modal-content"
+                                data-bs-toggle="modal" 
+                                data-bs-target="#dynamicModal">
+                            <i class="fas fa-apps"></i> Apps
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Total count -->
+{% if total %}
+<div class="models-summary">
+    <small class="text-muted">Total: {{ total }} models</small>
+</div>
+{% endif %}
+{% endcall %}

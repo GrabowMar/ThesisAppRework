@@ -1,0 +1,12 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+{% from 'macros/ui.html' import info_box %}
+
+{% call module_card(title='Applications Overview', classes='module-apps-overview') %}
+<div class="row mb-3">
+  <div class="col-md-3">{{ info_box('Total Apps', total_apps, 'primary', 'fas fa-th') }}</div>
+  <div class="col-md-3">{{ info_box('Running', running_containers, 'success', 'fas fa-play') }}</div>
+  <div class="col-md-3">{{ info_box('Stopped', stopped_containers, 'danger', 'fas fa-stop') }}</div>
+  <div class="col-md-3">{{ info_box('Models', total_models, 'info', 'fas fa-layer-group') }}</div>
+</div>
+{% endcall %}

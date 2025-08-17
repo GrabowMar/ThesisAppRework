@@ -1,0 +1,103 @@
+{# AdminLTE (dist) integration note #}
+<!-- Dynamic Analysis Complete View -->
+<div class="container-fluid p-0">
+  <div class="row g-3">
+    <div class="col-12 col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-header bg-info text-white d-flex align-items-center">
+          <i class="fas fa-bolt me-2"></i>
+          <strong>ZAP Scan Summary</strong>
+          <span class="badge bg-light text-dark ms-auto">ID #{{ analysis.id }}</span>
+        </div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-6 col-md-3 mb-3">
+              <div class="fw-bold text-danger">High</div>
+              <div class="display-6">{{ counts.high }}</div>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+              <div class="fw-bold text-warning">Medium</div>
+              <div class="display-6">{{ counts.medium }}</div>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+              <div class="fw-bold text-primary">Low</div>
+              <div class="display-6">{{ counts.low }}</div>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+              <div class="fw-bold text-secondary">Info</div>
+              <div class="display-6">{{ counts.info }}</div>
+            </div>
+          </div>
+          <hr>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div><strong>Status:</strong> {{ analysis.status }}</div>
+              <div><strong>Scan Type:</strong> {{ analysis.scan_type }}</div>
+            </div>
+            <div class="col-md-6">
+              <div><strong>Target:</strong> {{ analysis.target_url or 'inferred from app port' }}</div>
+              <div><strong>Started:</strong> {{ analysis.started_at or 'N/A' }} | <strong>Completed:</strong> {{ analysis.completed_at or 'N/A' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-header d-flex align-items-center">
+          <i class="fas fa-list-alt me-2"></i>
+          <strong>Alerts</strong>
+          <button class="btn btn-sm btn-outline-secondary ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#rawZapJson">Toggle Raw JSON</button>
+        </div>
+        <div class="card-body">
+          {% if zap_report and zap_report.site and zap_report.site[0].alerts %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Risk</th>
+                    <th>Alert</th>
+                    <th>URL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for alert in zap_report.site[0].alerts %}
+                    <tr>
+                      <td>
+                        {% set risk = alert.riskcode|int %}
+                {% call module_card(title='Dynamic Analysis Complete', classes='module-dynamic-complete') %}
+                {% comment %} dynamic_complete content {% endcomment %}
+                        {% if risk == 3 %}<span class="badge bg-danger">High</span>
+                        {% elif risk == 2 %}<span class="badge bg-warning text-dark">Medium</span>
+                        {% elif risk == 1 %}<span class="badge bg-primary">Low</span>
+                        {% else %}<span class="badge bg-secondary">Info</span>{% endif %}
+                      </td>
+                {% endcall %}
+                      <td>{{ alert.alert or alert.name }}</td>
+                      <td class="text-truncate mw-380" title="{{ alert.url }}">{{ alert.url }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="alert alert-secondary mb-0">No alerts available yet. If the scan is still running, refresh shortly.</div>
+          {% endif %}
+          <div id="rawZapJson" class="collapse mt-3">
+            <pre class="bg-light p-2 border rounded small">{{ zap_report | tojson(indent=2) }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <strong>Metadata</strong>
+        </div>
+        <div class="card-body">
+          <pre class="bg-light p-2 border rounded small">{{ metadata | tojson(indent=2) }}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

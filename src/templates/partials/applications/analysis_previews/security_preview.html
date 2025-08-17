@@ -1,0 +1,35 @@
+{# AdminLTE (dist) integration note #}
+<div class="border rounded p-2 bg-light-subtle">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <div class="fw-semibold">Security Analysis #{{ analysis.id }}</div>
+      <div class="text-muted small">
+        {{ analysis.created_at.strftime('%Y-%m-%d %H:%M') if analysis.created_at else '—' }}
+        • Status: {{ analysis.status or 'done' }}
+        • Duration: {{ scan_duration }}
+      </div>
+    </div>
+    <div>
+      <a class="btn btn-sm btn-outline-primary" href="/analysis/security/{{ analysis.id }}/results/view" target="_blank">
+        <i class="fas fa-external-link-alt me-1"></i>Open full
+      </a>
+    </div>
+  </div>
+  <div class="mt-2 small">
+    <span class="badge text-bg-danger me-1">Critical/High: {{ critical_high_count }}</span>
+    <span class="badge text-bg-secondary me-1">Total findings: {{ total_vulnerabilities }}</span>
+    <span class="badge text-bg-info">Tools: {{ tools_executed }}</span>
+  </div>
+  <details class="mt-2">
+    <summary class="small">Quick breakdown</summary>
+    <div class="mt-2">
+      <ul class="mb-0 small">
+        <li>Bandit: {{ (bandit_results.results|length) if bandit_results and bandit_results.results is defined else (bandit_results['results']|length) if bandit_results and bandit_results['results'] is defined else 0 }} issues</li>
+        <li>Safety: {{ (safety_results.vulnerabilities|length) if safety_results and safety_results.vulnerabilities is defined else (safety_results['vulnerabilities']|length) if safety_results and safety_results['vulnerabilities'] is defined else 0 }} packages</li>
+        <li>ZAP Alerts: {{ (zap_results.site[0].alerts|length) if zap_results and zap_results.site is defined and zap_results.site and zap_results.site[0].alerts is defined else (zap_results['site'][0]['alerts']|length) if zap_results and 'site' in zap_results and zap_results['site'] and 'alerts' in zap_results['site'][0] else 0 }}</li>
+        <li>Pylint: {{ (pylint_results|length) if pylint_results else 0 }} items</li>
+        <li>ESLint: {% set _cnt = 0 %}{% if eslint_results %}{% for f in eslint_results %}{% set _cnt = _cnt + (f.messages|length if f.messages is defined else (f['messages']|length if 'messages' in f else 0)) %}{% endfor %}{% endif %}{{ _cnt }} items</li>
+      </ul>
+    </div>
+  </details>
+</div>

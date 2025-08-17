@@ -1,0 +1,16 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Dashboard Stats', classes='module-dashboard-stats') %}
+<div id="dashboard-stats"
+    data-refresh-interval="30s"
+    hx-get="{{ url_for('api.dashboard_stats_fragment') }}"
+    hx-trigger="load, every 30s"
+    hx-target="#dashboard-stats"
+    hx-swap="innerHTML"
+    hx-indicator="#global-spinner">
+    <div class="text-center text-muted py-3">
+        <i class="fas fa-spinner fa-spin mr-1"></i>Loading stats...
+    </div>
+</div>
+{% endcall %}

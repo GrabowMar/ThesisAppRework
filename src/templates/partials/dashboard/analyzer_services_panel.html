@@ -1,0 +1,95 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Analyzer Services', classes='module-analyzer-services', header_actions='\
+    <div class="btn-group btn-group-sm" role="group">\
+        <button class="btn btn-outline-primary" onclick="htmx.trigger(document.getElementById(\'analyzer-services-panel\'), \'refresh\')"><i class=\'fas fa-sync me-1\'></i>Refresh</button>\
+        <button class="btn btn-outline-success" onclick="startAnalyzerService()"><i class=\'fas fa-play me-1\'></i>Start</button>\
+        <button class="btn btn-outline-danger" onclick="stopAnalyzerService()"><i class=\'fas fa-stop me-1\'></i>Stop</button>\
+    </div>\
+') %}
+<div id="analyzer-services-panel"
+     data-refresh-interval="30s"
+     hx-get="{{ url_for('api.dashboard_analyzer_services') }}"
+     hx-trigger="load, every 30s, refresh"
+     hx-target="#analyzer-services-panel"
+     hx-swap="innerHTML"
+     hx-indicator="#global-spinner">
+    <div class="text-center text-muted py-3">
+        <i class="fas fa-spinner fa-spin mr-1"></i>Loading analyzer services...
+    </div>
+</div>
+{% endcall %}
+
+<script>
+// Minimal per-service controls using available bulk endpoints as a fallback
+function startAnalyzerService(name) {
+    fetch('/api/analyzer/start-all', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (window.dashboard && dashboard.showNotification) {
+                dashboard.showNotification(`Starting analyzer services${name ? ' ('+name+')' : ''}...`, 'success');
+            }
+            if (typeof htmx !== 'undefined') {
+                const panel = document.getElementById('analyzer-services-panel');
+                if (panel) htmx.trigger(panel, 'refresh');
+                const docker = document.getElementById('docker-status-content');
+                if (docker) htmx.trigger(docker, 'refreshDockerStatus');
+            }
+        })
+        .catch(() => {
+            if (window.dashboard && dashboard.showNotification) {
+                dashboard.showNotification('Failed to start analyzer services', 'error');
+            }
+        });
+}
+
+function stopAnalyzerService(name) {
+    fetch('/api/analyzer/stop-all', { method: 'POST' })
+        .then(r => r.json())
+        .then(() => {
+            if (window.dashboard && dashboard.showNotification) {
+                dashboard.showNotification(`Stopping analyzer services${name ? ' ('+name+')' : ''}...`, 'warning');
+            }
+            if (typeof htmx !== 'undefined') {
+                const panel = document.getElementById('analyzer-services-panel');
+                if (panel) htmx.trigger(panel, 'refresh');
+                const docker = document.getElementById('docker-status-content');
+                if (docker) htmx.trigger(docker, 'refreshDockerStatus');
+            }
+        })
+        .catch(() => {
+            if (window.dashboard && dashboard.showNotification) {
+                dashboard.showNotification('Failed to stop analyzer services', 'error');
+            }
+        });
+}
+
+function restartAnalyzerService(name) {
+    fetch('/api/analyzer/restart-all', { method: 'POST' })
+        .then(r => r.json())
+        .then(() => {
+            if (window.dashboard && dashboard.showNotification) {
+                dashboard.showNotification(`Restarting analyzer services${name ? ' ('+name+')' : ''}...`, 'info');
+            }
+            if (typeof htmx !== 'undefined') {
+                const panel = document.getElementById('analyzer-services-panel');
+                if (panel) htmx.trigger(panel, 'refresh');
+                const docker = document.getElementById('docker-status-content');
+                if (docker) htmx.trigger(docker, 'refreshDockerStatus');
+            }
+        })
+        .catch(() => {
+            if (window.dashboard && dashboard.showNotification) {
+                dashboard.showNotification('Failed to restart analyzer services', 'error');
+            }
+        });
+}
+
+function viewServiceLogs(name) {
+    if (window.dashboard && dashboard.showNotification) {
+        dashboard.showNotification(`Logs for ${name} will be available soon`, 'info');
+    } else {
+        alert('Logs viewer coming soon');
+    }
+}
+</script>

@@ -1,0 +1,135 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Models List', classes='module-models-list') %}
+<!-- Models List View -->
+<div class="models-list-container">
+    {% if models %}
+        <div class="list-group">
+            {% for model in models %}
+            <div class="list-group-item d-flex justify-content-between align-items-start"
+                 data-model-slug="{{ model.model_slug }}">
+                <div class="ms-2 me-auto">
+                    <div class="fw-bold d-flex align-items-center">
+                        <span class="badge bg-{{ 
+                            'primary' if model.provider == 'openai' else
+                            'success' if model.provider == 'anthropic' else
+                            'info' if model.provider == 'google' else
+                            'warning' if model.provider == 'deepseek' else
+                            'secondary'
+                        }} me-2">{{ model.provider.title() }}</span>
+                        {{ model.model_name }}
+                    </div>
+                    <small class="text-muted">
+                        {{ model.apps_count }} applications • 
+                        {{ model.analyses_count }} analyses • 
+                        {{ model.success_rate }}% success rate
+                    </small>
+                    <div class="mt-1">
+                        {% for capability in model.capabilities[:3] %}
+                        <span class="badge bg-light text-dark me-1">{{ capability }}</span>
+                        {% endfor %}
+                        {% if model.capabilities|length > 3 %}
+                        <span class="badge bg-secondary">+{{ model.capabilities|length - 3 }} more</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="model-actions">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                type="button" 
+                                data-bs-toggle="dropdown">
+                            Actions
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" 
+                                   hx-get="/advanced/models/{{ model.model_slug }}/details"
+                                   hx-target="#model-details-modal"
+                                   hx-swap="innerHTML">
+                                    <i class="fas fa-info-circle me-2"></i>View Details
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" 
+                                   href="/advanced/apps?model={{ model.model_slug }}">
+                                    <i class="fas fa-apps me-2"></i>View Applications
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" 
+                                   hx-post="/api/models/{{ model.model_slug }}/test"
+                                   hx-target="#test-results"
+                                   hx-confirm="Run a test generation with this model?">
+                                    <i class="fas fa-play me-2"></i>Test Model
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="Models pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" 
+                       hx-get="{{ url_for('models.models_overview', page=pagination.prev_num) }}"
+                       hx-target="#models-container"
+                       hx-push-url="true">Previous</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in pagination.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != pagination.page %}
+                        <li class="page-item">
+                            <a class="page-link" 
+                               hx-get="{{ url_for('models.models_overview', page=page_num) }}"
+                               hx-target="#models-container"
+                               hx-push-url="true">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" 
+                       hx-get="{{ url_for('models.models_overview', page=pagination.next_num) }}"
+                       hx-target="#models-container"
+                       hx-push-url="true">Next</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-robot text-muted mb-3 fs-4rem"></i>
+            <h4 class="text-muted">No Models Found</h4>
+            <p class="text-muted">No models match your current filter criteria.</p>
+            <button class="btn btn-primary" 
+                    hx-get="/advanced/models"
+                    hx-target="#models-container">
+                Clear Filters
+            </button>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal container for model details -->
+<div id="model-details-modal"></div>
+<div id="test-results"></div>
+{% endcall %}

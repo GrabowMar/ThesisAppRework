@@ -1,0 +1,31 @@
+{# AdminLTE (dist) integration note #}
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Analyses', subtitle='Past and running tasks across types', classes='module-analyses-list') %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary" hx-get="/analysis/api/list/combined" hx-target="#analyses-list" hx-swap="innerHTML">All</button>
+      <button class="btn btn-outline-secondary" hx-get="/analysis/api/list/security" hx-target="#analyses-list" hx-swap="innerHTML">Security</button>
+      <button class="btn btn-outline-secondary" hx-get="/analysis/api/list/dynamic" hx-target="#analyses-list" hx-swap="innerHTML">Dynamic</button>
+      <button class="btn btn-outline-secondary" hx-get="/analysis/api/list/performance" hx-target="#analyses-list" hx-swap="innerHTML">Performance</button>
+    </div>
+    <div>
+      <a class="btn btn-primary" href="/analysis/create"><i class="fas fa-plus"></i> New analysis</a>
+    </div>
+  </div>
+
+  <div id="analyses-list"
+       hx-get="/analysis/api/list/combined"
+       hx-trigger="load, every 30s"
+       hx-swap="innerHTML">
+    <div class="text-muted">Loading…</div>
+  </div>
+
+  <hr class="my-4">
+  <div id="active-tasks"
+       hx-get="/analysis/api/active-tasks"
+       hx-trigger="load, every 10s"
+       hx-swap="innerHTML">
+    <div class="small text-muted">Fetching active tasks…</div>
+  </div>
+{% endcall %}

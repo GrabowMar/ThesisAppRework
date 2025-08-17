@@ -1,0 +1,153 @@
+{% from 'macros/ui.html' import card_table %}
+
+{% call(card_table(
+    title='Models Table',
+    headers=['', 'Model','Provider','Capabilities','Context','Cost (Input)','Cost (Output)','Efficiency','Safety','Actions'],
+    actions='<div class="btn-group btn-group-sm" role="group">\
+                         <a class="btn btn-outline-secondary" href="' ~ url_for('models.export_models_csv') ~ '"><i class="fas fa-file-csv me-1"></i>Export</a>\
+                         <button class="btn btn-outline-primary" onclick="modelsOverview && modelsOverview.refresh && modelsOverview.refresh()"><i class="fas fa-sync me-1"></i>Refresh</button>\
+                     </div>'
+)) %}
+                        {% for model in models %}
+            <tr class="model-row" data-model-id="{{ model.id }}">
+                <td>
+                    <input type="checkbox" class="model-select-checkbox" value="{{ model.id }}">
+                </td>
+                <td>
+                    <div class="model-name-cell">
+                        <strong>{{ model.model_name }}</strong>
+                        {% if model.is_free %}
+                        <span class="badge bg-success ms-1">Free</span>
+                        {% endif %}
+                        <br>
+                        <small class="text-muted">{{ model.model_id }}</small>
+                    </div>
+                </td>
+                <td>
+                    <span class="provider-badge provider-{{ model.provider }}">
+                        {{ model.provider.title() }}
+                    </span>
+                </td>
+                <td>
+                    <div class="capabilities-cell">
+                        {% if model.supports_vision %}
+                        <span class="capability-icon" title="Vision Support">
+                            <i class="fas fa-eye text-primary"></i>
+                        </span>
+                        {% endif %}
+                        {% if model.supports_function_calling %}
+                        <span class="capability-icon" title="Function Calling">
+                            <i class="fas fa-cogs text-success"></i>
+                        </span>
+                        {% endif %}
+                        {% if model.supports_streaming %}
+                        <span class="capability-icon" title="Streaming">
+                            <i class="fas fa-stream text-info"></i>
+                        </span>
+                        {% endif %}
+                        {% if model.supports_json_mode %}
+                        <span class="capability-icon" title="JSON Mode">
+                            <i class="fas fa-code text-warning"></i>
+                        </span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    <span class="context-window">
+                        {% if model.context_window > 0 %}
+                        {{ (model.context_window / 1000) | round(0) | int }}K
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="cost-cell">
+                        {% if model.input_price_per_token == 0 %}
+                        <span class="text-success">Free</span>
+                        {% else %}
+                        ${{ "%.4f"|format(model.input_price_per_token) }}
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="cost-cell">
+                        {% if model.output_price_per_token == 0 %}
+                        <span class="text-success">Free</span>
+                        {% else %}
+                        ${{ "%.4f"|format(model.output_price_per_token) }}
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <div class="efficiency-cell">
+                        <div class="progress h-8px">
+                            <div class="progress-bar bg-info" 
+                                 data-width="{{ (model.cost_efficiency * 10) }}%"
+                                 title="{{ (model.cost_efficiency * 10) | round(1) }}/10">
+                            </div>
+                        </div>
+                        <small>{{ (model.cost_efficiency * 10) | round(1) }}/10</small>
+                    </div>
+                </td>
+                <td>
+                    <div class="safety-cell">
+                        <div class="progress h-8px">
+                            <div class="progress-bar bg-success" 
+                                 data-width="{{ (model.safety_score * 10) }}%"
+                                 title="{{ (model.safety_score * 10) | round(1) }}/10">
+                            </div>
+                        </div>
+                        <small>{{ (model.safety_score * 10) | round(1) }}/10</small>
+                    </div>
+                </td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn btn-sm btn-primary btn-view-model" 
+                                data-model-id="{{ model.id }}" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning btn-compare-model" 
+                                data-model-id="{{ model.id }}" title="Add to Comparison">
+                            <i class="fas fa-balance-scale"></i>
+                        </button>
+                        <button class="btn btn-sm btn-success btn-test-model" 
+                                data-model-id="{{ model.id }}" title="Test Model">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        
+    {% if not models %}
+    <div class="text-center py-5">
+        <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+        <h4>No Models Found</h4>
+        <p class="text-muted">No models match your current filter criteria.</p>
+        <button class="btn btn-primary" onclick="clearAllFilters()">
+            <i class="fas fa-eraser mr-1"></i> Clear Filters
+        </button>
+    </div>
+    {% endif %}
+{% endcall %}
+
+<!-- Results info for JavaScript -->
+<div id="results-info-data" class="d-none">
+    Showing {{ models|length }} of {{ total }} models
+</div>
+
+<script>
+function toggleAllModels(checkbox) {
+    const modelCheckboxes = document.querySelectorAll('.model-select-checkbox');
+    modelCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+        if (checkbox.checked) {
+            modelsOverview.comparisonModels.add(cb.value);
+        } else {
+            modelsOverview.comparisonModels.delete(cb.value);
+        }
+    });
+    modelsOverview.updateComparisonUI();
+}
+</script>

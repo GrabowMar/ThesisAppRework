@@ -1,0 +1,44 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='Model Performance', classes='module-model-performance', header_actions='<button class="btn btn-sm btn-outline-secondary" hx-get="' ~ url_for('statistics.statistics_overview') ~ '" hx-target="#model-performance" hx-swap="outerHTML" hx-indicator="#global-spinner">Refresh</button>') %}
+
+<div id="model-performance">
+  {% if performance_rows %}
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Avg. Latency (ms)</th>
+          <th>Avg. Tokens</th>
+          <th>Pass Rate</th>
+          <th>Trend</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in performance_rows %}
+        <tr>
+          <td class="text-nowrap">{{ row.model_slug }}</td>
+          <td>{{ row.avg_latency|default('-') }}</td>
+          <td>{{ row.avg_tokens|default('-') }}</td>
+          <td>
+            <span class="badge badge-{{ 'success' if (row.pass_rate or 0) >= 0.9 else 'warning' if (row.pass_rate or 0) >= 0.7 else 'secondary' }}">
+              {{ (row.pass_rate * 100)|round(1) if row.pass_rate is not none else '—' }}%
+            </span>
+          </td>
+          <td>
+            <div class="progress h-4px">
+              <div class="progress-bar bg-info" role="progressbar" data-width="{{ row.trend_percent|default(0) }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="text-muted">No performance data available.</div>
+  {% endif %}
+</div>
+
+{% endcall %}
