@@ -1,0 +1,147 @@
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+{% call module_card(title='', classes='module-apps-grid') %}
+<div id="operation-status" class="hx-indicator small text-muted">
+    <i class="fas fa-spinner fa-spin me-1"></i> Working…
+</div>
+
+<div class="d-flex justify-content-end align-items-center gap-2 mb-2">
+    <button class="btn btn-sm btn-outline-secondary" title="Expand all models" _="on click call expandAll()"><i class="fas fa-plus-square me-1"></i>Expand all</button>
+    <button class="btn btn-sm btn-outline-secondary" title="Collapse all models" _="on click call collapseAll()"><i class="fas fa-minus-square me-1"></i>Collapse all</button>
+</div>
+
+{% if application_grid %}
+    {% for entry in application_grid %}
+    {% set collapse_id = 'model-' ~ entry.model.canonical_slug %}
+    <div class="mb-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}" aria-expanded="false" aria-controls="{{ collapse_id }}">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <div>
+                    <h6 class="mb-0">{{ entry.model.display_name or entry.model.model_name or entry.model.canonical_slug }}</h6>
+                    {% set prov = entry.model.provider|lower %}
+                    {% set prov_color = 'warning' if prov=='anthropic' else ('info' if prov=='openai' else ('primary' if prov=='google' else ('secondary'))) %}
+                    <small class="text-muted">{{ entry.apps_count }} apps • Provider: <span class="badge bg-{{ prov_color }}">{{ entry.model.provider }}</span></small>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="fas fa-layer-group me-1"></i>Batch</button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#" hx-post="/api/analysis/model/{{ entry.model.canonical_slug }}/security" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-shield-alt me-2"></i>Security analyses</a></li>
+                        <li><a class="dropdown-item" href="#" hx-post="/api/analysis/model/{{ entry.model.canonical_slug }}/performance" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-tachometer-alt me-2"></i>Performance tests</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/build" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="trigger refresh-grid"><i class="fas fa-hammer me-2"></i>Build all</a></li>
+                    </ul>
+                </div>
+                <button class="btn btn-sm btn-outline-success" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/start" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-play me-1"></i>Start all</button>
+                <button class="btn btn-sm btn-outline-warning" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/restart" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-redo me-1"></i>Restart all</button>
+                <button class="btn btn-sm btn-outline-danger" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/stop" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-stop me-1"></i>Stop all</button>
+            </div>
+        </div>
+
+        <div id="{{ collapse_id }}" class="collapse" hx-post="/api/model/{{ entry.model.canonical_slug }}/containers/sync-status?format=html" hx-trigger="revealed" hx-target="#{{ collapse_id }} .model-apps" hx-indicator="#operation-status">
+            <div class="model-apps">
+                <div class="row g-3 mt-2">
+                    {% for app in entry.apps %}
+                    <div class="col-12 col-md-6 col-lg-4 col-xxl-3">
+                        <div class="card shadow-sm h-100" data-model="{{ entry.model.canonical_slug }}" data-app="{{ app.app_number }}" data-status="{{ app.status }}">
+                            <div class="card-body py-3">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="fw-semibold">#{{ app.app_number }}</span>
+                                        <span class="text-muted small">{{ app.app_type }}</span>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        {% set sc = 'success' if app.status=='running' else ('danger' if app.status=='error' else ('warning' if app.status=='pending' else 'secondary')) %}
+                                        <span class="badge rounded-pill text-bg-{{ sc }}">{{ app.status.replace('_',' ').title() if app.status else 'Unknown' }}</span>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions menu" title="Actions"><i class="fas fa-ellipsis-v"></i></button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><a class="dropdown-item" href="/models/application/{{ entry.model.canonical_slug }}/{{ app.app_number }}"><i class="fas fa-info-circle me-2"></i>Details</a></li>
+                                                {% if app.ports and app.ports.frontend %}
+                                                    <li><a class="dropdown-item" target="_blank" href="http://localhost:{{ app.ports.frontend }}"><i class="fas fa-globe me-2"></i>Visit website</a></li>
+                                                {% endif %}
+                                                {% if app.exists %}
+                                                    {% if app.status == 'running' %}
+                                                        <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-stop me-2"></i>Stop</a></li>
+                                                    {% else %}
+                                                        <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-play me-2"></i>Start</a></li>
+                                                    {% endif %}
+                                                    <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-redo me-2"></i>Restart</a></li>
+                                                    {% if app.has_docker_compose %}
+                                                        <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="call syncModel('{{ entry.model.canonical_slug }}', '#{{ collapse_id }} .model-apps')"><i class="fas fa-hammer me-2"></i>Build</a></li>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <li><span class="dropdown-item-text text-muted"><i class="fas fa-ban me-2"></i>Not created</span></li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+                                    {% if app.ports and (app.ports.frontend or app.ports.backend) %}
+                                        {% if app.ports.frontend %}
+                                            <span class="badge rounded-pill text-bg-info" title="Frontend port"><i class="fas fa-globe me-1"></i>FE {{ app.ports.frontend }}</span>
+                                        {% endif %}
+                                        {% if app.ports.backend %}
+                                            <span class="badge rounded-pill text-bg-info" title="Backend port"><i class="fas fa-plug me-1"></i>BE {{ app.ports.backend }}</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge rounded-pill text-bg-secondary" title="No ports available"><i class="fas fa-ban me-1"></i>No ports</span>
+                                    {% endif %}
+                                    {% if app.has_docker_compose %}
+                                        <span class="badge rounded-pill text-bg-success" title="Docker Compose available"><i class="fas fa-hammer me-1"></i>Compose</span>
+                                    {% else %}
+                                        <span class="badge rounded-pill text-bg-secondary" title="Docker Compose not found"><i class="fas fa-file me-1"></i>No compose</span>
+                                    {% endif %}
+                                    {% if app.exists %}
+                                        <span class="badge rounded-pill text-bg-success" title="Application code present"><i class="fas fa-code me-1"></i>Generated</span>
+                                    {% else %}
+                                        <span class="badge rounded-pill text-bg-danger" title="Application not generated"><i class="fas fa-exclamation-triangle me-1"></i>Missing</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="d-flex align-items-center justify-content-between mt-2">
+                                    <a class="btn btn-sm btn-outline-primary" title="Details" href="/models/application/{{ entry.model.canonical_slug }}/{{ app.app_number }}"><i class="fas fa-info-circle me-1"></i>Details</a>
+                                    {% if app.ports and app.ports.frontend %}
+                                        <a class="btn btn-sm btn-success" title="Visit website" target="_blank" href="http://localhost:{{ app.ports.frontend }}"><i class="fas fa-globe me-1"></i>Visit</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% elif applications %}
+    <div class="apps-grid">
+        {% for app in applications %}
+        <div class="app-card app-exists" data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" data-status="{{ app.status }}">
+            <div>
+                <div class="app-number">#{{ app.app_number }}</div>
+                <div class="status-badge">
+                    <span class="badge bg-{{ 'success' if app.status=='running' else 'secondary' }}">{{ app.status.title() }}</span>
+                </div>
+                <div class="app-type">—</div>
+            </div>
+            <div class="app-actions d-flex gap-1">
+                <a class="btn btn-sm btn-outline-primary" title="Open details" href="/models/application/{{ app.model_slug }}/{{ app.app_number }}"><i class="fas fa-external-link-alt"></i></a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="apps-empty text-center py-4">
+        <i class="fas fa-search fa-2x text-muted mb-3"></i>
+        <h5>No Applications Found</h5>
+        <p class="text-muted small">No applications match your criteria.</p>
+    </div>
+{% endif %}
+{% endcall %}

@@ -1,0 +1,25 @@
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <h6 class="mb-0"><i class="fab fa-docker me-2"></i>Container Controls</h6>
+    <span class="badge bg-{{ 'success' if app_data.container_status == 'running' else 'secondary' }}">{{ app_data.container_status|title }}</span>
+  </div>
+  <div class="card-body">
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-success" {% if not app_data.exists_in_db %}disabled{% endif %}
+              onclick="fetch('/api/applications/{{ app_data.id }}/start',{method:'POST'}).then(()=>location.reload())">
+        <i class="fas fa-play me-1"></i>Start
+      </button>
+      <button class="btn btn-sm btn-danger" {% if not app_data.exists_in_db %}disabled{% endif %}
+              onclick="fetch('/api/applications/{{ app_data.id }}/stop',{method:'POST'}).then(()=>location.reload())">
+        <i class="fas fa-stop me-1"></i>Stop
+      </button>
+      <button class="btn btn-sm btn-outline-primary" {% if not app_data.exists_in_db %}disabled{% endif %}
+              onclick="fetch('/api/applications/{{ app_data.id }}/restart',{method:'POST'}).then(()=>location.reload())">
+        <i class="fas fa-redo me-1"></i>Restart
+      </button>
+      <a class="btn btn-sm btn-outline-info" target="_blank" {% if not ports or not ports.frontend %}disabled href="#"{% else %}href="http://localhost:{{ ports.frontend }}"{% endif %}>
+        <i class="fas fa-external-link-alt me-1"></i>Open Frontend
+      </a>
+    </div>
+  </div>
+</div>

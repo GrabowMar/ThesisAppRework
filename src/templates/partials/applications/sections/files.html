@@ -1,0 +1,51 @@
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <h6 class="mb-0"><i class="fas fa-folder-open me-2"></i>Files</h6>
+    <span class="badge bg-info">{{ code_stats.total_files }} total</span>
+  </div>
+  <div class="card-body">
+    {% if not files_info.app_exists %}
+      <div class="alert alert-warning mb-0">No application folder found at misc/models/{{ app_data.model_slug }}/app{{ app_data.app_number }}</div>
+    {% else %}
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h6 class="text-muted">Backend</h6>
+          <ul class="list-group list-group-flush small">
+            {% for f in files_info.backend_files[:30] %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span class="text-truncate" style="max-width:75%">{{ f.path }}</span>
+                <button class="btn btn-sm btn-outline-secondary" 
+                        hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path={{ f.path|urlencode }}"
+                        hx-target="#file-preview" hx-swap="innerHTML">
+                  Preview
+                </button>
+              </li>
+            {% else %}
+              <li class="list-group-item text-muted">No backend files</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h6 class="text-muted">Frontend</h6>
+          <ul class="list-group list-group-flush small">
+            {% for f in files_info.frontend_files[:30] %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span class="text-truncate" style="max-width:75%">{{ f.path }}</span>
+                <button class="btn btn-sm btn-outline-secondary" 
+                        hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path={{ f.path|urlencode }}"
+                        hx-target="#file-preview" hx-swap="innerHTML">
+                  Preview
+                </button>
+              </li>
+            {% else %}
+              <li class="list-group-item text-muted">No frontend files</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="col-12">
+          <div id="file-preview" class="mt-3"></div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>

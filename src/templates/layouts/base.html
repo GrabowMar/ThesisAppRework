@@ -157,13 +157,14 @@
     <!-- Project JavaScript -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     
-        <!-- Optional global hyperscript hook to gently highlight swapped comparison panel -->
-            <script type="text/hyperscript">
-                on htmx:afterSwap from #comparison-panel
-                    add .border-primary to #comparison-panel
-                    wait 500ms
-                    remove .border-primary from #comparison-panel
-                end
+        <!-- Optional global hook to gently highlight swapped comparison panel (guarded) -->
+            <script>
+                window.addEventListener('htmx:afterSwap', function () {
+                    var panel = document.getElementById('comparison-panel');
+                    if (!panel) return;
+                    panel.classList.add('border-primary');
+                    setTimeout(function () { panel.classList.remove('border-primary'); }, 500);
+                });
             </script>
     {% endblock %}
     

@@ -293,6 +293,15 @@
     <div id="applications-container">
         {% include 'fragments/applications_grid.html' %}
     </div>
+
+    <!-- Hidden HTMX refresher: reloads grid when 'refresh-grid' is triggered by the generate form -->
+    <div id="grid-refresher"
+         hx-get="{{ url_for('models.applications') }}"
+         hx-target="#applications-container"
+         hx-select="#applications-container"
+         hx-swap="innerHTML"
+         hx-trigger="refresh-grid from:#generateAppForm"
+         class="d-none"></div>
 </div>
 
 <!-- Generate Application Modal -->
@@ -303,7 +312,7 @@
                 <h5 class="modal-title">Generate New Application</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form id="generateAppForm" hx-post="{{ url_for('applications.generate') }}" 
+            <form id="generateAppForm" hx-post="{{ url_for('models.generate_application') }}" 
                   hx-target="#generate-result" hx-indicator="#generate-spinner">
                 <div class="modal-body">
                     <div id="generate-result"></div>
@@ -410,8 +419,8 @@ function switchView(view) {
     url.searchParams.set('view', view);
     window.history.pushState({}, '', url);
     
-    // Load appropriate view
-    htmx.ajax('GET', `/applications?view=${view}`, {
+    // Load appropriate view (models blueprint route)
+    htmx.ajax('GET', `/models/applications?view=${view}`, {
         target: '#applications-container',
         swap: 'innerHTML'
     });
@@ -692,5 +701,19 @@ function showError(message) {
     // Implementation would show error toast/alert
     console.error('Error:', message);
 }
+</script>
+
+<!-- Provide hyperscript helpers used by the grid fragment (expand/collapse all) -->
+<script type="text/hyperscript">
+    def expandAll()
+        for el in .module-apps-grid .collapse
+            js bootstrap.Collapse.getOrCreateInstance(el, {toggle:false}).show()
+        end
+    end
+    def collapseAll()
+        for el in .module-apps-grid .collapse
+            js bootstrap.Collapse.getOrCreateInstance(el, {toggle:false}).hide()
+        end
+    end
 </script>
 {% endblock %}

@@ -1,968 +1,152 @@
-{#
-    Application Detail Page
-    Purpose: Comprehensive view of a single generated application with all analysis results
-    
-    Features:
-    - Application metadata and generation details
-    - File browser with syntax highlighting
-    - Analysis results tabs (security, performance, dynamic)
-    - Port management and application controls
-    - Version history and comparison tools
-    
-    Dependencies: Requires Prism.js for syntax highlighting, Bootstrap 5, HTMX
-#}
-
-{% extends "layouts/base.html" %}
-{% set page_title = "Application Detail - " + application.model_slug|replace('_', ' ')|title + " #" + application.app_number|string %}
-{% set active_page = "applications" %}
+{# AdminLTE (dist) integrated template #}
+{% extends 'layouts/base.html' %}
+{% set page_title = 'Application ' ~ (app_data.app_number) ~ ' — ' ~ (model.display_name or application.model_slug) %}
+{% set active_page = 'applications' %}
 
 {% block head_extra %}
-<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/toolbar/prism-toolbar.css" rel="stylesheet">
 <style>
-.file-tree {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.file-tree ul {
-    list-style: none;
-    padding-left: 1rem;
-    margin: 0;
-}
-
-.file-tree li {
-    padding: 0.25rem 0;
-    cursor: pointer;
-    user-select: none;
-}
-
-.file-tree li:hover {
-    background-color: #e9ecef;
-}
-
-.file-tree .folder {
-    font-weight: 600;
-    color: #495057;
-}
-
-.file-tree .file {
-    color: #6c757d;
-}
-
-.file-tree .file.selected {
-    background-color: #007bff;
-    color: white;
-    border-radius: 0.25rem;
-}
-
-.code-viewer {
-    background: #2d3748;
-    border-radius: 0.375rem;
-    max-height: 600px;
-    overflow: auto;
-}
-
-.app-status-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-}
-
-.port-info {
-    font-family: 'Courier New', monospace;
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 0.25rem;
-    padding: 0.5rem;
-}
-
-.analysis-summary-card {
-    transition: transform 0.2s;
-}
-
-.analysis-summary-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
+    /* Compact UI and sticky sidebar tuned to navbar height */
+    .app-detail .card-header{padding:.5rem .75rem}
+    .app-detail .card-body{padding:.75rem}
+    .app-detail .list-group-item{padding:.5rem .75rem}
+    .app-detail pre{font-size:.875rem}
+    .app-detail section{scroll-margin-top: calc(var(--sidebar-top, 72px) + 8px)}
+    .app-detail .sidebar-inner .nav-link{padding:.375rem .5rem}
+    .app-detail .sidebar-inner .nav-link.active{font-weight:600}
+    /* position-sticky offset + bounded height so it never overlaps navbar */
+    .app-detail .position-sticky{top: var(--sidebar-top, 72px)}
+    .app-detail .sidebar-inner{max-height: calc(100vh - var(--sidebar-top, 72px) - 12px); overflow:auto}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Header Section -->
-    <div class="row mb-4">
-        <div class="col">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <nav aria-label="breadcrumb">
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="{{ url_for('models.applications') }}">Applications</a></li>
-                            <li class="breadcrumb-item active">{{ application.model_slug|replace('_', ' ')|title }} #{{ application.app_number }}</li>
-                        </ol>
-                    </nav>
-                    <h1 class="h2 mb-2">{{ application.model_slug|replace('_', ' ')|title }} - Application #{{ application.app_number }}</h1>
-                    <p class="text-muted">Generated on {{ application.created_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
-                </div>
-                <div class="text-end">
-                    <span class="badge bg-{{ 'success' if application.status == 'completed' else 'warning' if application.status == 'running' else 'danger' if application.status == 'failed' else 'secondary' }} app-status-badge me-2">
-                        {{ application.status|title }}
-                    </span>
-                    <div class="btn-group" role="group">
-                        {% if application.status == 'completed' %}
-                            <button class="btn btn-outline-success" onclick="startApplication('{{ application.id }}')">
-                                <i class="fas fa-play me-1"></i>Start App
-                            </button>
-                        {% endif %}
-                        <button class="btn btn-outline-primary" onclick="downloadApplication('{{ application.id }}')">
-                            <i class="fas fa-download me-1"></i>Download
-                        </button>
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                                <i class="fas fa-cog me-1"></i>Actions
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="regenerateApplication('{{ application.id }}')">
-                                    <i class="fas fa-redo me-2"></i>Regenerate
-                                </a></li>
-                                <li><a class="dropdown-item" href="#" onclick="cloneApplication('{{ application.id }}')">
-                                    <i class="fas fa-copy me-2"></i>Clone
-                                </a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-danger" href="#" onclick="deleteApplication('{{ application.id }}')">
-                                    <i class="fas fa-trash me-2"></i>Delete
-                                </a></li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <i class="fas fa-cube text-muted mr-2"></i>
+        <h1 class="h4 d-inline align-middle">Application {{ app_data.app_number }}</h1>
+        <p class="text-muted mb-0 small">{{ model.display_name }} • {{ app_data.model_slug }}</p>
+    </div>
+    <div class="btn-group">
+        <a class="btn btn-sm btn-outline-secondary" href="/models"><i class="fas fa-robot me-1"></i> Models</a>
+        <a class="btn btn-sm btn-outline-primary" href="/models/applications?model={{ app_data.model_slug }}"><i class="fas fa-cubes me-1"></i> Applications</a>
+        <a class="btn btn-sm btn-outline-success" href="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv"><i class="fas fa-file-csv me-1"></i> Export</a>
+    </div>
+  
+</div>
+
+<div class="app-detail row g-3">
+    <!-- Sidebar (anchors) -->
+    <div class="col-12 col-md-3 col-xl-2">
+        <div class="position-sticky">
+            <nav id="app-sidebar" class="sidebar-inner nav nav-pills flex-column gap-1">
+                <a href="#section-overview" class="nav-link"><i class="fas fa-info-circle me-2"></i>Overview</a>
+                <a href="#section-prompts" class="nav-link"><i class="fas fa-lightbulb me-2"></i>Prompts</a>
+                <a href="#section-files" class="nav-link"><i class="fas fa-folder-open me-2"></i>Files</a>
+                <a href="#section-ports" class="nav-link"><i class="fas fa-network-wired me-2"></i>Ports</a>
+                <a href="#section-container" class="nav-link"><i class="fab fa-docker me-2"></i>Container</a>
+                <a href="#section-analyses" class="nav-link"><i class="fas fa-flask me-2"></i>Analyses</a>
+                <a href="#section-metadata" class="nav-link"><i class="fas fa-database me-2"></i>Metadata</a>
+                <a href="#section-artifacts" class="nav-link"><i class="fas fa-book me-2"></i>Artifacts</a>
+                <a href="#section-logs" class="nav-link"><i class="fas fa-file-lines me-2"></i>Logs</a>
+                <a href="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv" class="nav-link"><i class="fas fa-file-csv me-2"></i>Export CSV</a>
+            </nav>
         </div>
     </div>
 
-    <!-- Application Info Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-body text-center">
-                    <i class="fas fa-robot fa-2x text-primary mb-2"></i>
-                    <h5 class="card-title">{{ application.model_slug|replace('_', ' ')|title }}</h5>
-                    <p class="text-muted small mb-0">AI Model</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-body text-center">
-                    <i class="fas fa-hashtag fa-2x text-info mb-2"></i>
-                    <h5 class="card-title">#{{ application.app_number }}</h5>
-                    <p class="text-muted small mb-0">Application Number</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-body text-center">
-                    <i class="fas fa-network-wired fa-2x text-success mb-2"></i>
-                    <h5 class="card-title">
-                        {% if application.backend_port %}
-                            :{{ application.backend_port }}
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </h5>
-                    <p class="text-muted small mb-0">Backend Port</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-body text-center">
-                    <i class="fas fa-desktop fa-2x text-warning mb-2"></i>
-                    <h5 class="card-title">
-                        {% if application.frontend_port %}
-                            :{{ application.frontend_port }}
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </h5>
-                    <p class="text-muted small mb-0">Frontend Port</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Main content -->
+    <div class="col-12 col-md-9 col-xl-10">
+        <section id="section-overview" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/overview"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading overview…</div></div>
+        </section>
 
-    <!-- Analysis Summary -->
-    {% if application.analyses %}
-    <div class="row mb-4">
-        <div class="col">
-            <h5 class="mb-3">Analysis Summary</h5>
-            <div class="row">
-                {% for analysis in application.analyses %}
-                <div class="col-md-4 mb-3">
-                    <div class="card analysis-summary-card h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="card-title text-capitalize">{{ analysis.analysis_type }} Analysis</h6>
-                                <span class="badge bg-{{ 'success' if analysis.status == 'completed' else 'warning' if analysis.status == 'running' else 'danger' if analysis.status == 'failed' else 'secondary' }}">
-                                    {{ analysis.status|title }}
-                                </span>
-                            </div>
-                            <p class="text-muted small mb-2">
-                                {{ analysis.created_at.strftime('%b %d, %Y at %I:%M %p') }}
-                            </p>
-                            {% if analysis.status == 'completed' and analysis.overall_score %}
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span>Overall Score:</span>
-                                    <span class="fw-bold text-{{ 'success' if analysis.overall_score >= 8 else 'warning' if analysis.overall_score >= 6 else 'danger' }}">
-                                        {{ analysis.overall_score }}/10
-                                    </span>
-                                </div>
-                                <div class="progress mt-1" style="height: 6px;">
-                                    <div class="progress-bar bg-{{ 'success' if analysis.overall_score >= 8 else 'warning' if analysis.overall_score >= 6 else 'danger' }}" 
-                                         style="width: {{ analysis.overall_score * 10 }}%"></div>
-                                </div>
-                            {% endif %}
-                            <div class="mt-3">
-                                {% if analysis.analysis_type == 'security' %}
-                                    <a href="{{ url_for('analysis.security_analysis_results_view', analysis_id=analysis.id) }}" class="btn btn-outline-primary btn-sm">
-                                        <i class="fas fa-eye me-1"></i>View Details
-                                    </a>
-                                {% elif analysis.analysis_type == 'performance' %}
-                                    <a href="{{ url_for('analysis.performance_test_results_view', analysis_id=analysis.id) }}" class="btn btn-outline-primary btn-sm">
-                                        <i class="fas fa-eye me-1"></i>View Details
-                                    </a>
-                                {% elif analysis.analysis_type == 'dynamic' %}
-                                    <a href="{{ url_for('analysis.dynamic_analysis_results_view', analysis_id=analysis.id) }}" class="btn btn-outline-primary btn-sm">
-                                        <i class="fas fa-eye me-1"></i>View Details
-                                    </a>
-                                {% else %}
-                                    <a href="{{ url_for('analysis.analyses_list_page') }}" class="btn btn-outline-primary btn-sm">
-                                        <i class="fas fa-list me-1"></i>View Details
-                                    </a>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    {% endif %}
+        <section id="section-prompts" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/prompts"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading prompts…</div></div>
+        </section>
 
-    <!-- Main Content Tabs -->
-    <div class="row">
-        <div class="col">
-            <ul class="nav nav-tabs" id="appDetailTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="files-tab" data-bs-toggle="tab" data-bs-target="#files" 
-                            type="button" role="tab">
-                        <i class="fas fa-folder me-2"></i>Files & Code
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" 
-                            type="button" role="tab">
-                        <i class="fas fa-cog me-2"></i>Configuration
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" 
-                            type="button" role="tab">
-                        <i class="fas fa-file-alt me-2"></i>Generation Logs
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" 
-                            type="button" role="tab">
-                        <i class="fas fa-history me-2"></i>Version History
-                    </button>
-                </li>
-            </ul>
+        <section id="section-files" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/files"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading files…</div></div>
+        </section>
 
-            <div class="tab-content mt-4" id="appDetailTabContent">
-                <!-- Files & Code Tab -->
-                <div class="tab-pane fade show active" id="files" role="tabpanel">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <h6 class="mb-3">File Structure</h6>
-                            <div class="file-tree" id="fileTree">
-                                <div class="p-3 text-center">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading files...</span>
-                                    </div>
-                                    <p class="mt-2 text-muted">Loading file structure...</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-8">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="mb-0">Code Viewer</h6>
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-secondary" onclick="downloadCurrentFile()">
-                                        <i class="fas fa-download"></i>
-                                    </button>
-                                    <button class="btn btn-outline-secondary" onclick="copyCurrentFile()">
-                                        <i class="fas fa-copy"></i>
-                                    </button>
-                                    <button class="btn btn-outline-secondary" onclick="editCurrentFile()">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="code-viewer">
-                                <div class="p-4 text-center text-muted">
-                                    <i class="fas fa-file-code fa-3x mb-3"></i>
-                                    <p>Select a file from the tree to view its contents</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <section id="section-ports" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading ports…</div></div>
+        </section>
 
-                <!-- Configuration Tab -->
-                <div class="tab-pane fade" id="config" role="tabpanel">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6 class="mb-3">Port Configuration</h6>
-                            <div class="port-info mb-4">
-                                <div class="row">
-                                    <div class="col-6">
-                                        <strong>Backend Port:</strong><br>
-                                        <span class="text-primary">{{ application.backend_port or 'Not assigned' }}</span>
-                                    </div>
-                                    <div class="col-6">
-                                        <strong>Frontend Port:</strong><br>
-                                        <span class="text-info">{{ application.frontend_port or 'Not assigned' }}</span>
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-6">
-                                        <strong>Status:</strong><br>
-                                        <span class="badge bg-{{ 'success' if application.is_running else 'secondary' }}">
-                                            {{ 'Running' if application.is_running else 'Stopped' }}
-                                        </span>
-                                    </div>
-                                    <div class="col-6">
-                                        <strong>Last Started:</strong><br>
-                                        <span class="text-muted small">
-                                            {{ application.last_started.strftime('%b %d, %Y %I:%M %p') if application.last_started else 'Never' }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+        <section id="section-container" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/container"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading container controls…</div></div>
+        </section>
 
-                            <h6 class="mb-3">Generation Settings</h6>
-                            <div class="card">
-                                <div class="card-body">
-                                    <dl class="row mb-0 small">
-                                        <dt class="col-4">Model:</dt>
-                                        <dd class="col-8">{{ application.model_slug|replace('_', ' ')|title }}</dd>
-                                        
-                                        <dt class="col-4">App Number:</dt>
-                                        <dd class="col-8">#{{ application.app_number }}</dd>
-                                        
-                                        <dt class="col-4">Generated:</dt>
-                                        <dd class="col-8">{{ application.created_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
-                                        
-                                        <dt class="col-4">Status:</dt>
-                                        <dd class="col-8">
-                                            <span class="badge bg-{{ 'success' if application.status == 'completed' else 'warning' if application.status == 'running' else 'danger' if application.status == 'failed' else 'secondary' }}">
-                                                {{ application.status|title }}
-                                            </span>
-                                        </dd>
-                                        
-                                        <dt class="col-4">File Count:</dt>
-                                        <dd class="col-8">{{ application.file_count or 'Unknown' }}</dd>
-                                        
-                                        <dt class="col-4">Total Size:</dt>
-                                        <dd class="col-8">{{ application.total_size|filesizeformat if application.total_size else 'Unknown' }}</dd>
-                                    </dl>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <h6 class="mb-3">Application Control</h6>
-                            <div class="card">
-                                <div class="card-body">
-                                    <div class="d-grid gap-2">
-                                        {% if application.status == 'completed' %}
-                                            {% if not application.is_running %}
-                                                <button class="btn btn-success" onclick="startApplication('{{ application.id }}')">
-                                                    <i class="fas fa-play me-2"></i>Start Application
-                                                </button>
-                                            {% else %}
-                                                <button class="btn btn-danger" onclick="stopApplication('{{ application.id }}')">
-                                                    <i class="fas fa-stop me-2"></i>Stop Application
-                                                </button>
-                                                <button class="btn btn-outline-primary" onclick="restartApplication('{{ application.id }}')">
-                                                    <i class="fas fa-redo me-2"></i>Restart Application
-                                                </button>
-                                                <div class="mt-2">
-                                                    <a href="http://localhost:{{ application.frontend_port }}" target="_blank" class="btn btn-outline-info">
-                                                        <i class="fas fa-external-link-alt me-2"></i>Open in Browser
-                                                    </a>
-                                                </div>
-                                            {% endif %}
-                                        {% endif %}
-                                        
-                                        <button class="btn btn-outline-secondary" onclick="downloadApplication('{{ application.id }}')">
-                                            <i class="fas fa-download me-2"></i>Download ZIP
-                                        </button>
-                                        
-                                        <button class="btn btn-outline-warning" onclick="regenerateApplication('{{ application.id }}')">
-                                            <i class="fas fa-redo me-2"></i>Regenerate
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+        <section id="section-analyses" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/analyses"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading analyses…</div></div>
+        </section>
 
-                            {% if application.environment_variables %}
-                            <h6 class="mt-4 mb-3">Environment Variables</h6>
-                            <div class="card">
-                                <div class="card-body">
-                                    <div class="table-responsive">
-                                        <table class="table table-sm mb-0">
-                                            <thead>
-                                                <tr>
-                                                    <th>Variable</th>
-                                                    <th>Value</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% for var_name, var_value in application.environment_variables.items() %}
-                                                <tr>
-                                                    <td><code>{{ var_name }}</code></td>
-                                                    <td>
-                                                        {% if var_name|lower in ['password', 'secret', 'key', 'token'] %}
-                                                            <span class="text-muted">••••••••</span>
-                                                        {% else %}
-                                                            <code>{{ var_value }}</code>
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                                {% endfor %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
+        <section id="section-metadata" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/metadata"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading metadata…</div></div>
+        </section>
 
-                <!-- Generation Logs Tab -->
-                <div class="tab-pane fade" id="logs" role="tabpanel">
-                    <div class="row">
-                        <div class="col">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="mb-0">Generation Log</h6>
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-secondary" onclick="refreshLogs()">
-                                        <i class="fas fa-sync-alt"></i>
-                                    </button>
-                                    <button class="btn btn-outline-secondary" onclick="downloadLogs()">
-                                        <i class="fas fa-download"></i>
-                                    </button>
-                                    <button class="btn btn-outline-secondary" onclick="clearLogs()">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="card">
-                                <div class="card-body">
-                                    {% if application.generation_log %}
-                                        <pre class="log-content bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"><code>{{ application.generation_log }}</code></pre>
-                                    {% else %}
-                                        <p class="text-muted text-center py-4">
-                                            <i class="fas fa-file-alt fa-2x mb-2"></i><br>
-                                            No generation logs available for this application.
-                                        </p>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <section id="section-artifacts" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/artifacts"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading artifacts…</div></div>
+        </section>
 
-                <!-- Version History Tab -->
-                <div class="tab-pane fade" id="history" role="tabpanel">
-                    <div class="row">
-                        <div class="col">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="mb-0">Version History</h6>
-                                <button class="btn btn-outline-primary btn-sm" onclick="createVersion()">
-                                    <i class="fas fa-plus me-1"></i>Create Version
-                                </button>
-                            </div>
+        <section id="section-logs" class="mb-4"
+                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs"
+                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
+            <div class="card"><div class="card-body text-muted">Loading logs…</div></div>
+        </section>
 
-                            {% if application.versions %}
-                                <div class="timeline">
-                                    {% for version in application.versions %}
-                                    <div class="timeline-item">
-                                        <div class="timeline-marker bg-{{ 'primary' if loop.first else 'secondary' }}"></div>
-                                        <div class="timeline-content">
-                                            <div class="card">
-                                                <div class="card-body">
-                                                    <div class="d-flex justify-content-between align-items-start">
-                                                        <div>
-                                                            <h6 class="mb-1">Version {{ version.version_number }}</h6>
-                                                            <p class="text-muted small mb-2">
-                                                                {{ version.created_at.strftime('%B %d, %Y at %I:%M %p') }}
-                                                            </p>
-                                                            {% if version.description %}
-                                                                <p class="mb-2">{{ version.description }}</p>
-                                                            {% endif %}
-                                                            <div class="small text-muted">
-                                                                <i class="fas fa-file me-1"></i>{{ version.file_count }} files
-                                                                <i class="fas fa-weight-hanging ms-2 me-1"></i>{{ version.size|filesizeformat }}
-                                                            </div>
-                                                        </div>
-                                                        <div class="btn-group btn-group-sm">
-                                                            <button class="btn btn-outline-primary" onclick="restoreVersion('{{ version.id }}')">
-                                                                <i class="fas fa-undo"></i>
-                                                            </button>
-                                                            <button class="btn btn-outline-secondary" onclick="downloadVersion('{{ version.id }}')">
-                                                                <i class="fas fa-download"></i>
-                                                            </button>
-                                                            <button class="btn btn-outline-danger" onclick="deleteVersion('{{ version.id }}')">
-                                                                <i class="fas fa-trash"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <div class="text-center py-5">
-                                    <i class="fas fa-code-branch fa-3x text-muted mb-3"></i>
-                                    <h6 class="text-muted">No Version History</h6>
-                                    <p class="text-muted">Create versions to track changes and enable rollbacks.</p>
-                                    <button class="btn btn-primary" onclick="createVersion()">
-                                        <i class="fas fa-plus me-1"></i>Create First Version
-                                    </button>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div id="modal-container"></div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/toolbar/prism-toolbar.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/copy-to-clipboard/prism-copy-to-clipboard.min.js"></script>
-
 <script>
-let currentApplication = {
-    id: '{{ application.id }}',
-    modelSlug: '{{ application.model_slug }}',
-    appNumber: {{ application.app_number }},
-    status: '{{ application.status }}'
-};
-let currentFile = null;
-
-// Initialize file tree on page load
-document.addEventListener('DOMContentLoaded', function() {
-    loadFileTree();
-});
-
-// Load file tree structure
-function loadFileTree() {
-    fetch(`/api/applications/${currentApplication.id}/files`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                renderFileTree(data.files);
-            } else {
-                showError('Failed to load file structure: ' + data.error);
-            }
-        })
-        .catch(error => {
-            showError('Failed to load file structure: ' + error.message);
-        });
-}
-
-// Render file tree HTML
-function renderFileTree(files) {
-    const fileTreeElement = document.getElementById('fileTree');
-    const treeHtml = buildTreeHtml(files);
-    fileTreeElement.innerHTML = treeHtml;
-    
-    // Add click handlers
-    fileTreeElement.querySelectorAll('.file').forEach(fileEl => {
-        fileEl.addEventListener('click', function() {
-            const filePath = this.dataset.path;
-            loadFile(filePath);
-            
-            // Update selection
-            fileTreeElement.querySelectorAll('.file').forEach(f => f.classList.remove('selected'));
-            this.classList.add('selected');
-        });
-    });
-    
-    fileTreeElement.querySelectorAll('.folder').forEach(folderEl => {
-        folderEl.addEventListener('click', function() {
-            const childList = this.nextElementSibling;
-            if (childList && childList.tagName === 'UL') {
-                childList.style.display = childList.style.display === 'none' ? 'block' : 'none';
-                const icon = this.querySelector('i');
-                icon.className = childList.style.display === 'none' ? 'fas fa-folder' : 'fas fa-folder-open';
-            }
-        });
+// simple copy helper reused by prompts section
+function copyAdjacentPre(btn){
+    const pre = btn.closest('.card, .mb-3')?.querySelector('pre');
+    if(!pre) return;
+    const text = pre.innerText;
+    navigator.clipboard.writeText(text).then(()=>{
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied';
+        setTimeout(()=>{ btn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy'; }, 1200);
     });
 }
 
-// Build tree HTML recursively
-function buildTreeHtml(items, level = 0) {
-    let html = '<ul' + (level === 0 ? ' class="root"' : '') + '>';
-    
-    items.forEach(item => {
-        if (item.type === 'folder') {
-            html += `<li class="folder" data-path="${item.path}">`;
-            html += `<i class="fas fa-folder-open me-2"></i>${item.name}`;
-            html += '</li>';
-            if (item.children && item.children.length > 0) {
-                html += buildTreeHtml(item.children, level + 1);
-            }
-        } else {
-            const extension = item.name.split('.').pop().toLowerCase();
-            const iconClass = getFileIcon(extension);
-            html += `<li class="file" data-path="${item.path}">`;
-            html += `<i class="${iconClass} me-2"></i>${item.name}`;
-            html += '</li>';
+// Sidebar offset + ScrollSpy highlighting without overlapping navbar
+(function(){
+    function headerHeight(){
+        const h = document.querySelector('header.navbar');
+        return h ? h.offsetHeight : 56;
+    }
+    let t;
+    function applyLayout(){
+        const top = headerHeight() + 12; // small gap under navbar
+        document.documentElement.style.setProperty('--sidebar-top', top + 'px');
+        if (window.bootstrap) {
+            try {
+                const inst = bootstrap.ScrollSpy.getInstance(document.body);
+                if (inst) inst.dispose();
+                new bootstrap.ScrollSpy(document.body, { target: '#app-sidebar', offset: top + 8 });
+            } catch(e) { /* no-op */ }
         }
-    });
-    
-    html += '</ul>';
-    return html;
-}
-
-// Get appropriate icon for file extension
-function getFileIcon(extension) {
-    const iconMap = {
-        'js': 'fab fa-js-square text-warning',
-        'ts': 'fab fa-js-square text-primary',
-        'py': 'fab fa-python text-info',
-        'html': 'fab fa-html5 text-danger',
-        'css': 'fab fa-css3-alt text-primary',
-        'json': 'fas fa-brackets-curly text-success',
-        'md': 'fab fa-markdown text-secondary',
-        'txt': 'fas fa-file-alt text-muted',
-        'yml': 'fas fa-file-code text-warning',
-        'yaml': 'fas fa-file-code text-warning',
-        'xml': 'fas fa-file-code text-success',
-        'sql': 'fas fa-database text-info',
-        'sh': 'fas fa-terminal text-dark',
-        'ps1': 'fas fa-terminal text-blue'
-    };
-    
-    return iconMap[extension] || 'fas fa-file text-muted';
-}
-
-// Load and display file content
-function loadFile(filePath) {
-    currentFile = filePath;
-    
-    const codeViewer = document.querySelector('.code-viewer');
-    codeViewer.innerHTML = '<div class="p-4 text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Loading file...</p></div>';
-    
-    fetch(`/api/applications/${currentApplication.id}/files/content?path=${encodeURIComponent(filePath)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                renderFileContent(data.content, data.language, filePath);
-            } else {
-                showError('Failed to load file: ' + data.error);
-            }
-        })
-        .catch(error => {
-            showError('Failed to load file: ' + error.message);
-        });
-}
-
-// Render file content with syntax highlighting
-function renderFileContent(content, language, filePath) {
-    const codeViewer = document.querySelector('.code-viewer');
-    const fileName = filePath.split('/').pop();
-    
-    const html = `
-        <div class="code-header bg-secondary text-white p-2 d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-file me-2"></i>${fileName}</span>
-            <div class="btn-group btn-group-sm">
-                <button class="btn btn-sm btn-outline-light" onclick="copyCurrentFile()" title="Copy to clipboard">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-light" onclick="downloadCurrentFile()" title="Download file">
-                    <i class="fas fa-download"></i>
-                </button>
-            </div>
-        </div>
-        <pre class="line-numbers"><code class="language-${language}">${escapeHtml(content)}</code></pre>
-    `;
-    
-    codeViewer.innerHTML = html;
-    
-    // Re-highlight syntax
-    Prism.highlightAll();
-}
-
-// Application control functions
-function startApplication(appId) {
-    fetch(`/api/applications/${appId}/start`, { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccess('Application started successfully');
-                setTimeout(() => location.reload(), 2000);
-            } else {
-                showError('Failed to start application: ' + data.error);
-            }
-        })
-        .catch(error => showError('Failed to start application: ' + error.message));
-}
-
-function stopApplication(appId) {
-    fetch(`/api/applications/${appId}/stop`, { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccess('Application stopped successfully');
-                setTimeout(() => location.reload(), 2000);
-            } else {
-                showError('Failed to stop application: ' + data.error);
-            }
-        })
-        .catch(error => showError('Failed to stop application: ' + error.message));
-}
-
-function restartApplication(appId) {
-    fetch(`/api/applications/${appId}/restart`, { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccess('Application restarted successfully');
-                setTimeout(() => location.reload(), 2000);
-            } else {
-                showError('Failed to restart application: ' + data.error);
-            }
-        })
-        .catch(error => showError('Failed to restart application: ' + error.message));
-}
-
-function downloadApplication(appId) {
-    window.open(`/api/applications/${appId}/download`, '_blank');
-}
-
-function regenerateApplication(appId) {
-    if (confirm('Are you sure you want to regenerate this application? This will create a new version.')) {
-        fetch(`/api/applications/${appId}/regenerate`, { method: 'POST' })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Application regeneration started');
-                    setTimeout(() => location.reload(), 2000);
-                } else {
-                    showError('Failed to start regeneration: ' + data.error);
-                }
-            })
-            .catch(error => showError('Failed to start regeneration: ' + error.message));
     }
-}
-
-function cloneApplication(appId) {
-    const newNumber = prompt('Enter the application number for the clone:');
-    if (newNumber) {
-        fetch(`/api/applications/${appId}/clone`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ app_number: parseInt(newNumber) })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccess('Application cloned successfully');
-                window.location.href = `/applications/detail/${data.new_app_id}`;
-            } else {
-                showError('Failed to clone application: ' + data.error);
-            }
-        })
-        .catch(error => showError('Failed to clone application: ' + error.message));
-    }
-}
-
-function deleteApplication(appId) {
-    if (confirm('Are you sure you want to delete this application? This action cannot be undone.')) {
-        fetch(`/api/applications/${appId}`, { method: 'DELETE' })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Application deleted successfully');
-                    window.location.href = '/applications';
-                } else {
-                    showError('Failed to delete application: ' + data.error);
-                }
-            })
-            .catch(error => showError('Failed to delete application: ' + error.message));
-    }
-}
-
-// File operations
-function copyCurrentFile() {
-    if (!currentFile) {
-        showError('No file selected');
-        return;
-    }
-    
-    const codeElement = document.querySelector('.code-viewer code');
-    if (codeElement) {
-        navigator.clipboard.writeText(codeElement.textContent)
-            .then(() => showSuccess('File content copied to clipboard'))
-            .catch(() => showError('Failed to copy file content'));
-    }
-}
-
-function downloadCurrentFile() {
-    if (!currentFile) {
-        showError('No file selected');
-        return;
-    }
-    
-    window.open(`/api/applications/${currentApplication.id}/files/download?path=${encodeURIComponent(currentFile)}`, '_blank');
-}
-
-function editCurrentFile() {
-    if (!currentFile) {
-        showError('No file selected');
-        return;
-    }
-    
-    showInfo('File editing feature coming soon...');
-}
-
-// Version management
-function createVersion() {
-    const description = prompt('Enter a description for this version (optional):');
-    fetch(`/api/applications/${currentApplication.id}/versions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: description || '' })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showSuccess('Version created successfully');
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            showError('Failed to create version: ' + data.error);
-        }
-    })
-    .catch(error => showError('Failed to create version: ' + error.message));
-}
-
-function restoreVersion(versionId) {
-    if (confirm('Are you sure you want to restore this version? Current changes will be lost.')) {
-        fetch(`/api/applications/${currentApplication.id}/versions/${versionId}/restore`, { method: 'POST' })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Version restored successfully');
-                    setTimeout(() => location.reload(), 2000);
-                } else {
-                    showError('Failed to restore version: ' + data.error);
-                }
-            })
-            .catch(error => showError('Failed to restore version: ' + error.message));
-    }
-}
-
-function downloadVersion(versionId) {
-    window.open(`/api/applications/${currentApplication.id}/versions/${versionId}/download`, '_blank');
-}
-
-function deleteVersion(versionId) {
-    if (confirm('Are you sure you want to delete this version? This action cannot be undone.')) {
-        fetch(`/api/applications/${currentApplication.id}/versions/${versionId}`, { method: 'DELETE' })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Version deleted successfully');
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    showError('Failed to delete version: ' + data.error);
-                }
-            })
-            .catch(error => showError('Failed to delete version: ' + error.message));
-    }
-}
-
-// Log management
-function refreshLogs() {
-    location.reload();
-}
-
-function downloadLogs() {
-    window.open(`/api/applications/${currentApplication.id}/logs/download`, '_blank');
-}
-
-function clearLogs() {
-    if (confirm('Are you sure you want to clear the generation logs?')) {
-        fetch(`/api/applications/${currentApplication.id}/logs`, { method: 'DELETE' })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Logs cleared successfully');
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    showError('Failed to clear logs: ' + data.error);
-                }
-            })
-            .catch(error => showError('Failed to clear logs: ' + error.message));
-    }
-}
-
-// Utility functions
-function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    
-    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-}
-
-function showSuccess(message) {
-    // Implementation would show success toast/alert
-    console.log('Success:', message);
-}
-
-function showError(message) {
-    // Implementation would show error toast/alert
-    console.error('Error:', message);
-}
-
-function showInfo(message) {
-    // Implementation would show info toast/alert
-    console.info('Info:', message);
-}
+    window.addEventListener('load', applyLayout);
+    window.addEventListener('resize', function(){ clearTimeout(t); t = setTimeout(applyLayout, 150); });
+})();
 </script>
 {% endblock %}

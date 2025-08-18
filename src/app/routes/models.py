@@ -20,6 +20,7 @@ from ..utils.helpers import deep_merge_dicts, dicts_to_csv
 from datetime import timedelta
 from pathlib import Path
 from ..models import PortConfiguration  # type: ignore[attr-defined]
+from ..services import application_service as app_service
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -409,7 +410,42 @@ def applications():
         # Get filter options
         providers = db.session.query(ModelCapability.provider.distinct()).all()
         providers = [p[0] for p in providers if p[0]]
-        
+
+        # Build additional context expected by template
+        # 1) Flatten applications list for simple counts and UI badges
+        applications_list = []
+        for entry in application_grid:
+            for app in entry['apps']:
+                if app.get('exists'):
+                    applications_list.append({
+                        'model_slug': entry['model'].canonical_slug,
+                        'app_number': app.get('app_number'),
+                        'status': app.get('status'),
+                        'id': app.get('id')
+                    })
+
+        # 2) Available models for filter dropdown (slug + display name)
+        available_models = [
+            {
+                'slug': m.canonical_slug,
+                'display_name': getattr(m, 'display_name', None) or m.model_name or m.canonical_slug
+            }
+            for m in models
+        ]
+
+        # 3) Stats block for header cards
+        try:
+            analyzed_count = db.session.query(SecurityAnalysis).count()
+        except Exception:
+            analyzed_count = 0
+
+        stats = {
+            'total_applications': total_apps,
+            'running_applications': running_containers,
+            'analyzed_applications': analyzed_count,
+            'unique_models': len(models)
+        }
+
         context = {
             'application_grid': application_grid,
             'total_apps': total_apps,
@@ -417,6 +453,11 @@ def applications():
             'stopped_containers': stopped_containers,
             'total_models': len(models),
             'providers': providers,
+            # New/normalized keys expected by the template
+            'applications': applications_list,
+            'total_count': total_apps,
+            'available_models': available_models,
+            'stats': stats,
             'current_filters': {
                 'model': model_filter,
                 'provider': provider_filter,
@@ -591,8 +632,80 @@ def application_detail(model_slug, app_number):
         except Exception as e:
             logger.warning(f"Failed to load prompts for app {app_number}: {e}")
         
+        # Build 'application' object expected by the template
+        # Map statuses to the simplified set used in UI
+        def _map_status(app_obj) -> str:
+            if not app_obj:
+                return 'not_created'
+            c = getattr(app_obj, 'container_status', None) or ''
+            g = str(getattr(app_obj, 'generation_status', '') or '').lower()
+            if c == 'running':
+                return 'running'
+            if g in {'completed', 'success', 'generated'}:
+                return 'completed'
+            if c == 'error' or g == 'failed':
+                return 'failed'
+            return 'pending'
+
+        # Flatten analyses into a simple list for the template (optional)
+        flat_analyses = []
+        try:
+            for a in analyses.get('security', []) or []:
+                flat_analyses.append({
+                    'id': getattr(a, 'id', None),
+                    'analysis_type': 'security',
+                    'status': getattr(a, 'status', 'completed') or 'completed',
+                    'created_at': getattr(a, 'created_at', None),
+                    'overall_score': getattr(a, 'overall_score', None)
+                })
+            for a in analyses.get('performance', []) or []:
+                flat_analyses.append({
+                    'id': getattr(a, 'id', None),
+                    'analysis_type': 'performance',
+                    'status': getattr(a, 'status', 'completed') or 'completed',
+                    'created_at': getattr(a, 'created_at', None),
+                    'overall_score': getattr(a, 'overall_score', None)
+                })
+            for a in analyses.get('zap', []) or []:
+                flat_analyses.append({
+                    'id': getattr(a, 'id', None),
+                    'analysis_type': 'dynamic',
+                    'status': getattr(a, 'status', 'completed') or 'completed',
+                    'created_at': getattr(a, 'created_at', None),
+                    'overall_score': getattr(a, 'overall_score', None)
+                })
+            for a in analyses.get('openrouter', []) or []:
+                flat_analyses.append({
+                    'id': getattr(a, 'id', None),
+                    'analysis_type': 'openrouter',
+                    'status': getattr(a, 'status', 'completed') or 'completed',
+                    'created_at': getattr(a, 'created_at', None),
+                    'overall_score': getattr(a, 'overall_score', None)
+                })
+        except Exception:
+            flat_analyses = []
+
+        application = {
+            'id': getattr(app, 'id', None) if app else None,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'status': _map_status(app),
+            'created_at': getattr(app, 'created_at', None) if app else None,
+            'backend_port': (ports or {}).get('backend') if isinstance(ports, dict) else None,
+            'frontend_port': (ports or {}).get('frontend') if isinstance(ports, dict) else None,
+            'is_running': (getattr(app, 'container_status', None) == 'running') if app else False,
+            'last_started': None,
+            'file_count': code_stats.get('total_files', 0),
+            'total_size': None,
+            'environment_variables': {},
+            'analyses': flat_analyses,
+            'generation_log': None,
+            'versions': [],
+        }
+
         return render_template(
             'views/applications/detail.html',
+            application=application,
             app_data=app_data,
             files_info=files_info,
             analyses=analyses,
@@ -888,6 +1001,90 @@ def application_file_preview(model_slug, app_number):
     except Exception as e:
         logger.error(f"Error previewing file for {model_slug}/app{app_number}: {e}")
         return f'<div class="alert alert-danger">Error: {str(e)}</div>', 500
+
+
+@models_bp.route('/applications/generate', methods=['POST'])
+def generate_application():
+    """HTMX endpoint: Generate a new application record for a given model/app number.
+
+    Accepts form-encoded fields:
+      - model_slug (required)
+      - app_number (required, int)
+      - app_type (optional; defaults to 'web_app')
+      - generation_prompt (optional; ignored for now)
+      - auto_start (optional; 'on' -> attempt to mark running)
+
+    Returns a small HTML alert snippet suitable for hx-target swap.
+    """
+    try:
+        model_slug = (request.form.get('model_slug') or '').strip()
+        app_number_raw = request.form.get('app_number')
+        app_type = (request.form.get('app_type') or 'web_app').strip() or 'web_app'
+        auto_start = request.form.get('auto_start') == 'on'
+        # generation_prompt and auto_analyze not used in this minimal handler
+
+        if not model_slug or not app_number_raw:
+            return (
+                '<div class="alert alert-danger">Model and app number are required.</div>',
+                400,
+            )
+        try:
+            app_number = int(app_number_raw)
+        except Exception:
+            return (
+                '<div class="alert alert-danger">Invalid app number.</div>',
+                400,
+            )
+
+        # Look up provider from the selected model
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return (
+                f'<div class="alert alert-danger">Unknown model: {model_slug}</div>',
+                404,
+            )
+
+        payload = {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'app_type': app_type,
+            'provider': model.provider,
+        }
+
+        # Create application via service
+        created = app_service.create_application(payload)
+
+        # Optionally mark as running (best-effort; no docker integration here)
+        if auto_start and created.get('id'):
+            try:
+                app_service.start_application(created['id'])
+            except Exception:
+                pass
+
+        detail_url = f"{request.url_root.rstrip('/')}/models/application/{model_slug}/{app_number}"
+        # Return success alert and trigger a lightweight grid refresh for the Applications page
+        resp = Response(
+            '<div class="alert alert-success">'
+            f'Successfully created application for <strong>{model_slug}</strong> '
+            f'(<a href="{detail_url}" target="_blank">open details</a>).</div>'
+        )
+        resp.headers['HX-Trigger'] = 'refresh-grid'
+        return resp
+    except app_service.ValidationError as ve:
+        return (f'<div class="alert alert-danger">{str(ve)}</div>', 400)
+    except Exception as e:  # noqa: BLE001
+        # Handle common unique constraint errors gracefully
+        msg = str(e)
+        if 'unique' in msg.lower() and 'model' in msg.lower():
+            return (
+                '<div class="alert alert-warning">An application for this model and number already exists.</div>',
+                409,
+            )
+        logger.error(f"Error generating application: {e}")
+        return (
+            f'<div class="alert alert-danger">Error generating application: {str(e)}</div>',
+            500,
+        )
 
 
 @models_bp.route('/model_actions/<model_slug>')
