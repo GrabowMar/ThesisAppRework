@@ -8,6 +8,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+import re
 from typing import Dict, Any, Optional, Union
 
 logger = logging.getLogger(__name__)
@@ -136,12 +137,97 @@ def parse_model_slug(model_slug: str) -> Dict[str, str]:
     }
 
 
+def _project_root_from_helpers() -> Path:
+    """Resolve project root relative to this helpers module (src/app/utils/helpers.py)."""
+    return Path(__file__).resolve().parents[4]
+
+
+def get_models_base_path() -> Path:
+    """Absolute path to the misc/models directory in the project."""
+    return _project_root_from_helpers() / "misc" / "models"
+
+
+def _normalize_slug_for_match(s: str) -> str:
+    """Normalize slugs for fuzzy matching: lowercase and remove non-alphanumerics."""
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def make_safe_dom_id(value: str, prefix: Optional[str] = None) -> str:
+    """Create a DOM-safe id from an arbitrary string.
+
+    Replaces characters that are invalid in CSS selectors (spaces, dots, colons,
+    brackets, etc.) with hyphens and ensures the id starts with a letter or
+    underscore (prefixing with 'id-' when necessary).
+    """
+    if value is None:
+        value = ""
+
+    # Replace sequences of invalid characters with a single hyphen
+    safe = re.sub(r"[^a-zA-Z0-9_-]+", "-", value)
+
+    # IDs must not start with a digit in CSS selectors for some older browsers;
+    # ensure it starts with a letter or underscore.
+    if not re.match(r"^[A-Za-z_].*", safe):
+        safe = f"id-{safe}"
+
+    # Optionally add a prefix (e.g., 'model-')
+    if prefix:
+        return f"{prefix}{safe}"
+
+    return safe
+
+
+def _resolve_model_directory(model_slug: str, base_path: Optional[Path] = None) -> Path:
+    """Resolve the directory for a model slug, trying common variations.
+
+    Heuristics:
+    - Exact match under base_path
+    - Hyphen/underscore/dot variations
+    - Case-insensitive and punctuation-insensitive match among existing dirs
+    """
+    base_dir = base_path or get_models_base_path()
+
+    # 1) Exact match
+    exact = base_dir / model_slug
+    if exact.exists() and exact.is_dir():
+        return exact
+
+    # 2) Try direct variations
+    variations = {
+        model_slug.replace("-", "_"),
+        model_slug.replace("_", "-"),
+        model_slug.replace(".", "-"),
+        model_slug.replace(".", "_")
+    }
+    for v in variations:
+        cand = base_dir / v
+        if cand.exists() and cand.is_dir():
+            return cand
+
+    # 3) Fuzzy match among existing directories
+    try:
+        target_norm = _normalize_slug_for_match(model_slug)
+        for child in base_dir.iterdir():
+            if not child.is_dir():
+                continue
+            name = child.name
+            if name.startswith("_"):
+                # skip special folders like _logs
+                continue
+            if _normalize_slug_for_match(name) == target_norm:
+                return child
+    except Exception:
+        # fall through to default
+        pass
+
+    # 4) As a final fallback, return the exact path (may not exist)
+    return exact
+
+
 def get_app_directory(model_slug: str, app_number: int, base_path: Optional[Path] = None) -> Path:
-    """Get the directory path for a specific app."""
-    if base_path is None:
-        base_path = Path(__file__).parent.parent.parent.parent / "misc" / "models"
-    
-    return base_path / model_slug / f"app{app_number}"
+    """Get the directory path for a specific app, resolving slug variations robustly."""
+    model_dir = _resolve_model_directory(model_slug, base_path or (Path(__file__).parent.parent.parent.parent / "misc" / "models"))
+    return model_dir / f"app{app_number}"
 
 
 def check_app_exists(model_slug: str, app_number: int, base_path: Optional[Path] = None) -> bool:

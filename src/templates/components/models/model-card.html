@@ -112,7 +112,7 @@
 {%- set provider_info = provider_config.get(provider, provider_config['OpenAI']) -%}
 
 <div class="model-card {{ 'compact' if compact_mode else '' }} {{ card_style }}" 
-     id="model-card-{{ model_slug }}"
+  id="{{ make_safe_dom_id(model_slug, prefix='model-card-') }}"
      data-model-slug="{{ model_slug }}"
      data-provider="{{ provider }}"
      data-status="{{ status }}">
@@ -393,6 +393,8 @@
 
 <!-- Model Card JavaScript -->
 <script>
+{%- set safe_dom_id = make_safe_dom_id(model_slug, prefix='model-card-') -%}
+{%- set safe_js_name = make_safe_dom_id(model_slug)|replace('-', '') -%}
 class ModelCard {
   constructor(containerId, modelSlug, options = {}) {
     this.container = document.getElementById(containerId);
@@ -698,13 +700,13 @@ class ModelCard {
 }
 
 // Initialize model card
-const modelCard{{ model_slug.replace('-', '').replace('_', '') }} = new ModelCard(
-  'model-card-{{ model_slug }}', 
+const modelCard{{ safe_js_name }} = new ModelCard(
+  '{{ safe_dom_id }}', 
   '{{ model_slug }}'
 );
 
 // Make it globally accessible for HTML onclick handlers
-window.modelCard{{ model_slug.replace('-', '').replace('_', '') }} = modelCard{{ model_slug.replace('-', '').replace('_', '') }};
+window.modelCard{{ safe_js_name }} = modelCard{{ safe_js_name }};
 </script>
 
 <!-- Model Card Styles -->

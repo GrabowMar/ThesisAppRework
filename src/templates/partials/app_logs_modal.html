@@ -1,0 +1,45 @@
+<div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="logsModalLabel">
+          <i class="fas fa-file-lines me-2"></i>Logs — {{ model_slug }}/app{{ app_num }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0">Backend</h6>
+                {% if backend_port %}
+                  <span class="badge bg-secondary">port {{ backend_port }}</span>
+                {% endif %}
+              </div>
+              <div class="card-body">
+                <pre class="bg-body-tertiary rounded p-2" style="max-height: 420px; overflow:auto; white-space: pre-wrap">{{ backend_logs }}</pre>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0">Frontend</h6>
+                {% if frontend_port %}
+                  <span class="badge bg-secondary">port {{ frontend_port }}</span>
+                {% endif %}
+              </div>
+              <div class="card-body">
+                <pre class="bg-body-tertiary rounded p-2" style="max-height: 420px; overflow:auto; white-space: pre-wrap">{{ frontend_logs }}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

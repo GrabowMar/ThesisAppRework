@@ -8,6 +8,7 @@ Provides database-first access to model information with JSON file synchronizati
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
@@ -58,12 +59,85 @@ class ModelService:
             app_number=app_number
         ).first()
     
-    def get_app_ports(self, model_slug: str, app_number: int) -> Optional[PortConfiguration]:
-        """Get port configuration for an application."""
-        return PortConfiguration.query.filter_by(
-            model=model_slug,
-            app_num=app_number
-        ).first()
+    def get_app_ports(self, model_slug: str, app_number: int) -> Optional[Dict[str, Any]]:
+        """Get port configuration for an application.
+
+        Returns a canonical dict with keys: { 'frontend', 'backend', 'is_available' } or None.
+        """
+        # Try exact match first
+        pc = PortConfiguration.query.filter_by(model=model_slug, app_num=app_number).first()
+        if pc:
+            return {
+                'frontend': pc.frontend_port,
+                'backend': pc.backend_port,
+                'is_available': bool(pc.is_available)
+            }
+
+        # Try matching via ModelCapability (some codepaths store the model name differently)
+        try:
+            model_cap = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        except Exception:
+            model_cap = None
+
+        if model_cap:
+            # Try the model_name stored in ModelCapability
+            if getattr(model_cap, 'model_name', None):
+                pc = PortConfiguration.query.filter_by(model=model_cap.model_name, app_num=app_number).first()
+                if pc:
+                    return {
+                        'frontend': pc.frontend_port,
+                        'backend': pc.backend_port,
+                        'is_available': bool(pc.is_available)
+                    }
+
+            # Also try the canonical slug stored on the capability
+            if getattr(model_cap, 'canonical_slug', None):
+                pc = PortConfiguration.query.filter_by(model=model_cap.canonical_slug, app_num=app_number).first()
+                if pc:
+                    return {
+                        'frontend': pc.frontend_port,
+                        'backend': pc.backend_port,
+                        'is_available': bool(pc.is_available)
+                    }
+
+        # Try some common normalizations (dash/underscore/space variations)
+        candidates = set([
+            model_slug.replace('-', '_'),
+            model_slug.replace('_', '-'),
+            model_slug.replace(' ', '_'),
+            model_slug.replace(' ', '-')
+        ])
+        for cand in candidates:
+            if not cand:
+                continue
+            pc = PortConfiguration.query.filter_by(model=cand, app_num=app_number).first()
+            if pc:
+                return {
+                    'frontend': pc.frontend_port,
+                    'backend': pc.backend_port,
+                    'is_available': bool(pc.is_available)
+                }
+
+        # Final fallback: compare normalized alphanumeric forms across all PortConfiguration
+        # entries for this app number. This handles mixed separators (.-_) and minor
+        # canonicalization differences introduced by different import formats.
+        def _normalize_alnum(s: str) -> str:
+            return re.sub(r'[^0-9a-z]+', '', (s or '').lower())
+
+        norm_target = _normalize_alnum(model_slug)
+        if norm_target:
+            pcs = PortConfiguration.query.filter_by(app_num=app_number).all()
+            for pc in pcs:
+                if _normalize_alnum(pc.model) == norm_target:
+                    return {
+                        'frontend': pc.frontend_port,
+                        'backend': pc.backend_port,
+                        'is_available': bool(pc.is_available)
+                    }
+
+        # Nothing found — log for diagnostics
+        self.logger.debug(f"PortConfiguration not found for model_slug='{model_slug}' app_number={app_number}")
+        return None
     
     def populate_database_from_files(self) -> Dict[str, int]:
         """

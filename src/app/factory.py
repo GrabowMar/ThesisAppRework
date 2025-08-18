@@ -117,6 +117,12 @@ def create_app(config_name: str = 'default') -> Flask:
     # Ensure Jinja picks up template changes without restarting the app
     try:
         app.jinja_env.auto_reload = True
+        # Register useful Jinja globals
+        try:
+            from app.utils.helpers import make_safe_dom_id as _make_safe_dom_id
+            app.jinja_env.globals['make_safe_dom_id'] = _make_safe_dom_id
+        except Exception as _reg_err:
+            logger.warning(f"Could not register make_safe_dom_id in Jinja globals: {_reg_err}")
     except Exception:
         pass
 

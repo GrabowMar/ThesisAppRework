@@ -86,11 +86,17 @@
 {%- set free_tier = pricing.free_tier|default({}) -%}
 {%- set volume_discounts = pricing.volume_discounts|default([]) -%}
 
+{# Create a sanitized key for DOM ids and a JS-safe name #}
+{%- set pricing_key = make_safe_dom_id(model_slug) -%}
+{%- set pricing_container_id = 'pricing-info-' ~ pricing_key -%}
+{%- set pricing_js_name = pricing_key | replace('-', '') | replace('_', '') -%}
+
 <div class="pricing-info {{ 'compact' if compact_mode else '' }}" 
-     id="pricing-info-{{ model_slug }}"
-     data-model-slug="{{ model_slug }}"
-     data-input-price="{{ input_price }}"
-     data-output-price="{{ output_price }}">
+  id="{{ pricing_container_id }}"
+  data-model-slug="{{ model_slug }}"
+  data-dom-key="{{ pricing_key }}"
+  data-input-price="{{ input_price }}"
+  data-output-price="{{ output_price }}">
 
   <!-- Pricing Info Header -->
   {% if not compact_mode %}
@@ -106,9 +112,9 @@
     <div class="pricing-actions d-flex align-items-center gap-2">
       
       <!-- Currency Selector -->
-      <select class="form-select form-select-sm" 
-              id="currency-selector"
-              onchange="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.changeCurrency(this.value)"
+  <select class="form-select form-select-sm" 
+      id="currency-selector"
+      onchange="pricingInfo{{ pricing_js_name }}.changeCurrency(this.value)"
               style="width: 100px;">
         <option value="USD" {{ 'selected' if currency == 'USD' else '' }}>USD ($)</option>
         <option value="EUR" {{ 'selected' if currency == 'EUR' else '' }}>EUR (€)</option>
@@ -116,9 +122,9 @@
       </select>
       
       <!-- Export Button -->
-      <button type="button" 
-              class="btn btn-outline-primary btn-sm"
-              onclick="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.exportPricingData()"
+  <button type="button" 
+      class="btn btn-outline-primary btn-sm"
+      onclick="pricingInfo{{ pricing_js_name }}.exportPricingData()"
               title="Export pricing data">
         <i class="fas fa-download" aria-hidden="true"></i>
       </button>
@@ -181,15 +187,15 @@
 
   <!-- Pricing Details Tabs -->
   <div class="pricing-details">
-    <ul class="nav nav-tabs" id="pricing-tabs-{{ model_slug }}" role="tablist">
+  <ul class="nav nav-tabs" id="pricing-tabs-{{ pricing_key }}" role="tablist">
       
       <!-- Calculator Tab -->
       {% if show_calculator %}
       <li class="nav-item" role="presentation">
-        <button class="nav-link active" 
-                id="calculator-tab-{{ model_slug }}" 
-                data-bs-toggle="tab" 
-                data-bs-target="#calculator-{{ model_slug }}" 
+  <button class="nav-link active" 
+    id="calculator-tab-{{ pricing_key }}" 
+    data-bs-toggle="tab" 
+    data-bs-target="#calculator-{{ pricing_key }}" 
                 type="button" 
                 role="tab">
           <i class="fas fa-calculator me-1" aria-hidden="true"></i>
@@ -202,9 +208,9 @@
       {% if show_estimates and estimated_costs %}
       <li class="nav-item" role="presentation">
         <button class="nav-link {{ 'active' if not show_calculator else '' }}" 
-                id="estimates-tab-{{ model_slug }}" 
+                id="estimates-tab-{{ pricing_key }}" 
                 data-bs-toggle="tab" 
-                data-bs-target="#estimates-{{ model_slug }}" 
+                data-bs-target="#estimates-{{ pricing_key }}" 
                 type="button" 
                 role="tab">
           <i class="fas fa-chart-bar me-1" aria-hidden="true"></i>
@@ -216,10 +222,10 @@
       <!-- Volume Discounts Tab -->
       {% if volume_discounts %}
       <li class="nav-item" role="presentation">
-        <button class="nav-link" 
-                id="discounts-tab-{{ model_slug }}" 
-                data-bs-toggle="tab" 
-                data-bs-target="#discounts-{{ model_slug }}" 
+  <button class="nav-link" 
+    id="discounts-tab-{{ pricing_key }}" 
+    data-bs-toggle="tab" 
+    data-bs-target="#discounts-{{ pricing_key }}" 
                 type="button" 
                 role="tab">
           <i class="fas fa-percentage me-1" aria-hidden="true"></i>
@@ -232,10 +238,10 @@
       <!-- Comparisons Tab -->
       {% if show_comparisons %}
       <li class="nav-item" role="presentation">
-        <button class="nav-link" 
-                id="comparisons-tab-{{ model_slug }}" 
-                data-bs-toggle="tab" 
-                data-bs-target="#comparisons-{{ model_slug }}" 
+  <button class="nav-link" 
+    id="comparisons-tab-{{ pricing_key }}" 
+    data-bs-toggle="tab" 
+    data-bs-target="#comparisons-{{ pricing_key }}" 
                 type="button" 
                 role="tab">
           <i class="fas fa-balance-scale me-1" aria-hidden="true"></i>
@@ -246,14 +252,14 @@
     </ul>
     
     <!-- Tab Content -->
-    <div class="tab-content mt-3" id="pricing-tab-content-{{ model_slug }}">
+  <div class="tab-content mt-3" id="pricing-tab-content-{{ pricing_key }}">
       
       <!-- Calculator Tab Pane -->
       {% if show_calculator %}
-      <div class="tab-pane fade show active" 
-           id="calculator-{{ model_slug }}" 
-           role="tabpanel" 
-           aria-labelledby="calculator-tab-{{ model_slug }}">
+  <div class="tab-pane fade show active" 
+       id="calculator-{{ pricing_key }}" 
+       role="tabpanel" 
+       aria-labelledby="calculator-tab-{{ pricing_key }}">
         
         <div class="cost-calculator">
           <div class="row">
@@ -268,17 +274,17 @@
                 
                 <!-- Input Tokens -->
                 <div class="mb-3">
-                  <label for="input-tokens-{{ model_slug }}" class="form-label">
+                  <label for="input-tokens-{{ pricing_key }}" class="form-label">
                     Input Tokens
                     <small class="text-muted">(approx. 4 chars per token)</small>
                   </label>
-                  <input type="number" 
-                         class="form-control" 
-                         id="input-tokens-{{ model_slug }}"
+        <input type="number" 
+          class="form-control" 
+          id="input-tokens-{{ pricing_key }}"
                          value="1000"
                          min="0"
                          step="100"
-                         onchange="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.calculateCost()">
+          onchange="pricingInfo{{ pricing_js_name }}.calculateCost()">
                   <div class="form-text">
                     <small>Context limit: {{ '{:,}'.format(context_length) if context_length else 'N/A' }} tokens</small>
                   </div>
@@ -286,17 +292,17 @@
                 
                 <!-- Output Tokens -->
                 <div class="mb-3">
-                  <label for="output-tokens-{{ model_slug }}" class="form-label">
+                  <label for="output-tokens-{{ pricing_key }}" class="form-label">
                     Output Tokens
                     <small class="text-muted">(generated response)</small>
                   </label>
-                  <input type="number" 
-                         class="form-control" 
-                         id="output-tokens-{{ model_slug }}"
+        <input type="number" 
+          class="form-control" 
+          id="output-tokens-{{ pricing_key }}"
                          value="500"
                          min="0"
                          step="50"
-                         onchange="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.calculateCost()">
+          onchange="pricingInfo{{ pricing_js_name }}.calculateCost()">
                   <div class="form-text">
                     <small>Max output: {{ '{:,}'.format(max_output) if max_output else 'N/A' }} tokens</small>
                   </div>
@@ -304,16 +310,16 @@
                 
                 <!-- Requests Per Month -->
                 <div class="mb-3">
-                  <label for="requests-month-{{ model_slug }}" class="form-label">
+                  <label for="requests-month-{{ pricing_key }}" class="form-label">
                     Requests per Month
                   </label>
-                  <input type="number" 
-                         class="form-control" 
-                         id="requests-month-{{ model_slug }}"
+        <input type="number" 
+          class="form-control" 
+          id="requests-month-{{ pricing_key }}"
                          value="1000"
                          min="1"
                          step="100"
-                         onchange="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.calculateCost()">
+          onchange="pricingInfo{{ pricing_js_name }}.calculateCost()">
                 </div>
                 
                 <!-- Quick Presets -->
@@ -322,17 +328,17 @@
                   <div class="btn-group-sm" role="group">
                     <button type="button" 
                             class="btn btn-outline-secondary"
-                            onclick="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.applyPreset('light')">
+                            onclick="pricingInfo{{ pricing_js_name }}.applyPreset('light')">
                       Light Use
                     </button>
                     <button type="button" 
                             class="btn btn-outline-secondary"
-                            onclick="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.applyPreset('moderate')">
+                            onclick="pricingInfo{{ pricing_js_name }}.applyPreset('moderate')">
                       Moderate
                     </button>
                     <button type="button" 
                             class="btn btn-outline-secondary"
-                            onclick="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.applyPreset('heavy')">
+                            onclick="pricingInfo{{ pricing_js_name }}.applyPreset('heavy')">
                       Heavy Use
                     </button>
                   </div>
@@ -352,14 +358,14 @@
                 <div class="cost-item mb-3">
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="cost-label">Cost per Request:</span>
-                    <span class="cost-value fw-bold" id="cost-per-request-{{ model_slug }}">
+                    <span class="cost-value fw-bold" id="cost-per-request-{{ pricing_key }}">
                       {{ currency_symbol }}0.00
                     </span>
                   </div>
                   <div class="cost-breakdown small text-muted">
-                    <span>Input: <span id="input-cost-{{ model_slug }}">{{ currency_symbol }}0.00</span></span>
+                    <span>Input: <span id="input-cost-{{ pricing_key }}">{{ currency_symbol }}0.00</span></span>
                     <span class="mx-2">+</span>
-                    <span>Output: <span id="output-cost-{{ model_slug }}">{{ currency_symbol }}0.00</span></span>
+                    <span>Output: <span id="output-cost-{{ pricing_key }}">{{ currency_symbol }}0.00</span></span>
                   </div>
                 </div>
                 
@@ -367,7 +373,7 @@
                 <div class="cost-item mb-3 p-3 bg-light rounded">
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="cost-label fw-bold">Monthly Total:</span>
-                    <span class="cost-value fw-bold fs-5 text-primary" id="monthly-cost-{{ model_slug }}">
+                    <span class="cost-value fw-bold fs-5 text-primary" id="monthly-cost-{{ pricing_key }}">
                       {{ currency_symbol }}0.00
                     </span>
                   </div>
@@ -377,7 +383,7 @@
                 <div class="cost-item mb-3">
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="cost-label">Annual Projection:</span>
-                    <span class="cost-value" id="annual-cost-{{ model_slug }}">
+                    <span class="cost-value" id="annual-cost-{{ pricing_key }}">
                       {{ currency_symbol }}0.00
                     </span>
                   </div>
@@ -389,15 +395,15 @@
                   <div class="usage-stats">
                     <div class="d-flex justify-content-between">
                       <span>Total Input Tokens/Month:</span>
-                      <span id="total-input-tokens-{{ model_slug }}">0</span>
+                      <span id="total-input-tokens-{{ pricing_key }}">0</span>
                     </div>
                     <div class="d-flex justify-content-between">
                       <span>Total Output Tokens/Month:</span>
-                      <span id="total-output-tokens-{{ model_slug }}">0</span>
+                      <span id="total-output-tokens-{{ pricing_key }}">0</span>
                     </div>
                     <div class="d-flex justify-content-between fw-bold">
                       <span>Total Tokens/Month:</span>
-                      <span id="total-tokens-{{ model_slug }}">0</span>
+                      <span id="total-tokens-{{ pricing_key }}">0</span>
                     </div>
                   </div>
                 </div>
@@ -541,7 +547,7 @@
           
           <!-- Discount Visualization -->
           <div class="discount-chart mt-4">
-            <canvas id="discount-chart-{{ model_slug }}" width="400" height="200"></canvas>
+            <canvas id="discount-chart-{{ pricing_key }}" width="400" height="200"></canvas>
           </div>
         </div>
       </div>
@@ -554,11 +560,11 @@
            role="tabpanel" 
            aria-labelledby="comparisons-tab-{{ model_slug }}">
         
-        <div class="pricing-comparisons"
-             id="pricing-comparisons-{{ model_slug }}"
-             hx-get="{{ url_for('api.pricing_comparisons', model_slug=model_slug) }}"
-             hx-trigger="load"
-             hx-swap="innerHTML">
+  <div class="pricing-comparisons"
+       id="pricing-comparisons-{{ pricing_key }}"
+       hx-get="{{ url_for('api.pricing_comparisons', model_slug=model_slug) }}"
+       hx-trigger="load"
+       hx-swap="innerHTML">
           
           <!-- Loading State -->
           <div class="text-center py-4">
@@ -576,14 +582,14 @@
 
 <!-- Pricing Export Modal -->
 <div class="modal fade" 
-     id="pricing-export-modal-{{ model_slug }}" 
-     tabindex="-1" 
-     aria-labelledby="pricing-export-modal-label-{{ model_slug }}"
-     aria-hidden="true">
+  id="pricing-export-modal-{{ pricing_key }}" 
+  tabindex="-1" 
+  aria-labelledby="pricing-export-modal-label-{{ pricing_key }}"
+  aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="pricing-export-modal-label-{{ model_slug }}">
+  <h5 class="modal-title" id="pricing-export-modal-label-{{ pricing_key }}">
           <i class="fas fa-download me-2" aria-hidden="true"></i>
           Export Pricing Data
         </h5>
@@ -614,9 +620,9 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" 
-                class="btn btn-primary"
-                onclick="pricingInfo{{ model_slug.replace('-', '').replace('_', '') }}.performExport()">
+  <button type="button" 
+    class="btn btn-primary"
+    onclick="pricingInfo{{ pricing_js_name }}.performExport()">
           <i class="fas fa-download me-1" aria-hidden="true"></i>
           Export
         </button>
@@ -631,6 +637,7 @@ class PricingInfo {
   constructor(containerId, modelSlug, options = {}) {
     this.container = document.getElementById(containerId);
     this.modelSlug = modelSlug;
+    this.domKey = this.container?.dataset?.domKey || modelSlug;
     this.options = {
       currency: 'USD',
       currencyRates: {
@@ -677,9 +684,9 @@ class PricingInfo {
   }
   
   calculateCost() {
-    const inputTokens = parseInt(document.getElementById(`input-tokens-${this.modelSlug}`).value) || 0;
-    const outputTokens = parseInt(document.getElementById(`output-tokens-${this.modelSlug}`).value) || 0;
-    const requestsPerMonth = parseInt(document.getElementById(`requests-month-${this.modelSlug}`).value) || 0;
+  const inputTokens = parseInt(document.getElementById(`input-tokens-${this.domKey}`).value) || 0;
+  const outputTokens = parseInt(document.getElementById(`output-tokens-${this.domKey}`).value) || 0;
+  const requestsPerMonth = parseInt(document.getElementById(`requests-month-${this.domKey}`).value) || 0;
     
     // Convert to pricing units (typically per 1K tokens)
     const inputCost = (inputTokens / 1000) * this.inputPrice;
@@ -694,23 +701,23 @@ class PricingInfo {
     const totalTokensPerMonth = totalInputTokensPerMonth + totalOutputTokensPerMonth;
     
     // Update UI elements
-    this.updateCostDisplay('cost-per-request', totalCostPerRequest);
-    this.updateCostDisplay('input-cost', inputCost);
-    this.updateCostDisplay('output-cost', outputCost);
-    this.updateCostDisplay('monthly-cost', monthlyCost);
-    this.updateCostDisplay('annual-cost', annualCost);
+  this.updateCostDisplay('cost-per-request', totalCostPerRequest);
+  this.updateCostDisplay('input-cost', inputCost);
+  this.updateCostDisplay('output-cost', outputCost);
+  this.updateCostDisplay('monthly-cost', monthlyCost);
+  this.updateCostDisplay('annual-cost', annualCost);
     
     // Update token usage summary
-    document.getElementById(`total-input-tokens-${this.modelSlug}`).textContent = 
+  document.getElementById(`total-input-tokens-${this.domKey}`).textContent = 
       totalInputTokensPerMonth.toLocaleString();
-    document.getElementById(`total-output-tokens-${this.modelSlug}`).textContent = 
+  document.getElementById(`total-output-tokens-${this.domKey}`).textContent = 
       totalOutputTokensPerMonth.toLocaleString();
-    document.getElementById(`total-tokens-${this.modelSlug}`).textContent = 
+  document.getElementById(`total-tokens-${this.domKey}`).textContent = 
       totalTokensPerMonth.toLocaleString();
   }
   
   updateCostDisplay(elementId, amount) {
-    const element = document.getElementById(`${elementId}-${this.modelSlug}`);
+  const element = document.getElementById(`${elementId}-${this.domKey}`);
     if (element) {
       const currencySymbol = this.getCurrencySymbol();
       const convertedAmount = this.convertCurrency(amount);
@@ -727,9 +734,9 @@ class PricingInfo {
     
     const preset = presets[presetType];
     if (preset) {
-      document.getElementById(`input-tokens-${this.modelSlug}`).value = preset.input;
-      document.getElementById(`output-tokens-${this.modelSlug}`).value = preset.output;
-      document.getElementById(`requests-month-${this.modelSlug}`).value = preset.requests;
+  document.getElementById(`input-tokens-${this.domKey}`).value = preset.input;
+  document.getElementById(`output-tokens-${this.domKey}`).value = preset.output;
+  document.getElementById(`requests-month-${this.domKey}`).value = preset.requests;
       this.calculateCost();
     }
   }
@@ -755,7 +762,7 @@ class PricingInfo {
   }
   
   initializeDiscountChart() {
-    const canvas = document.getElementById(`discount-chart-${this.modelSlug}`);
+  const canvas = document.getElementById(`discount-chart-${this.domKey}`);
     if (!canvas || typeof Chart === 'undefined') return;
     
     // This would create a Chart.js visualization of volume discounts
@@ -770,7 +777,7 @@ class PricingInfo {
   }
   
   loadComparisons() {
-    const comparisonsContainer = document.getElementById(`pricing-comparisons-${this.modelSlug}`);
+  const comparisonsContainer = document.getElementById(`pricing-comparisons-${this.domKey}`);
     if (!comparisonsContainer || comparisonsContainer.dataset.loaded === 'true') return;
     
     // HTMX will handle the loading via hx-trigger="load"
@@ -778,7 +785,7 @@ class PricingInfo {
   }
   
   exportPricingData() {
-    const modal = new bootstrap.Modal(document.getElementById(`pricing-export-modal-${this.modelSlug}`));
+  const modal = new bootstrap.Modal(document.getElementById(`pricing-export-modal-${this.domKey}`));
     modal.show();
   }
   
@@ -791,12 +798,12 @@ class PricingInfo {
       outputPrice: this.outputPrice,
       currency: this.options.currency,
       calculatedCosts: {
-        inputTokens: document.getElementById(`input-tokens-${this.modelSlug}`).value,
-        outputTokens: document.getElementById(`output-tokens-${this.modelSlug}`).value,
-        requestsPerMonth: document.getElementById(`requests-month-${this.modelSlug}`).value,
-        costPerRequest: document.getElementById(`cost-per-request-${this.modelSlug}`).textContent,
-        monthlyCost: document.getElementById(`monthly-cost-${this.modelSlug}`).textContent,
-        annualCost: document.getElementById(`annual-cost-${this.modelSlug}`).textContent
+  inputTokens: document.getElementById(`input-tokens-${this.domKey}`).value,
+  outputTokens: document.getElementById(`output-tokens-${this.domKey}`).value,
+  requestsPerMonth: document.getElementById(`requests-month-${this.domKey}`).value,
+  costPerRequest: document.getElementById(`cost-per-request-${this.domKey}`).textContent,
+  monthlyCost: document.getElementById(`monthly-cost-${this.domKey}`).textContent,
+  annualCost: document.getElementById(`annual-cost-${this.domKey}`).textContent
       },
       exportedAt: new Date().toISOString()
     };
@@ -804,7 +811,7 @@ class PricingInfo {
     this.downloadData(pricingData, selectedFormat);
     
     // Close modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById(`pricing-export-modal-${this.modelSlug}`));
+  const modal = bootstrap.Modal.getInstance(document.getElementById(`pricing-export-modal-${this.domKey}`));
     modal.hide();
     
     this.showNotification(`Pricing data exported as ${selectedFormat.toUpperCase()}`, 'success');
@@ -886,13 +893,13 @@ class PricingInfo {
 }
 
 // Initialize pricing info
-const pricingInfo{{ model_slug.replace('-', '').replace('_', '') }} = new PricingInfo(
-  'pricing-info-{{ model_slug }}', 
+const pricingInfo{{ pricing_js_name }} = new PricingInfo(
+  '{{ pricing_container_id }}', 
   '{{ model_slug }}'
 );
 
 // Make it globally accessible for HTML onclick handlers
-window.pricingInfo{{ model_slug.replace('-', '').replace('_', '') }} = pricingInfo{{ model_slug.replace('-', '').replace('_', '') }};
+window.pricingInfo{{ pricing_js_name }} = pricingInfo{{ pricing_js_name }};
 </script>
 
 <!-- Pricing Info Styles -->

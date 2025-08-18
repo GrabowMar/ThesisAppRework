@@ -16,6 +16,8 @@
     /* position-sticky offset + bounded height so it never overlaps navbar */
     .app-detail .position-sticky{top: var(--sidebar-top, 72px)}
     .app-detail .sidebar-inner{max-height: calc(100vh - var(--sidebar-top, 72px) - 12px); overflow:auto}
+    .app-detail .sidebar-inner .nav-link{scroll-margin-top: 64px}
+    html{scroll-behavior: smooth}
 </style>
 {% endblock %}
 
@@ -147,6 +149,18 @@ function copyAdjacentPre(btn){
     }
     window.addEventListener('load', applyLayout);
     window.addEventListener('resize', function(){ clearTimeout(t); t = setTimeout(applyLayout, 150); });
+
+    // Keep active link in view inside the sidebar as you scroll
+    document.addEventListener('activate.bs.scrollspy', function(e){
+        const link = document.querySelector('#app-sidebar .nav-link.active');
+        const scroller = document.querySelector('#app-sidebar');
+        if (!link || !scroller) return;
+        const linkRect = link.getBoundingClientRect();
+        const contRect = scroller.getBoundingClientRect();
+        if (linkRect.top < contRect.top || linkRect.bottom > contRect.bottom) {
+            scroller.scrollTo({ top: scroller.scrollTop + (linkRect.top - contRect.top - 32), behavior: 'smooth' });
+        }
+    });
 })();
 </script>
 {% endblock %}

@@ -21,6 +21,9 @@ from ...services import application_service as app_service
 from ...services.service_locator import ServiceLocator
 from ...utils.helpers import get_app_directory
 from pathlib import Path
+import json
+import requests
+from flask import Response
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -315,6 +318,54 @@ def api_application_logs_modal_by_slug(model_slug, app_num):
         except Exception as e:
             logger.debug(f"Port lookup failed for {model_slug}/app{app_num}: {e}")
 
+        # If ports still unknown, try to read misc/port_config.json directly
+        if backend_port is None or frontend_port is None:
+            try:
+                # project root: src/app/routes/api -> src -> project
+                proj_root = Path(__file__).resolve().parents[4]
+                port_file = proj_root / 'misc' / 'port_config.json'
+                if port_file.exists():
+                    entries = json.loads(port_file.read_text(encoding='utf-8'))
+                    for entry in entries:
+                        if (entry.get('model_name') == model_slug and int(entry.get('app_number')) == int(app_num)):
+                            backend_port = backend_port or int(entry.get('backend_port'))
+                            frontend_port = frontend_port or int(entry.get('frontend_port'))
+                            break
+            except Exception as _json_port_err:
+                logger.debug(f"JSON port config lookup failed: {_json_port_err}")
+
+        # Fallback to filesystem logs under misc/models/<slug>/appN/_logs
+        try:
+            proj_root = Path(__file__).resolve().parents[4]
+            app_dir = proj_root / 'misc' / 'models' / model_slug / f'app{app_num}'
+            logs_dir = app_dir / '_logs'
+            if logs_dir.exists():
+                backend_log_path = None
+                frontend_log_path = None
+                # common names
+                for name in ['backend.log', 'api.log', 'server.log']:
+                    p = logs_dir / name
+                    if p.exists():
+                        backend_log_path = p
+                        break
+                for name in ['frontend.log', 'web.log', 'ui.log']:
+                    p = logs_dir / name
+                    if p.exists():
+                        frontend_log_path = p
+                        break
+                try:
+                    if backend_log_path:
+                        backend_logs = backend_log_path.read_text(encoding='utf-8', errors='replace')[-10000:]
+                except Exception:
+                    pass
+                try:
+                    if frontend_log_path:
+                        frontend_logs = frontend_log_path.read_text(encoding='utf-8', errors='replace')[-10000:]
+                except Exception:
+                    pass
+        except Exception as _fs_err:
+            logger.debug(f"Filesystem logs fallback failed: {_fs_err}")
+
         # Render rich modal with split backend/frontend panes
         return render_template(
             'partials/app_logs_modal.html',
@@ -579,3 +630,49 @@ def sync_model_status(model_slug):
     except Exception as e:
         logger.error(f"Error syncing model status for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error loading status: {str(e)}</div>', 500
+
+
+# -----------------------------------------------------------------
+# Simple GET proxy to frontend root (basic, non-streaming)
+# -----------------------------------------------------------------
+@api_bp.route('/app/<model_slug>/<int:app_num>/proxy/frontend')
+def proxy_frontend_root(model_slug, app_num):
+    """Basic GET proxy that fetches the frontend root from the server's bound port.
+
+    Security: Minimal; this only proxies the root ('/') and returns the content-type
+    provided by the proxied response. Do not expand this to arbitrary proxying without
+    adding authentication and access controls.
+    """
+    try:
+        # 1) Try DB lookup for port
+        try:
+            from ...models import PortConfiguration
+            pc = db.session.query(PortConfiguration).filter_by(model=model_slug, app_num=app_num).first()
+            port = pc.frontend_port if pc else None
+        except Exception:
+            port = None
+
+        # 2) Fallback to misc/port_config.json
+        if not port:
+            try:
+                proj_root = Path(__file__).resolve().parents[4]
+                port_file = proj_root / 'misc' / 'port_config.json'
+                if port_file.exists():
+                    entries = json.loads(port_file.read_text(encoding='utf-8'))
+                    for entry in entries:
+                        if entry.get('model_name') == model_slug and int(entry.get('app_number')) == int(app_num):
+                            port = int(entry.get('frontend_port'))
+                            break
+            except Exception:
+                port = None
+
+        if not port:
+            return json_error('Frontend port not available', status=404, error_type='NotFound')
+
+        url = f'http://localhost:{port}/'
+        resp = requests.get(url, timeout=10)
+        content_type = resp.headers.get('Content-Type', 'text/html; charset=utf-8')
+        return Response(resp.content, status=resp.status_code, content_type=content_type)
+    except Exception as e:
+        logger.error(f"Proxy error for {model_slug}/app{app_num}: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')

@@ -223,7 +223,50 @@ class GeneratedApplication(db.Model):
     
     def get_ports(self) -> Dict[str, Any]:
         """Get port configuration for this application."""
-        return {}  # Implement based on port configuration
+        # Import here to avoid circular imports at module import-time
+        try:
+            from app.models import PortConfiguration, ModelCapability  # type: ignore
+        except Exception:
+            # If imports fail (e.g. during some early import phases), return empty dict
+            return {}
+
+        # Try to find a PortConfiguration using several strategies similar to ModelService
+        try:
+            # exact match first
+            pc = PortConfiguration.query.filter_by(model=self.model_slug, app_num=self.app_number).first()
+            if not pc:
+                # look up ModelCapability for alternative names
+                model_cap = ModelCapability.query.filter_by(canonical_slug=self.model_slug).first()
+                if model_cap and getattr(model_cap, 'model_name', None):
+                    pc = PortConfiguration.query.filter_by(model=model_cap.model_name, app_num=self.app_number).first()
+                if not pc and model_cap and getattr(model_cap, 'canonical_slug', None):
+                    pc = PortConfiguration.query.filter_by(model=model_cap.canonical_slug, app_num=self.app_number).first()
+
+            # try simple normalizations
+            if not pc:
+                candidates = set([
+                    self.model_slug.replace('-', '_'),
+                    self.model_slug.replace('_', '-'),
+                    self.model_slug.replace(' ', '_'),
+                    self.model_slug.replace(' ', '-')
+                ])
+                for cand in candidates:
+                    if not cand:
+                        continue
+                    pc = PortConfiguration.query.filter_by(model=cand, app_num=self.app_number).first()
+                    if pc:
+                        break
+
+            if not pc:
+                return {}
+
+            return {
+                'frontend': pc.frontend_port,
+                'backend': pc.backend_port,
+                'is_available': bool(pc.is_available)
+            }
+        except Exception:
+            return {}
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""

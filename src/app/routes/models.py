@@ -16,7 +16,7 @@ from ..models import (
 )
 from ..extensions import db
 from ..services.openrouter_service import OpenRouterService
-from ..utils.helpers import deep_merge_dicts, dicts_to_csv
+from ..utils.helpers import deep_merge_dicts, dicts_to_csv, get_app_directory, make_safe_dom_id
 from datetime import timedelta
 from pathlib import Path
 from ..models import PortConfiguration  # type: ignore[attr-defined]
@@ -56,6 +56,15 @@ def template_get_provider_color(provider):
     return get_provider_color(provider)
 
 
+@models_bp.app_template_global('make_safe_dom_id')
+def template_make_safe_dom_id(value, prefix=None):
+    """Expose helper to templates for creating safe DOM ids."""
+    try:
+        return make_safe_dom_id(value, prefix=prefix)
+    except Exception:
+        return (prefix or '') + 'invalid-id'
+
+
 @models_bp.app_template_filter('abbreviate_number')
 def abbreviate_number_filter(value):
     """Format large integers as human-readable abbreviations (e.g., 1.2K, 3.4M).
@@ -81,6 +90,10 @@ def abbreviate_number_filter(value):
     if n.is_integer():
         return f"{int(num)}"
     return f"{num:.2f}"
+
+# Resolve project root (src/app/routes -> project root)
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[3]
 
 @models_bp.route('/')
 def models_overview():
@@ -525,7 +538,7 @@ def application_detail(model_slug, app_number):
                 'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {}
             }
         
-        app_path = Path('misc/models') / model_slug / f'app{app_number}'
+        app_path = get_app_directory(model_slug, app_number)
         files_info = {
             'app_exists': app_path.exists(),
             'docker_compose': (app_path / 'docker-compose.yml').exists(),
@@ -619,8 +632,8 @@ def application_detail(model_slug, app_number):
         prompts = {'backend': '', 'frontend': ''}
         # Initialize with empty strings to satisfy static typing (later populated with filenames)
         template_files = {'backend_file': '', 'frontend_file': ''}
+        tmpl_dir = _project_root() / 'misc' / 'app_templates'
         try:
-            tmpl_dir = Path('misc/app_templates')
             backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
             frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
             if backend_md:
@@ -631,7 +644,7 @@ def application_detail(model_slug, app_number):
                 prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
         except Exception as e:
             logger.warning(f"Failed to load prompts for app {app_number}: {e}")
-        
+
         # Build 'application' object expected by the template
         # Map statuses to the simplified set used in UI
         def _map_status(app_obj) -> str:
@@ -715,7 +728,9 @@ def application_detail(model_slug, app_number):
             code_stats=code_stats,
             prompts=prompts,
             template_files=template_files,
-            artifacts=artifacts
+            artifacts=artifacts,
+            templates_dir=str(tmpl_dir),
+            app_base_dir=str(app_path)
         )
     except Exception as e:
         logger.error(f"Error loading application details for {model_slug}/app{app_number}: {e}")
@@ -752,7 +767,7 @@ def _collect_app_context(model_slug: str, app_number: int):
         'metadata': app.get_metadata() if app and hasattr(app, 'get_metadata') else {}
     }
 
-    app_path = Path('misc/models') / model_slug / f'app{app_number}'
+    app_path = get_app_directory(model_slug, app_number)
     ignore_dirs = {'.mypy_cache', '.pytest_cache', '__pycache__', 'node_modules', '.venv', '.git'}
     files_info = {'app_exists': app_path.exists(), 'docker_compose': (app_path / 'docker-compose.yml').exists(), 'backend_files': [], 'frontend_files': [], 'other_files': []}
     code_stats = {'total_files': 0, 'total_loc': 0, 'by_language': {}}
@@ -832,8 +847,8 @@ def _collect_app_context(model_slug: str, app_number: int):
     prompts = {'backend': '', 'frontend': ''}
     # Initialize with empty strings to satisfy static typing (later populated with filenames)
     template_files = {'backend_file': '', 'frontend_file': ''}
+    tmpl_dir = _project_root() / 'misc' / 'app_templates'
     try:
-        tmpl_dir = Path('misc/app_templates')
         backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
         frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
         if backend_md:
@@ -856,6 +871,8 @@ def _collect_app_context(model_slug: str, app_number: int):
         'prompts': prompts,
         'template_files': template_files,
         'artifacts': artifacts,
+    'templates_dir': str(tmpl_dir),
+    'app_base_dir': str(app_path),
     }
 
 
@@ -908,7 +925,7 @@ def export_application_csv(model_slug, app_number):
             logger.warning(f"PortConfiguration lookup failed for {model_slug}/app{app_number}: {e}")
 
         # Scan filesystem files under misc/models
-        app_path = Path('misc/models') / model_slug / f'app{app_number}'
+        app_path = get_app_directory(model_slug, app_number)
         rows = []
         def add_row(kind: str, info: dict):
             rows.append({
@@ -964,7 +981,7 @@ def application_file_preview(model_slug, app_number):
         if not rel_path:
             return '<div class="alert alert-warning">Missing path</div>', 400
 
-        base = Path('misc/models') / model_slug / f'app{app_number}'
+        base = get_app_directory(model_slug, app_number)
         # Normalize and ensure the target is inside base
         target = (base / rel_path).resolve()
         if not str(target).startswith(str(base.resolve())):

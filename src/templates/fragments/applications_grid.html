@@ -12,7 +12,8 @@
 
 {% if application_grid %}
     {% for entry in application_grid %}
-    {% set collapse_id = 'model-' ~ entry.model.canonical_slug %}
+    {% set collapse_key = make_safe_dom_id(entry.model.canonical_slug) %}
+    {% set collapse_id = 'model-' ~ collapse_key %}
     <div class="mb-3">
         <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-3">
