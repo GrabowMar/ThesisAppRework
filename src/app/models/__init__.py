@@ -42,6 +42,8 @@ class ModelCapability(db.Model):
     
     # Capabilities
     is_free = db.Column(db.Boolean, default=False)
+    # Installed flag: indicates the model has local generated applications under misc/models/<slug>
+    installed = db.Column(db.Boolean, default=False, index=True)
     context_window = db.Column(db.Integer, default=0)
     max_output_tokens = db.Column(db.Integer, default=0)
     supports_function_calling = db.Column(db.Boolean, default=False)

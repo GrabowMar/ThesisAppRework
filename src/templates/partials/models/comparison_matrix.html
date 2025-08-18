@@ -1,0 +1,70 @@
+{#
+  Partial: Comparison Matrix
+  Context:
+    - models: list of dicts with fields used below
+    - fields: optional dict to label/format columns
+#}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0"><i class="fas fa-balance-scale me-2"></i>Comparison Matrix</h6>
+    <div class="text-muted small">{{ models|length }} selected</div>
+  </div>
+  <div class="card-body p-0">
+    {% if not models %}
+      <div class="p-3 text-muted">No models selected.</div>
+    {% else %}
+      <div class="table-responsive">
+        <table class="table table-sm table-striped mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Model</th>
+              <th scope="col">Provider</th>
+              <th scope="col">Context</th>
+              <th scope="col">Prompt $/1K</th>
+              <th scope="col">Completion $/1K</th>
+              <th scope="col">Max Out</th>
+              <th scope="col">Flags</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in models %}
+            <tr>
+              <td class="fw-semibold">{{ m.name or m.model_name or m.slug }}</td>
+              <td>{{ m.provider or '—' }}</td>
+              <td>{{ m.context_length or 0 }}</td>
+              <td>${{ (m.input_price_per_1k or 0)|round(6) }}</td>
+              <td>${{ (m.output_price_per_1k or 0)|round(6) }}</td>
+              <td>{{ m.max_output_tokens or 0 }}</td>
+              <td>
+                {% set flags = [] %}
+                {% if m.supports_function_calling %}{% set _ = flags.append('Tools') %}{% endif %}
+                {% if m.supports_json_mode %}{% set _ = flags.append('JSON') %}{% endif %}
+                {% if m.supports_streaming %}{% set _ = flags.append('Stream') %}{% endif %}
+                {% if m.supports_vision %}{% set _ = flags.append('Vision') %}{% endif %}
+                {% if flags %}
+                  {% for f in flags %}<span class="badge bg-secondary me-1">{{ f }}</span>{% endfor %}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+  <div class="card-footer d-flex justify-content-between align-items-center">
+    <div class="small text-muted">Prices shown per 1,000 tokens.</div>
+    {% if models %}
+    <div class="btn-group btn-group-sm">
+      <a class="btn btn-outline-secondary" href="/api/models/comparison/export?format=csv&models={{ models|map(attribute='slug')|list|join(',') }}">
+        <i class="fas fa-file-csv me-1"></i>Export CSV
+      </a>
+      <a class="btn btn-outline-secondary" href="/api/models/comparison/export?format=json&models={{ models|map(attribute='slug')|list|join(',') }}">
+        <i class="fas fa-code me-1"></i>Export JSON
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>

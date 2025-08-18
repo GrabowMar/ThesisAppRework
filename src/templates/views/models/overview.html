@@ -38,8 +38,14 @@
                     <button class="btn btn-outline-primary" onclick="refreshModels()">
                         <i class="fas fa-sync-alt me-1"></i>Refresh
                     </button>
+                    <button class="btn btn-outline-secondary" onclick="tagInstalledModels()" title="Scan misc/models and tag installed models">
+                        <i class="fas fa-tags me-1"></i>Tag Installed
+                    </button>
                     <button class="btn btn-outline-success" onclick="exportModelsData()">
                         <i class="fas fa-download me-1"></i>Export Data
+                    </button>
+                    <button class="btn btn-outline-info" onclick="showComparison()">
+                        <i class="fas fa-balance-scale me-1"></i>Compare
                     </button>
                     {% if models_stats.total_models == 0 %}
                     <button class="btn btn-outline-warning" onclick="initData()" title="Load demo model data">
@@ -146,8 +152,8 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
+                    <div class="row g-2 align-items-end" id="filters-row">
+                        <div class="col-lg-3 col-md-4 col-sm-6">
                             <label class="form-label">Search Models</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="model-search" 
@@ -158,7 +164,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-2 col-sm-6">
                             <label class="form-label">Provider</label>
                             <select class="form-select" id="provider-filter" onchange="applyFilters()">
                                 <option value="">All Providers</option>
@@ -167,7 +173,7 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-2 col-sm-6">
                             <label class="form-label">Capability</label>
                             <select class="form-select" id="capability-filter" onchange="applyFilters()">
                                 <option value="">All Capabilities</option>
@@ -178,7 +184,7 @@
                                 <option value="language">Language</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-2 col-sm-6">
                             <label class="form-label">Price Range</label>
                             <select class="form-select" id="price-filter" onchange="applyFilters()">
                                 <option value="">All Prices</option>
@@ -188,7 +194,7 @@
                                 <option value="high">High ($0.05+)</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-1 col-md-2 col-sm-6">
                             <label class="form-label">Status</label>
                             <select class="form-select" id="status-filter" onchange="applyFilters()">
                                 <option value="">All Statuses</option>
@@ -197,16 +203,19 @@
                                 <option value="deprecated">Deprecated</option>
                             </select>
                         </div>
-                        <div class="col-md-1">
+                        <div class="col-lg-1 col-md-1 col-sm-6">
                             <label class="form-label">&nbsp;</label>
                             <button class="btn btn-outline-danger d-block" onclick="clearAllFilters()" title="Clear Filters">
                                 <i class="fas fa-eraser"></i>
                             </button>
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="installed-filter" onchange="applyFilters()">
-                                <label class="form-check-label" for="installed-filter">Installed only</label>
+                        <div class="col-lg-2 col-md-3 col-sm-6 d-flex align-items-end justify-content-end">
+                            <div class="btn-group" role="group" aria-label="All or Installed">
+                                <input type="radio" class="btn-check" name="installed_mode" id="installed-mode-all" autocomplete="off" checked onchange="applyFilters()">
+                                <label class="btn btn-outline-secondary btn-sm" for="installed-mode-all">All</label>
+
+                                <input type="radio" class="btn-check" name="installed_mode" id="installed-mode-installed" autocomplete="off" onchange="applyFilters()">
+                                <label class="btn btn-outline-secondary btn-sm" for="installed-mode-installed">Installed</label>
                             </div>
                         </div>
                     </div>
@@ -316,6 +325,9 @@
             </div>
     </div>
     </div>
+
+    <!-- Comparison Panel (HTMX/Fetch injected) -->
+    <div id="comparison-panel" class="mt-4"></div>
 
     <!-- Loading Indicator -->
     <div id="loading-spinner" class="text-center py-4" style="display: none;">
@@ -474,6 +486,15 @@
         margin: 0.0625rem;
     }
 }
+
+/* Compact filters: keep filter controls on a single line for wide viewports */
+@media (min-width: 992px) {
+    #filters-row .form-label { font-size: 0.85rem; margin-bottom: 0.25rem; }
+    #filters-row .form-control, #filters-row .form-select { height: calc(1.5rem + 1.5rem); padding: 0.25rem 0.5rem; font-size: 0.85rem; }
+    #filters-row .btn { padding: 0.35rem 0.5rem; }
+    #filters-row { white-space: nowrap; }
+    #filters-row .col-lg-3, #filters-row .col-lg-2, #filters-row .col-lg-1 { display: inline-block; float: none; vertical-align: bottom; }
+}
 </style>
 {% endblock %}
 
@@ -526,8 +547,8 @@ function debounceSearch() {
 
 function loadModels() {
     showLoading(true);
-    // Respect Installed-only toggle on initial load as well
-    const installedOnly = document.getElementById('installed-filter')?.checked;
+    // Respect Installed-only setting (radio) on initial load
+    const installedOnly = document.getElementById('installed-mode-installed')?.checked;
     const url = installedOnly ? '/api/models/all?installed=1' : '/api/models/all';
 
     fetch(url)
@@ -572,7 +593,8 @@ function applyFilters() {
     Object.entries(filters).forEach(([key, value]) => {
         if (value) params.append(key, value);
     });
-    if (document.getElementById('installed-filter')?.checked) {
+    const installedRadio = document.getElementById('installed-mode-installed');
+    if (installedRadio && installedRadio.checked) {
         params.append('installed', '1');
     }
 
@@ -785,8 +807,32 @@ function exportModelsData() {
     const exportFormat = formatMap[format];
     
     if (exportFormat) {
-        window.open(`/api/models/export?format=${exportFormat}`, '_blank');
+    const installedOnly = document.getElementById('installed-mode-installed')?.checked;
+    const params = new URLSearchParams({ format: exportFormat });
+    if (installedOnly) params.append('installed', '1');
+    window.open(`/api/models/export?${params.toString()}`, '_blank');
     }
+}
+
+function tagInstalledModels() {
+    if (!confirm('Scan local misc/models folders and mark installed models in the database? This will update the installed flag for all models.')) return;
+    showLoading(true);
+    fetch('/api/models/mark-installed', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+            showLoading(false);
+            if (res?.success) {
+                alert(`Updated ${res.updated} models (scanned ${res.scanned_folders} folders)`);
+                loadModels();
+            } else {
+                alert(`Failed to tag installed models: ${res?.error || 'unknown error'}`);
+            }
+        })
+        .catch(err => {
+            showLoading(false);
+            console.error('Tag installed failed', err);
+            alert('Tag installed failed. See console for details.');
+        });
 }
 
 // Data initialization helpers
@@ -824,7 +870,36 @@ function initData(silent = false) {
 }
 
 // Comparison view rendering
-// Comparison view removed
+function showComparison() {
+    if (!selectedModels.length) {
+        alert('Select up to 5 models to compare.');
+        return;
+    }
+    if (selectedModels.length > 5) {
+        selectedModels = selectedModels.slice(0,5);
+        alert('Only the first 5 selected models will be compared.');
+    }
+    const panel = document.getElementById('comparison-panel');
+    if (panel) panel.innerHTML = '<div class="p-3 text-muted">Building comparison…</div>';
+    const form = new URLSearchParams();
+    // Send as comma-separated for simplicity
+    form.append('models', selectedModels.join(','));
+    fetch('/api/models/comparison/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString()
+    })
+    .then(r => r.text())
+    .then(html => {
+        if (panel) panel.innerHTML = html;
+        // Scroll into view
+        panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    })
+    .catch(err => {
+        console.error('Comparison failed', err);
+        if (panel) panel.innerHTML = '<div class="alert alert-danger">Failed to build comparison matrix.</div>';
+    });
+}
 
 // Table interactions
 function toggleSelectAll() {

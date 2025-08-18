@@ -507,6 +507,50 @@ class DataInitializationService:
         ).first()
         return latest.updated_at.isoformat() if latest and latest.updated_at else None
 
+    def mark_installed_models(self, reset_first: bool = True) -> Dict[str, Any]:
+        """Scan the misc/models folder and set ModelCapability.installed=True for matching slugs.
+
+        Returns a dict with success, updated count, and scanned_folders count or errors on failure.
+        """
+        results = {'success': True, 'updated': 0, 'scanned_folders': 0, 'errors': []}
+        try:
+            if not self.models_path.exists():
+                results.update({'success': False, 'errors': ['misc/models folder not found']})
+                return results
+
+            dirs = [d.name for d in self.models_path.iterdir() if d.is_dir()]
+            results['scanned_folders'] = len(dirs)
+
+            # Optionally reset existing flags
+            if reset_first:
+                try:
+                    db.session.query(ModelCapability).update({ModelCapability.installed: False})
+                    db.session.flush()
+                except Exception:
+                    # If flush fails, continue to try marking individual rows
+                    db.session.rollback()
+
+            updated = 0
+            for d in dirs:
+                try:
+                    m = ModelCapability.query.filter_by(canonical_slug=d).first()
+                    if m and not m.installed:
+                        m.installed = True
+                        updated += 1
+                except Exception as e:
+                    results['errors'].append(f"Error marking {d}: {str(e)}")
+
+            db.session.commit()
+            results['updated'] = updated
+            return results
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            results.update({'success': False, 'errors': [str(e)]})
+            return results
+
 
 # Create global instance
 data_init_service = DataInitializationService()

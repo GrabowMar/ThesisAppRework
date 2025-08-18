@@ -257,6 +257,23 @@ def model_more_info(model_slug):
         return f'<div class="alert alert-danger">Error: {str(e)}</div>'
 
 
+@models_bp.route('/import')
+def models_import_page():
+    """Render a simple import page to upload JSON and call the API."""
+    try:
+        return render_template('views/models/import.html')
+    except Exception as e:
+        logger.error(f"Error rendering models import page: {e}")
+        return render_template(
+            'single_page.html',
+            page_title='Models Import Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Import Page Error',
+            error_message=str(e)
+        ), 500
+
+
 @models_bp.route('/export/models.csv')
 def export_models_csv():
     """Export models overview to CSV with selected fields including OpenRouter/HF when available."""
