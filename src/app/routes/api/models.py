@@ -1327,11 +1327,10 @@ def api_models_comparison_refresh():
         elif request.form.get('models'):
             selected = [s for s in (request.form.get('models') or '').split(',') if s]
 
-        # Enforce selection cap
-        if len(selected) > 5:
-            selected = selected[:5]
-
-        if not selected:
+        # Require at least two models for a meaningful comparison. Do not hard-cap the maximum here;
+        # the client or downstream export may apply limits. If fewer than 2 selected, render empty fragment with notice.
+        if not selected or len(selected) < 2:
+            # Render fragment with no models to show a helpful message
             return render_template('partials/models/comparison_matrix.html', models=[])
 
         # Fetch selected models preserving order
@@ -1459,8 +1458,9 @@ def api_models_comparison_export():
     try:
         fmt = (request.args.get('format') or 'csv').lower()
         slugs = [s for s in (request.args.get('models') or '').split(',') if s]
-        if len(slugs) > 5:
-            slugs = slugs[:5]
+    # No server-side hard cap: allow as many slugs as the caller provides.
+    # Large requests may be rate-limited or otherwise protected by external
+    # infrastructure; keep the payload handling simple here.
         if fmt not in {'csv', 'json'}:
             return jsonify({'error': f'Unsupported format: {fmt}'}), 400
 

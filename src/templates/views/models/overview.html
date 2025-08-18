@@ -325,7 +325,7 @@
             <div class="card">
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-hover" id="models-table">
+                        <table class="table table-hover table-sm" id="models-table">
                             <thead>
                                 <tr>
                                     <th>
@@ -334,12 +334,10 @@
                                     <th onclick="sortTable('name')" class="sortable">
                                         Model Name <i class="fas fa-sort ms-1"></i>
                                     </th>
-                                    <th onclick="sortTable('provider')" class="sortable">
+                                    <th style="width:120px;" onclick="sortTable('provider')" class="sortable text-truncate">
                                         Provider <i class="fas fa-sort ms-1"></i>
                                     </th>
-                                    <th onclick="sortTable('capabilities')" class="sortable">
-                                        Capabilities <i class="fas fa-sort ms-1"></i>
-                                    </th>
+                                    <th onclick="sortTable('capabilities')" class="sortable">Capabilities <i class="fas fa-sort ms-1"></i></th>
                                     <th onclick="sortTable('pricing')" class="sortable">
                                         Price/1K Tokens <i class="fas fa-sort ms-1"></i>
                                     </th>
@@ -349,10 +347,8 @@
                                     <th onclick="sortTable('status')" class="sortable">
                                         Status <i class="fas fa-sort ms-1"></i>
                                     </th>
-                                    <th onclick="sortTable('performance_score')" class="sortable">
-                                        Performance <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th>Actions</th>
+                                    <th onclick="sortTable('performance_score')" class="sortable" style="width:120px;">Performance <i class="fas fa-sort ms-1"></i></th>
+                                    <th style="width:90px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="models-table-body">
@@ -510,6 +506,19 @@
 }
 
 /* comparison view removed */
+
+/* Table improvements: sticky header, tighter paddings, badge wrapping */
+#models-table thead th {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 5;
+}
+#models-table tbody td { vertical-align: middle; }
+#models-table.table-sm td, #models-table.table-sm th { padding: .35rem .5rem; }
+.capability-badge { white-space: normal; display: inline-block; margin-bottom: .15rem; }
+.provider-cell { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actions-cell .btn { padding: .25rem .35rem; }
 
 @media (max-width: 768px) {
     .model-card {
@@ -731,7 +740,7 @@ function renderModelsTable(models) {
                     ${badgeFreePaid}${installedBadge}
                 </div>
             </td>
-            <td>${model.provider}</td>
+            <td class="provider-cell">${model.provider}</td>
             <td>
                 ${caps.slice(0, 2).map(cap => 
                     `<span class="badge bg-info capability-badge">${cap}</span>`
@@ -747,7 +756,7 @@ function renderModelsTable(models) {
                     <span class="small">${model.performance_score}/10</span>
                 </div>
             </td>
-            <td>
+            <td class="actions-cell">
                 <div class="btn-group btn-group-sm">
                     <button class="btn btn-outline-primary btn-sm" onclick="viewModelDetails('${model.slug}')">
                         <i class="fas fa-eye"></i>
@@ -768,10 +777,6 @@ function toggleModelSelection(modelSlug, cardElement = null) {
         selectedModels.splice(index, 1);
         if (cardElement) cardElement.classList.remove('selected');
     } else {
-        if (selectedModels.length >= 5) {
-            alert('Maximum of 5 models can be selected for comparison.');
-            return;
-        }
         selectedModels.push(modelSlug);
         if (cardElement) cardElement.classList.add('selected');
     }
@@ -926,13 +931,10 @@ function initData(silent = false) {
 
 // Comparison view rendering
 function showComparison() {
-    if (!selectedModels.length) {
-        alert('Select up to 5 models to compare.');
+    // Require at least two models for a meaningful comparison
+    if (!selectedModels.length || selectedModels.length < 2) {
+        alert('Select at least 2 models to compare.');
         return;
-    }
-    if (selectedModels.length > 5) {
-        selectedModels = selectedModels.slice(0,5);
-        alert('Only the first 5 selected models will be compared.');
     }
     const panel = document.getElementById('comparison-panel');
     if (panel) panel.innerHTML = '<div class="p-3 text-muted">Building comparison…</div>';
@@ -946,7 +948,33 @@ function showComparison() {
     })
     .then(r => r.text())
     .then(html => {
-        if (panel) panel.innerHTML = html;
+        // Safely insert only the #comparison-panel fragment from the returned HTML.
+        try {
+            if (typeof insertComparisonPanelFromHtml === 'function') {
+                insertComparisonPanelFromHtml(html);
+            } else {
+                // Fallback: attempt to extract the fragment and replace the node; if that fails, fall back to innerHTML
+                try {
+                    const wrapper = document.createElement('div');
+                    wrapper.innerHTML = html;
+                    const newPanel = wrapper.querySelector('#comparison-panel');
+                    if (newPanel && panel && panel.parentNode) {
+                        panel.parentNode.replaceChild(newPanel, panel);
+                        if (typeof htmx !== 'undefined') { htmx.process(newPanel); newPanel.dispatchEvent(new Event('htmx:afterSwap')); }
+                    } else if (panel) {
+                        panel.innerHTML = html;
+                        if (typeof htmx !== 'undefined') { htmx.process(panel); panel.dispatchEvent(new Event('htmx:afterSwap')); }
+                    }
+                } catch (e) {
+                    console.warn('fallback fragment insert failed', e);
+                    if (panel) panel.innerHTML = html;
+                }
+            }
+        } catch (e) {
+            console.warn('insertComparisonPanelFromHtml failed, falling back to innerHTML', e);
+            if (panel) panel.innerHTML = html;
+        }
+
         // Scroll into view
         panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     })
@@ -973,7 +1001,7 @@ function toggleSelectAll() {
         if (!slug) return;
         cb.checked = toSelect;
         const idx = selectedModels.indexOf(slug);
-        if (toSelect && idx === -1 && selectedModels.length < 5) {
+        if (toSelect && idx === -1) {
             selectedModels.push(slug);
         } else if (!toSelect && idx > -1) {
             selectedModels.splice(idx, 1);
@@ -990,7 +1018,6 @@ function sortTable(field) {
         currentSort.field = field;
         currentSort.direction = 'asc';
     }
-
     const dir = currentSort.direction === 'asc' ? 1 : -1;
     const by = (a, b) => (a > b ? 1 : a < b ? -1 : 0) * dir;
 

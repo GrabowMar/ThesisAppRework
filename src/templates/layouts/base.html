@@ -151,9 +151,20 @@
     
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js"></script>
+    <!-- Hyperscript (for lightweight client behaviors on htmx events) -->
+    <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
     
     <!-- Project JavaScript -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+        <!-- Optional global hyperscript hook to gently highlight swapped comparison panel -->
+            <script type="text/hyperscript">
+                on htmx:afterSwap from #comparison-panel
+                    add .border-primary to #comparison-panel
+                    wait 500ms
+                    remove .border-primary from #comparison-panel
+                end
+            </script>
     {% endblock %}
     
     {# Additional JavaScript #}
