@@ -1450,7 +1450,7 @@ def sse_events_stream():
     import queue
     import websockets
     import uuid
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     correlation_id = request.args.get('correlation_id')
 
@@ -1465,7 +1465,7 @@ def sse_events_stream():
                 sub = {
                     'type': 'status_request',
                     'id': str(uuid.uuid4()),
-                    'timestamp': datetime.utcnow().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'data': {'subscribe': 'events', 'replay': True}
                 }
                 await ws.send(json.dumps(sub))

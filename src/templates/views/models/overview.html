@@ -145,11 +145,35 @@
             <div class="card">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-filter me-2"></i>Filters & Search
-                        </h5>
-                        <div class="text-muted small">Table view</div>
-                    </div>
+                            <div class="d-flex align-items-center">
+                                <h5 class="mb-0 me-3">
+                                    <i class="fas fa-filter me-2"></i>Filters & Search
+                                </h5>
+                                <div class="text-muted small d-none d-lg-block">Table view</div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Installed / All toggle (kept IDs for JS compatibility) -->
+                                <div class="btn-group" role="group" aria-label="All or Installed">
+                                    <input type="radio" class="btn-check" name="installed_mode" id="installed-mode-all" autocomplete="off" checked onchange="applyFilters()">
+                                    <label class="btn btn-outline-secondary btn-sm" for="installed-mode-all">All</label>
+
+                                    <input type="radio" class="btn-check" name="installed_mode" id="installed-mode-installed" autocomplete="off" onchange="applyFilters()">
+                                    <label class="btn btn-outline-secondary btn-sm" for="installed-mode-installed">Installed</label>
+                                </div>
+
+                                <!-- Data source toggle -->
+                                <div class="btn-group ms-1" role="group" aria-label="Data Source">
+                                    <input type="radio" class="btn-check" name="data_source" id="source-db" autocomplete="off" checked onclick="applyFilters()">
+                                    <label class="btn btn-outline-primary btn-sm" for="source-db" title="Database (cached)">DB</label>
+                                    <input type="radio" class="btn-check" name="data_source" id="source-openrouter" autocomplete="off" onclick="applyFilters()">
+                                    <label class="btn btn-outline-primary btn-sm" for="source-openrouter" title="Live from OpenRouter">Live</label>
+                                </div>
+
+                                <button class="btn btn-sm btn-outline-danger" onclick="clearAllFilters()" title="Clear Filters">
+                                    <i class="fas fa-eraser"></i>
+                                </button>
+                            </div>
+                        </div>
                 </div>
                 <div class="card-body">
                     <div class="row g-2 align-items-end" id="filters-row">
@@ -164,25 +188,62 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="col-lg-2 col-md-2 col-sm-6">
-                            <label class="form-label">Provider</label>
-                            <select class="form-select" id="provider-filter" onchange="applyFilters()">
-                                <option value="">All Providers</option>
-                                {% for provider in available_providers %}
-                                <option value="{{ provider.id }}">{{ provider.name }}</option>
-                                {% endfor %}
-                            </select>
+                        <div class="col-lg-3 col-md-3 col-sm-6">
+                            <label class="form-label">Providers</label>
+                            <div class="dropdown w-100">
+                                <button class="form-control d-flex justify-content-between align-items-center"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false">
+                                    <span class="text-truncate me-2" id="providers-summary">All</span>
+                                    <i class="fas fa-chevron-down text-muted"></i>
+                                </button>
+                                <div class="dropdown-menu p-2 w-100" style="max-height: 300px; overflow:auto;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong class="small">Select providers</strong>
+                                        <div>
+                                            <button class="btn btn-sm btn-link" type="button" onclick="toggleProviders(true)">All</button>
+                                            <button class="btn btn-sm btn-link" type="button" onclick="toggleProviders(false)">None</button>
+                                        </div>
+                                    </div>
+                                    {% for provider in available_providers %}
+                                    <div class="form-check dropdown-item">
+                                        <input class="form-check-input provider-option" type="checkbox" value="{{ provider.id }}" id="provider-{{ provider.id }}">
+                                        <label class="form-check-label" for="provider-{{ provider.id }}">{{ provider.name }}</label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <input type="hidden" id="provider-filter" value="">
+                            </div>
                         </div>
-                        <div class="col-lg-2 col-md-2 col-sm-6">
-                            <label class="form-label">Capability</label>
-                            <select class="form-select" id="capability-filter" onchange="applyFilters()">
-                                <option value="">All Capabilities</option>
-                                <option value="coding">Coding</option>
-                                <option value="analysis">Analysis</option>
-                                <option value="reasoning">Reasoning</option>
-                                <option value="multimodal">Multimodal</option>
-                                <option value="language">Language</option>
-                            </select>
+                        <div class="col-lg-3 col-md-3 col-sm-6">
+                            <label class="form-label">Capabilities</label>
+                            <div class="dropdown w-100">
+                                <button class="form-control d-flex justify-content-between align-items-center"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false">
+                                    <span class="text-truncate me-2" id="capabilities-summary">All</span>
+                                    <i class="fas fa-chevron-down text-muted"></i>
+                                </button>
+                                <div class="dropdown-menu p-2 w-100" style="max-height: 300px; overflow:auto;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong class="small">Select capabilities</strong>
+                                        <div>
+                                            <button class="btn btn-sm btn-link" type="button" onclick="toggleCapabilities(true)">All</button>
+                                            <button class="btn btn-sm btn-link" type="button" onclick="toggleCapabilities(false)">None</button>
+                                        </div>
+                                    </div>
+                                    {# Keep a compact, opinionated default list; backend matches by substring too #}
+                                    {% set capability_options = ['coding','analysis','reasoning','multimodal','language','vision','function_calling','json_mode','streaming'] %}
+                                    {% for cap in capability_options %}
+                                    <div class="form-check dropdown-item">
+                                        <input class="form-check-input capability-option" type="checkbox" value="{{ cap }}" id="cap-{{ cap }}">
+                                        <label class="form-check-label text-capitalize" for="cap-{{ cap }}">{{ cap.replace('_',' ') }}</label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
                         </div>
                         <div class="col-lg-2 col-md-2 col-sm-6">
                             <label class="form-label">Price Range</label>
@@ -203,31 +264,9 @@
                                 <option value="deprecated">Deprecated</option>
                             </select>
                         </div>
-                        <div class="col-lg-1 col-md-1 col-sm-6">
-                            <label class="form-label">&nbsp;</label>
-                            <button class="btn btn-outline-danger d-block" onclick="clearAllFilters()" title="Clear Filters">
-                                <i class="fas fa-eraser"></i>
-                            </button>
-                        </div>
-                        <div class="col-lg-2 col-md-3 col-sm-6 d-flex align-items-end justify-content-end">
-                            <div class="btn-group" role="group" aria-label="All or Installed">
-                                <input type="radio" class="btn-check" name="installed_mode" id="installed-mode-all" autocomplete="off" checked onchange="applyFilters()">
-                                <label class="btn btn-outline-secondary btn-sm" for="installed-mode-all">All</label>
-
-                                <input type="radio" class="btn-check" name="installed_mode" id="installed-mode-installed" autocomplete="off" onchange="applyFilters()">
-                                <label class="btn btn-outline-secondary btn-sm" for="installed-mode-installed">Installed</label>
-                            </div>
-                        </div>
+                        
                     </div>
-
-                    <!-- Advanced Filters Collapse -->
-                    <div class="mt-3">
-                        <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" 
-                                data-bs-target="#advanced-filters">
-                            <i class="fas fa-cog me-1"></i>Advanced Filters
-                        </button>
-                    </div>
-
+                    <div class="mt-2" id="active-filter-chips" style="display:none;"></div>
                     <div class="collapse mt-3" id="advanced-filters">
                         <div class="border rounded p-3 bg-light">
                             <div class="row">
@@ -495,6 +534,9 @@
     #filters-row { white-space: nowrap; }
     #filters-row .col-lg-3, #filters-row .col-lg-2, #filters-row .col-lg-1 { display: inline-block; float: none; vertical-align: bottom; }
 }
+/* Active filter chips */
+.filter-chip { display: inline-flex; align-items: center; gap: .25rem; padding: .125rem .5rem; background: #f1f3f5; border-radius: 999px; margin: .125rem .25rem .125rem 0; font-size: .8rem; }
+.filter-chip .btn-close { font-size: .6rem; }
 </style>
 {% endblock %}
 
@@ -529,6 +571,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Setup event listeners
     setupEventListeners();
+    bindFilterMultiselects();
+    renderActiveFilterChips();
 });
 
 function setupEventListeners() {
@@ -545,82 +589,89 @@ function debounceSearch() {
 
 // Table-only view; no view switching function
 
+// Determine which data source to query (DB or OpenRouter)
+function getDataSource() {
+    const isOpenRouter = document.getElementById('source-openrouter')?.checked;
+    return isOpenRouter ? 'openrouter' : 'db';
+}
+
+// Build filter params for API calls (supports arrays for providers/capabilities)
+function buildFilterParams() {
+    const params = new URLSearchParams();
+    const q = document.getElementById('model-search')?.value?.trim() || '';
+    if (q) params.append('search', q);
+
+    // Installed only
+    const installedOnly = document.getElementById('installed-mode-installed')?.checked;
+    if (installedOnly) params.append('installed', '1');
+
+    // Providers (ids)
+    const providers = Array.from(document.querySelectorAll('.provider-option:checked')).map(el => el.value);
+    providers.forEach(p => params.append('providers', p));
+
+    // Capabilities (slugs)
+    const capabilities = Array.from(document.querySelectorAll('.capability-option:checked')).map(el => el.value);
+    capabilities.forEach(c => params.append('capabilities', c));
+
+    // Simple selects
+    const price = document.getElementById('price-filter')?.value || '';
+    if (price) params.append('price', price);
+    const status = document.getElementById('status-filter')?.value || '';
+    if (status) params.append('status', status);
+
+    // Advanced filters (optional backend support)
+    const context = document.getElementById('context-filter')?.value || '';
+    if (context) params.append('context', context);
+    const size = document.getElementById('size-filter')?.value || '';
+    if (size) params.append('size', size);
+    const release = document.getElementById('release-filter')?.value || '';
+    if (release) params.append('release', release);
+    const specialization = document.getElementById('specialization-filter')?.value || '';
+    if (specialization) params.append('specialization', specialization);
+
+    return params;
+}
+
 function loadModels() {
     showLoading(true);
-    // Respect Installed-only setting (radio) on initial load
     const installedOnly = document.getElementById('installed-mode-installed')?.checked;
-    const url = installedOnly ? '/api/models/all?installed=1' : '/api/models/all';
-
+    const source = getDataSource();
+    const base = source === 'openrouter' ? '/api/models/openrouter/all' : '/api/models/all';
+    const url = installedOnly ? `${base}?installed=1` : base;
     fetch(url)
-    .then(response => response.json())
-    .then(data => {
-        modelsData = data.models;
-        updateStatistics(data.statistics);
-        
-        // If no models are present, attempt a one-time auto-initialize
-        if ((modelsData?.length || 0) === 0) {
-            attemptAutoInitializeData();
-        }
-        
-    // Render table only
-    renderModelsTable(data.models);
-        
-        showLoading(false);
-    })
-    .catch(error => {
-        console.error('Failed to load models:', error);
-        showError('Failed to load models. Please try again.');
-        showLoading(false);
-    });
+      .then(r => r.json())
+      .then(data => {
+          modelsData = data.models;
+          updateStatistics(data.statistics);
+          if ((modelsData?.length || 0) === 0 && source === 'db') {
+              attemptAutoInitializeData();
+          }
+          renderModelsTable(modelsData);
+      })
+      .catch(err => { console.error('Failed to load models:', err); showError('Failed to load models.'); })
+      .finally(() => showLoading(false));
 }
 
 function applyFilters() {
-    const filters = {
-        search: document.getElementById('model-search').value,
-        provider: document.getElementById('provider-filter').value,
-        capability: document.getElementById('capability-filter').value,
-        price: document.getElementById('price-filter').value,
-        status: document.getElementById('status-filter').value,
-        context: document.getElementById('context-filter')?.value || '',
-        size: document.getElementById('size-filter')?.value || '',
-        release: document.getElementById('release-filter')?.value || '',
-        specialization: document.getElementById('specialization-filter')?.value || ''
-    };
-
     showLoading(true);
-
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-    });
-    const installedRadio = document.getElementById('installed-mode-installed');
-    if (installedRadio && installedRadio.checked) {
-        params.append('installed', '1');
-    }
-
-    fetch(`/api/models/filtered?${params.toString()}`)
-    .then(response => response.json())
-    .then(data => {
-        modelsData = data.models;
-        updateStatistics(data.statistics);
-        
-    // Render table only
-    renderModelsTable(data.models);
-        
-        showLoading(false);
-    })
-    .catch(error => {
-        console.error('Filter failed:', error);
-        showError('Filter operation failed. Please try again.');
-        showLoading(false);
-    });
+    const source = getDataSource();
+    const params = buildFilterParams();
+    const endpoint = source === 'openrouter' ? '/api/models/openrouter/filtered' : '/api/models/filtered';
+    fetch(`${endpoint}?${params.toString()}`)
+      .then(r => r.json())
+      .then(data => { modelsData = data.models; updateStatistics(data.statistics); renderActiveFilterChips(); renderModelsTable(modelsData); })
+      .catch(err => { console.error('Filter failed:', err); showError('Filter operation failed.'); })
+      .finally(() => showLoading(false));
 }
 
 function clearAllFilters() {
     // Reset all filter controls
     document.getElementById('model-search').value = '';
-    document.getElementById('provider-filter').value = '';
-    document.getElementById('capability-filter').value = '';
+    // Uncheck multi-select options
+    document.querySelectorAll('.provider-option').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.capability-option').forEach(cb => cb.checked = false);
+    updateProvidersSummary();
+    updateCapabilitiesSummary();
     document.getElementById('price-filter').value = '';
     document.getElementById('status-filter').value = 'active';
     if (document.getElementById('installed-filter')) {
@@ -663,6 +714,9 @@ function renderModelsTable(models) {
 
     tbody.innerHTML = models.map(model => {
         const caps = toArrayCaps(model.capabilities);
+        const isFree = Number(model.input_price_per_1k || 0) === 0 && Number(model.output_price_per_1k || 0) === 0;
+        const badgeFreePaid = isFree ? '<span class="badge bg-success ms-1">free</span>' : '<span class="badge bg-secondary ms-1">paid</span>';
+        const installedBadge = model.installed ? '<span class="badge bg-primary ms-1" title="Installed locally">installed</span>' : '';
         return `
         <tr class="${selectedModels.includes(model.slug) ? 'table-primary' : ''}">
             <td>
@@ -674,6 +728,7 @@ function renderModelsTable(models) {
                     <img src="${model.provider_logo}" alt="${model.provider}" 
                          class="me-2" style="width: 16px; height: 16px;">
                     <strong>${model.name}</strong>
+                    ${badgeFreePaid}${installedBadge}
                 </div>
             </td>
             <td>${model.provider}</td>
@@ -981,6 +1036,107 @@ function generateComparisonReport() {
 
 function renderModelDetailsHTML(data) {
 // Client-side details rendering removed; server-rendered modal body is used
+}
+</script>
+
+<script>
+// Multi-select helpers for Providers/Capabilities
+function bindFilterMultiselects() {
+    // Bind changes to re-render summaries and apply filters
+    document.querySelectorAll('.provider-option').forEach(cb => {
+        cb.addEventListener('change', () => { updateProvidersSummary(); renderActiveFilterChips(); applyFilters(); });
+    });
+    document.querySelectorAll('.capability-option').forEach(cb => {
+        cb.addEventListener('change', () => { updateCapabilitiesSummary(); renderActiveFilterChips(); applyFilters(); });
+    });
+    updateProvidersSummary();
+    updateCapabilitiesSummary();
+}
+
+function getSelectedProviders() {
+    return Array.from(document.querySelectorAll('.provider-option:checked')).map(el => el.value);
+}
+function getSelectedCapabilities() {
+    return Array.from(document.querySelectorAll('.capability-option:checked')).map(el => el.value);
+}
+
+function updateProvidersSummary() {
+    const vals = getSelectedProviders();
+    const el = document.getElementById('providers-summary');
+    document.getElementById('provider-filter').value = vals.join(',');
+    el.textContent = vals.length ? `${vals.length} selected` : 'All';
+}
+function updateCapabilitiesSummary() {
+    const vals = getSelectedCapabilities();
+    const el = document.getElementById('capabilities-summary');
+    el.textContent = vals.length ? `${vals.length} selected` : 'All';
+}
+
+function toggleProviders(all) {
+    document.querySelectorAll('.provider-option').forEach(cb => cb.checked = !!all);
+    updateProvidersSummary();
+    renderActiveFilterChips();
+    applyFilters();
+}
+function toggleCapabilities(all) {
+    document.querySelectorAll('.capability-option').forEach(cb => cb.checked = !!all);
+    updateCapabilitiesSummary();
+    renderActiveFilterChips();
+    applyFilters();
+}
+
+function renderActiveFilterChips() {
+    const chips = [];
+    const providers = getSelectedProviders();
+    const capabilities = getSelectedCapabilities();
+    const installedOnly = document.getElementById('installed-mode-installed')?.checked;
+    const status = document.getElementById('status-filter')?.value || '';
+    const price = document.getElementById('price-filter')?.value || '';
+    const context = document.getElementById('context-filter')?.value || '';
+
+    providers.forEach(p => chips.push({ type: 'provider', value: p, label: `Provider: ${p}` }));
+    capabilities.forEach(c => chips.push({ type: 'capability', value: c, label: `Capability: ${c.replace('_',' ')}` }));
+    if (installedOnly) chips.push({ type: 'installed', value: 'installed', label: 'Installed only' });
+    if (status) chips.push({ type: 'status', value: status, label: `Status: ${status}` });
+    if (price) chips.push({ type: 'price', value: price, label: `Price: ${price}` });
+    if (context) chips.push({ type: 'context', value: context, label: `Context: ${context}` });
+
+    const container = document.getElementById('active-filter-chips');
+    if (!container) return;
+    if (!chips.length) { container.style.display = 'none'; container.innerHTML = ''; return; }
+    container.style.display = 'block';
+    container.innerHTML = chips.map(ch => `
+        <span class="filter-chip" data-type="${ch.type}" data-value="${ch.value}">
+            ${ch.label}
+            <button type="button" class="btn-close" aria-label="Remove" onclick="removeFilterChip('${ch.type}','${ch.value}')"></button>
+        </span>
+    `).join('');
+}
+
+function removeFilterChip(type, value) {
+    if (type === 'provider') {
+        const el = document.getElementById(`provider-${value}`);
+        if (el) el.checked = false;
+        updateProvidersSummary();
+    } else if (type === 'capability') {
+        const el = document.getElementById(`cap-${value}`);
+        if (el) el.checked = false;
+        updateCapabilitiesSummary();
+    } else if (type === 'installed') {
+        const radioAll = document.getElementById('installed-mode-all');
+        if (radioAll) radioAll.checked = true;
+    } else if (type === 'status') {
+        const sel = document.getElementById('status-filter');
+        if (sel) sel.value = '';
+    } else if (type === 'price') {
+        const sel = document.getElementById('price-filter');
+        if (sel) sel.value = '';
+    } else if (type === 'context') {
+        const sel = document.getElementById('context-filter');
+        if (sel) sel.value = '';
+    }
+    renderActiveFilterChips();
+    applyFilters();
 }
 </script>
 {% endblock %}

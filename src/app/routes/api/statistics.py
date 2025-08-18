@@ -6,7 +6,7 @@ API endpoints for statistics and data aggregation.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask import render_template, request, Response
 from sqlalchemy import text, func
 
@@ -108,7 +108,7 @@ def stats_models_trend():
     try:
         # Simple trend calculation - could be enhanced
         recent_count = ModelCapability.query.filter(
-            ModelCapability.created_at >= datetime.now() - timedelta(days=30)
+            ModelCapability.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
         ).count() if hasattr(ModelCapability, 'created_at') else 0
         return f"+{recent_count} this month"
     except Exception as e:
@@ -181,11 +181,11 @@ def stats_analysis_trend():
     try:
         # Count recent analyses
         recent_security = SecurityAnalysis.query.filter(
-            SecurityAnalysis.created_at >= datetime.now() - timedelta(days=7)
+            SecurityAnalysis.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
         ).count() if hasattr(SecurityAnalysis, 'created_at') else 0
         
         recent_performance = PerformanceTest.query.filter(
-            PerformanceTest.created_at >= datetime.now() - timedelta(days=7)
+            PerformanceTest.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
         ).count() if hasattr(PerformanceTest, 'created_at') else 0
         
         total_recent = recent_security + recent_performance
@@ -306,7 +306,7 @@ def statistics_chart_data():
         days = 30
         if rng.endswith('d') and rng[:-1].isdigit():
             days = max(7, min(365, int(rng[:-1])))
-        start = datetime.utcnow() - timedelta(days=days)
+        start = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Build simple time buckets (daily) for security/performance counts
         # For portability across DBs, do Python-side aggregation
@@ -330,7 +330,7 @@ def statistics_chart_data():
             if t.created_at:
                 perf_counts[t.created_at.date()] += 1
 
-        labels = [d.isoformat() for d in daterange(start, datetime.utcnow())]
+        labels = [d.isoformat() for d in daterange(start, datetime.now(timezone.utc))]
         activity = {
             'labels': labels,
             'datasets': [

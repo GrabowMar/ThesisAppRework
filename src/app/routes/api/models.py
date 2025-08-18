@@ -18,8 +18,10 @@ from ...models import ModelCapability, GeneratedApplication, SecurityAnalysis, P
 from ...extensions import db
 import requests
 import json
-from datetime import datetime
+from datetime import datetime, timezone
+import statistics
 from ...services.data_initialization import data_init_service
+from ...services.openrouter_service import OpenRouterService
 
 
 def _upsert_openrouter_models(models_payload: list) -> int:
@@ -153,8 +155,8 @@ def _upsert_openrouter_models(models_payload: list) -> int:
             # leave existing.installed as-is on error
             pass
 
-        existing.updated_at = datetime.utcnow()
-        upserted += 1
+    existing.updated_at = datetime.now(timezone.utc)
+    upserted += 1
 
     try:
         db.session.commit()
@@ -165,6 +167,9 @@ def _upsert_openrouter_models(models_payload: list) -> int:
 
 # Set up logger
 logger = logging.getLogger(__name__)
+
+# Local OpenRouter service instance for this blueprint
+_openrouter_service = OpenRouterService()
 
 
 def _norm_caps(value: Any) -> List[str]:
@@ -333,9 +338,24 @@ def api_models_all():
                 if api_key:
                     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
                     try:
+                        # Be tolerant: OpenRouter may return data at top-level or under 'data' or 'models'.
                         resp = requests.get('https://openrouter.ai/api/v1/models', headers=headers, timeout=30)
                         if resp.status_code == 200:
-                            payload = resp.json().get('data', [])
+                            body = resp.json()
+                            # Try common keys
+                            payload = []
+                            if isinstance(body, dict):
+                                for key in ('data', 'models', 'items'):
+                                    if key in body and isinstance(body[key], list):
+                                        payload = body[key]
+                                        break
+                                # Sometimes endpoint returns list directly in body
+                                if not payload and isinstance(body.get('results'), list):
+                                    payload = body.get('results')
+                            elif isinstance(body, list):
+                                payload = body
+
+                            # If payload large, we still upsert whatever we received; further pagination is not supported here.
                             if payload:
                                 _upsert_openrouter_models(payload)
                                 models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
@@ -454,11 +474,20 @@ def api_models_filtered():
         # Build base query for provider/search
         q = ModelCapability.query
         search = (request.args.get('search') or '').strip()
+        # Support both single and multi-provider params: provider, providers=a,b
         provider = (request.args.get('provider') or '').strip()
+        providers_param = (request.args.get('providers') or '').strip()
+        providers = []
+        if providers_param:
+            providers = [p.strip() for p in providers_param.split(',') if p.strip()]
+        elif provider:
+            providers = [provider]
 
-        if provider:
-            # Case-insensitive provider match so template/provider casing doesn't break filtering
-            q = q.filter(ModelCapability.provider.ilike(provider))
+        if providers:
+            # Case-insensitive provider match; OR across selected providers
+            from sqlalchemy import or_
+            ors = [ModelCapability.provider.ilike(p) for p in providers]
+            q = q.filter(or_(*ors))
         if search:
             # search should match model_name, model_id, canonical_slug, provider, and metadata.description
             like = f"%{search}%"
@@ -479,7 +508,8 @@ def api_models_filtered():
                     from sqlalchemy import true
                     q = q.filter(ModelCapability.installed.is_(true()))
                 except Exception:
-                    q = q.filter(ModelCapability.installed == True)
+                    # Fallback boolean equality avoided; use is_ with Python True where supported
+                    q = q.filter(ModelCapability.installed.is_(True))
             except Exception:
                 # Fallback after query executed
                 pass
@@ -516,7 +546,14 @@ def api_models_filtered():
         models_list = [map_model(m) for m in models]
 
         # Additional in-memory filters for fields that are stored in JSON or require derived logic
+        # Support both single and multi-capability params: capability, capabilities=a,b
         capability_filter = (request.args.get('capability') or '').strip().lower()
+        capabilities_param = (request.args.get('capabilities') or '').strip().lower()
+        capability_filters = []
+        if capabilities_param:
+            capability_filters = [c.strip() for c in capabilities_param.split(',') if c.strip()]
+        elif capability_filter:
+            capability_filters = [capability_filter]
         price_filter = (request.args.get('price') or '').strip().lower()
         context_filter = (request.args.get('context') or '').strip().lower()
     # size_filter intentionally not used at this time (kept for future UI mapping)
@@ -561,15 +598,18 @@ def api_models_filtered():
             return True
 
         def matches_capability(m):
-            if not capability_filter:
+            if not capability_filters:
                 return True
             caps = m.get('capabilities') or []
-            if isinstance(caps, (list, tuple)):
-                return any(capability_filter in (c or '').lower() for c in caps)
-            # If dict-like
+            # Normalize caps into list of lowercase strings
             if isinstance(caps, dict):
-                return any(capability_filter == k.lower() and bool(v) for k, v in caps.items())
-            return capability_filter in str(caps).lower()
+                caps_list = [k.lower() for k, v in caps.items() if bool(v)] or [k.lower() for k in caps.keys()]
+            elif isinstance(caps, (list, tuple)):
+                caps_list = [(c or '').lower() for c in caps]
+            else:
+                caps_list = [str(caps).lower()]
+            # Match ANY of selected capabilities (OR semantics)
+            return any(cf in caps_list or any(cf in c for c in caps_list) for cf in capability_filters)
 
         def matches_status(m):
             if not status_filter:
@@ -594,6 +634,259 @@ def api_models_filtered():
         return jsonify({'models': filtered_models, 'statistics': stats})
     except Exception as e:
         logger.error(f"Error building models/filtered payload: {e}")
+        return jsonify({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
+
+
+# =================================================================
+# OPENROUTER SOURCE: LIST AND FILTERED
+# =================================================================
+
+def _map_openrouter_model_to_table(m: dict, installed_slugs: set[str]) -> dict:
+    """Map a raw OpenRouter model dict to the table row structure used by the UI."""
+    try:
+        model_id = m.get('id') or ''
+        provider = model_id.split('/')[0] if '/' in model_id else (m.get('provider') or 'unknown')
+        model_name = model_id.split('/')[-1] if '/' in model_id else (m.get('name') or m.get('model') or '')
+        canonical_slug = model_id.replace('/', '_').replace(':', '_')
+        pricing = m.get('pricing', {}) or {}
+        try:
+            prompt_price = float(pricing.get('prompt') or 0)
+        except Exception:
+            prompt_price = 0.0
+        try:
+            completion_price = float(pricing.get('completion') or 0)
+        except Exception:
+            completion_price = 0.0
+        is_free = (prompt_price == 0 and completion_price == 0)
+        # context length
+        context_len = 0
+        try:
+            if m.get('top_provider') and m['top_provider'].get('context_length'):
+                context_len = int(m['top_provider'].get('context_length') or 0)
+            elif m.get('context_length'):
+                context_len = int(m.get('context_length') or 0)
+        except Exception:
+            context_len = 0
+        # capabilities heuristic from architecture and flags
+        caps: list[str] = []
+        arch = m.get('architecture') or {}
+        modality = (arch.get('modality') or arch.get('modalities') or '').lower()
+        if 'vision' in modality or (m.get('supports_vision')):
+            caps.append('vision')
+        if 'text' in modality or 'language' in modality:
+            caps.append('language')
+        if m.get('supports_tool_calling') or m.get('supports_function_calling'):
+            caps.append('function_calling')
+        if m.get('supports_json') or m.get('supports_json_mode'):
+            caps.append('json_mode')
+        if m.get('supports_streaming'):
+            caps.append('streaming')
+        # mark free tier explicitly if available
+        if is_free:
+            caps.append('free')
+
+        row = {
+            'slug': canonical_slug,
+            'model_id': model_id,
+            'name': model_name or m.get('name') or canonical_slug,
+            'provider': provider,
+            'provider_logo': '/static/images/default-avatar.svg',
+            'capabilities': caps,
+            'input_price_per_1k': round(prompt_price * 1000, 6),
+            'output_price_per_1k': round(completion_price * 1000, 6),
+            'context_length': context_len,
+            'max_output_tokens': int((m.get('top_provider') or {}).get('max_completion_tokens') or m.get('max_output_tokens') or 0) if isinstance(m.get('top_provider'), dict) else int(m.get('max_output_tokens') or 0) if m.get('max_output_tokens') else 0,
+            'performance_score': 0,
+            'status': 'active',
+            'description': m.get('description') or '',
+            'installed': canonical_slug in installed_slugs,
+            'openrouter': {
+                'model_id': model_id,
+                'name': m.get('name') or model_name,
+                'canonical_slug': m.get('canonical_slug'),
+                'pricing': pricing,
+                'top_provider': m.get('top_provider') or {}
+            }
+        }
+        return row
+    except Exception:
+        return {
+            'slug': m.get('id', 'unknown').replace('/', '_'),
+            'model_id': m.get('id', ''),
+            'name': m.get('name') or m.get('id', ''),
+            'provider': (m.get('id', '').split('/')[0] if '/' in (m.get('id') or '') else 'unknown'),
+            'provider_logo': '/static/images/default-avatar.svg',
+            'capabilities': [],
+            'input_price_per_1k': 0,
+            'output_price_per_1k': 0,
+            'context_length': 0,
+            'max_output_tokens': 0,
+            'performance_score': 0,
+            'status': 'active',
+            'description': m.get('description') or '',
+            'installed': False,
+            'openrouter': {'model_id': m.get('id')}
+        }
+
+
+def _installed_slugs_from_db_or_fs() -> set[str]:
+    """Collect installed canonical slugs using DB flag with filesystem fallback."""
+    slugs: set[str] = set()
+    try:
+        rows = ModelCapability.query.filter_by(installed=True).all()
+        slugs.update({r.canonical_slug for r in rows if getattr(r, 'canonical_slug', None)})
+    except Exception:
+        pass
+    try:
+        # filesystem fallback
+        repo_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+        models_base = os.path.join(repo_root, 'misc', 'models')
+        if os.path.isdir(models_base):
+            for name in os.listdir(models_base):
+                path = os.path.join(models_base, name)
+                if os.path.isdir(path):
+                    slugs.add(name)
+    except Exception:
+        pass
+    return slugs
+
+
+@api_bp.route('/models/openrouter/all')
+def api_models_openrouter_all():
+    """Return all available models directly from OpenRouter mapped to table structure.
+
+    Supports query param installed=1 to filter to installed-only (DB/FS based).
+    """
+    try:
+        models = _openrouter_service.fetch_all_models() or []
+        installed_param = request.args.get('installed') or request.args.get('installed_only')
+        installed_only = str(installed_param).lower() in {'1', 'true', 'yes', 'on'}
+        installed_slugs = _installed_slugs_from_db_or_fs()
+        mapped = [_map_openrouter_model_to_table(m, installed_slugs) for m in models]
+        if installed_only:
+            mapped = [m for m in mapped if m.get('installed')]
+        providers = {m.get('provider') for m in mapped}
+        stats = {
+            'total_models': len(mapped),
+            'active_models': len(mapped),
+            'unique_providers': len(providers),
+            'avg_cost_per_1k': round(sum(x.get('input_price_per_1k') or 0 for x in mapped) / max(len(mapped), 1), 6)
+        }
+        return jsonify({'models': mapped, 'statistics': stats})
+    except Exception as e:
+        logger.error(f"Error building openrouter/all payload: {e}")
+        return jsonify({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
+
+
+@api_bp.route('/models/openrouter/filtered')
+def api_models_openrouter_filtered():
+    """Return filtered OpenRouter models, mirroring /models/filtered query params."""
+    try:
+        models = _openrouter_service.fetch_all_models() or []
+        installed_param = request.args.get('installed') or request.args.get('installed_only')
+        installed_only = str(installed_param).lower() in {'1', 'true', 'yes', 'on'}
+        installed_slugs = _installed_slugs_from_db_or_fs()
+        rows = [_map_openrouter_model_to_table(m, installed_slugs) for m in models]
+        if installed_only:
+            rows = [r for r in rows if r.get('installed')]
+
+        # Build filters similar to api_models_filtered
+        search = (request.args.get('search') or '').strip().lower()
+        provider = (request.args.get('provider') or '').strip()
+        providers_param = (request.args.get('providers') or '').strip()
+        providers = []
+        if providers_param:
+            providers = [p.strip().lower() for p in providers_param.split(',') if p.strip()]
+        elif provider:
+            providers = [provider.lower()]
+
+        capability_filter = (request.args.get('capability') or '').strip().lower()
+        capabilities_param = (request.args.get('capabilities') or '').strip().lower()
+        capability_filters = []
+        if capabilities_param:
+            capability_filters = [c.strip() for c in capabilities_param.split(',') if c.strip()]
+        elif capability_filter:
+            capability_filters = [capability_filter]
+        price_filter = (request.args.get('price') or '').strip().lower()
+        context_filter = (request.args.get('context') or '').strip().lower()
+        status_filter = (request.args.get('status') or '').strip().lower()
+        specialization_filter = (request.args.get('specialization') or '').strip().lower()
+
+        def match_search(r):
+            if not search:
+                return True
+            blob = ' '.join([str(r.get('name') or ''), str(r.get('provider') or ''), str(r.get('model_id') or ''), str(r.get('slug') or ''), str(r.get('description') or '')]).lower()
+            return search in blob
+
+        def match_providers(r):
+            if not providers:
+                return True
+            return (r.get('provider') or '').lower() in providers
+
+        def matches_capability(r):
+            if not capability_filters:
+                return True
+            caps = r.get('capabilities') or []
+            caps = [str(c).lower() for c in (caps if isinstance(caps, list) else [caps])]
+            return any(cf in caps or any(cf in c for c in caps) for cf in capability_filters)
+
+        def matches_price(r):
+            if not price_filter:
+                return True
+            try:
+                avg = ((float(r.get('input_price_per_1k') or 0) + float(r.get('output_price_per_1k') or 0)) / 2.0)
+            except Exception:
+                return False
+            if price_filter == 'free':
+                return avg == 0
+            if price_filter == 'low':
+                return avg <= 1.0
+            if price_filter == 'medium':
+                return 1.0 < avg <= 50.0
+            if price_filter == 'high':
+                return avg > 50.0
+            return True
+
+        def matches_context(r):
+            if not context_filter:
+                return True
+            try:
+                ctx = int(r.get('context_length') or 0)
+            except Exception:
+                return False
+            if context_filter == 'short':
+                return ctx <= 4000
+            if context_filter == 'medium':
+                return 4000 < ctx <= 32000
+            if context_filter == 'long':
+                return 32000 < ctx <= 128000
+            if context_filter == 'extended':
+                return ctx >= 128000
+            return True
+
+        def matches_status(r):
+            if not status_filter:
+                return True
+            return status_filter == (r.get('status') or '').lower()
+
+        def matches_specialization(r):
+            if not specialization_filter:
+                return True
+            desc = (r.get('description') or '')
+            name = (r.get('name') or '')
+            return specialization_filter in desc.lower() or specialization_filter in name.lower()
+
+        filtered = [r for r in rows if match_search(r) and match_providers(r) and matches_capability(r) and matches_price(r) and matches_context(r) and matches_status(r) and matches_specialization(r)]
+        providers_set = {r.get('provider') for r in filtered}
+        stats = {
+            'total_models': len(filtered),
+            'active_models': len(filtered),
+            'unique_providers': len(providers_set),
+            'avg_cost_per_1k': round(sum(x.get('input_price_per_1k') or 0 for x in filtered) / max(len(filtered), 1), 6)
+        }
+        return jsonify({'models': filtered, 'statistics': stats})
+    except Exception as e:
+        logger.error(f"Error building openrouter/filtered payload: {e}")
         return jsonify({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
 # =================================================================
 # MODEL CONTAINER AND STATUS ENDPOINTS
@@ -649,9 +942,17 @@ def api_models_load_openrouter():
             logger.error(f'OpenRouter models fetch failed: {resp.status_code} {resp.text[:200]}')
             return jsonify({'success': False, 'error': f'OpenRouter API returned {resp.status_code}'}), 502
 
-        data = resp.json().get('data', [])
+        body = resp.json()
+        # Accept multiple response shapes
+        if isinstance(body, dict):
+            data = body.get('data') or body.get('models') or body.get('items') or body.get('results') or []
+        elif isinstance(body, list):
+            data = body
+        else:
+            data = []
+
         upserted = 0
-        for model_data in data:
+        for model_data in data or []:
             model_id = model_data.get('id')
             if not model_id:
                 continue
@@ -660,21 +961,31 @@ def api_models_load_openrouter():
             model_name = model_id.split('/')[-1]
 
             pricing = model_data.get('pricing', {}) or {}
-            prompt_price = float(pricing.get('prompt', 0) or 0)
-            completion_price = float(pricing.get('completion', 0) or 0)
+            try:
+                prompt_price = float(pricing.get('prompt', 0) or 0)
+            except Exception:
+                prompt_price = 0.0
+            try:
+                completion_price = float(pricing.get('completion', 0) or 0)
+            except Exception:
+                completion_price = 0.0
 
             context_window = None
             top_provider = model_data.get('top_provider') or {}
             if top_provider and top_provider.get('context_length'):
-                context_window = int(top_provider.get('context_length') or 0)
+                try:
+                    context_window = int(top_provider.get('context_length') or 0)
+                except Exception:
+                    context_window = None
             elif model_data.get('context_length'):
-                context_window = int(model_data.get('context_length') or 0)
+                try:
+                    context_window = int(model_data.get('context_length') or 0)
+                except Exception:
+                    context_window = None
 
             # Upsert
             existing = ModelCapability.query.filter_by(model_id=model_id).first()
             if not existing:
-                # Create instance and set attributes explicitly (helps static analyzers and avoids
-                # passing unexpected kwargs to SQLAlchemy model constructors)
                 existing = ModelCapability()
                 existing.model_id = model_id
                 existing.canonical_slug = canonical
@@ -682,13 +993,11 @@ def api_models_load_openrouter():
                 existing.model_name = model_name
                 db.session.add(existing)
             else:
-                # Ensure basic identity fields are up-to-date for existing rows
                 existing.canonical_slug = canonical
                 existing.provider = provider
                 existing.model_name = model_name
 
             # Update fields
-            # Pricing and context
             existing.is_free = bool(model_data.get('is_free', (prompt_price == 0 and completion_price == 0)))
             if context_window is not None:
                 existing.context_window = context_window
@@ -701,15 +1010,13 @@ def api_models_load_openrouter():
             except Exception:
                 existing.output_price_per_token = completion_price
 
-            # Max output tokens / top provider hints
             try:
                 existing.max_output_tokens = int(top_provider.get('max_completion_tokens') or model_data.get('max_output_tokens') or existing.max_output_tokens or 0)
             except Exception:
                 pass
 
-            # Performance / scoring
             try:
-                existing.cost_efficiency = float(model_data.get('cost_efficiency') or existing.cost_efficiency or 0.0)
+                existing.cost_efficiency = float(model_data.get('cost_efficiency') or model_data.get('cost_efficiency_score') or existing.cost_efficiency or 0.0)
             except Exception:
                 pass
             try:
@@ -717,19 +1024,16 @@ def api_models_load_openrouter():
             except Exception:
                 pass
 
-            # Capability booleans
             existing.supports_function_calling = bool(model_data.get('supports_tool_calling') or model_data.get('supports_function_calling') or existing.supports_function_calling)
             existing.supports_json_mode = bool(model_data.get('supports_json') or model_data.get('supports_json_mode') or existing.supports_json_mode)
             existing.supports_streaming = bool(model_data.get('supports_streaming') or existing.supports_streaming)
             existing.supports_vision = bool(model_data.get('supports_vision') or existing.supports_vision)
 
-            # Store full OpenRouter payload into capabilities_json for later parsing
             try:
                 existing.capabilities_json = json.dumps(model_data)
             except Exception:
                 existing.capabilities_json = '{}'
 
-            # Merge selected OpenRouter fields into metadata_json for quick access
             try:
                 meta = existing.get_metadata() or {}
                 meta_fields = {
@@ -745,7 +1049,14 @@ def api_models_load_openrouter():
             except Exception:
                 pass
 
-            existing.updated_at = datetime.utcnow()
+            try:
+                repo_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+                models_base = os.path.join(repo_root, 'misc', 'models')
+                existing.installed = os.path.isdir(os.path.join(models_base, existing.canonical_slug))
+            except Exception:
+                pass
+
+            existing.updated_at = datetime.now(timezone.utc)
             upserted += 1
 
         db.session.commit()
@@ -753,11 +1064,10 @@ def api_models_load_openrouter():
         # Optionally mark installed models automatically after loading from OpenRouter.
         try:
             mark_res = data_init_service.mark_installed_models(reset_first=False)
-            # include mark summary in response
         except Exception:
             mark_res = {'success': False, 'updated': 0}
 
-        return jsonify({'success': True, 'upserted': upserted, 'fetched': len(data), 'mark_installed': mark_res})
+        return jsonify({'success': True, 'upserted': upserted, 'fetched': len(data or []), 'mark_installed': mark_res})
     except Exception as e:
         logger.error(f'Error loading models from OpenRouter: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -943,7 +1253,7 @@ def api_models_export():
                 from sqlalchemy import true
                 q = q.filter(ModelCapability.installed.is_(true()))
             except Exception:
-                q = q.filter(ModelCapability.installed == True)  # noqa: E712
+                q = q.filter(ModelCapability.installed.is_(True))
 
         models = q.order_by(ModelCapability.provider, ModelCapability.model_name).all()
 
@@ -1049,7 +1359,77 @@ def api_models_comparison_refresh():
             }
 
         ordered_models = [map_row(slug_to_model[s]) for s in selected if s in slug_to_model]
-        return render_template('partials/models/comparison_matrix.html', models=ordered_models)
+
+        # Baseline selection: avg | median | model:<slug> (default avg)
+        baseline_choice = (request.form.get('baseline') or request.args.get('baseline') or 'avg')
+        baseline_choice = baseline_choice.lower() if isinstance(baseline_choice, str) else 'avg'
+        numeric_keys = ['input_price_per_1k', 'output_price_per_1k', 'context_length', 'max_output_tokens']
+
+        baseline_stats: dict = {}
+        # compute baseline values per metric
+        # support model:<slug> to use a selected model as the baseline
+        if baseline_choice.startswith('model:'):
+            bslug = baseline_choice.split(':', 1)[1]
+            # find the model dict
+            base_model = next((m for m in ordered_models if m.get('slug') == bslug), None)
+            if base_model:
+                for k in numeric_keys:
+                    baseline_stats[k] = float(base_model.get(k) or 0)
+            else:
+                # fallback to avg if not found
+                for k in numeric_keys:
+                    vals = [float(m.get(k) or 0) for m in ordered_models]
+                    baseline_stats[k] = float(sum(vals) / len(vals)) if vals else 0.0
+        else:
+            for k in numeric_keys:
+                vals = [float(m.get(k) or 0) for m in ordered_models]
+                if not vals:
+                    baseline_stats[k] = 0
+                    continue
+                try:
+                    if baseline_choice == 'median':
+                        baseline_stats[k] = float(statistics.median(vals))
+                    else:
+                        baseline_stats[k] = float(sum(vals) / len(vals))
+                except Exception:
+                    baseline_stats[k] = float(sum(vals) / len(vals)) if vals else 0.0
+
+        # colorize relative to baseline. For prices, lower is better; for context/max_out higher is better.
+        def color_for(value: float, baseline: float, higher_is_better: bool = True) -> str:
+            try:
+                if baseline == 0:
+                    # baseline zero: treat zero as best for prices; otherwise non-zero is worse
+                    if value == 0:
+                        return 'text-success'
+                    return 'text-danger' if not higher_is_better else 'text-success'
+                ratio = value / baseline
+            except Exception:
+                return 'text-muted'
+            # thresholds: within 5% -> yellow, >5% better -> green, >5% worse -> red
+            lower = 0.95
+            upper = 1.05
+            if higher_is_better:
+                if ratio >= upper:
+                    return 'text-success'
+                if lower <= ratio < upper:
+                    return 'text-warning'
+                return 'text-danger'
+            else:
+                # lower is better (price)
+                if ratio <= lower:
+                    return 'text-success'
+                if lower < ratio <= upper:
+                    return 'text-warning'
+                return 'text-danger'
+
+        # Enrich each model dict with color hints
+        for m in ordered_models:
+            m['input_price_color'] = color_for(float(m.get('input_price_per_1k') or 0), baseline_stats.get('input_price_per_1k', 0), higher_is_better=False)
+            m['output_price_color'] = color_for(float(m.get('output_price_per_1k') or 0), baseline_stats.get('output_price_per_1k', 0), higher_is_better=False)
+            m['context_color'] = color_for(float(m.get('context_length') or 0), baseline_stats.get('context_length', 0), higher_is_better=True)
+            m['max_out_color'] = color_for(float(m.get('max_output_tokens') or 0), baseline_stats.get('max_output_tokens', 0), higher_is_better=True)
+
+        return render_template('partials/models/comparison_matrix.html', models=ordered_models, baseline_choice=baseline_choice, baseline_stats=baseline_stats)
     except Exception as e:
         logger.error(f"Comparison refresh error: {e}")
         return f"<div class='alert alert-danger'>Error: {str(e)}</div>", 500
@@ -1211,7 +1591,7 @@ def _upsert_flat_models(rows: list[dict]) -> dict:
                     m.set_metadata(meta)
                 except Exception:
                     pass
-            m.updated_at = datetime.utcnow()
+            m.updated_at = datetime.now(timezone.utc)
             if is_new:
                 created += 1
             else:
