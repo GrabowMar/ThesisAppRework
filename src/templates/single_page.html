@@ -37,63 +37,6 @@
 
 {% block extra_head %}
 {{ super() }}
-<style>
-    /* Single page application styles */
-    .spa-container {
-        min-height: calc(100vh - 200px);
-        position: relative;
-        padding: 0; /* remove internal padding to rely on outer content container */
-    }
-    
-    .spa-loading {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        text-align: center;
-        z-index: 100;
-    }
-    
-    .spa-content {
-        transition: opacity 0.3s ease;
-    }
-    
-    .spa-content.loading {
-        opacity: 0.6;
-        pointer-events: none;
-    }
-    
-    .spa-error {
-        text-align: center;
-        padding: 3rem 1rem;
-    }
-    
-    /* Removed legacy SPA top navigation bar */
-    
-    /* Navigation breadcrumb */
-    .spa-breadcrumb {
-        background-color: var(--bs-gray-100);
-        border-radius: 0.375rem;
-        padding: 0.75rem 1rem;
-        margin-bottom: 1rem;
-    }
-    
-    /* Loading animation */
-    .spa-loading .spinner-border {
-        width: 3rem;
-        height: 3rem;
-    }
-    
-    /* Transition animations */
-    .fade-in {
-        animation: fadeIn 0.3s ease-in;
-    }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-</style>
 <!-- Dashboard deps for SPA-loaded dashboard content -->
 <!-- Use UMD build to avoid ESM import errors in non-module contexts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.umd.min.js"></script>

@@ -227,7 +227,7 @@
                                                     <span class="fw-medium">{{ capability|title }}</span>
                                                     <span class="text-muted">{{ score }}/10</span>
                                                 </div>
-                                                <div class="progress" style="height: 8px;">
+                                                <div class="progress u-49c5d1">
                                                     <div class="progress-bar bg-{{ 'success' if score >= 8 else 'warning' if score >= 6 else 'danger' }}" 
                                                          style="width: {{ score * 10 }}%"></div>
                                                 </div>
@@ -605,40 +605,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<style>
-.rating-stars i {
-    font-size: 1.1rem;
-}
 
-.capability-progress {
-    height: 8px;
-    border-radius: 4px;
-}
-
-.benchmark-card {
-    transition: all 0.3s ease;
-}
-
-.benchmark-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.analysis-item {
-    transition: all 0.3s ease;
-}
-
-.analysis-item:hover {
-    background-color: rgba(0,0,0,0.02);
-}
-
-@media (max-width: 768px) {
-    .model-rating {
-        text-align: center;
-        margin-top: 1rem;
-    }
-}
-</style>
 {% endblock %}
 
 {% block extra_js %}

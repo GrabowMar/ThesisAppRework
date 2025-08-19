@@ -363,34 +363,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {# CSS for chart card styling #}
-<style>
-.chart-card {
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-}
 
-.chart-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-}
-
-.chart-container {
-    position: relative;
-    width: 100%;
-}
-
-.chart-type-option.active {
-    background-color: #f8f9fc;
-    font-weight: 600;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .chart-card .card-header {
-        padding: 0.75rem;
-    }
-    
-    .chart-card .dropdown-menu {
-        font-size: 0.875rem;
-    }
-}
-</style>

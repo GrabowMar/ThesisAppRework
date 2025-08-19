@@ -47,7 +47,7 @@
             <div class="card">
                 <div class="card-body py-3">
                     <div class="wizard-progress">
-                        <div class="progress mb-3" style="height: 8px;">
+                        <div class="progress mb-3 u-49c5d1">
                             <div class="progress-bar bg-primary" 
                                  role="progressbar" 
                                  style="width: 25%" 
@@ -156,7 +156,7 @@
                             </div>
 
                             <!-- Selected Model Preview -->
-                            <div id="selected-model-preview" class="mt-4" style="display: none;">
+                            <div id="selected-model-preview" class="mt-4 u-5790ff">
                                 <div class="alert alert-info">
                                     <h6 class="alert-heading">Selected Model</h6>
                                     <div id="selected-model-details"></div>
@@ -188,7 +188,7 @@
                             </div>
 
                             <!-- Selected Application Preview -->
-                            <div id="selected-app-preview" class="mt-4" style="display: none;">
+                            <div id="selected-app-preview" class="mt-4 u-5790ff">
                                 <div class="alert alert-success">
                                     <h6 class="alert-heading">Selected Application</h6>
                                     <div id="selected-app-details"></div>
@@ -315,7 +315,7 @@
                             </div>
 
                             <!-- Analysis Configuration Options -->
-                            <div id="analysis-config-options" style="display: none;">
+                            <div id="analysis-config-options" class="u-5790ff">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -526,7 +526,7 @@
                                 <button type="button" class="btn btn-primary" id="next-btn" onclick="nextStep()">
                                     Next <i class="fas fa-chevron-right ms-1"></i>
                                 </button>
-                                <button type="submit" class="btn btn-success" id="launch-btn" style="display: none;">
+                                <button type="submit" class="btn btn-success u-5790ff" id="launch-btn">
                                     <i class="fas fa-rocket me-1"></i>Launch Analysis
                                 </button>
                             </div>
@@ -540,85 +540,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<style>
-.wizard-step {
-    transition: all 0.3s ease;
-}
 
-.wizard-step.active .wizard-step-icon {
-    background: #007bff;
-    color: white;
-    border: 2px solid #007bff;
-}
-
-.wizard-step.completed .wizard-step-icon {
-    background: #28a745;
-    color: white;
-    border: 2px solid #28a745;
-}
-
-.wizard-step-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    border: 2px solid #dee2e6;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 10px;
-    background: white;
-    color: #6c757d;
-    font-size: 1.2rem;
-}
-
-.wizard-step-label {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #6c757d;
-}
-
-.wizard-step.active .wizard-step-label,
-.wizard-step.completed .wizard-step-label {
-    color: #495057;
-    font-weight: 600;
-}
-
-.wizard-panel {
-    display: none;
-}
-
-.wizard-panel.active {
-    display: block;
-}
-
-.help-content {
-    display: none;
-}
-
-.help-content.active {
-    display: block;
-}
-
-.list-group-item .form-check {
-    margin: 0;
-}
-
-.list-group-item .form-check-input {
-    margin-top: 0.5rem;
-}
-
-@media (max-width: 768px) {
-    .wizard-step-icon {
-        width: 40px;
-        height: 40px;
-        font-size: 1rem;
-    }
-    
-    .wizard-step-label {
-        font-size: 0.8rem;
-    }
-}
-</style>
 {% endblock %}
 
 {% block extra_js %}

@@ -4,21 +4,7 @@
 {% set active_page = 'applications' %}
 
 {% block head_extra %}
-<style>
-    /* Compact UI and sticky sidebar tuned to navbar height */
-    .app-detail .card-header{padding:.5rem .75rem}
-    .app-detail .card-body{padding:.75rem}
-    .app-detail .list-group-item{padding:.5rem .75rem}
-    .app-detail pre{font-size:.875rem}
-    .app-detail section{scroll-margin-top: calc(var(--sidebar-top, 72px) + 8px)}
-    .app-detail .sidebar-inner .nav-link{padding:.375rem .5rem}
-    .app-detail .sidebar-inner .nav-link.active{font-weight:600}
-    /* position-sticky offset + bounded height so it never overlaps navbar */
-    .app-detail .position-sticky{top: var(--sidebar-top, 72px)}
-    .app-detail .sidebar-inner{max-height: calc(100vh - var(--sidebar-top, 72px) - 12px); overflow:auto}
-    .app-detail .sidebar-inner .nav-link{scroll-margin-top: 64px}
-    html{scroll-behavior: smooth}
-</style>
+
 {% endblock %}
 
 {% block content %}

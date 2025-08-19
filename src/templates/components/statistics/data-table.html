@@ -118,11 +118,11 @@
                                        id="search-{{ table_id }}"
                                        placeholder="Search table data..."
                                        aria-label="Search table data">
-                                <button class="btn btn-outline-secondary" 
+                                <button class="btn btn-outline-secondary u-5790ff" 
                                         type="button" 
                                         id="clear-search-{{ table_id }}"
                                         title="Clear search"
-                                        style="display: none;">
+                                       >
                                     <i class="fas fa-times" aria-hidden="true"></i>
                                 </button>
                             </div>
@@ -402,183 +402,7 @@
 </div>
 
 <!-- Data Table Styles -->
-<style>
-.data-table-container {
-    position: relative;
-}
 
-.table-loading-overlay,
-.table-error-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(255, 255, 255, 0.95);
-    z-index: 10;
-    border-radius: 0.375rem;
-}
-
-.data-table th.sortable {
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.2s ease;
-}
-
-.data-table th.sortable:hover {
-    background-color: rgba(0, 0, 0, 0.1);
-}
-
-.data-table th.sorted-asc .sort-icon::before {
-    content: "\f0de"; /* fa-sort-up */
-}
-
-.data-table th.sorted-desc .sort-icon::before {
-    content: "\f0dd"; /* fa-sort-down */
-}
-
-.search-container {
-    min-width: 250px;
-}
-
-.filter-panel {
-    border: 1px solid #dee2e6;
-}
-
-.column-filter {
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-
-.column-filter:focus {
-    border-color: #86b7fe;
-    outline: 0;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-}
-
-.bulk-actions {
-    padding: 0.5rem 0;
-}
-
-.selected-count {
-    font-weight: 500;
-}
-
-.table-info {
-    font-size: 0.875rem;
-}
-
-.empty-state {
-    min-height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.empty-icon {
-    opacity: 0.5;
-}
-
-/* Badge styling for table cells */
-.table .badge {
-    font-size: 0.75em;
-}
-
-/* Progress bar styling for table cells */
-.table-progress {
-    min-width: 100px;
-}
-
-.table-progress .progress {
-    height: 8px;
-}
-
-/* Link styling for table cells */
-.table-link {
-    color: #0d6efd;
-    text-decoration: none;
-}
-
-.table-link:hover {
-    color: #0a58ca;
-    text-decoration: underline;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .search-container {
-        min-width: 200px;
-        margin-bottom: 0.5rem;
-    }
-    
-    .card-header .row {
-        flex-direction: column;
-    }
-    
-    .card-header .col-md-6:first-child {
-        margin-bottom: 1rem;
-    }
-    
-    .filter-panel .row .col-md-3 {
-        flex: 0 0 100%;
-        max-width: 100%;
-    }
-    
-    .card-footer .row {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .table-info {
-        text-align: center;
-    }
-    
-    .pagination {
-        justify-content: center !important;
-    }
-}
-
-/* Dark theme support */
-@media (prefers-color-scheme: dark) {
-    .table-loading-overlay,
-    .table-error-overlay {
-        background-color: rgba(33, 37, 41, 0.95);
-    }
-    
-    .filter-panel {
-        background-color: #2d3748 !important;
-        border-color: #4a5568;
-    }
-    
-    .column-filter {
-        background-color: #2d3748;
-        border-color: #4a5568;
-        color: #e2e8f0;
-    }
-    
-    .empty-state h6,
-    .empty-state p {
-        color: #a0aec0 !important;
-    }
-}
-
-/* Print styles */
-@media print {
-    .card-header,
-    .card-footer,
-    .table-loading-overlay,
-    .table-error-overlay {
-        display: none !important;
-    }
-    
-    .data-table {
-        font-size: 12px;
-    }
-    
-    .table-responsive {
-        overflow: visible !important;
-    }
-}
-</style>
 
 <!-- Data Table JavaScript -->
 <script>

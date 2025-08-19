@@ -17,133 +17,7 @@
 {% set active_page = "batch" %}
 
 {% block head_extra %}
-<style>
-.batch-card {
-    transition: all 0.3s ease;
-    border-left: 4px solid transparent;
-}
 
-.batch-card.running {
-    border-left-color: var(--bs-success);
-}
-
-.batch-card.pending {
-    border-left-color: var(--bs-warning);
-}
-
-.batch-card.completed {
-    border-left-color: var(--bs-primary);
-}
-
-.batch-card.failed {
-    border-left-color: var(--bs-danger);
-}
-
-.progress-ring {
-    width: 60px;
-    height: 60px;
-}
-
-.progress-ring circle {
-    stroke-width: 4;
-    fill: transparent;
-    stroke-dasharray: 157;
-    stroke-dashoffset: 157;
-    stroke-linecap: round;
-    transition: stroke-dashoffset 0.5s;
-}
-
-.batch-stats {
-    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-success) 100%);
-    color: white;
-    border-radius: 0.5rem;
-    padding: 2rem;
-    margin-bottom: 2rem;
-}
-
-.batch-queue {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.batch-item {
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.375rem;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    transition: all 0.3s ease;
-}
-
-.batch-item:hover {
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.batch-actions {
-    min-width: 120px;
-}
-
-.resource-gauge {
-    position: relative;
-    width: 120px;
-    height: 120px;
-}
-
-.resource-gauge canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-}
-
-.resource-value {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.2rem;
-    font-weight: bold;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
-
-.batch-running .batch-progress {
-    animation: pulse 2s infinite;
-}
-
-.batch-log {
-    background: #1e1e1e;
-    color: #fff;
-    font-family: 'Courier New', monospace;
-    font-size: 0.875rem;
-    max-height: 300px;
-    overflow-y: auto;
-    padding: 1rem;
-    border-radius: 0.375rem;
-}
-
-.batch-log .log-line {
-    margin-bottom: 0.25rem;
-}
-
-.batch-log .log-info {
-    color: #17a2b8;
-}
-
-.batch-log .log-warn {
-    color: #ffc107;
-}
-
-.batch-log .log-error {
-    color: #dc3545;
-}
-
-.batch-log .log-success {
-    color: #28a745;
-}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -341,7 +215,7 @@
                                 <!-- Progress Bar -->
                                 {% if batch.status in ['running', 'pending'] %}
                                 <div class="mt-3">
-                                    <div class="progress" style="height: 6px;">
+                                    <div class="progress u-2f623b">
                                         <div class="progress-bar progress-bar-striped {{ 'progress-bar-animated' if batch.status == 'running' else '' }}" 
                                              style="width: {{ batch.progress }}%"></div>
                                     </div>
@@ -464,7 +338,7 @@
                             <span class="small">Active Workers:</span>
                             <span class="fw-bold">{{ system_resources.active_workers }}/{{ system_resources.max_workers }}</span>
                         </div>
-                        <div class="progress" style="height: 6px;">
+                        <div class="progress u-2f623b">
                             <div class="progress-bar bg-info" 
                                  style="width: {{ (system_resources.active_workers / system_resources.max_workers * 100)|round(1) }}%"></div>
                         </div>
@@ -475,7 +349,7 @@
                             <span class="small">Queue Length:</span>
                             <span class="fw-bold">{{ system_resources.queue_length }}</span>
                         </div>
-                        <div class="progress" style="height: 6px;">
+                        <div class="progress u-2f623b">
                             <div class="progress-bar bg-warning" 
                                  style="width: {{ min(system_resources.queue_length / 100 * 100, 100) }}%"></div>
                         </div>

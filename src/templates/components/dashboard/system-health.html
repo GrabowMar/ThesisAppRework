@@ -263,7 +263,7 @@ Dependencies: Chart.js for gauges, system monitoring APIs
                                 </h6>
                             </div>
                             <div class="card-body">
-                                <div style="height: 300px;">
+                                <div class="h-300px">
                                     <canvas id="trends-chart" 
                                             data-trend-data="{{ resources.trend_data | tojson }}"></canvas>
                                 </div>
@@ -489,98 +489,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {# CSS for System Health Styling #}
-<style>
-.system-health-container {
-    background: #fff;
-    border-radius: 0.375rem;
-    padding: 1.25rem;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-}
 
-.gauge-container {
-    position: relative;
-    display: inline-block;
-}
-
-.gauge-value {
-    margin-top: 0.5rem;
-}
-
-.service-item {
-    transition: all 0.2s ease;
-}
-
-.service-item:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.service-status i {
-    font-size: 0.75rem;
-}
-
-.service-name {
-    font-size: 0.9rem;
-    color: #5a5c69;
-}
-
-.service-info {
-    font-size: 0.75rem;
-    line-height: 1.2;
-}
-
-.service-actions .btn {
-    margin-left: 0.25rem;
-    padding: 0.25rem 0.5rem;
-}
-
-.system-status-indicator i {
-    font-size: 0.875rem;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-/* Alert animations */
-.alert {
-    animation: slideInRight 0.3s ease;
-}
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .gauge-container canvas {
-        width: 100px !important;
-        height: 100px !important;
-    }
-    
-    .service-actions {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-    }
-    
-    .service-item {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .service-status {
-        margin-right: 0;
-        margin-bottom: 0.5rem;
-    }
-}
-</style>

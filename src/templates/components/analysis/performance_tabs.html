@@ -87,7 +87,7 @@
                         <span>P50 (Median)</span>
                         <span class="fw-bold">{{ analysis.results.performance_summary.p50_response_time or 0 }}ms</span>
                     </div>
-                    <div class="progress mt-1" style="height: 4px;">
+                    <div class="progress mt-1 u-30f9f3">
                         <div class="progress-bar bg-success" style="width: {{ ((analysis.results.performance_summary.p50_response_time or 0) / 1000 * 100)|round(1) }}%"></div>
                     </div>
                 </div>
@@ -97,7 +97,7 @@
                         <span>P75</span>
                         <span class="fw-bold">{{ analysis.results.performance_summary.p75_response_time or 0 }}ms</span>
                     </div>
-                    <div class="progress mt-1" style="height: 4px;">
+                    <div class="progress mt-1 u-30f9f3">
                         <div class="progress-bar bg-info" style="width: {{ ((analysis.results.performance_summary.p75_response_time or 0) / 1000 * 100)|round(1) }}%"></div>
                     </div>
                 </div>
@@ -107,7 +107,7 @@
                         <span>P95</span>
                         <span class="fw-bold">{{ analysis.results.performance_summary.p95_response_time or 0 }}ms</span>
                     </div>
-                    <div class="progress mt-1" style="height: 4px;">
+                    <div class="progress mt-1 u-30f9f3">
                         <div class="progress-bar bg-warning" style="width: {{ ((analysis.results.performance_summary.p95_response_time or 0) / 1000 * 100)|round(1) }}%"></div>
                     </div>
                 </div>
@@ -117,7 +117,7 @@
                         <span>P99</span>
                         <span class="fw-bold">{{ analysis.results.performance_summary.p99_response_time or 0 }}ms</span>
                     </div>
-                    <div class="progress mt-1" style="height: 4px;">
+                    <div class="progress mt-1 u-30f9f3">
                         <div class="progress-bar bg-danger" style="width: {{ ((analysis.results.performance_summary.p99_response_time or 0) / 1000 * 100)|round(1) }}%"></div>
                     </div>
                 </div>
@@ -306,7 +306,7 @@
                             {{ analysis.results.resource_usage.peak_cpu_percent|round(1) or 0 }}%
                         </span>
                     </div>
-                    <div class="progress mt-1" style="height: 6px;">
+                    <div class="progress mt-1 u-2f623b">
                         <div class="progress-bar bg-{{ 'success' if (analysis.results.resource_usage.peak_cpu_percent or 0) < 70 else 'warning' if (analysis.results.resource_usage.peak_cpu_percent or 0) < 90 else 'danger' }}" 
                              style="width: {{ analysis.results.resource_usage.peak_cpu_percent or 0 }}%"></div>
                     </div>
@@ -317,7 +317,7 @@
                         <span>Peak Memory Usage</span>
                         <span class="fw-bold text-info">{{ analysis.results.resource_usage.peak_memory_mb or 0 }}MB</span>
                     </div>
-                    <div class="progress mt-1" style="height: 6px;">
+                    <div class="progress mt-1 u-2f623b">
                         <div class="progress-bar bg-info" style="width: {{ ((analysis.results.resource_usage.peak_memory_mb or 0) / (analysis.results.resource_usage.total_memory_mb or 1000) * 100)|round(1) }}%"></div>
                     </div>
                 </div>
@@ -348,7 +348,7 @@
                                 {{ analysis.results.scalability.overall_score or 0 }}/10
                             </span>
                         </div>
-                        <div class="progress mb-3" style="height: 8px;">
+                        <div class="progress mb-3 u-49c5d1">
                             <div class="progress-bar bg-{{ 'success' if (analysis.results.scalability.overall_score or 0) >= 8 else 'warning' if (analysis.results.scalability.overall_score or 0) >= 6 else 'danger' }}" 
                                  style="width: {{ (analysis.results.scalability.overall_score or 0) * 10 }}%"></div>
                         </div>

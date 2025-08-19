@@ -54,19 +54,6 @@
     
     <!-- Project theme -->
     <link href="{{ url_for('static', filename='css/theme.css') }}" rel="stylesheet">
-        <style>
-            :root {
-                --navbar-height: 48px;
-                --sidebar-width: 260px;
-                --sidebar-width-collapsed: 70px;
-            }
-    /* Ensure main content always accounts for fixed navbar */
-    .main-content { padding-top: var(--navbar-height); }
-    /* Provide a universal class we can reuse for page-level padding tweaks */
-    .content-container { box-sizing: border-box; }
-    /* SPA breadcrumb visual consistency */
-    .spa-breadcrumb { background-color: var(--bs-gray-100); border-radius: .375rem; padding: .75rem 1rem; margin-bottom: 1rem; }
-        </style>
     {% endblock %}
     
     {# Additional head content #}

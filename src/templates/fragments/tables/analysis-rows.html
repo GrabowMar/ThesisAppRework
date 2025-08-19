@@ -402,48 +402,4 @@ document.addEventListener('mouseleave', function(event) {
 </script>
 
 <!-- Custom CSS for Table Rows -->
-<style>
-.analysis-row {
-    transition: all 0.2s ease;
-}
 
-.analysis-row:hover {
-    background-color: rgba(0, 123, 255, 0.05) !important;
-}
-
-.analysis-type-icon {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.status-cell .progress {
-    width: 60px;
-}
-
-.results-summary {
-    min-width: 120px;
-}
-
-.btn-group .btn {
-    border-radius: 0.25rem;
-}
-
-.btn-group .btn:not(:first-child) {
-    margin-left: -1px;
-}
-
-/* Responsive table adjustments */
-@media (max-width: 768px) {
-    .analysis-row .btn-group {
-        flex-direction: column;
-    }
-    
-    .analysis-row .btn-group .btn {
-        margin-bottom: 2px;
-        margin-left: 0;
-    }
-}
-</style>

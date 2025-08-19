@@ -198,7 +198,7 @@
                                     <span class="text-truncate me-2" id="providers-summary">All</span>
                                     <i class="fas fa-chevron-down text-muted"></i>
                                 </button>
-                                <div class="dropdown-menu p-2 w-100" style="max-height: 300px; overflow:auto;">
+                                <div class="dropdown-menu p-2 w-100 u-02177f">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <strong class="small">Select providers</strong>
                                         <div>
@@ -226,7 +226,7 @@
                                     <span class="text-truncate me-2" id="capabilities-summary">All</span>
                                     <i class="fas fa-chevron-down text-muted"></i>
                                 </button>
-                                <div class="dropdown-menu p-2 w-100" style="max-height: 300px; overflow:auto;">
+                                <div class="dropdown-menu p-2 w-100 u-02177f">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <strong class="small">Select capabilities</strong>
                                         <div>
@@ -266,7 +266,7 @@
                         </div>
                         
                     </div>
-                    <div class="mt-2" id="active-filter-chips" style="display:none;"></div>
+                    <div class="mt-2 u-5790ff" id="active-filter-chips"></div>
                     <div class="collapse mt-3" id="advanced-filters">
                         <div class="border rounded p-3 bg-light">
                             <div class="row">
@@ -365,7 +365,7 @@
     <div id="comparison-panel" class="mt-4"></div>
 
     <!-- Loading Indicator -->
-    <div id="loading-spinner" class="text-center py-4" style="display: none;">
+    <div id="loading-spinner" class="text-center py-4 u-5790ff">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
@@ -417,136 +417,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<style>
-.view-container {
-    display: none;
-}
 
-.view-container.active {
-    display: block;
-}
-
-.model-card {
-    transition: all 0.3s ease;
-    cursor: pointer;
-    height: 100%;
-}
-
-.model-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.model-card.selected {
-    border-color: #007bff !important;
-    background-color: rgba(0, 123, 255, 0.05);
-}
-
-.model-card .card-header {
-    border-bottom: 1px solid rgba(0,0,0,0.125);
-    padding: 0.75rem 1rem;
-}
-
-.capability-badge {
-    font-size: 0.7rem;
-    margin: 0.125rem;
-}
-
-.pricing-info {
-    font-size: 0.875rem;
-}
-
-.performance-indicator {
-    display: inline-block;
-    width: 60px;
-    height: 8px;
-    border-radius: 4px;
-    background-color: #e9ecef;
-    position: relative;
-    overflow: hidden;
-}
-
-.performance-indicator::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
-    border-radius: 4px;
-}
-
-.performance-indicator[data-score="0"]::after { width: 0%; }
-.performance-indicator[data-score="1"]::after { width: 10%; }
-.performance-indicator[data-score="2"]::after { width: 20%; }
-.performance-indicator[data-score="3"]::after { width: 30%; }
-.performance-indicator[data-score="4"]::after { width: 40%; }
-.performance-indicator[data-score="5"]::after { width: 50%; }
-.performance-indicator[data-score="6"]::after { width: 60%; }
-.performance-indicator[data-score="7"]::after { width: 70%; }
-.performance-indicator[data-score="8"]::after { width: 80%; }
-.performance-indicator[data-score="9"]::after { width: 90%; }
-.performance-indicator[data-score="10"]::after { width: 100%; }
-
-.sortable {
-    cursor: pointer;
-    user-select: none;
-}
-
-.sortable:hover {
-    background-color: rgba(0,0,0,0.05);
-}
-
-.sort-asc .fa-sort::before {
-    content: '\f0de'; /* fa-sort-up */
-}
-
-.sort-desc .fa-sort::before {
-    content: '\f0dd'; /* fa-sort-down */
-}
-
-/* comparison view removed */
-
-/* Table improvements: sticky header, tighter paddings, badge wrapping */
-#models-table thead th {
-    position: sticky;
-    top: 0;
-    background: #fff;
-    z-index: 5;
-}
-#models-table tbody td { vertical-align: middle; }
-#models-table.table-sm td, #models-table.table-sm th { padding: .35rem .5rem; }
-.capability-badge { white-space: normal; display: inline-block; margin-bottom: .15rem; }
-.provider-cell { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.actions-cell .btn { padding: .25rem .35rem; }
-
-@media (max-width: 768px) {
-    .model-card {
-        margin-bottom: 1rem;
-    }
-    
-    .table-responsive {
-        font-size: 0.875rem;
-    }
-    
-    .capability-badge {
-        font-size: 0.6rem;
-        margin: 0.0625rem;
-    }
-}
-
-/* Compact filters: keep filter controls on a single line for wide viewports */
-@media (min-width: 992px) {
-    #filters-row .form-label { font-size: 0.85rem; margin-bottom: 0.25rem; }
-    #filters-row .form-control, #filters-row .form-select { height: calc(1.5rem + 1.5rem); padding: 0.25rem 0.5rem; font-size: 0.85rem; }
-    #filters-row .btn { padding: 0.35rem 0.5rem; }
-    #filters-row { white-space: nowrap; }
-    #filters-row .col-lg-3, #filters-row .col-lg-2, #filters-row .col-lg-1 { display: inline-block; float: none; vertical-align: bottom; }
-}
-/* Active filter chips */
-.filter-chip { display: inline-flex; align-items: center; gap: .25rem; padding: .125rem .5rem; background: #f1f3f5; border-radius: 999px; margin: .125rem .25rem .125rem 0; font-size: .8rem; }
-.filter-chip .btn-close { font-size: .6rem; }
-</style>
 {% endblock %}
 
 {% block extra_js %}

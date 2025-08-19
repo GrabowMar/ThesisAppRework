@@ -38,93 +38,7 @@
 {{ super() }}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker@3.1.0/daterangepicker.css">
-<style>
-    .reports-view {
-        /* Reports-specific styles */
-    }
-    
-    .report-filters {
-        background: var(--bs-light);
-        border-radius: 0.5rem;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-    }
-    
-    .report-content {
-        background: white;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .report-header {
-        border-bottom: 2px solid var(--bs-primary);
-        padding: 2rem;
-        background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-dark) 100%);
-        color: white;
-        border-radius: 0.5rem 0.5rem 0 0;
-    }
-    
-    .report-section {
-        padding: 2rem;
-        border-bottom: 1px solid var(--bs-border-color);
-    }
-    
-    .report-section:last-child {
-        border-bottom: none;
-        border-radius: 0 0 0.5rem 0.5rem;
-    }
-    
-    .chart-report {
-        height: 400px;
-        margin: 1rem 0;
-    }
-    
-    .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 1rem 0;
-    }
-    
-    .kpi-card {
-        text-align: center;
-        padding: 1.5rem;
-        background: var(--bs-light);
-        border-radius: 0.5rem;
-        border-left: 4px solid var(--bs-primary);
-    }
-    
-    .comparison-table {
-        font-size: 0.9rem;
-    }
-    
-    .report-footer {
-        background: var(--bs-light);
-        padding: 1rem 2rem;
-        font-size: 0.875rem;
-        color: var(--bs-text-muted);
-        border-radius: 0 0 0.5rem 0.5rem;
-    }
-    
-    @media print {
-        .report-filters,
-        .navbar,
-        .breadcrumb,
-        .export-actions {
-            display: none !important;
-        }
-        
-        .report-content {
-            box-shadow: none;
-            border: none;
-        }
-        
-        .report-section {
-            break-inside: avoid;
-            page-break-inside: avoid;
-        }
-    }
-</style>
+
 {% endblock %}
 
 {% block breadcrumbs %}
@@ -227,8 +141,8 @@
         <h5>Generating Report</h5>
         <p class="text-muted">This may take a few moments...</p>
         <div class="progress mx-auto" style="max-width: 300px;">
-            <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                 id="report-progress" style="width: 0%"></div>
+            <div class="progress-bar progress-bar-striped progress-bar-animated u-034359" 
+                 id="report-progress"></div>
         </div>
     </div>
     

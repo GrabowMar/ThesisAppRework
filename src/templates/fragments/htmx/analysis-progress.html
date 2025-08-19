@@ -44,7 +44,7 @@
             <span class="fw-medium">Overall Progress</span>
             <span class="text-muted">{{ progress.percentage|round(1) }}%</span>
         </div>
-        <div class="progress mb-2" style="height: 8px;">
+        <div class="progress mb-2 u-49c5d1">
             <div class="progress-bar bg-{{ 'primary' if progress.status == 'running' else 'success' if progress.status == 'completed' else 'danger' if progress.status == 'failed' else 'secondary' }}" 
                  role="progressbar" 
                  style="width: {{ progress.percentage }}%" 
@@ -270,48 +270,4 @@ function toggleLogDetails(analysisId) {
 }
 </script>
 
-<!-- Custom CSS for Timeline -->
-<style>
-.timeline {
-    position: relative;
-    padding-left: 30px;
-}
-
-.timeline::before {
-    content: '';
-    position: absolute;
-    left: 15px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #dee2e6;
-}
-
-.timeline-item {
-    position: relative;
-    margin-bottom: 20px;
-}
-
-.timeline-marker {
-    position: absolute;
-    left: -22.5px;
-    top: 0;
-    width: 15px;
-    height: 15px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 8px;
-    color: white;
-}
-
-.timeline-content {
-    padding-left: 20px;
-}
-
-.log-entry {
-    word-wrap: break-word;
-    white-space: pre-wrap;
-}
-</style>
+<!-- Timeline styles moved to theme.css -->

@@ -599,61 +599,7 @@
 
 {% block extra_css %}
 <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css" rel="stylesheet">
-<style>
-.timeline-sm {
-    position: relative;
-    padding-left: 20px;
-}
 
-.timeline-sm::before {
-    content: '';
-    position: absolute;
-    left: 6px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #dee2e6;
-}
-
-.timeline-item {
-    position: relative;
-    margin-bottom: 15px;
-}
-
-.timeline-item::before {
-    content: '';
-    position: absolute;
-    left: -17px;
-    top: 3px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #007bff;
-    border: 2px solid white;
-    box-shadow: 0 0 0 2px #dee2e6;
-}
-
-.timeline-item.completed::before {
-    background: #28a745;
-}
-
-.timeline-item.failed::before {
-    background: #dc3545;
-}
-
-.timeline-item .timeline-content {
-    font-size: 0.875rem;
-}
-
-.timeline-item .timeline-time {
-    font-size: 0.75rem;
-    color: #6c757d;
-}
-
-#overview-chart {
-    max-height: 300px;
-}
-</style>
 {% endblock %}
 
 {% block extra_js %}

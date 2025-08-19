@@ -34,45 +34,7 @@
 
 {% block extra_head %}
 {{ super() }}
-<style>
-    /* Full-width layout specific styles */
-    .full-width-layout {
-        /* Remove sidebar spacing */
-        margin-left: 0;
-        width: 100%;
-    }
-    
-    .full-width-header {
-        /* Minimal header styling */
-        border-bottom: 1px solid var(--bs-border-color);
-    }
-    
-    .full-width-content {
-        /* Maximize content area */
-        padding: 1rem;
-        min-height: calc(100vh - 120px);
-    }
-    
-    /* Print optimizations */
-    @media print {
-        .full-width-header,
-        .no-print {
-            display: none;
-        }
-        
-        .full-width-content {
-            padding: 0;
-            margin: 0;
-        }
-    }
-    
-    /* Mobile responsiveness */
-    @media (max-width: 768px) {
-        .full-width-content {
-            padding: 0.5rem;
-        }
-    }
-</style>
+
 {% endblock %}
 
 {% block body_class %}{{ super() }} full-width-layout{% endblock %}

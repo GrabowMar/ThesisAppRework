@@ -153,7 +153,7 @@
                 </span>
             </div>
             
-            <div class="progress mb-2" style="height: 8px;">
+            <div class="progress mb-2 u-49c5d1">
                 <div class="progress-bar bg-success" 
                      role="progressbar" 
                      style="width: {{ (job.completed_tasks / job.total_tasks * 100) if job.total_tasks > 0 else 0 }}%"
@@ -294,69 +294,7 @@
 </div>
 
 <!-- Job Card Specific Styles -->
-<style>
-.job-card {
-    transition: all 0.3s ease;
-    border-left: 4px solid transparent;
-}
 
-.job-card[data-status="queued"] {
-    border-left-color: #6c757d;
-}
-
-.job-card[data-status="running"] {
-    border-left-color: #0d6efd;
-    box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.1);
-}
-
-.job-card[data-status="completed"] {
-    border-left-color: #198754;
-}
-
-.job-card[data-status="failed"] {
-    border-left-color: #dc3545;
-}
-
-.job-card[data-status="cancelled"] {
-    border-left-color: #ffc107;
-}
-
-.job-card-compact {
-    margin-bottom: 0.5rem;
-}
-
-.job-card-compact .card-body {
-    padding: 0.75rem;
-}
-
-.job-status-indicator .badge {
-    font-size: 0.8em;
-}
-
-.progress {
-    background-color: #e9ecef;
-    border-radius: 4px;
-}
-
-.detail-item {
-    font-size: 0.9em;
-}
-
-.job-progress .progress-bar {
-    transition: width 0.6s ease;
-}
-
-@media (max-width: 768px) {
-    .job-card .card-header h5 {
-        font-size: 1rem;
-    }
-    
-    .job-card .btn-group-sm .btn {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.7rem;
-    }
-}
-</style>
 
 <!-- Job Card Component JavaScript -->
 <script>

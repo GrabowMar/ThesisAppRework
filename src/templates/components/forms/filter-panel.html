@@ -109,7 +109,7 @@ Dependencies: Bootstrap 5 forms, filter service APIs, HTMX for dynamic updates
                 </h6>
                 
                 {% if show_filter_count %}
-                    <span class="badge bg-primary filter-count" id="{{ component_id }}-count" style="display: none;">
+                    <span class="badge bg-primary filter-count u-5790ff" id="{{ component_id }}-count">
                         0
                     </span>
                 {% endif %}
@@ -117,16 +117,16 @@ Dependencies: Bootstrap 5 forms, filter service APIs, HTMX for dynamic updates
             
             <div class="filter-header-actions d-flex align-items-center">
                 {# Active filters indicator #}
-                <div class="active-filters-preview me-2" id="{{ component_id }}-preview" style="display: none;">
+                <div class="active-filters-preview me-2 u-5790ff" id="{{ component_id }}-preview">
                     <small class="text-muted">Active filters</small>
                 </div>
                 
                 {# Clear all filters #}
                 <button type="button" 
-                        class="btn btn-link btn-sm p-0 me-2 clear-filters" 
+                        class="btn btn-link btn-sm p-0 me-2 clear-filters u-5790ff" 
                         id="{{ component_id }}-clear"
                         title="Clear all filters"
-                        style="display: none;">
+                       >
                     <i class="fas fa-times text-muted"></i>
                 </button>
                 
@@ -192,9 +192,9 @@ Dependencies: Bootstrap 5 forms, filter service APIs, HTMX for dynamic updates
                                                placeholder="{{ filter.placeholder or 'Search...' }}"
                                                data-filter="{{ filter.name }}"
                                                {% if filter.min_length %}data-min-length="{{ filter.min_length }}"{% endif %}>
-                                        <button class="btn btn-outline-secondary clear-search" 
+                                        <button class="btn btn-outline-secondary clear-search u-5790ff" 
                                                 type="button" 
-                                                style="display: none;"
+                                               
                                                 title="Clear search">
                                             <i class="fas fa-times"></i>
                                         </button>
@@ -805,356 +805,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {# CSS for filter panel styling #}
-<style>
-.filter-panel-container {
-    margin-bottom: 1rem;
-}
 
-.filter-panel-card {
-    border: 1px solid #dee2e6;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.filter-panel-card .card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    padding: 0.75rem 1rem;
-}
-
-.filter-count {
-    animation: filterCountPulse 0.3s ease;
-}
-
-@keyframes filterCountPulse {
-    from {
-        transform: scale(1.2);
-    }
-    to {
-        transform: scale(1);
-    }
-}
-
-.active-filters-preview {
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.clear-filters:hover {
-    color: #dc3545 !important;
-}
-
-.filter-toggle i {
-    transition: transform 0.2s ease;
-}
-
-/* Filter presets */
-.filter-presets .btn {
-    transition: all 0.2s ease;
-}
-
-.filter-presets .btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.filter-presets .btn.active {
-    background-color: #007bff;
-    border-color: #007bff;
-    color: white;
-}
-
-/* Multi-select styling */
-.multi-select-wrapper {
-    position: relative;
-}
-
-.multi-select-display {
-    cursor: pointer;
-    min-height: calc(1.5em + 0.75rem + 2px);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-right: 2rem;
-}
-
-.multi-select-display:hover {
-    border-color: #86b7fe;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-}
-
-.multi-select-display i {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
-}
-
-.multi-select-dropdown {
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: 1050;
-}
-
-.multi-select-dropdown .form-check {
-    margin-bottom: 0;
-    padding: 0.5rem 1rem;
-}
-
-.multi-select-dropdown .form-check:hover {
-    background-color: #f8f9fa;
-}
-
-.selected-items-text.text-muted {
-    font-style: italic;
-}
-
-/* Search filter styling */
-.search-filter + .clear-search {
-    border-left: none;
-}
-
-.clear-search {
-    color: #6c757d;
-}
-
-.clear-search:hover {
-    color: #dc3545;
-    background-color: #f8f9fa;
-}
-
-/* Range filter styling */
-.range-filter {
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-}
-
-/* Filter actions */
-.filter-actions {
-    background-color: #f8f9fa;
-    margin: 0 -1.25rem -1.25rem;
-    padding: 0.75rem 1.25rem;
-    border-radius: 0 0 0.375rem 0.375rem;
-}
-
-.filter-summary {
-    max-width: 60%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.action-buttons .btn {
-    transition: all 0.2s ease;
-}
-
-.action-buttons .btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Animation for filter changes */
-.filter-group {
-    transition: background-color 0.3s ease;
-}
-
-.filter-group.filter-active {
-    background-color: rgba(13, 110, 253, 0.1);
-    border-radius: 0.375rem;
-    padding: 0.5rem;
-    margin: 0.25rem 0;
-}
-
-/* Loading states */
-.filter-form.loading {
-    opacity: 0.7;
-    pointer-events: none;
-}
-
-.filter-form.loading::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(255, 255, 255, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-    .filter-panel-card .card-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
-    }
-    
-    .filter-header-actions {
-        justify-content: space-between;
-        width: 100%;
-    }
-    
-    .active-filters-preview {
-        max-width: none;
-        order: -1;
-    }
-    
-    .filter-presets .btn {
-        font-size: 0.875rem;
-        padding: 0.375rem 0.75rem;
-    }
-    
-    .filter-actions {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .filter-summary {
-        max-width: none;
-        text-align: center;
-    }
-    
-    .action-buttons {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-    
-    .multi-select-dropdown {
-        position: fixed !important;
-        top: 50% !important;
-        left: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        width: 90vw !important;
-        max-width: 400px !important;
-        max-height: 60vh;
-        border-radius: 0.375rem;
-        border: 1px solid #dee2e6;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    }
-}
-
-@media (max-width: 576px) {
-    .filter-panel-card .card-body {
-        padding: 0.75rem;
-    }
-    
-    .filter-presets {
-        margin-bottom: 1rem;
-    }
-    
-    .filter-presets .btn {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-    }
-    
-    .filter-group {
-        margin-bottom: 1rem;
-    }
-    
-    .col-md-6,
-    .col-lg-4 {
-        flex: 1;
-        max-width: 100%;
-    }
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-    .filter-panel-card {
-        background-color: #343a40;
-        border-color: #495057;
-        color: #e9ecef;
-    }
-    
-    .filter-panel-card .card-header {
-        background-color: #495057;
-        border-color: #6c757d;
-    }
-    
-    .multi-select-display:hover {
-        border-color: #86b7fe;
-        background-color: #495057;
-    }
-    
-    .multi-select-dropdown {
-        background-color: #343a40;
-        border-color: #495057;
-    }
-    
-    .multi-select-dropdown .form-check:hover {
-        background-color: #495057;
-    }
-    
-    .filter-actions {
-        background-color: #495057;
-        border-color: #6c757d;
-    }
-    
-    .clear-search:hover {
-        background-color: #495057;
-    }
-}
-
-/* High contrast mode */
-@media (prefers-contrast: high) {
-    .filter-panel-card {
-        border-width: 2px;
-    }
-    
-    .filter-presets .btn.active {
-        border-width: 2px;
-    }
-    
-    .multi-select-display {
-        border-width: 2px;
-    }
-    
-    .filter-count {
-        border: 1px solid #ffffff;
-        font-weight: 600;
-    }
-}
-
-/* Print styles */
-@media print {
-    .filter-panel-container {
-        display: none;
-    }
-}
-
-/* Focus management */
-.filter-input:focus-visible,
-.multi-select-display:focus-visible {
-    outline: 2px solid #007bff;
-    outline-offset: 2px;
-}
-
-.preset-filter:focus-visible {
-    outline: 2px solid #007bff;
-    outline-offset: 2px;
-}
-
-/* Accessibility improvements */
-@media (prefers-reduced-motion: reduce) {
-    .filter-count,
-    .filter-presets .btn,
-    .action-buttons .btn,
-    .filter-toggle i,
-    .filter-group {
-        animation: none;
-        transition: none;
-    }
-    
-    .filter-presets .btn:hover,
-    .action-buttons .btn:hover {
-        transform: none;
-    }
-}
-</style>

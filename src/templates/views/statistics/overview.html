@@ -38,43 +38,7 @@
 {% block extra_head %}
 {{ super() }}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css">
-<style>
-    .stats-overview {
-        /* Statistics-specific styles */
-    }
-    
-    .metric-card {
-        transition: transform 0.2s;
-    }
-    
-    .metric-card:hover {
-        transform: translateY(-2px);
-    }
-    
-    .chart-container {
-        position: relative;
-        height: 350px;
-        margin-bottom: 20px;
-    }
-    
-    .trend-up {
-        color: var(--bs-success) !important;
-    }
-    
-    .trend-down {
-        color: var(--bs-danger) !important;
-    }
-    
-    .trend-neutral {
-        color: var(--bs-warning) !important;
-    }
-    
-    .export-buttons {
-        position: sticky;
-        top: 20px;
-        z-index: 100;
-    }
-</style>
+
 {% endblock %}
 
 {% block breadcrumbs %}
@@ -235,7 +199,7 @@
             </h5>
         </div>
         <div class="card-body">
-            <div class="chart-container" style="height: 300px;">
+            <div class="chart-container h-300px">
                 <canvas id="model-performance-chart" width="400" height="200"></canvas>
             </div>
         </div>
@@ -251,7 +215,7 @@
             </h5>
         </div>
         <div class="card-body">
-            <div class="chart-container" style="height: 300px;">
+            <div class="chart-container h-300px">
                 <canvas id="analysis-type-chart" width="400" height="200"></canvas>
             </div>
         </div>

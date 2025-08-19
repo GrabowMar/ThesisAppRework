@@ -118,7 +118,7 @@
     </div>
 
     <!-- Selected Analyses Summary -->
-    <div class="row mb-4" id="selected-analyses-row" style="display: none;">
+    <div class="row mb-4 u-5790ff" id="selected-analyses-row">
         <div class="col-12">
             <div class="card border-primary">
                 <div class="card-header bg-primary text-white">
@@ -142,7 +142,7 @@
     </div>
 
     <!-- Comparison Results -->
-    <div id="comparison-results" style="display: none;">
+    <div id="comparison-results" class="u-5790ff">
         <!-- Overview Comparison -->
         <div class="row mb-4">
             <div class="col-12">
@@ -195,10 +195,10 @@
                                     <thead>
                                         <tr>
                                             <th>Metric</th>
-                                            <th class="text-center" style="min-width: 150px;">Analysis 1</th>
-                                            <th class="text-center" style="min-width: 150px;">Analysis 2</th>
-                                            <th class="text-center" style="min-width: 150px;">Analysis 3</th>
-                                            <th class="text-center" style="min-width: 150px;">Analysis 4</th>
+                                            <th class="text-center u-2c5b50">Analysis 1</th>
+                                            <th class="text-center u-2c5b50">Analysis 2</th>
+                                            <th class="text-center u-2c5b50">Analysis 3</th>
+                                            <th class="text-center u-2c5b50">Analysis 4</th>
                                             <th class="text-center">Best</th>
                                         </tr>
                                     </thead>
@@ -208,7 +208,7 @@
                                 </table>
                             </div>
                         </div>
-                        <div id="metric-chart-view" style="display: none;">
+                        <div id="metric-chart-view" class="u-5790ff">
                             <canvas id="detailed-metrics-chart" width="400" height="300"></canvas>
                         </div>
                     </div>
@@ -307,79 +307,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<style>
-.analysis-card {
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
 
-.analysis-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.analysis-card.selected {
-    border-color: #007bff !important;
-    background-color: rgba(0, 123, 255, 0.05);
-}
-
-.analysis-card.disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.metric-comparison-cell {
-    position: relative;
-}
-
-.metric-best {
-    background-color: #d4edda !important;
-    border-color: #c3e6cb !important;
-}
-
-.metric-worst {
-    background-color: #f8d7da !important;
-    border-color: #f5c6cb !important;
-}
-
-.comparison-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-}
-
-.analysis-info-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.25rem 0;
-    border-bottom: 1px solid #f8f9fa;
-}
-
-.analysis-info-item:last-child {
-    border-bottom: none;
-}
-
-.analysis-info-label {
-    font-weight: 500;
-    color: #6c757d;
-    font-size: 0.875rem;
-}
-
-.analysis-info-value {
-    font-weight: 600;
-    font-size: 0.875rem;
-}
-
-@media (max-width: 768px) {
-    .comparison-metrics-table {
-        font-size: 0.8rem;
-    }
-    
-    .analysis-card {
-        margin-bottom: 1rem;
-    }
-}
-</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -658,7 +586,7 @@ function displayComparisonResults(data) {
                                 </table>
                             </div>
                         </div>
-                        <div id="metric-chart-view" style="display: none;">
+                        <div id="metric-chart-view" class="u-5790ff">
                             <canvas id="detailed-metrics-chart" width="400" height="300"></canvas>
                         </div>
                     </div>

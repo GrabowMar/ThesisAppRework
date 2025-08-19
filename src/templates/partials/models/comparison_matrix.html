@@ -38,7 +38,7 @@
       <div class="p-3 text-muted">No models selected.</div>
     {% else %}
       <!-- HTMX-friendly hidden form to allow fragment buttons to POST models + baseline -->
-      <form id="comparison-htmx-form" style="display:none;">
+      <form id="comparison-htmx-form" class="u-5790ff">
         <input type="hidden" id="comparison-hidden-models" name="models" value="{{ models|map(attribute='slug')|list|join(',') }}">
       </form>
 

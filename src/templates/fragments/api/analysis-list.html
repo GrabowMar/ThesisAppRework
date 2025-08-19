@@ -120,7 +120,7 @@
                             </span>
                             
                             {% if analysis.status == 'running' and analysis.progress %}
-                            <div class="progress mb-1" style="height: 6px;">
+                            <div class="progress mb-1 u-2f623b">
                                 <div class="progress-bar" role="progressbar" style="width: {{ analysis.progress }}%" aria-valuenow="{{ analysis.progress }}" aria-valuemin="0" aria-valuemax="100"></div>
                             </div>
                             <small class="text-muted">{{ analysis.progress|round(1) }}% complete</small>

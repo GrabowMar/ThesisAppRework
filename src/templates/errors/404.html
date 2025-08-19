@@ -24,41 +24,7 @@
 
 {% block extra_head %}
 {{ super() }}
-<style>
-    .error-container {
-        min-height: 60vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .error-content {
-        text-align: center;
-        max-width: 600px;
-    }
-    
-    .error-code {
-        font-size: 8rem;
-        font-weight: bold;
-        color: var(--bs-primary);
-        line-height: 1;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .error-icon {
-        font-size: 4rem;
-        color: var(--bs-warning);
-        margin-bottom: 1rem;
-    }
-    
-    .suggestion-card {
-        transition: transform 0.2s;
-    }
-    
-    .suggestion-card:hover {
-        transform: translateY(-2px);
-    }
-</style>
+
 {% endblock %}
 
 {% block breadcrumbs %}

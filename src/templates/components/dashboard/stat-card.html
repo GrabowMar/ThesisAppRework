@@ -191,32 +191,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {# CSS for hover effects and animations #}
-<style>
-.stat-card {
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-}
 
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-}
-
-.stat-card[style*="cursor: pointer"]:hover {
-    transform: translateY(-3px);
-}
-
-.stat-value {
-    transition: all 0.3s ease;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .stat-card .card-body {
-        padding: 1rem 0.75rem;
-    }
-    
-    .stat-card .fa-2x {
-        font-size: 1.5em !important;
-    }
-}
-</style>

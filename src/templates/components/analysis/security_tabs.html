@@ -68,7 +68,7 @@
                                             <span class="fw-bold text-{{ 'danger' if vuln.cvss_score >= 9 else 'warning' if vuln.cvss_score >= 7 else 'info' if vuln.cvss_score >= 4 else 'success' }}">
                                                 {{ vuln.cvss_score }}
                                             </span>
-                                            <div class="progress mt-1" style="height: 4px;">
+                                            <div class="progress mt-1 u-30f9f3">
                                                 <div class="progress-bar bg-{{ 'danger' if vuln.cvss_score >= 9 else 'warning' if vuln.cvss_score >= 7 else 'info' if vuln.cvss_score >= 4 else 'success' }}" 
                                                      style="width: {{ vuln.cvss_score * 10 }}%"></div>
                                             </div>
@@ -109,7 +109,7 @@
                                 {{ analysis.results.security_summary.overall_score or 0 }}/10
                             </span>
                         </div>
-                        <div class="progress mt-1" style="height: 6px;">
+                        <div class="progress mt-1 u-2f623b">
                             <div class="progress-bar bg-{{ 'success' if (analysis.results.security_summary.overall_score or 0) >= 8 else 'warning' if (analysis.results.security_summary.overall_score or 0) >= 6 else 'danger' }}" 
                                  style="width: {{ (analysis.results.security_summary.overall_score or 0) * 10 }}%"></div>
                         </div>
@@ -121,7 +121,7 @@
                             <span class="fw-bold">{{ analysis.results.security_summary.auth_score or 'N/A' }}</span>
                         </div>
                         {% if analysis.results.security_summary.auth_score %}
-                            <div class="progress mt-1" style="height: 6px;">
+                            <div class="progress mt-1 u-2f623b">
                                 <div class="progress-bar bg-info" style="width: {{ analysis.results.security_summary.auth_score * 10 }}%"></div>
                             </div>
                         {% endif %}
@@ -133,7 +133,7 @@
                             <span class="fw-bold">{{ analysis.results.security_summary.data_protection_score or 'N/A' }}</span>
                         </div>
                         {% if analysis.results.security_summary.data_protection_score %}
-                            <div class="progress mt-1" style="height: 6px;">
+                            <div class="progress mt-1 u-2f623b">
                                 <div class="progress-bar bg-primary" style="width: {{ analysis.results.security_summary.data_protection_score * 10 }}%"></div>
                             </div>
                         {% endif %}
