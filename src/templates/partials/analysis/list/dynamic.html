@@ -11,6 +11,9 @@ Usage: /analysis/api/recent/dynamic endpoint
 #}
 
 {% for item in items %}
+{% set st = (item.status|string)|lower %}
+{% set model_slug = (item.application.model_slug if item.application else (item.model_slug if item.model_slug is defined else 'Unknown Model')) %}
+{% set app_number = (item.application.app_number if item.application else (item.app_number if item.app_number is defined else 'N/A')) %}
 <div class="d-flex align-items-center mb-2 p-2 border rounded">
     <div class="me-3">
         <span class="badge bg-info">
@@ -19,23 +22,25 @@ Usage: /analysis/api/recent/dynamic endpoint
     </div>
     <div class="flex-grow-1">
         <div class="fw-semibold">
-            {{ item.application.model_slug if item.application else 'Unknown Model' }} - 
-            App {{ item.application.app_number if item.application else 'N/A' }}
+            {{ model_slug }} - App {{ app_number }}
         </div>
         <div class="small text-muted">
             {{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else 'No date' }}
         </div>
     </div>
-    <div>
-        {% if item.status == 'completed' %}
+    <div class="d-flex align-items-center gap-2">
+        {% if st == 'completed' %}
             <span class="badge bg-success">Completed</span>
-        {% elif item.status == 'running' %}
+        {% elif st == 'running' %}
             <span class="badge bg-info">Running</span>
-        {% elif item.status == 'failed' %}
+        {% elif st == 'failed' %}
             <span class="badge bg-danger">Failed</span>
         {% else %}
             <span class="badge bg-secondary">{{ item.status|title }}</span>
         {% endif %}
+        <a href="/analysis/dynamic/{{ item.id }}" class="btn btn-sm btn-outline-primary">
+          <i class="fas fa-eye"></i>
+        </a>
     </div>
 </div>
 {% else %}

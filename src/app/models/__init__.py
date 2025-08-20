@@ -1294,6 +1294,11 @@ class BatchAnalysis(db.Model):
 # Initialize database function
 def init_db():
     """Create all database tables."""
+    # Ensure models are imported before creating tables to avoid missing-table errors
+    try:
+        import app.models as _models  # noqa: F401
+    except Exception:
+        pass
     db.create_all()
 
 # Export all models for easy import

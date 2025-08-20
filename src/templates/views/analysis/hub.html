@@ -1,35 +1,30 @@
 {#
-  Analysis Hub View
+  Analysis Hub Dashboard
   
-  Purpose: Central hub for managing and viewing analysis results
+  Purpose: Comprehensive dashboard for analysis overview, statistics, and management
   Features:
-  - Analysis type filters
-  - Results grid with search and pagination
-  - Real-time status updates
-  - Quick analysis creation
-  - Results comparison tools
+  - Real-time statistics and metrics
+  - Recent activity across all analysis types  
+  - Running analyses with live progress updates
+  - Quick action shortcuts
+  - Performance trends and insights
+  - Interactive charts and visualizations
   
   Routes:
-  - GET /analysis/
-  - GET /analysis/hub
+  - GET /analysis/ (main hub)
   
   Technical Details:
-  - Extends base.html layout
-  - HTMX-powered filtering and pagination
-  - WebSocket updates for running analyses
-  - Modal integration for detailed views
-  - Bulk operations support
+  - HTMX-powered live updates
+  - Chart.js for data visualization
+  - WebSocket integration for real-time status
+  - Responsive dashboard layout
   
   Components Used:
-  - components/analysis/result-card.html
-  - components/analysis/status-indicator.html
-  - components/analysis/progress-tracker.html
-  - components/forms/filter-panel.html
-  
-  HTMX Endpoints:
-  - /api/analysis/list (filtered results)
-  - /api/analysis/status (status updates)
-  - /api/analysis/search (search results)
+  - Stats cards with live counters
+  - Recent activity feeds
+  - Progress indicators
+  - Quick action buttons
+  - Trend charts
 #}
 
 {% extends "layouts/base.html" %}
@@ -38,7 +33,40 @@
 
 {% block extra_head %}
 {{ super() }}
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.stat-card {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    margin-bottom: 15px;
+}
+.activity-item {
+    padding: 12px;
+    border-left: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+.activity-item:hover {
+    background-color: rgba(0,0,0,0.02);
+    border-left-color: #007bff;
+}
+.progress-ring {
+    width: 40px;
+    height: 40px;
+}
+</style>
 {% endblock %}
 
 {% block breadcrumbs %}
@@ -53,429 +81,367 @@
 {% block content %}
 {% from 'partials/common/_page_header.html' import page_header %}
 {% set _hub_actions %}
-    <button type="button" class="btn btn-primary"
-            hx-get="/analysis/create"
-            hx-target="#analysis-modal .modal-content"
-            data-bs-toggle="modal"
-            data-bs-target="#analysis-modal">
+    <a href="/analysis/create" class="btn btn-primary">
         <i class="fas fa-plus me-1"></i>New Analysis
-    </button>
-    <button type="button" class="btn btn-outline-secondary"
-            hx-get="/analysis/batch"
-            hx-target="#analysis-modal .modal-content"
-            data-bs-toggle="modal"
-            data-bs-target="#analysis-modal">
-        <i class="fas fa-layer-group me-1"></i>Batch Analysis
-    </button>
-    <button type="button" class="btn btn-outline-info"
-            hx-get="/analysis/compare"
-            hx-target="#main-content"
-            hx-push-url="/analysis/compare">
-        <i class="fas fa-balance-scale me-1"></i>Compare Results
-    </button>
+    </a>
+    <a href="/analysis/list" class="btn btn-outline-secondary">
+        <i class="fas fa-list me-1"></i>View All
+    </a>
+    <a href="/analysis/tasks" class="btn btn-outline-info">
+        <i class="fas fa-tasks me-1"></i>Tasks
+    </a>
 {% endset %}
 
-{{ page_header('Analysis Hub', 'Manage and monitor your AI model analyses', icon='fas fa-flask', actions_html=_hub_actions) }}
+{{ page_header('Analysis Hub', 'Comprehensive analysis dashboard and management center', icon='fas fa-tachometer-alt', actions_html=_hub_actions) }}
 
-<div class="analysis-hub">
+<div class="analysis-hub-dashboard">
     
-    {# Quick Stats Row #}
-    <div class="row mb-4" id="analysis-stats"
-         hx-get="/analysis/api/stats"
+    {# Key Metrics Row #}
+    <div class="row mb-4" id="hub-stats"
+         hx-get="/analysis/api/stats" 
          hx-trigger="load, every 30s"
-         hx-target="#analysis-stats"
+         hx-target="#hub-stats"
          hx-swap="outerHTML">
-        <div class="col-md-3">
-            <div class="card text-center">
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stat-card text-center h-100">
                 <div class="card-body">
-                    <i class="fas fa-flask fa-2x text-primary mb-2"></i>
-                    <h4 class="mb-0" id="total-analyses">{{ stats.total|default(0) }}</h4>
-                    <small class="text-muted">Total Analyses</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="fas fa-spinner fa-spin fa-2x text-warning mb-2"></i>
-                    <h4 class="mb-0" id="running-analyses">{{ stats.running|default(0) }}</h4>
-                    <small class="text-muted">Running</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
-                    <h4 class="mb-0" id="completed-analyses">{{ stats.completed|default(0) }}</h4>
-                    <small class="text-muted">Completed</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
-                    <h4 class="mb-0" id="failed-analyses">{{ stats.failed|default(0) }}</h4>
-                    <small class="text-muted">Failed</small>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    {# Main Content Row #}
-    <div class="row">
-        {# Filters Sidebar #}
-        <div class="col-lg-3">
-            <div class="filter-sidebar">
-                <h5 class="mb-3">
-                    <i class="fas fa-filter me-2"></i>Filters
-                </h5>
-                
-                {# Analysis Type Filter #}
-                <div class="mb-3">
-                    <label class="form-label small fw-bold">Analysis Type</label>
-                    <div class="form-check">
-               <input class="form-check-input" type="checkbox" id="filter-security" checked
-                   hx-trigger="change" hx-get="/analysis/api/list/combined" hx-target="#analysis-results">
-                        <label class="form-check-label" for="filter-security">
-                            <i class="fas fa-shield-alt me-1"></i>Security
-                        </label>
+                    <div class="stat-icon bg-primary bg-gradient text-white mx-auto">
+                        <i class="fas fa-shield-alt fa-2x"></i>
                     </div>
-                    <div class="form-check">
-               <input class="form-check-input" type="checkbox" id="filter-performance" checked
-                   hx-trigger="change" hx-get="/analysis/api/list/combined" hx-target="#analysis-results">
-                        <label class="form-check-label" for="filter-performance">
-                            <i class="fas fa-tachometer-alt me-1"></i>Performance
-                        </label>
-                    </div>
-                    <div class="form-check">
-               <input class="form-check-input" type="checkbox" id="filter-dynamic" checked
-                   hx-trigger="change" hx-get="/analysis/api/list/combined" hx-target="#analysis-results">
-                        <label class="form-check-label" for="filter-dynamic">
-                            <i class="fas fa-bolt me-1"></i>Dynamic
-                        </label>
-                    </div>
-                </div>
-                
-                {# Status Filter #}
-                <div class="mb-3">
-                    <label class="form-label small fw-bold">Status</label>
-            <select class="form-select form-select-sm" id="status-filter"
-                hx-trigger="change" hx-get="/analysis/api/list/combined" hx-target="#analysis-results">
-                        <option value="">All Statuses</option>
-                        <option value="running">Running</option>
-                        <option value="completed">Completed</option>
-                        <option value="failed">Failed</option>
-                        <option value="queued">Queued</option>
-                    </select>
-                </div>
-                
-                {# Date Range Filter #}
-                <div class="mb-3">
-                    <label class="form-label small fw-bold">Date Range</label>
-            <select class="form-select form-select-sm" id="date-filter"
-                hx-trigger="change" hx-get="/analysis/api/list/combined" hx-target="#analysis-results">
-                        <option value="">All Time</option>
-                        <option value="today">Today</option>
-                        <option value="week">This Week</option>
-                        <option value="month">This Month</option>
-                        <option value="custom">Custom Range</option>
-                    </select>
-                </div>
-                
-                {# Model Filter #}
-                <div class="mb-3">
-                    <label class="form-label small fw-bold">Model</label>
-            <select class="form-select form-select-sm" id="model-filter"
-                hx-get="/api/models/list-options" hx-target="this" hx-trigger="load"
-                hx-on:change="htmx.ajax('GET', '/analysis/api/list/combined', {target: '#analysis-results'})">
-                        <option value="">All Models</option>
-                        {# Options loaded via HTMX #}
-                    </select>
-                </div>
-                
-                {# Filter Actions #}
-                <div class="d-grid gap-2">
-            <button type="button" class="btn btn-outline-primary btn-sm"
-                hx-get="/analysis/api/list/combined" hx-target="#analysis-results">
-                        <i class="fas fa-search me-1"></i>Apply Filters
-                    </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm"
-                hx-get="/analysis/api/list/combined" hx-target="#analysis-results">
-                        <i class="fas fa-times me-1"></i>Clear All
-                    </button>
+                    <h3 class="mb-1">{{ stats.total_security|default(0) }}</h3>
+                    <p class="text-muted mb-2">Security Analyses</p>
+                    <small class="text-success">
+                        <i class="fas fa-arrow-up me-1"></i>
+                        +{{ trends.security_this_week|default(0) }} this week
+                    </small>
                 </div>
             </div>
         </div>
         
-        {# Results Area #}
-        <div class="col-lg-9">
-            {# Search and Sort Bar #}
-            <div class="row mb-3">
-                <div class="col-md-8">
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="fas fa-search"></i>
-                        </span>
-                        <input type="search" class="form-control" placeholder="Search analyses..."
-                               hx-get="/api/analysis/search"
-                               hx-target="#analysis-results"
-                               hx-trigger="keyup changed delay:500ms"
-                               name="q">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stat-card text-center h-100">
+                <div class="card-body">
+                    <div class="stat-icon bg-success bg-gradient text-white mx-auto">
+                        <i class="fas fa-tachometer-alt fa-2x"></i>
                     </div>
-                </div>
-                <div class="col-md-4">
-            <select class="form-select" id="sort-order"
-                hx-get="/analysis/api/list/combined" hx-target="#analysis-results" hx-trigger="change">
-                        <option value="created_desc">Newest First</option>
-                        <option value="created_asc">Oldest First</option>
-                        <option value="status">By Status</option>
-                        <option value="type">By Type</option>
-                        <option value="model">By Model</option>
-                    </select>
+                    <h3 class="mb-1">{{ stats.total_performance|default(0) }}</h3>
+                    <p class="text-muted mb-2">Performance Tests</p>
+                    <small class="text-success">
+                        <i class="fas fa-arrow-up me-1"></i>
+                        +{{ trends.performance_this_week|default(0) }} this week
+                    </small>
                 </div>
             </div>
-            
-            {# Results Grid #}
-          <div class="analysis-grid" id="analysis-results"
-              hx-get="/analysis/api/list/combined"
-                 hx-trigger="load"
-                 hx-target="#analysis-results"
-                 hx-swap="innerHTML">
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading analyses...</span>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stat-card text-center h-100">
+                <div class="card-body">
+                    <div class="stat-icon bg-info bg-gradient text-white mx-auto">
+                        <i class="fas fa-bolt fa-2x"></i>
                     </div>
-                    <div class="mt-2 text-muted">Loading analysis results...</div>
+                    <h3 class="mb-1">{{ stats.total_dynamic|default(0) }}</h3>
+                    <p class="text-muted mb-2">Dynamic Scans</p>
+                    <small class="text-success">
+                        <i class="fas fa-arrow-up me-1"></i>
+                        +{{ trends.dynamic_this_week|default(0) }} this week
+                    </small>
                 </div>
             </div>
-            
-            {# Pagination #}
-            <nav aria-label="Analysis pagination" class="mt-4">
-                <ul class="pagination justify-content-center" id="analysis-pagination">
-                    {# Pagination loaded via HTMX #}
-                </ul>
-            </nav>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stat-card text-center h-100">
+                <div class="card-body">
+                    <div class="stat-icon bg-warning bg-gradient text-white mx-auto">
+                        <i class="fas fa-robot fa-2x"></i>
+                    </div>
+                    <h3 class="mb-1">{{ stats.total_models|default(0) }}</h3>
+                    <p class="text-muted mb-2">AI Models</p>
+                    <small class="text-muted">
+                        Available for testing
+                    </small>
+                </div>
+            </div>
         </div>
     </div>
-</div>
-
-{# Analysis Modal #}
-<div class="modal fade" id="analysis-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            {# Modal content loaded via HTMX #}
+    
+    {# Status Overview Row #}
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>Analysis Status Overview
+                    </h5>
+                    <span class="badge bg-light text-dark">
+                        Last updated: <span id="status-timestamp">Now</span>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <canvas id="statusChart" width="300" height="200"></canvas>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="status-legend">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span><i class="fas fa-circle text-success me-2"></i>Completed</span>
+                                    <strong>{{ stats.security_completed|default(0) }}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span><i class="fas fa-circle text-warning me-2"></i>Running</span>
+                                    <strong>{{ stats.security_running|default(0) }}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span><i class="fas fa-circle text-danger me-2"></i>Failed</span>
+                                    <strong>{{ stats.security_failed|default(0) }}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span><i class="fas fa-circle text-secondary me-2"></i>Pending</span>
+                                    <strong>{{ stats.security_pending|default(0) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tasks me-2"></i>Active Tasks
+                    </h5>
+                </div>
+                <div class="card-body" id="active-tasks-panel"
+                     hx-get="/analysis/api/active-tasks"
+                     hx-trigger="load, every 10s"
+                     hx-target="#active-tasks-panel"
+                     hx-swap="innerHTML">
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading active tasks...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-</div>
-
-{# Real-time Updates #}
-<div id="realtime-updates" 
-    hx-get="/analysis/api/active-tasks"
-     hx-trigger="every 10s"
-     hx-target="this"
-     hx-swap="none">
-    {# WebSocket or polling updates for running analyses #}
+    
+    {# Recent Activity and Quick Actions Row #}
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Recent Activity
+                    </h5>
+                    <a href="/analysis/list" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="recent-activity" id="recent-activity"
+                         hx-get="/analysis/api/recent/combined"
+                         hx-trigger="load, every 30s"
+                         hx-target="#recent-activity"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading recent activity...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-rocket me-2"></i>Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/analysis/create" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>New Security Analysis
+                        </a>
+                        <a href="/analysis/create?type=performance" class="btn btn-success">
+                            <i class="fas fa-tachometer-alt me-2"></i>Performance Test
+                        </a>
+                        <a href="/analysis/create?type=dynamic" class="btn btn-info">
+                            <i class="fas fa-bolt me-2"></i>Dynamic Scan
+                        </a>
+                        <hr class="my-3">
+                        <a href="/batch/create" class="btn btn-warning">
+                            <i class="fas fa-layer-group me-2"></i>Batch Analysis
+                        </a>
+                        <a href="/models" class="btn btn-outline-secondary">
+                            <i class="fas fa-robot me-2"></i>Browse Models
+                        </a>
+                        <a href="/applications" class="btn btn-outline-secondary">
+                            <i class="fas fa-code me-2"></i>Browse Apps
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {# Trends and Insights Row #}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>Analysis Trends
+                    </h5>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary active" data-period="week">7 Days</button>
+                        <button class="btn btn-outline-primary" data-period="month">30 Days</button>
+                        <button class="btn btn-outline-primary" data-period="quarter">90 Days</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <canvas id="trendsChart" width="800" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 {{ super() }}
 <script>
-    // Analysis Hub JavaScript
-    document.addEventListener('DOMContentLoaded', function() {
-        
-        // Initialize real-time updates for running analyses
-        class AnalysisUpdater {
-            constructor() {
-                this.runningAnalyses = new Set();
-                this.updateInterval = null;
-                this.init();
-            }
-            
-            init() {
-                this.startPolling();
-                this.bindEvents();
-            }
-            
-            startPolling() {
-                this.updateInterval = setInterval(() => {
-                    this.updateRunningAnalyses();
-                }, 5000); // Update every 5 seconds
-            }
-            
-            stopPolling() {
-                if (this.updateInterval) {
-                    clearInterval(this.updateInterval);
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize status pie chart
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    const statusChart = new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Completed', 'Running', 'Failed', 'Pending'],
+            datasets: [{
+                data: [
+                    {{ stats.security_completed|default(0) }},
+                    {{ stats.security_running|default(0) }},
+                    {{ stats.security_failed|default(0) }},
+                    {{ stats.security_pending|default(0) }}
+                ],
+                backgroundColor: [
+                    '#28a745',
+                    '#ffc107', 
+                    '#dc3545',
+                    '#6c757d'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
                 }
-            }
-            
-            updateRunningAnalyses() {
-                // Get list of currently visible running analyses
-                const runningCards = document.querySelectorAll('.analysis-card[data-status="running"]');
-                
-                if (runningCards.length > 0) {
-                    const analysisIds = Array.from(runningCards).map(card => card.dataset.analysisId);
-                    
-                    // Batch update request
-                    fetch('/api/analysis/batch-status', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({analysis_ids: analysisIds})
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        this.updateAnalysisCards(data);
-                    })
-                    .catch(error => {
-                        console.error('Error updating analysis status:', error);
-                    });
-                }
-            }
-            
-            updateAnalysisCards(statusData) {
-                statusData.forEach(analysis => {
-                    const card = document.querySelector(`[data-analysis-id="${analysis.id}"]`);
-                    if (card) {
-                        this.updateCard(card, analysis);
-                    }
-                });
-            }
-            
-            updateCard(card, analysisData) {
-                // Update status badge
-                const statusBadge = card.querySelector('.status-badge');
-                if (statusBadge) {
-                    statusBadge.textContent = analysisData.status;
-                    statusBadge.className = `badge status-badge ${this.getStatusClass(analysisData.status)}`;
-                }
-                
-                // Update progress bar
-                const progressBar = card.querySelector('.progress-bar');
-                if (progressBar && analysisData.progress) {
-                    progressBar.style.width = `${analysisData.progress}%`;
-                    progressBar.setAttribute('aria-valuenow', analysisData.progress);
-                }
-                
-                // Update card data attributes
-                card.dataset.status = analysisData.status;
-                
-                // If analysis completed, refresh the card content
-                if (analysisData.status === 'completed' || analysisData.status === 'failed') {
-                    htmx.ajax('GET', `/api/analysis/card/${analysisData.id}`, {
-                        target: card,
-                        swap: 'outerHTML'
-                    });
-                }
-            }
-            
-            getStatusClass(status) {
-                const statusClasses = {
-                    'running': 'bg-warning',
-                    'completed': 'bg-success',
-                    'failed': 'bg-danger',
-                    'queued': 'bg-info'
-                };
-                return statusClasses[status] || 'bg-secondary';
-            }
-            
-            bindEvents() {
-                // Handle filter changes
-                document.addEventListener('htmx:afterSwap', (event) => {
-                    if (event.target.id === 'analysis-results') {
-                        this.reinitializeCards();
-                    }
-                });
-                
-                // Handle modal events
-                const modal = document.getElementById('analysis-modal');
-                modal.addEventListener('hidden.bs.modal', function() {
-                    this.querySelector('.modal-content').innerHTML = '';
-                });
-            }
-            
-            reinitializeCards() {
-                // Reinitialize any JavaScript components in newly loaded cards
-                const newCards = document.querySelectorAll('.analysis-card');
-                newCards.forEach(card => {
-                    // Add hover effects, bind click handlers, etc.
-                    this.initializeCard(card);
-                });
-            }
-            
-            initializeCard(card) {
-                // Initialize individual card functionality
-                const viewBtn = card.querySelector('.btn-view-details');
-                if (viewBtn) {
-                    viewBtn.addEventListener('click', (e) => {
-                        // Handle view details click
-                        e.preventDefault();
-                        this.viewAnalysisDetails(card.dataset.analysisId);
-                    });
-                }
-            }
-            
-            viewAnalysisDetails(analysisId) {
-                htmx.ajax('GET', `/api/analysis/details/${analysisId}`, {
-                    target: '#analysis-modal .modal-content'
-                }).then(() => {
-                    const modal = new bootstrap.Modal(document.getElementById('analysis-modal'));
-                    modal.show();
-                });
             }
         }
-        
-        // Initialize the updater
-        window.analysisUpdater = new AnalysisUpdater();
-        
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (window.analysisUpdater) {
-                window.analysisUpdater.stopPolling();
-            }
-        });
-        
-        // Handle bulk operations
-        const bulkActions = {
-            init() {
-                const selectAllBtn = document.getElementById('select-all');
-                if (selectAllBtn) {
-                    selectAllBtn.addEventListener('change', this.toggleSelectAll.bind(this));
-                }
-                
-                document.addEventListener('change', (e) => {
-                    if (e.target.classList.contains('analysis-checkbox')) {
-                        this.updateBulkActionBar();
-                    }
-                });
-            },
-            
-            toggleSelectAll(e) {
-                const checkboxes = document.querySelectorAll('.analysis-checkbox');
-                checkboxes.forEach(cb => {
-                    cb.checked = e.target.checked;
-                });
-                this.updateBulkActionBar();
-            },
-            
-            updateBulkActionBar() {
-                const selected = document.querySelectorAll('.analysis-checkbox:checked').length;
-                const bulkBar = document.getElementById('bulk-actions-bar');
-                
-                if (selected > 0) {
-                    bulkBar.classList.remove('d-none');
-                    bulkBar.querySelector('#selected-count').textContent = selected;
-                } else {
-                    bulkBar.classList.add('d-none');
-                }
-            }
-        };
-        
-        // Initialize bulk operations
-        bulkActions.init();
     });
+    
+    // Initialize trends line chart
+    const trendsCtx = document.getElementById('trendsChart').getContext('2d');
+    const trendsChart = new Chart(trendsCtx, {
+        type: 'line',
+        data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [
+                {
+                    label: 'Security Analyses',
+                    data: [12, 19, 15, 25, 22, 18, 24],
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'Performance Tests',
+                    data: [8, 12, 10, 15, 13, 11, 16],
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'Dynamic Scans',
+                    data: [5, 8, 7, 10, 9, 8, 12],
+                    borderColor: '#17a2b8',
+                    backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // Period filter buttons
+    document.querySelectorAll('[data-period]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Remove active class from all buttons
+            document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+            // Add active class to clicked button
+            this.classList.add('active');
+            
+            // Update chart data based on period (placeholder logic)
+            const period = this.dataset.period;
+            // TODO: Fetch real data based on period
+            console.log('Updating chart for period:', period);
+        });
+    });
+    
+    // Auto-refresh timestamp
+    function updateTimestamp() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        const timestampEl = document.getElementById('status-timestamp');
+        if (timestampEl) {
+            timestampEl.textContent = timeString;
+        }
+    }
+    
+    // Update timestamp every 30 seconds
+    setInterval(updateTimestamp, 30000);
+    updateTimestamp();
+    
+    // HTMX event handling
+    document.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target.id === 'hub-stats') {
+            // Refresh charts when stats are updated
+            location.reload(); // Simple refresh for now
+        }
+    });
+});
 </script>
 {% endblock %}

@@ -65,6 +65,8 @@ class AnalyzerIntegration:
             env = os.environ.copy()
             env.setdefault('PYTHONUTF8', '1')
             env.setdefault('PYTHONIOENCODING', 'utf-8')
+            # Signal to analyzer_manager.py to emit machine-parseable JSON for analyze/health
+            env.setdefault('ANALYZER_JSON', '1')
 
             result = subprocess.run(
                 full_command,

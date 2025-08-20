@@ -1,12 +1,23 @@
 {# AdminLTE (dist) integration note #}
 {# Reusable module wrapper macro for consistent card-like modules #}
-{% macro module_card(title='', subtitle='', classes='', header_actions='', body_classes='') -%}
+{# Parameters:
+   - title: string (optional)
+   - subtitle: string (optional)
+   - classes: string of extra classes (optional)
+   - header_actions: raw HTML for right-aligned header actions (optional)
+   - body_classes: string for body classes (optional)
+   - icon: optional icon class (e.g., 'fa-list'). New and backward-compatible.
+#}
+{% macro module_card(title='', subtitle='', classes='', header_actions='', body_classes='', icon='') -%}
 <div class="card {{ classes }}">
-  {% if title or header_actions %}
+  {% if title or header_actions or subtitle %}
   <div class="card-header d-flex justify-content-between align-items-center">
-    <div>
-      {% if title %}<h5 class="card-title mb-0">{{ title }}</h5>{% endif %}
-      {% if subtitle %}<small class="text-muted">{{ subtitle }}</small>{% endif %}
+    <div class="d-flex align-items-center">
+      {% if icon %}<i class="fas {{ icon }} me-2" aria-hidden="true"></i>{% endif %}
+      <div>
+        {% if title %}<h5 class="card-title mb-0">{{ title }}</h5>{% endif %}
+        {% if subtitle %}<small class="text-muted">{{ subtitle }}</small>{% endif %}
+      </div>
     </div>
     <div class="card-actions">
       {{ header_actions|safe }}

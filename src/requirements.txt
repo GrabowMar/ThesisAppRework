@@ -3,6 +3,7 @@ Flask==3.0.0
 SQLAlchemy==2.0.25
 Flask-SQLAlchemy==3.1.1
 Jinja2==3.1.2
+Flask-SocketIO==5.3.6
 
 # Database Migrations
 Alembic==1.13.1

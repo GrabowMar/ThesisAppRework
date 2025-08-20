@@ -8,6 +8,7 @@ Routes for managing analysis operations and results.
 import logging
 import time
 from functools import wraps
+import math
 
 from flask import Blueprint, request, jsonify, render_template
 from flask import Response, redirect, url_for
@@ -30,22 +31,36 @@ _last_call_registry = {}
 def rate_limited(min_interval: float = 5.0):
     """Decorator to throttle high-frequency HTMX polling endpoints.
 
-    Uses (route, remote_addr) key in an in-memory dictionary. If calls arrive
-    sooner than min_interval seconds, returns a 429 with a tiny partial that
-    HTMX will swap in (but visually minimal) instead of hitting the DB again.
+    Behavior:
+    - Key = (function name, HX-Target or path, remote_addr) in-memory only.
+    - If called again within min_interval, short-circuit with 204 (No Content)
+      instead of 429, adding Retry-After seconds and X-RateLimit-Reason headers.
+    - This makes throttling quiet in logs while still hinting clients to back off.
+
+    Notes:
+    - Best-effort only; not shared across processes or instances.
+    - HTMX clients can optionally read Retry-After to adapt polling.
     """
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             try:
                 from flask import request, make_response
-                key = (fn.__name__, request.remote_addr or 'anon')
+                # Make the key more granular to reduce cross-tab collisions:
+                # include HX-Target (element id) when available, otherwise the path.
+                hx_target = request.headers.get('HX-Target') or request.path or ''
+                key = (fn.__name__, hx_target, request.remote_addr or 'anon')
                 now = time.time()
                 last = _last_call_registry.get(key, 0)
-                if now - last < min_interval:
-                    # Too soon; short-circuit with 429
-                    resp = make_response('<div class="d-none" data-rate="limited"></div>', 429)
-                    resp.headers['Retry-After'] = str(int(min_interval))
+                elapsed = now - last
+                if elapsed < min_interval:
+                    # Too soon; short-circuit with 204 (No Content) to avoid log noise
+                    remaining = max(0.0, min_interval - elapsed)
+                    resp = make_response('', 204)
+                    # Provide a backoff hint; clients may optionally respect it
+                    resp.headers['Retry-After'] = str(int(math.ceil(remaining)))
+                    resp.headers['X-RateLimit-Reason'] = 'throttled'
+                    resp.headers['Cache-Control'] = 'no-store'
                     return resp
                 _last_call_registry[key] = now
             except Exception:  # pragma: no cover - safety net
@@ -60,29 +75,62 @@ task_manager = TaskManager()
 
 @analysis_bp.route('/')
 def analysis_hub():
-    """Starting page for analyses.
-
-    Restores the classic pages/analysis.html as the primary entry point,
-    with HTMX-driven sections for stats, trends and recent activity.
+    """Enhanced Analysis Dashboard with comprehensive stats, activity, and insights.
+    
+    Features:
+    - Real-time analysis statistics
+    - Recent activity across all analysis types
+    - Running analyses with live progress
+    - Quick actions and shortcuts
+    - Performance trends and charts
     """
     try:
+        # Gather comprehensive statistics
         stats = {}
+        trends = {}
         try:
-            from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis, ModelCapability
+            from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, ModelCapability
+            from ..extensions import db
+            from sqlalchemy import func
+            from datetime import datetime, timedelta, timezone
+            
+            # Current totals
             stats = {
                 'total_security': SecurityAnalysis.query.count(),
                 'total_performance': PerformanceTest.query.count(),
-                'total_zap': ZAPAnalysis.query.count(),
-                'total_ai': OpenRouterAnalysis.query.count(),
+                'total_dynamic': ZAPAnalysis.query.count(),
                 'total_models': ModelCapability.query.count(),
-                # Running analyses optional; kept conservative to avoid heavy scans
-                'running_analyses': 0,
+                'running_analyses': 0,  # Will be populated by HTMX
             }
-        except Exception:
-            stats = {}
-        return render_template('views/analysis/hub.html', stats=stats)
+            
+            # Weekly trends
+            week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            trends = {
+                'security_this_week': SecurityAnalysis.query.filter(SecurityAnalysis.created_at >= week_ago).count(),
+                'performance_this_week': PerformanceTest.query.filter(PerformanceTest.created_at >= week_ago).count(),
+                'dynamic_this_week': ZAPAnalysis.query.filter(ZAPAnalysis.created_at >= week_ago).count(),
+            }
+            
+            # Status distribution for security analyses
+            status_counts = dict(
+                db.session.query(SecurityAnalysis.status, func.count(SecurityAnalysis.id))
+                .group_by(SecurityAnalysis.status).all()
+            )
+            stats.update({
+                'security_completed': status_counts.get('completed', 0),
+                'security_running': status_counts.get('running', 0),
+                'security_failed': status_counts.get('failed', 0),
+                'security_pending': status_counts.get('pending', 0),
+            })
+            
+        except Exception as e:
+            logger.warning(f"Error gathering hub statistics: {e}")
+            stats = {'total_security': 0, 'total_performance': 0, 'total_dynamic': 0, 'total_models': 0}
+            trends = {}
+        
+        return render_template('views/analysis/hub.html', stats=stats, trends=trends)
     except Exception as e:  # pragma: no cover - defensive catch
-        logger.error(f"Error loading analysis page: {e}")
+        logger.error(f"Error loading analysis hub: {e}")
         return render_template(
             'single_page.html',
             page_title='Error',
@@ -121,6 +169,55 @@ def analyses_create_page():
         return render_template('views/analysis/create.html')
     except Exception as e:  # pragma: no cover
         logger.error(f"Error loading create analysis page: {e}")
+        return render_template('partials/common/error.html', error=str(e)), 500
+
+
+@analysis_bp.post('/create')
+def analyses_create_submit():
+    """Dispatch Analysis Creation wizard submission to specific start endpoints.
+
+    The wizard posts analysis_type, model_slug, and app_number. We route to the
+    corresponding start handler to keep behavior centralized.
+    """
+    try:
+        payload = request.get_json(silent=True) or request.form.to_dict()
+        analysis_type = (payload.get('analysis_type') or '').strip().lower()
+
+        if analysis_type == 'security':
+            return start_security_analysis()
+        if analysis_type == 'performance':
+            return start_performance_test()
+        if analysis_type == 'dynamic':
+            return start_dynamic_analysis()
+        if analysis_type == 'comprehensive':
+            # Minimal comprehensive: create and start a full security analysis with all tools
+            model_slug = payload.get('model_slug')
+            app_number = payload.get('app_number')
+            if not (model_slug and app_number):
+                return render_template('partials/common/error.html', error='model_slug and app_number are required'), 400
+            try:
+                app_number_int = int(app_number)
+            except (TypeError, ValueError):
+                return render_template('partials/common/error.html', error='app_number must be an integer'), 400
+
+            app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number_int).first()
+            if not app:
+                return render_template('partials/common/error.html', error='Application not found for given model/app'), 404
+
+            from ..services import analysis_service as svc
+            created = svc.create_comprehensive_security_analysis(app.id)
+            started = svc.start_security_analysis(created['id'])
+            return render_template('partials/analysis/create/start_result.html',
+                                   title='Comprehensive analysis started',
+                                   task_id=started.get('task_id'),
+                                   analysis_id=created['id'],
+                                   analysis_type='comprehensive')
+
+        # Unknown type
+        return render_template('partials/common/error.html', error='Invalid or missing analysis_type'), 400
+
+    except Exception as e:
+        logger.error(f"Error submitting analysis creation: {e}")
         return render_template('partials/common/error.html', error=str(e)), 500
 
 
@@ -180,20 +277,52 @@ def analyses_preview_page(model_slug: str, app_number: int):
 
 @analysis_bp.get('/api/stats')
 def htmx_analysis_stats():
-    """HTMX endpoint for refreshing stats cards."""
+    """Enhanced HTMX endpoint for dashboard statistics with comprehensive metrics."""
     try:
-        from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis
+        from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, ModelCapability
+        from ..extensions import db
+        from sqlalchemy import func
+        from datetime import datetime, timedelta, timezone
+        
+        # Current totals
         stats = {
             'total_security': SecurityAnalysis.query.count(),
             'total_performance': PerformanceTest.query.count(),
-            'total_zap': ZAPAnalysis.query.count(),
-            'total_ai': OpenRouterAnalysis.query.count()
+            'total_dynamic': ZAPAnalysis.query.count(),
+            'total_models': ModelCapability.query.count(),
         }
-        # Return inner fragment only; outer wrapper handles hx-* attributes
-        return render_template('partials/analysis/_stats_cards_inner.html', stats=stats)
+        
+        # Weekly trends  
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        trends = {
+            'security_this_week': SecurityAnalysis.query.filter(SecurityAnalysis.created_at >= week_ago).count(),
+            'performance_this_week': PerformanceTest.query.filter(PerformanceTest.created_at >= week_ago).count(),
+            'dynamic_this_week': ZAPAnalysis.query.filter(ZAPAnalysis.created_at >= week_ago).count(),
+        }
+        
+        # Status breakdown for security analyses
+        status_counts = dict(
+            db.session.query(SecurityAnalysis.status, func.count(SecurityAnalysis.id))
+            .group_by(SecurityAnalysis.status).all()
+        )
+        stats.update({
+            'security_completed': status_counts.get('completed', 0),
+            'security_running': status_counts.get('running', 0), 
+            'security_failed': status_counts.get('failed', 0),
+            'security_pending': status_counts.get('pending', 0),
+        })
+        
+        # Running analyses count across all types
+        stats['running_analyses'] = (
+            stats.get('security_running', 0) +
+            PerformanceTest.query.filter_by(status='running').count() +
+            ZAPAnalysis.query.filter_by(status='running').count()
+        )
+        
+        return render_template('partials/analysis/hub_stats.html', stats=stats, trends=trends)
     except Exception as e:
-        logger.error(f"HTMX stats error: {e}")
-        return render_template('partials/common/error.html', error='Failed to load stats'), 500
+        logger.error(f"HTMX dashboard stats error: {e}")
+        return render_template('partials/common/error.html', error='Failed to load dashboard stats'), 500
 
 
 @analysis_bp.get('/api/list/combined')
@@ -218,6 +347,16 @@ def htmx_list_security():
     try:
         from ..services import analysis_service as svc
         items = svc.list_security_analyses(limit=100)
+        # Enrich with model/app info for UI
+        from ..models import GeneratedApplication
+        for it in items:
+            try:
+                app = GeneratedApplication.query.get(it.get('application_id'))
+                if app:
+                    it['model_slug'] = app.model_slug
+                    it['app_number'] = app.app_number
+            except Exception:
+                pass
         return render_template('partials/analysis/list/security.html', items=items)
     except Exception as e:
         logger.error(f"HTMX security list error: {e}")
@@ -230,6 +369,15 @@ def htmx_list_dynamic():
     try:
         from ..services import analysis_service as svc
         items = svc.list_dynamic_analyses(limit=100)
+        from ..models import GeneratedApplication
+        for it in items:
+            try:
+                app = GeneratedApplication.query.get(it.get('application_id'))
+                if app:
+                    it['model_slug'] = app.model_slug
+                    it['app_number'] = app.app_number
+            except Exception:
+                pass
         return render_template('partials/analysis/list/dynamic.html', items=items)
     except Exception as e:
         logger.error(f"HTMX dynamic list error: {e}")
@@ -242,6 +390,15 @@ def htmx_list_performance():
     try:
         from ..services import analysis_service as svc
         items = svc.list_performance_tests(limit=100)
+        from ..models import GeneratedApplication
+        for it in items:
+            try:
+                app = GeneratedApplication.query.get(it.get('application_id'))
+                if app:
+                    it['model_slug'] = app.model_slug
+                    it['app_number'] = app.app_number
+            except Exception:
+                pass
         return render_template('partials/analysis/list/performance.html', items=items)
     except Exception as e:
         logger.error(f"HTMX performance list error: {e}")
@@ -467,6 +624,16 @@ def start_performance_test():
                 'spawn_rate': _to_float(form.get('spawn_rate', 1.0), 1.0),
                 'duration': _to_int(form.get('duration', 60), 60)
             }
+            # Create PerformanceTest record via service for integrity
+            from ..services import analysis_service as svc
+            created = svc.create_performance_test({
+                'application_id': app.id,
+                'test_type': test_config['test_type'],
+                'users': test_config['users'],
+                'spawn_rate': test_config['spawn_rate'],
+                'test_duration': test_config['duration']
+            })
+            _ = svc.start_performance_test(created['id'])
         else:
             app_id = data.get('app_id')
             if not app_id:
@@ -478,26 +645,41 @@ def start_performance_test():
                 'spawn_rate': data.get('spawn_rate', 1.0),
                 'duration': data.get('duration', 60)
             }
+            # Create PerformanceTest record via service for integrity
+            from ..services import analysis_service as svc
+            created = svc.create_performance_test({
+                'application_id': app.id,
+                'test_type': test_config['test_type'],
+                'users': test_config['users'],
+                'spawn_rate': test_config['spawn_rate'],
+                'test_duration': test_config['duration']
+            })
+            _ = svc.start_performance_test(created['id'])
 
-        # Start performance test (returns task id)
-        task_id = task_manager.start_performance_test(
-            app.model_slug,
-            app.app_number,
-            test_config
-        )
+        # Optionally also enqueue background execution tracking via TaskManager
+        try:
+            task_id = task_manager.start_performance_test(
+                app.model_slug,
+                app.app_number,
+                test_config
+            )
+        except Exception:
+            task_id = None
 
         if is_htmx:
             return render_template('partials/analysis/create/start_result.html',
                                    title='Performance test started',
                                    task_id=task_id,
+                                   analysis_id=created['id'],
                                    analysis_type='performance')
 
         return jsonify({
             'success': True,
             'task_id': task_id,
+            'analysis_id': created['id'],
             'message': 'Performance test started'
         })
-        
+
     except Exception as e:
         logger.error(f"Error starting performance test: {e}")
         return (render_template('partials/common/error.html', error=str(e)), 500) if request.headers.get('HX-Request') == 'true' \
@@ -676,17 +858,17 @@ def start_batch_analysis():
             perf_cfg = {}
             if form.get('perf_users'):
                 try:
-                    perf_cfg['users'] = int(form.get('perf_users'))
+                    perf_cfg['users'] = int(str(form.get('perf_users') or ''))
                 except Exception:
                     pass
             if form.get('perf_spawn_rate'):
                 try:
-                    perf_cfg['spawn_rate'] = float(form.get('perf_spawn_rate'))
+                    perf_cfg['spawn_rate'] = float(str(form.get('perf_spawn_rate') or ''))
                 except Exception:
                     pass
             if form.get('perf_duration'):
                 try:
-                    perf_cfg['duration'] = int(form.get('perf_duration'))
+                    perf_cfg['duration'] = int(str(form.get('perf_duration') or ''))
                 except Exception:
                     pass
             if form.get('perf_type'):

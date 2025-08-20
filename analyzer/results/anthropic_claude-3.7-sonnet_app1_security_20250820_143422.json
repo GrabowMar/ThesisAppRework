@@ -1,0 +1,13 @@
+{
+  "metadata": {
+    "model_slug": "anthropic_claude-3.7-sonnet",
+    "app_number": 1,
+    "analysis_type": "security",
+    "timestamp": "2025-08-20T14:34:22.822708",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "status": "error",
+    "error": "Connection to static-analyzer closed"
+  }
+}

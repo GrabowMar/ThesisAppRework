@@ -165,6 +165,11 @@ python analyzer_manager.py ping ai-analyzer
 python analyzer_manager.py status
 ```
 
+### Static analyzer shows "opening handshake failed"
+You may see stack traces from `websockets.server/http11` in the static-analyzer logs when a client connects and disconnects without sending an HTTP request line (e.g., port scans or non-WS probes). These are benign.
+
+Mitigation: we reduced the log level for `websockets.server`, `websockets.http`, and `websockets.http11` inside the service to cut noise. Health checks and valid clients continue to work normally.
+
 ### Analysis Failures
 ```bash
 # Run comprehensive tests

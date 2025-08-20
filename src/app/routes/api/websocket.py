@@ -6,6 +6,8 @@ Provides REST endpoints for WebSocket service interaction and testing
 from flask import Blueprint, request, jsonify
 from app.extensions import get_websocket_service
 import logging
+from pathlib import Path
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,7 @@ websocket_api = Blueprint('websocket_api', __name__, url_prefix='/api/websocket'
 def get_websocket_status():
     """Get WebSocket service status."""
     try:
+        from flask import current_app
         websocket_service = get_websocket_service()
         if not websocket_service:
             return jsonify({
@@ -24,9 +27,16 @@ def get_websocket_status():
             }), 503
         
         status = websocket_service.get_status()
+        # Derive active_service reliably from status payload
+        active_service = 'unknown'
+        if isinstance(status, dict):
+            active_service = status.get('service') or ('mock_websocket' if status.get('mock_mode') else 'unknown')
         return jsonify({
             'status': 'success',
-            'data': status
+            'data': status,
+            'active_service': active_service,
+            'strict': bool(current_app.config.get('WEBSOCKET_STRICT_CELERY', False)),
+            'preference': current_app.config.get('WEBSOCKET_SERVICE_PREFERENCE', 'auto')
         })
         
     except Exception as e:
@@ -168,6 +178,22 @@ def get_events():
             'events': []
         }), 500
 
+@websocket_api.route('/events/clear', methods=['POST', 'GET'])
+def clear_events():
+    """Clear the in-memory event log for the active websocket service."""
+    try:
+        websocket_service = get_websocket_service()
+        if not websocket_service:
+            return jsonify({'error': 'WebSocket service not available'}), 503
+
+        if hasattr(websocket_service, 'clear_event_log'):
+            websocket_service.clear_event_log()  # type: ignore[attr-defined]
+            return jsonify({'status': 'success', 'message': 'Event log cleared'})
+        return jsonify({'status': 'noop', 'message': 'Active service does not keep an in-memory event log'})
+    except Exception as e:
+        logger.error(f"Error clearing events: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @websocket_api.route('/broadcast', methods=['POST'])
 def broadcast_message():
     """Broadcast a test message (for development/testing)."""
@@ -206,6 +232,38 @@ def broadcast_message():
             'error': str(e)
         }), 500
 
+def _find_models_root() -> Optional[Path]:
+    """Locate repo's misc/models directory by walking up parents."""
+    try:
+        for parent in Path(__file__).resolve().parents:
+            candidate = parent / 'misc' / 'models'
+            if candidate.exists() and candidate.is_dir():
+                return candidate
+    except Exception:
+        pass
+    return None
+
+def _pick_available_model_slug(preferred: Optional[List[str]] = None) -> Optional[str]:
+    root = _find_models_root()
+    if not root:
+        return None
+    def has_app1(p: Path) -> bool:
+        return (p / 'app1').exists()
+    # Preferred list first
+    if preferred:
+        for slug in preferred:
+            cp = root / slug
+            if cp.exists() and cp.is_dir() and has_app1(cp):
+                return slug
+    # Fallback: first directory with app1
+    for entry in sorted(root.iterdir()):
+        try:
+            if entry.is_dir() and has_app1(entry):
+                return entry.name
+        except Exception:
+            continue
+    return None
+
 @websocket_api.route('/test', methods=['POST'])
 def test_websocket():
     """Test WebSocket functionality with a sample analysis."""
@@ -216,12 +274,29 @@ def test_websocket():
                 'error': 'WebSocket service not available'
             }), 503
         
-        # Create test analysis data
+        # Prefer explicit model/app from request over auto-pick
+        payload = request.get_json(silent=True) or {}
+        # Allow form-encoded and query params as well
+        if not payload:
+            payload = request.form.to_dict() if request.form else {}
+        model_slug = payload.get('model_slug') or request.args.get('model_slug')
+        app_number_val = payload.get('app_number') or request.args.get('app_number')
+        app_number: int
+        try:
+            app_number = int(app_number_val) if app_number_val is not None else 1
+        except (TypeError, ValueError):
+            return jsonify({'error': 'app_number must be an integer'}), 400
+
+        # If no explicit slug provided, fall back to a discoverable one
+        if not model_slug:
+            model_slug = _pick_available_model_slug(preferred=['anthropic_claude-3.7-sonnet', 'openai_gpt_4', 'openai_gpt-4.1']) or 'anthropic_claude-3.7-sonnet'
+
+        # Build test payload honoring selected slug/app
         test_data = {
-            'analysis_type': 'security',
-            'model_slug': 'test_model',
-            'app_number': 1,
-            'config': {
+            'analysis_type': payload.get('analysis_type', 'security'),
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'config': payload.get('config') or {
                 'tools': ['static_analysis'],
                 'severity': 'medium'
             }
@@ -233,7 +308,9 @@ def test_websocket():
             return jsonify({
                 'status': 'success',
                 'analysis_id': analysis_id,
-                'message': 'Test analysis started - check WebSocket events for progress'
+                'message': 'Test analysis started - check WebSocket events for progress',
+                'model_slug': model_slug,
+                'app_number': app_number
             })
         else:
             return jsonify({

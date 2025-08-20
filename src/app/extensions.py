@@ -20,7 +20,8 @@ migrate = Migrate()
 socketio = None
 try:
     from flask_socketio import SocketIO
-    socketio = SocketIO(cors_allowed_origins="*", logger=False, engineio_logger=False)
+    # Use threading async mode for Windows compatibility and to avoid eventlet/gevent dependency
+    socketio = SocketIO(cors_allowed_origins="*", async_mode='threading', logger=False, engineio_logger=False)
     SOCKETIO_AVAILABLE = True
 except ImportError:
     SOCKETIO_AVAILABLE = False
@@ -86,7 +87,50 @@ def get_background_service():
 def get_websocket_service():
     """Get WebSocket service from app components."""
     components = get_components()
-    return components.websocket_service if components else None
+    svc = components.websocket_service if components else None
+    # Prefer Celery-backed service. If current looks like mock, proactively swap to Celery.
+    try:
+        if not components:
+            return None
+
+        strict = bool(current_app and current_app.config.get('WEBSOCKET_STRICT_CELERY', False))
+        pref = (current_app.config.get('WEBSOCKET_SERVICE_PREFERENCE')
+                if current_app else None) or 'auto'
+
+        def _is_mock(service_obj) -> bool:
+            try:
+                # Status-based detection
+                st = service_obj.get_status() if hasattr(service_obj, 'get_status') else None
+                if isinstance(st, dict) and (st.get('service') == 'mock_websocket' or st.get('mock_mode') is True):
+                    return True
+                # Class-name heuristic as fallback
+                cls = getattr(service_obj, '__class__', None)
+                name = getattr(cls, '__name__', '') if cls else ''
+                return name.lower().startswith('mock')
+            except Exception:
+                # If we can't read status, treat as needing a switch
+                return True
+
+        # Determine if we should replace current service
+        should_prefer_celery = strict or (pref != 'mock')
+        if svc is None or (_is_mock(svc) and should_prefer_celery):
+            from .extensions import SOCKETIO_AVAILABLE, socketio as _sio  # self-import safe inside function
+            from app.services.celery_websocket_service import initialize_celery_websocket_service
+            sio = _sio if (SOCKETIO_AVAILABLE and _sio) else None
+            try:
+                new_svc = initialize_celery_websocket_service(sio)
+                components.set_websocket_service(new_svc)
+                return new_svc
+            except Exception:
+                # In strict mode, fail hard to prevent mock usage
+                if strict:
+                    raise
+                # Otherwise, return whatever we have (possibly mock)
+                return svc
+    except Exception:
+        # Best-effort enforcement; if anything fails, return what we have
+        pass
+    return svc
 
 # Configure requests for containerized services
 requests_session = requests.Session()
@@ -100,7 +144,8 @@ def init_extensions(app):
     # Initialize SocketIO if available
     if SOCKETIO_AVAILABLE and socketio:
         try:
-            socketio.init_app(app, async_mode='threading')
+            # Already created with async_mode; just bind to app
+            socketio.init_app(app)
             app.logger.info("SocketIO initialized successfully")
         except Exception as e:
             app.logger.warning(f"Failed to initialize SocketIO: {e}")
@@ -125,23 +170,58 @@ def init_extensions(app):
     return components
 
 def get_session():
-    """Get database session context manager."""
+    """Get database session context manager that guarantees a Flask app context.
+
+    This is safe to use from both request handlers (where an app/request context
+    already exists) and background workers (Celery) where there may be no app
+    context. When no app context is active, we create one using the app factory
+    and tear it down on exit.
+    """
+
     class SessionManager:
+        def __init__(self):
+            self._ctx = None  # Flask app context to pop on exit when we pushed it
+
         def __enter__(self):
+            # Always push a dedicated app context for DB work to ensure scoped session binding
+            try:
+                from app.factory import get_flask_app as _get_flask_app
+                app = _get_flask_app()
+                self._ctx = app.app_context()
+                self._ctx.push()
+            except Exception as e:  # Best-effort: leave _ctx as None and let db.session fail if needed
+                print(f"Warning: get_session could not push app context: {e}")
             return db.session
-        
+
         def __exit__(self, exc_type, exc_val, exc_tb):
-            if exc_type:
-                db.session.rollback()
-            else:
-                try:
-                    db.session.commit()
-                except Exception:
+            try:
+                if exc_type:
                     db.session.rollback()
-                    raise
+                else:
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                        raise
+            finally:
+                # Pop app context we created, if any
+                if self._ctx is not None:
+                    try:
+                        self._ctx.pop()
+                    except Exception:
+                        pass
 
     return SessionManager()
 
 def init_db():
     """Initialize database tables."""
-    db.create_all()
+    try:
+        # Ensure all models are imported so SQLAlchemy's metadata is complete
+        try:
+            import app.models as _models  # noqa: F401
+        except Exception:
+            pass
+        db.create_all()
+    except Exception:
+        # Re-raise so callers can log details
+        raise

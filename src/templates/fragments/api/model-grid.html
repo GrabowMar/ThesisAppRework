@@ -211,12 +211,20 @@
                 <!-- Card Footer with Actions -->
                 <div class="card-footer bg-transparent">
                     <div class="d-flex gap-2">
+                        {% if selectable %}
+                        <button class="btn btn-primary btn-sm flex-fill" 
+                                type="button"
+                                onclick="if (window.selectModel) { selectModel('{{ model.slug }}', '{{ model.display_name or model.name }}'); document.getElementById('next-btn')?.click(); } else { window.location.href = '/analysis/create?model={{ model.slug }}'; }">
+                            <i class="fas fa-check me-1"></i>Select Model
+                        </button>
+                        {% else %}
                         <button class="btn btn-primary btn-sm flex-fill" 
                                 hx-get="/analysis/create?model={{ model.slug }}" 
-                                hx-target="#main-content"
+                                hx-target="#page-content, #main-content"
                                 hx-push-url="true">
                             <i class="fas fa-play me-1"></i>Start Analysis
                         </button>
+                        {% endif %}
                         <button class="btn btn-outline-info btn-sm" 
                                 hx-get="/api/models/{{ model.slug }}/details" 
                                 hx-target="#model-details-modal-content" 
@@ -224,10 +232,10 @@
                                 data-bs-target="#modelDetailsModal">
                             <i class="fas fa-info-circle"></i>
                         </button>
-                        <button class="btn btn-outline-secondary btn-sm" 
-                                hx-get="/models/{{ model.slug }}/applications" 
-                                hx-target="#main-content"
-                                hx-push-url="true">
+            <button class="btn btn-outline-secondary btn-sm" 
+                hx-get="/models/{{ model.slug }}/applications" 
+                hx-target="#page-content, #main-content"
+                hx-push-url="true">
                             <i class="fas fa-rocket"></i>
                         </button>
                     </div>

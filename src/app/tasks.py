@@ -12,6 +12,7 @@ import json as _json
 
 from celery import Celery
 from celery.signals import task_prerun, task_postrun, worker_ready
+from threading import Lock
 
 # Import analyzer integration service
 try:
@@ -74,6 +75,91 @@ def create_celery_app(app_name: str = 'ai_research_platform') -> Celery:
 
 # Create Celery instance
 celery = create_celery_app()
+
+"""
+Ensure all Celery tasks execute within a Flask application context.
+
+We do this in two layers for robustness:
+1) Override celery.Task.__call__ to push app context for all tasks defined
+   against this Celery instance.
+2) Additionally, register task_prerun/task_postrun signal hooks that push/pop
+   app context by task_id. This covers edge cases where a running worker was
+   started before the Task subclass override was applied or is using a different
+   Celery instance.
+"""
+_worker_flask_app = None
+_task_ctx_lock: Lock = Lock()
+_task_ctx_map = {}  # task_id -> app_context_object
+_task_ctx_managed_by_override = set()  # task_ids currently managed by _ContextTask
+
+def _ensure_worker_app():
+    global _worker_flask_app
+    if _worker_flask_app is None:
+        try:
+            from app.factory import create_app as _create_flask_app
+            _worker_flask_app = _create_flask_app('worker')
+        except Exception as _err:  # pragma: no cover - safety
+            print(f"Warning: Could not create worker Flask app: {_err}")
+            _worker_flask_app = None
+    return _worker_flask_app
+
+def _push_app_context_for_task(task_id: str):
+    app = _ensure_worker_app()
+    if app is None:
+        return
+    try:
+        ctx = app.app_context()
+        ctx.push()
+        with _task_ctx_lock:
+            _task_ctx_map[task_id] = ctx
+    except Exception as e:  # pragma: no cover
+        print(f"Warning: Failed to push app context for task {task_id}: {e}")
+
+def _pop_app_context_for_task(task_id: str):
+    try:
+        with _task_ctx_lock:
+            ctx = _task_ctx_map.pop(task_id, None)
+        if ctx is not None:
+            try:
+                ctx.pop()
+            except Exception:
+                pass
+    except Exception as e:  # pragma: no cover
+        print(f"Warning: Failed to pop app context for task {task_id}: {e}")
+
+# Layer 1: Task subclass override
+try:
+    class _ContextTask(celery.Task):
+        def __call__(self, *args, **kwargs):  # type: ignore[override]
+            # Use task id if available for consistent push/pop
+            task_id = getattr(self.request, 'id', None)
+            if task_id:
+                _push_app_context_for_task(task_id)
+                # Mark as managed so signal hooks can avoid double push/pop
+                try:
+                    with _task_ctx_lock:
+                        _task_ctx_managed_by_override.add(task_id)
+                except Exception:
+                    pass
+                try:
+                    return self.run(*args, **kwargs)
+                finally:
+                    _pop_app_context_for_task(task_id)
+                    try:
+                        with _task_ctx_lock:
+                            _task_ctx_managed_by_override.discard(task_id)
+                    except Exception:
+                        pass
+            # Fallback: push once for the duration of this call
+            app = _ensure_worker_app()
+            if app is None:
+                return self.run(*args, **kwargs)
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery.Task = _ContextTask
+except Exception as _ctx_err:  # pragma: no cover - best effort safety
+    print(f"Warning: Could not set Celery ContextTask: {_ctx_err}")
 
 def get_analyzer_service():
     """Get analyzer integration service instance."""
@@ -847,11 +933,26 @@ def cleanup_expired_results():
 def task_prerun_handler(task_id, task, *args, **kwargs):
     """Handle task pre-execution setup."""
     print(f"Starting task {task.name} with ID {task_id}")
+    try:
+        # Belt-and-suspenders app context push, but skip if our Task override is handling it
+        with _task_ctx_lock:
+            managed = task_id in _task_ctx_managed_by_override
+        if not managed:
+            _push_app_context_for_task(task_id)
+    except Exception as e:  # pragma: no cover
+        print(f"Warning: task_prerun app context push failed for {task_id}: {e}")
 
 @task_postrun.connect
 def task_postrun_handler(task_id, task, retval, state, *args, **kwargs):
     """Handle task post-execution cleanup."""
     print(f"Completed task {task.name} with ID {task_id}, state: {state}")
+    try:
+        with _task_ctx_lock:
+            managed = task_id in _task_ctx_managed_by_override
+        if not managed:
+            _pop_app_context_for_task(task_id)
+    except Exception as e:  # pragma: no cover
+        print(f"Warning: task_postrun app context pop failed for {task_id}: {e}")
 
 @worker_ready.connect
 def worker_ready_handler(sender, **kwargs):

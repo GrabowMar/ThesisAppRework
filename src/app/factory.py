@@ -112,6 +112,9 @@ def create_app(config_name: str = 'default') -> Flask:
         # Analyzer configuration
         ANALYZER_ENABLED=os.environ.get('ANALYZER_ENABLED', 'true').lower() == 'true',
         ANALYZER_AUTO_START=os.environ.get('ANALYZER_AUTO_START', 'false').lower() == 'true',
+
+    # Websocket strict mode: when true, do NOT fall back to mock service if Celery-backed init fails
+    WEBSOCKET_STRICT_CELERY=os.environ.get('WEBSOCKET_STRICT_CELERY', 'false').lower() == 'true',
     )
     
     # Ensure Jinja picks up template changes without restarting the app
@@ -185,24 +188,59 @@ def create_app(config_name: str = 'default') -> Flask:
         analyzer_integration = create_analyzer_integration()
         components.set_analyzer_integration(analyzer_integration)
         logger.info("Analyzer integration initialized")
-        
+
         # Initialize WebSocket/Celery bridge service
         try:
+            # Always prefer the Celery-backed service unless explicitly forced to mock.
             from app.extensions import SOCKETIO_AVAILABLE, socketio
-            if SOCKETIO_AVAILABLE and socketio:
-                # Prefer new Celery-backed service; uses SocketIO if present
+            strict_mode = app.config.get('WEBSOCKET_STRICT_CELERY', False)
+            service_pref = os.environ.get('WEBSOCKET_SERVICE', 'auto').lower()
+            # In strict mode, treat as explicit celery preference
+            if strict_mode:
+                service_pref = 'celery'
+            app.config['WEBSOCKET_SERVICE_PREFERENCE'] = service_pref
+
+            def _init_celery_ws():
                 from app.services.celery_websocket_service import initialize_celery_websocket_service
-                websocket_service = initialize_celery_websocket_service(socketio)
-                components.set_websocket_service(websocket_service)
-                logger.info("Celery-backed WebSocket service initialized")
-            else:
-                # Fallback to mock service for environments without SocketIO
+                sio = socketio if (SOCKETIO_AVAILABLE and socketio) else None
+                websocket_service_local = initialize_celery_websocket_service(sio)
+                components.set_websocket_service(websocket_service_local)
+                logger.info("WebSocket service active: celery_websocket (SocketIO=%s)", bool(sio))
+
+            def _init_mock_ws():
                 from app.services.mock_websocket_service import initialize_mock_websocket_service
-                websocket_service = initialize_mock_websocket_service()
-                components.set_websocket_service(websocket_service)
-                logger.info("Mock WebSocket service initialized (real-time features simulated)")
+                websocket_service_local = initialize_mock_websocket_service()
+                components.set_websocket_service(websocket_service_local)
+                logger.info("WebSocket service active: mock_websocket (forced=%s)", service_pref == 'mock')
+
+            if service_pref == 'mock' and not strict_mode:
+                _init_mock_ws()
+            else:
+                try:
+                    _init_celery_ws()
+                except Exception as ce:
+                    if strict_mode or service_pref == 'celery':
+                        logger.error(
+                            "Celery-backed WebSocket service init failed and strict/celery mode is enabled; "
+                            "mock fallback disabled. Error: %s", ce
+                        )
+                        raise
+                    logger.warning("Celery-backed WebSocket service init failed, falling back to mock: %s", ce)
+                    _init_mock_ws()
+
+            # Sanity check in strict mode: ensure active service is celery_websocket
+            if strict_mode:
+                ws = components.websocket_service
+                status = ws.get_status() if ws and hasattr(ws, 'get_status') else {}
+                active_service = status.get('service') if isinstance(status, dict) else None
+                if active_service != 'celery_websocket':
+                    raise RuntimeError(f"Strict mode requires celery_websocket, got: {active_service}")
+
         except Exception as e:
             logger.error(f"Failed to initialize WebSocket service: {e}")
+            # In strict mode, do not swallow the error
+            if app.config.get('WEBSOCKET_STRICT_CELERY', False):
+                raise
         
         # Auto-start analyzer services if configured
         if app.config['ANALYZER_AUTO_START'] and analyzer_integration:
@@ -215,6 +253,9 @@ def create_app(config_name: str = 'default') -> Flask:
         
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
+        # In strict mode, abort app creation when WS service selection fails
+        if app.config.get('WEBSOCKET_STRICT_CELERY', False):
+            raise
     
     # Error handlers
     @app.errorhandler(404)

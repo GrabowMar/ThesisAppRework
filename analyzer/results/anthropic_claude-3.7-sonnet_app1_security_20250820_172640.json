@@ -1,0 +1,13 @@
+{
+  "metadata": {
+    "model_slug": "anthropic_claude-3.7-sonnet",
+    "app_number": 1,
+    "analysis_type": "security",
+    "timestamp": "2025-08-20T17:26:40.320561",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "status": "error",
+    "error": "WebSocket error: did not receive a valid HTTP response"
+  }
+}

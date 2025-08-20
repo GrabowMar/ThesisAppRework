@@ -155,8 +155,12 @@ def _upsert_openrouter_models(models_payload: list) -> int:
             # leave existing.installed as-is on error
             pass
 
-    existing.updated_at = datetime.now(timezone.utc)
-    upserted += 1
+        # Mark update timestamp per row and count upsert operation
+        try:
+            existing.updated_at = datetime.now(timezone.utc)
+        except Exception:
+            pass
+        upserted += 1
 
     try:
         db.session.commit()
@@ -425,8 +429,15 @@ def api_models_all():
 def api_models_grid_fragment():
     """Render the models grid fragment used by the Models Overview page."""
     try:
-        # Simple fetch without filters for now; can be extended to read request.args
-        models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        # Fetch models; respect simple provider filter best-effort (room to expand later)
+        q = ModelCapability.query
+        provider = (request.args.get('provider') or '').strip()
+        if provider:
+            try:
+                q = q.filter(ModelCapability.provider.ilike(provider))
+            except Exception:
+                pass
+        models = q.order_by(ModelCapability.provider, ModelCapability.model_name).all()
 
         # Transform for fragment expected fields
         items = []
@@ -451,17 +462,46 @@ def api_models_grid_fragment():
                 }
             })
 
+        # Whether grid is being used in a selection wizard context
+        selectable = str(request.args.get('selectable') or '').lower() in {'1', 'true', 'yes', 'on'}
+
+        # Preserve existing query params for sort links (minus offset)
+        try:
+            from urllib.parse import urlencode
+            # Build a simple dict of first values to preserve lightweight filters
+            qp = {k: v for k, v in request.args.items()}
+            qp.pop('offset', None)
+            query_params = urlencode(qp)
+        except Exception:
+            query_params = ''
+
         context = {
             'models': items,
             'total_models': len(items),
             'filters_applied': False,
             'active_filters': {},
-            'query_params': ''
+            'query_params': query_params,
+            'selectable': selectable,
         }
         return render_template('fragments/api/model-grid.html', **context)
     except Exception as e:
         logger.error(f"Error rendering models grid fragment: {e}")
-        return render_template('fragments/api/model-grid.html', models=[], total_models=0, filters_applied=False, active_filters={}, query_params='')
+        return render_template('fragments/api/model-grid.html', models=[], total_models=0, filters_applied=False, active_filters={}, query_params='', selectable=False)
+
+@api_bp.route('/models/<model_slug>/applications')
+def api_model_applications_fragment(model_slug: str):
+    """Render applications list for a given model as an HTML fragment.
+
+    Used by the /analysis/create wizard (Step 2) to select an app.
+    """
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).order_by(GeneratedApplication.app_number.asc()).all()
+        return render_template('fragments/api/model-applications.html', model=model, apps=apps, model_slug=model_slug)
+    except Exception as e:
+        logger.error(f"Error rendering applications for model {model_slug}: {e}")
+        # Return a small, user-friendly alert suitable for inline swap
+        return Response(f'<div class="alert alert-danger">Failed to load applications for {model_slug}</div>', mimetype='text/html'), 500
 
 
 @api_bp.route('/models/filtered')

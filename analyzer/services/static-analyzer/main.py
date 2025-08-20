@@ -30,6 +30,18 @@ from websockets.asyncio.server import serve
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Tame noisy handshake errors from stray TCP connects that close immediately.
+# These show up as "opening handshake failed" in websockets.server/http11 when
+# a client connects and disconnects without sending any HTTP request line.
+# Raise log threshold to CRITICAL to avoid polluting container logs.
+try:
+    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
+except Exception:
+    pass
+
+
 class StaticAnalyzer:
     """Comprehensive static analyzer for multiple languages."""
     

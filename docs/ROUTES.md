@@ -6,6 +6,7 @@ This document enumerates the Flask routes defined under `src/app/routes/` and `s
 - API endpoints live under the `/api` prefix (plus a separate `/api/websocket` blueprint) and return JSON unless noted as template/HTMX.
  - WebSocket HTTP fallback: `/ws/analysis` (426 Upgrade Required)
  - Polling behavior (HTMX): Preview cards refresh every ~15–20s; Active tasks refresh every ~10s via `/analysis/api/active-tasks`.
+ - Rate limiting: High-frequency HTMX endpoints use a lightweight in-process limiter that returns 204 No Content with `Retry-After` hints when called too frequently. Clients can optionally honor the header to back off.
 
 ## UI Blueprints (server-rendered pages)
 

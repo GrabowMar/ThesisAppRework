@@ -13,6 +13,10 @@ This project uses Flask + Jinja with a structured, namespaced template layout to
     - `partials/analysis/list/` — list views (security, dynamic, performance, combined, active_tasks)
     - `partials/analysis/create/` — forms and start results for creating analyses
     - `partials/analysis/preview/` — compact previews embedded in other pages
+    - Results partials (canonical):
+      - `partials/analysis/security_complete.html`
+      - `partials/analysis/dynamic_complete.html`
+      - `partials/analysis/performance_complete.html`
   - `partials/applications/` — application detail and sections
   - `partials/apps_grid/` — grid components used on Applications and Models pages
   - `partials/models/` — model overview, details, and grids
@@ -87,6 +91,7 @@ New: Prefer macros for repeated UI patterns (badges, rows, summary cards) to avo
 
 - `partials/analysis/list/active_tasks.html` is wrapped with `hx-get` and `hx-trigger` to auto-refresh every ~10 seconds. It accepts both dict and list shapes for `active` and normalizes internally.
 - `partials/analysis/preview/shell.html` wraps the security and dynamic summary cards with light polling (15–20s) to pick up recent results without a full page reload.
+ - Rate limiter behavior: HTMX endpoints may return `204 No Content` with a `Retry-After` header when called too frequently. This is expected and helps avoid noisy `429` logs. Clients can choose to respect `Retry-After` to dynamically back off.
 
 ## Error Handling
 

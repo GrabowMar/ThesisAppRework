@@ -96,6 +96,9 @@
 
     <!-- Wizard Content -->
     <form id="analysis-wizard-form" method="POST" action="/analysis/create">
+        <!-- Hidden fields populated by wizard selections -->
+        <input type="hidden" name="model_slug" id="input-model-slug" />
+        <input type="hidden" name="app_number" id="input-app-number" />
         <div class="row">
             <div class="col-lg-8">
                 <!-- Step 1: Model Selection -->
@@ -635,13 +638,17 @@ function validateCurrentStep() {
 
 function selectModel(modelSlug, modelName) {
     selectedModel = { slug: modelSlug, name: modelName };
+    // update hidden input
+    const modelInput = document.getElementById('input-model-slug');
+    if (modelInput) modelInput.value = modelSlug;
     
     // Update UI to show selection
     document.querySelectorAll('.model-card').forEach(card => {
         card.classList.remove('border-primary', 'selected');
     });
     
-    const selectedCard = document.querySelector(`[data-model="${modelSlug}"]`);
+    // Match the attribute used by the grid fragment: data-model-slug
+    const selectedCard = document.querySelector(`.model-card[data-model-slug="${modelSlug}"]`);
     if (selectedCard) {
         selectedCard.classList.add('border-primary', 'selected');
     }
@@ -664,6 +671,9 @@ function loadApplicationsForModel(model) {
 
 function selectApp(appNumber, appInfo) {
     selectedApp = { number: appNumber, info: appInfo };
+    // update hidden input
+    const appInput = document.getElementById('input-app-number');
+    if (appInput) appInput.value = String(appNumber);
     
     // Update UI
     document.querySelectorAll('.app-card').forEach(card => {
@@ -750,6 +760,36 @@ document.addEventListener('DOMContentLoaded', function() {
             collapse.hide();
         }
     });
+
+    // If a ?model=slug is present in the URL, preselect it and load applications
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const preSlug = params.get('model');
+        if (preSlug) {
+            // Attempt to find the card label text when grid loads; if not available, still set slug
+            const trySelect = () => {
+                const card = document.querySelector(`.model-card[data-model-slug="${preSlug}"]`);
+                const name = card ? (card.querySelector('h6')?.textContent?.trim() || preSlug) : preSlug;
+                selectModel(preSlug, name);
+                // Move to step 2 and load apps
+                if (currentStep === 1) {
+                    nextStep();
+                }
+                loadApplicationsForModel(selectedModel);
+            };
+            // If grid hasn't loaded yet, wait for HTMX swap
+            if (!document.querySelector(`.model-card[data-model-slug="${preSlug}"]`)) {
+                document.addEventListener('htmx:afterSwap', (evt) => {
+                    const tgt = evt.detail && evt.detail.target ? evt.detail.target : null;
+                    if (tgt && (tgt.id === 'model-selection-grid' || tgt.closest?.('#model-selection-grid'))) {
+                        trySelect();
+                    }
+                }, { once: true });
+            } else {
+                trySelect();
+            }
+        }
+    } catch (e) { /* ignore */ }
 });
 </script>
 {% endblock %}

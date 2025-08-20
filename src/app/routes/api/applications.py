@@ -242,6 +242,115 @@ def api_application_restart(app_id):
         return json_error(f'Application {app_id} not found', status=404, error_type='NotFound')
 
 
+# ================================================================
+# BULK APPLICATION OPERATIONS (used by Applications index page)
+# ================================================================
+
+@api_bp.route('/applications/bulk/start', methods=['POST'])
+def api_applications_bulk_start():
+    """Start multiple applications by ID.
+
+    Payload: { "app_ids": [1,2,3] }
+    Returns: { success, started_count, errors }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        ids = data.get('app_ids') or []
+        if not isinstance(ids, list) or not ids:
+            return json_error('app_ids must be a non-empty array', status=400, error_type='ValidationError')
+        started = 0
+        errors = []
+        for app_id in ids:
+            try:
+                res = app_service.start_application(int(app_id))
+                if res.get('success'):
+                    started += 1
+                else:
+                    errors.append({'app_id': app_id, 'error': res})
+            except Exception as e:  # noqa: BLE001
+                errors.append({'app_id': app_id, 'error': str(e)})
+        return json_success({'started_count': started, 'errors': errors}, message='Bulk start triggered')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk start error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/applications/bulk/stop', methods=['POST'])
+def api_applications_bulk_stop():
+    """Stop multiple applications by ID.
+
+    Payload: { "app_ids": [1,2,3] }
+    Returns: { success, stopped_count, errors }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        ids = data.get('app_ids') or []
+        if not isinstance(ids, list) or not ids:
+            return json_error('app_ids must be a non-empty array', status=400, error_type='ValidationError')
+        stopped = 0
+        errors = []
+        for app_id in ids:
+            try:
+                res = app_service.stop_application(int(app_id))
+                if res.get('success'):
+                    stopped += 1
+                else:
+                    errors.append({'app_id': app_id, 'error': res})
+            except Exception as e:  # noqa: BLE001
+                errors.append({'app_id': app_id, 'error': str(e)})
+        return json_success({'stopped_count': stopped, 'errors': errors}, message='Bulk stop triggered')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk stop error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/applications/bulk/delete', methods=['POST'])
+def api_applications_bulk_delete():
+    """Delete multiple applications by ID.
+
+    Payload: { "app_ids": [1,2,3] }
+    Returns: { success, deleted_count, errors }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        ids = data.get('app_ids') or []
+        if not isinstance(ids, list) or not ids:
+            return json_error('app_ids must be a non-empty array', status=400, error_type='ValidationError')
+        deleted = 0
+        errors = []
+        for app_id in ids:
+            try:
+                app_service.delete_application(int(app_id))
+                deleted += 1
+            except app_service.NotFoundError:
+                errors.append({'app_id': app_id, 'error': 'Not found'})
+            except Exception as e:  # noqa: BLE001
+                errors.append({'app_id': app_id, 'error': str(e)})
+        return json_success({'deleted_count': deleted, 'errors': errors}, message='Bulk delete completed')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk delete error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/applications/bulk/download')
+def api_applications_bulk_download():
+    """Download bundle for selected applications.
+
+    Currently returns a JSON message placeholder to avoid 404 in UI.
+    Consider implementing a ZIP stream of app metadata and logs.
+    """
+    try:
+        ids_param = request.args.get('app_ids', '')
+        ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+        if not ids:
+            return json_error('app_ids query param required', status=400, error_type='ValidationError')
+        # Placeholder response to keep UI functional; implement ZIP streaming later
+        return json_success({'app_ids': ids}, message='Download packaging not implemented yet')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk download error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
 @api_bp.route('/applications/<int:app_id>/details')
 @handle_exceptions(logger_override=logger)
 def api_application_details(app_id):
@@ -262,6 +371,36 @@ def api_application_details(app_id):
         'frontend_framework': app.frontend_framework,
         'created_at': app.created_at.isoformat() if app.created_at else None
     }, message='Application details fetched')
+
+
+@api_bp.route('/applications/export')
+def api_applications_export():
+    """Placeholder endpoint for exporting applications list.
+
+    In a future iteration this can stream a CSV/XLSX. For now, return a small HTML page
+    indicating export is not yet implemented to avoid broken link.
+    """
+    try:
+        return render_template('partials/common/info.html',
+                               title='Export not implemented',
+                               message='Export will be available in a future update.')
+    except Exception:
+        return json_success({'message': 'Export not implemented yet'})
+
+
+@api_bp.route('/applications/cleanup', methods=['POST'])
+def api_applications_cleanup():
+    """Placeholder cleanup endpoint to keep UI action functional.
+
+    Performs a no-op and returns success; real cleanup logic can be implemented
+    in application_service later.
+    """
+    try:
+        # Potentially call a service to prune unused rows/files in the future
+        return json_success({'removed_count': 0}, message='Cleanup completed (no-op)')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Cleanup error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
 
 
 @api_bp.route('/applications/<int:app_id>/logs')

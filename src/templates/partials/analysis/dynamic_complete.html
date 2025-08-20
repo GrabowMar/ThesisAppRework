@@ -1,0 +1,76 @@
+{#
+  Path: partials/analysis/dynamic_complete.html
+  Purpose: Render a completed Dynamic (ZAP-like) analysis result.
+  Notes:
+  - This partial is intentionally defensive: it renders gracefully even if
+    parts of the payload are missing or in unexpected shapes.
+  - Expected context from route:
+      analysis: ZAPAnalysis SQLAlchemy model instance
+      zap_report: dict (ZAP JSON report) or {}
+      metadata: dict of metadata
+      counts: { high, medium, low, info }
+#}
+
+{% from 'partials/common/_module_wrapper.html' import module_card %}
+
+<div class="container-fluid">
+  <div class="row g-3">
+    <div class="col-12">
+      {{ module_card(
+        'ZAP Scan Summary',
+        'fa-bolt',
+        """
+        <div class='row text-center'>
+          <div class='col-6 col-md-3'>
+            <div class='fw-semibold small text-muted'>High</div>
+            <div class='display-6 text-danger'>{{ (counts.high if counts and 'high' in counts else 0) }}</div>
+          </div>
+          <div class='col-6 col-md-3'>
+            <div class='fw-semibold small text-muted'>Medium</div>
+            <div class='display-6 text-warning'>{{ (counts.medium if counts and 'medium' in counts else 0) }}</div>
+          </div>
+          <div class='col-6 col-md-3 mt-3 mt-md-0'>
+            <div class='fw-semibold small text-muted'>Low</div>
+            <div class='display-6 text-info'>{{ (counts.low if counts and 'low' in counts else 0) }}</div>
+          </div>
+          <div class='col-6 col-md-3 mt-3 mt-md-0'>
+            <div class='fw-semibold small text-muted'>Info</div>
+            <div class='display-6 text-secondary'>{{ (counts.info if counts and 'info' in counts else 0) }}</div>
+          </div>
+        </div>
+        <div class='mt-3 small text-muted'>
+          Scan ID: {{ analysis.id if analysis else 'N/A' }}
+          {% if analysis and analysis.started_at and analysis.completed_at %}
+            • Duration: {{ ((analysis.completed_at - analysis.started_at).total_seconds() // 60)|int }}m {{ ((analysis.completed_at - analysis.started_at).total_seconds() % 60)|int }}s
+          {% endif %}
+        </div>
+        """
+      ) }}
+    </div>
+
+    <div class="col-12">
+      {{ module_card(
+        'ZAP Raw Report',
+        'fa-file-code',
+        """
+        <details>
+          <summary class='cursor-pointer'>Toggle JSON</summary>
+          <pre class='mt-2 small bg-light p-2 rounded border'>{{ zap_report | tojson(indent=2) }}</pre>
+        </details>
+        """
+      ) }}
+    </div>
+
+    {% if metadata %}
+      <div class="col-12">
+        {{ module_card(
+          'Metadata',
+          'fa-info-circle',
+          """
+          <pre class='small bg-light p-2 rounded border'>{{ metadata | tojson(indent=2) }}</pre>
+          """
+        ) }}
+      </div>
+    {% endif %}
+  </div>
+</div>

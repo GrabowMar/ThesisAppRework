@@ -89,12 +89,21 @@ def main():
     
     # Start the application
     try:
-        app.run(
-            host=host,
-            port=port,
-            debug=debug,
-            threaded=True
-        )
+        # Prefer SocketIO server if available to enable real-time features
+        try:
+            from app.extensions import SOCKETIO_AVAILABLE, socketio
+        except Exception:
+            SOCKETIO_AVAILABLE, socketio = False, None
+
+        if SOCKETIO_AVAILABLE and socketio is not None:
+            socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
+        else:
+            app.run(
+                host=host,
+                port=port,
+                debug=debug,
+                threaded=True
+            )
     except KeyboardInterrupt:
         logger.info("Application shutdown requested by user")
         return 0

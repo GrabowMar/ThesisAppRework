@@ -1,0 +1,104 @@
+{# 
+Dashboard Stats Cards
+====================
+
+HTMX partial for live-updating dashboard statistics.
+Used by Analysis Hub for real-time metric updates.
+
+Parameters:
+- stats (dict): Current analysis counts and metrics
+- trends (dict): Weekly trend data
+
+Usage: /analysis/api/stats endpoint
+#}
+
+<div class="col-xl-3 col-md-6 mb-4">
+    <div class="card stat-card text-center h-100">
+        <div class="card-body">
+            <div class="stat-icon bg-primary bg-gradient text-white mx-auto">
+                <i class="fas fa-shield-alt fa-2x"></i>
+            </div>
+            <h3 class="mb-1">{{ stats.total_security|default(0) }}</h3>
+            <p class="text-muted mb-2">Security Analyses</p>
+            <small class="text-success">
+                <i class="fas fa-arrow-up me-1"></i>
+                +{{ trends.security_this_week|default(0) }} this week
+            </small>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-md-6 mb-4">
+    <div class="card stat-card text-center h-100">
+        <div class="card-body">
+            <div class="stat-icon bg-success bg-gradient text-white mx-auto">
+                <i class="fas fa-tachometer-alt fa-2x"></i>
+            </div>
+            <h3 class="mb-1">{{ stats.total_performance|default(0) }}</h3>
+            <p class="text-muted mb-2">Performance Tests</p>
+            <small class="text-success">
+                <i class="fas fa-arrow-up me-1"></i>
+                +{{ trends.performance_this_week|default(0) }} this week
+            </small>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-md-6 mb-4">
+    <div class="card stat-card text-center h-100">
+        <div class="card-body">
+            <div class="stat-icon bg-info bg-gradient text-white mx-auto">
+                <i class="fas fa-bolt fa-2x"></i>
+            </div>
+            <h3 class="mb-1">{{ stats.total_dynamic|default(0) }}</h3>
+            <p class="text-muted mb-2">Dynamic Scans</p>
+            <small class="text-success">
+                <i class="fas fa-arrow-up me-1"></i>
+                +{{ trends.dynamic_this_week|default(0) }} this week
+            </small>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-md-6 mb-4">
+    <div class="card stat-card text-center h-100">
+        <div class="card-body">
+            <div class="stat-icon bg-warning bg-gradient text-white mx-auto">
+                <i class="fas fa-robot fa-2x"></i>
+            </div>
+            <h3 class="mb-1">{{ stats.total_models|default(0) }}</h3>
+            <p class="text-muted mb-2">AI Models</p>
+            <small class="text-muted">
+                Available for testing
+            </small>
+        </div>
+    </div>
+</div>
+
+{# Update chart data via JavaScript when stats refresh #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Update status chart if it exists
+    if (typeof statusChart !== 'undefined') {
+        statusChart.data.datasets[0].data = [
+            {{ stats.security_completed|default(0) }},
+            {{ stats.security_running|default(0) }},
+            {{ stats.security_failed|default(0) }},
+            {{ stats.security_pending|default(0) }}
+        ];
+        statusChart.update('none');
+    }
+    
+    // Update timestamp
+    const timestampEl = document.getElementById('status-timestamp');
+    if (timestampEl) {
+        const now = new Date();
+        timestampEl.textContent = now.toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+});
+</script>
