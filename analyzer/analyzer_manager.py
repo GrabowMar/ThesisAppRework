@@ -468,8 +468,10 @@ class AnalyzerManager:
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
-        
-        return await self.send_websocket_message('static-analyzer', message, timeout=180)
+        # Allow longer runtime for comprehensive static/security scans.
+        # Default to 480s and allow override via env.
+        security_timeout = int(os.environ.get('SECURITY_ANALYSIS_TIMEOUT', os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480')))
+        return await self.send_websocket_message('static-analyzer', message, timeout=security_timeout)
 
     async def run_dynamic_analysis(self, model_slug: str, app_number: int,
                                   target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -557,8 +559,9 @@ class AnalyzerManager:
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
-        
-        return await self.send_websocket_message('static-analyzer', message, timeout=180)
+        # Static analysis can take several minutes depending on project size; extend timeout.
+        static_timeout = int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480'))
+        return await self.send_websocket_message('static-analyzer', message, timeout=static_timeout)
     
     async def run_comprehensive_analysis(self, model_slug: str, app_number: int) -> Dict[str, Dict[str, Any]]:
         """Run comprehensive analysis (security, static, performance, dynamic) without AI."""

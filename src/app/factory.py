@@ -17,7 +17,6 @@ from sqlalchemy import text
 # Import extensions and configurations
 from config.celery_config import CeleryConfig
 from app.extensions import db, init_extensions, get_components
-from app.services.task_manager import TaskManager
 from app.services.analyzer_integration import get_analyzer_integration as create_analyzer_integration
 
 # Configure logging
@@ -173,7 +172,8 @@ def create_app(config_name: str = 'default') -> Flask:
         ServiceLocator.initialize(app)
         logger.info("Service locator initialized with core services")
         
-        # Initialize task manager
+        # Initialize task manager (defer import to avoid circulars during module import)
+        from app.services.task_manager import TaskManager  # local import to break cycles
         task_manager = TaskManager()
         components.set_task_manager(task_manager)
         logger.info("Task manager initialized")
@@ -280,18 +280,33 @@ def create_app(config_name: str = 'default') -> Flask:
         
         # Check Celery connection (soft requirement in tests)
         try:
-            components = get_components()
-            celery_instance = components.celery if components else None
-            if celery_instance:
-                try:
-                    celery_inspect = celery_instance.control.inspect()
-                    active_tasks = celery_inspect.active()
-                    # If broker not reachable, treat as unavailable (not unhealthy)
-                    celery_status = 'healthy' if active_tasks is not None else 'unavailable'
-                except Exception:
-                    celery_status = 'unavailable'
-            else:
+            if app.config.get('TESTING', False):
+                # During tests, skip Celery broker calls to avoid warnings/noise
                 celery_status = 'unavailable'
+            else:
+                components = get_components()
+                celery_instance = components.celery if components else None
+                if celery_instance:
+                    import warnings
+                    try:
+                        # Filter duplicate nodename warnings that can occur if multiple nodes share the same name
+                        from celery.app.control import DuplicateNodenameWarning  # type: ignore
+                    except Exception:
+                        DuplicateNodenameWarning = None  # type: ignore
+
+                    try:
+                        with warnings.catch_warnings():
+                            if DuplicateNodenameWarning:
+                                warnings.simplefilter("ignore", DuplicateNodenameWarning)  # type: ignore
+                            else:
+                                warnings.simplefilter("ignore")
+                            # A lightweight reachability check: any ping reply implies broker/worker reachable
+                            ping_result = celery_instance.control.inspect().ping()
+                        celery_status = 'healthy' if ping_result else 'unavailable'
+                    except Exception:
+                        celery_status = 'unavailable'
+                else:
+                    celery_status = 'unavailable'
         except Exception:
             celery_status = 'unavailable'
         

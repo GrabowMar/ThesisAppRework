@@ -36,8 +36,26 @@ from shared.protocol import (
 )
 
 
-logging.basicConfig(level=logging.INFO)
+level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+level = getattr(logging, level_str, logging.INFO)
+logging.basicConfig(level=level)
 logger = logging.getLogger("gateway")
+logger.setLevel(level)
+try:
+    # Suppress noisy connection/opening handshake logs across websockets internals
+    for name in (
+        "websockets",
+        "websockets.server",
+        "websockets.client",
+        "websockets.connection",
+        "websockets.protocol",
+        "websockets.http",
+        "websockets.http11",
+        "websockets.legacy",
+    ):
+        logging.getLogger(name).setLevel(logging.WARNING)
+except Exception:
+    pass
 
 
 SERVICE_URLS: Dict[ServiceType, str] = {
@@ -116,8 +134,13 @@ async def broadcast_event(stage: str, message: str = "", *,
     if details:
         payload['details'] = details
 
-    # Log and keep a short in-memory buffer
-    logger.info(f"[{stage}] {message} service={service} corr={correlation_id}")
+    # Log and keep a short in-memory buffer (less noisy by default)
+    if stage in {"error", "failed"}:
+        logger.warning(f"[{stage}] {message} service={service} corr={correlation_id}")
+    elif stage in {"completed"}:
+        logger.info(f"[{stage}] {message} service={service} corr={correlation_id}")
+    else:
+        logger.debug(f"[{stage}] {message} service={service} corr={correlation_id}")
     _record_event({'stage': stage, 'message': message, 'service': service, 'correlation_id': correlation_id, 'timestamp': payload['timestamp']})
 
     # Wrap using the shared protocol helper with sanitized kwargs
@@ -202,7 +225,23 @@ async def send_to_service(service: ServiceType, message: Dict[str, Any], timeout
 
                 await broadcast_event('received_response', f"Response from {service.value}", service=service.value)
                 return data
+    except asyncio.TimeoutError as e:
+        # Timeouts are expected under load; keep them low-noise
+        await broadcast_event('timeout', f"{service.value} timeout: {e}", service=service.value)
+        return {"type": "error", "status": "timeout", "error": str(e)}
+    except (ConnectionRefusedError, OSError) as e:
+        # Service likely not up yet; do not escalate to error severity
+        await broadcast_event('service_unavailable', f"{service.value} unavailable: {e}", service=service.value)
+        return {"type": "error", "status": "unavailable", "error": str(e)}
     except Exception as e:
+        # For protocol/handshake issues that slip through, keep as a generic error
+        try:
+            import websockets as _ws
+            if isinstance(e, getattr(_ws.exceptions, 'InvalidHandshake', tuple())):
+                await broadcast_event('handshake_issue', f"{service.value} handshake: {e}", service=service.value)
+                return {"type": "error", "status": "handshake", "error": str(e)}
+        except Exception:
+            pass
         await broadcast_event('error', f"{service.value} error: {e}", service=service.value)
         return {"type": "error", "status": "error", "error": str(e)}
 
@@ -281,7 +320,7 @@ def map_analysis_request_to_service_message(req_msg: WebSocketMessage) -> Option
 
 async def handle_client(websocket):
     client = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.info(f"Client connected: {client}")
+    logger.debug(f"Client connected: {client}")
     CONNECTED_CLIENTS.add(websocket)
 
     try:
@@ -400,7 +439,7 @@ async def handle_client(websocket):
                 except Exception:
                     pass
     except websockets.exceptions.ConnectionClosed:
-        logger.info(f"Client disconnected: {client}")
+        logger.debug(f"Client disconnected: {client}")
     except Exception as e:
         logger.error(f"WebSocket error with {client}: {e}")
     finally:

@@ -15,6 +15,8 @@ from typing import Dict, Any, List, Optional
 from flask import Flask
 
 logger = logging.getLogger(__name__)
+# Module-level guard to emit the missing-API-key message only once per process
+_OPENROUTER_KEY_WARNED: bool = False
 
 
 class OpenRouterService:
@@ -36,8 +38,12 @@ class OpenRouterService:
         self._memory_cache = {}
         self._memory_cache_expiry = None
         
-        if not self.api_key:
-            self.logger.warning("OpenRouter API key not found. Set OPENROUTER_API_KEY in .env file")
+        # Warn once per process about missing API key to reduce log spam
+        global _OPENROUTER_KEY_WARNED
+        if not self.api_key and not _OPENROUTER_KEY_WARNED:
+            # Lower severity to INFO to keep logs cleaner
+            self.logger.info("OpenRouter API key not found. Set OPENROUTER_API_KEY in .env file")
+            _OPENROUTER_KEY_WARNED = True
     
     def get_headers(self) -> Dict[str, str]:
         """Get headers for OpenRouter API requests."""

@@ -36,7 +36,11 @@ param(
     [int]$MaxLineLength = 200,
     # Global help flag (aliases: -h, -?)
     [Alias('h','?')]
-    [switch]$Help
+    [switch]$Help,
+    # Option: force (re)build and recreate analyzer containers on start
+    [switch]$Rebuild,
+    # Option: skip Celery queue purge during start (enabled by default)
+    [switch]$NoPurge
 )
 
 # Configuration
@@ -91,6 +95,8 @@ function Show-GeneralHelp {
     Write-Host "  -NoAnalyzer                 Skip starting analyzer services" -ForegroundColor White
     Write-Host "  -LogPath <path>             Write script logs to the specified file (default: .\\logs\\start.ps1.log)" -ForegroundColor White
     Write-Host "  -DbInitTimeoutSeconds <N>   Timeout for DB init phase (default: 30)" -ForegroundColor White
+    Write-Host "  -Rebuild                    Recreate analyzer containers/images (docker compose down; up --build --force-recreate)" -ForegroundColor White
+    Write-Host "  -NoPurge                   Skip purging Celery queues on start (default is to purge)" -ForegroundColor White
     Write-Host "  -Help | -h | -?             Show this help and exit" -ForegroundColor White
 }
 
@@ -414,6 +420,104 @@ function Test-Redis {
     }
 }
 
+# Remove stale PID and schedule files that can confuse restarts
+function Cleanup-StaleArtifacts {
+    Write-Log "Cleaning up stale runtime artifacts (PID/schedule files)..." "Blue"
+    try {
+        Remove-Item -Path (Join-Path $ScriptRoot "celery_worker.pid") -ErrorAction SilentlyContinue
+        Remove-Item -Path (Join-Path $ScriptRoot "celery_worker_pid.txt") -ErrorAction SilentlyContinue
+        Remove-Item -Path (Join-Path $ScriptRoot "celery_beat.pid") -ErrorAction SilentlyContinue
+        Remove-Item -Path (Join-Path $ScriptRoot "celery_beat_pid.txt") -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $ScriptRoot -Filter "celerybeat-schedule*" -ErrorAction SilentlyContinue | ForEach-Object { $_ | Remove-Item -Force -ErrorAction SilentlyContinue }
+    } catch {
+        Write-Warning-Log "Cleanup encountered issues: $_"
+    }
+}
+
+# Purge Celery queues to avoid replaying old tasks from Redis on fresh starts
+function Purge-CeleryQueues {
+    param(
+        [string[]]$Queues
+    )
+    if ($NoPurge) {
+        Write-Info-Log "Queue purge skipped (-NoPurge set)"
+        return
+    }
+    try {
+        # Prefer venv Python and use python -m celery for reliability
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+        $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+        if (-not (Test-Redis)) {
+            Write-Warning-Log "Redis not reachable; skipping Celery queue purge"
+            return
+        }
+        $totalPurged = 0
+        foreach ($q in $Queues) {
+            try {
+                $args = @("-m","celery","-A",$CeleryApp,"purge","-f","-Q",$q)
+                $psi = New-Object System.Diagnostics.ProcessStartInfo
+                $psi.FileName = $pythonExe
+                $psi.Arguments = ($args -join ' ')
+                $psi.RedirectStandardOutput = $true
+                $psi.RedirectStandardError = $true
+                $psi.UseShellExecute = $false
+                $psi.WorkingDirectory = $ScriptRoot
+                $p = [System.Diagnostics.Process]::Start($psi)
+                $p.WaitForExit()
+                $out = $p.StandardOutput.ReadToEnd()
+                $err = $p.StandardError.ReadToEnd()
+                if ($out) { try { Add-Content -Path $Global:LogFile -Value ("PURGE $q => " + $out.Trim()) } catch {} }
+                if ($err) { try { Add-Content -Path $Global:LogFile -Value ("PURGE $q ERR => " + $err.Trim()) } catch {} }
+                # Celery outputs like "Purged N messages"
+                if ($out -match 'Purged\s+(\d+)\s+messages') {
+                    $purged = [int]$Matches[1]
+                    $totalPurged += $purged
+                    if ($purged -gt 0) { Write-Log "Purged $purged messages from queue '$q'" "Yellow" }
+                }
+            } catch {
+                Write-Warning-Log "Failed to purge queue '$q': $_"
+            }
+        }
+        if ($totalPurged -gt 0) {
+            Write-Log "Total purged messages across queues: $totalPurged" "Yellow"
+        } else {
+            Write-Info-Log "Celery queues appear empty"
+        }
+    } catch {
+        Write-Warning-Log "Queue purge encountered issues: $_"
+    }
+}
+
+# After start, quickly hit Flask /health to verify basic readiness
+function Invoke-HealthSanityCheck {
+    param(
+        [int]$Retries = 10,
+        [int]$DelayMs = 800
+    )
+    $url = "http://127.0.0.1:5000/health"
+    $ok = $false
+    $respObj = $null
+    for ($i = 0; $i -lt $Retries; $i++) {
+        try {
+            $respObj = Invoke-RestMethod -Method GET -Uri $url -TimeoutSec 3
+            if ($respObj -and $respObj.status) { $ok = $true; break }
+        } catch {
+            Start-Sleep -Milliseconds $DelayMs
+        }
+    }
+    if ($ok) {
+        $overall = $respObj.status
+        $db = $respObj.components.database
+        $celery = $respObj.components.celery
+        $analyzer = $respObj.components.analyzer
+        $ts = $respObj.timestamp
+        $color = if ($overall -eq 'healthy') { 'Green' } else { 'Yellow' }
+        Write-Log "Health: overall=$overall db=$db celery=$celery analyzer=$analyzer ts=$ts" -Color $color
+    } else {
+        Write-Warning-Log "Health check failed to respond after $Retries attempts; services may still be initializing"
+    }
+}
+
 # Ensure Redis is available, preferring the analyzer's Redis container if present
 function Ensure-RedisAvailable {
     param(
@@ -590,7 +694,7 @@ function Start-CeleryWorker {
         }
 
         # Always invoke via python -m celery for reliable import resolution
-        $workerArgs = @("-m", "celery", "-A", $CeleryApp, "worker", "--loglevel=info", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log", "--concurrency=$WorkerConcurrency")
+        $workerArgs = @("-m", "celery", "-A", $CeleryApp, "worker", "--loglevel=info", "--pidfile=celery_worker.pid", "--logfile=celery_worker.log", "--concurrency=$WorkerConcurrency", "-n", "worker@%h")
         if ($UseSoloPool) { $workerArgs += @("-P", "solo") }
 
         if (Test-Path $pythonExe) {
@@ -669,7 +773,9 @@ function Start-CeleryBeat {
             $env:PYTHONPATH = $ScriptRoot
         }
 
-        $beatArgs = @("-m", "celery", "-A", $CeleryApp, "beat", "--loglevel=info", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule")
+    # Default Celery beat log level to WARNING to reduce minute-by-minute scheduler noise
+    $beatLogLevel = if ($env:CELERY_BEAT_LOGLEVEL -and $env:CELERY_BEAT_LOGLEVEL.Trim() -ne '') { $env:CELERY_BEAT_LOGLEVEL } else { 'warning' }
+    $beatArgs = @("-m", "celery", "-A", $CeleryApp, "beat", "--loglevel=$beatLogLevel", "--pidfile=celery_beat.pid", "--logfile=celery_beat.log", "--schedule=celerybeat-schedule", "-n", "beat@%h")
         if (Test-Path $pythonExe) {
             $beatProcess = Start-Process -FilePath $pythonExe -ArgumentList $beatArgs -PassThru -WindowStyle Hidden -WorkingDirectory $ScriptRoot
         } else {
@@ -755,10 +861,58 @@ function Start-FlaskApp {
 
 # Start analyzer services
 function Start-AnalyzerServices {
+    param(
+        [switch]$Rebuild
+    )
     Write-Log "Starting analyzer services..." "Blue"
     
     $analyzerDir = Join-Path $RepoRoot "analyzer"
     $analyzerManager = Join-Path $analyzerDir "analyzer_manager.py"
+    
+    # If Rebuild flag is set, do a hard recreate of containers/images via docker compose
+    if ($Rebuild) {
+        try {
+            Write-Info-Log "Recreating analyzer containers (docker compose down; up --build --force-recreate)"
+            if (-not (Test-Path (Join-Path $analyzerDir "docker-compose.yml"))) {
+                Write-Warning-Log "docker-compose.yml not found in analyzer directory. Skipping rebuild."
+            } else {
+                $composeArgsDown = @("-f", "docker-compose.yml", "down")
+                $composeArgsUp = @("-f", "docker-compose.yml", "up", "--build", "--force-recreate", "-d")
+                $usedCompose = $false
+                if (Get-Command docker -ErrorAction SilentlyContinue) {
+                    try {
+                        Write-Info-Log "Running: docker compose down"
+                        $p1 = Start-Process -FilePath "docker" -ArgumentList @("compose") + $composeArgsDown -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        Write-Info-Log "Running: docker compose up --build --force-recreate -d"
+                        $p2 = Start-Process -FilePath "docker" -ArgumentList @("compose") + $composeArgsUp -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        $usedCompose = $true
+                    } catch {
+                        Write-Warning-Log "docker compose failed: $_"
+                    }
+                }
+                if (-not $usedCompose -and (Get-Command docker-compose -ErrorAction SilentlyContinue)) {
+                    try {
+                        Write-Info-Log "Running: docker-compose down"
+                        $pc1 = Start-Process -FilePath "docker-compose" -ArgumentList $composeArgsDown -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        Write-Info-Log "Running: docker-compose up --build --force-recreate -d"
+                        $pc2 = Start-Process -FilePath "docker-compose" -ArgumentList $composeArgsUp -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        $usedCompose = $true
+                    } catch {
+                        Write-Warning-Log "docker-compose failed: $_"
+                    }
+                }
+                if (-not $usedCompose) {
+                    Write-Warning-Log "Docker not available in PATH to rebuild analyzer services."
+                }
+                # Give services a moment to come up
+                Start-Sleep -Seconds 2
+                if (Test-AnalyzerPorts) { Write-Log "Analyzer services started successfully (recreated)" } else { Write-Warning-Log "Analyzer ports not reachable after recreate. Check Docker/analyzer logs." }
+            }
+        } catch {
+            Write-Warning-Log "Error during analyzer services rebuild: $_"
+        }
+        return
+    }
     if (Test-Path $analyzerManager) {
         try {
             if (Test-AnalyzerPorts) { Write-Info-Log "Analyzer services already running"; return }
@@ -1043,11 +1197,21 @@ function Invoke-Main {
             # Ensure Redis (prefer analyzer's Redis if available)
             if (-not (Ensure-RedisAvailable -NoAnalyzer:$NoAnalyzer)) { exit 1 }
             
+            # Clean up stale files and purge Celery queues to avoid replaying old tasks
+            Cleanup-StaleArtifacts
+            Purge-CeleryQueues -Queues @(
+                'security_analysis', 'performance_testing', 'static_analysis', 'dynamic_analysis',
+                'ai_analysis', 'batch_processing', 'container_ops', 'monitoring', 'celery'
+            )
+            
             Initialize-Database
-            Start-CeleryWorker
-            Start-CeleryBeat
-            if (-not $NoAnalyzer) { Start-AnalyzerServices } else { Write-Info-Log "Skipping analyzer services (NoAnalyzer flag set)" }
-            Start-FlaskApp
+            $null = Start-CeleryWorker
+            $null = Start-CeleryBeat
+            if (-not $NoAnalyzer) { $null = Start-AnalyzerServices -Rebuild:$Rebuild } else { Write-Info-Log "Skipping analyzer services (NoAnalyzer flag set)" }
+            $null = Start-FlaskApp
+            
+            # Quick sanity/health check after starting everything
+            Invoke-HealthSanityCheck
             
             Write-Log "All services start sequence triggered." "Green"
             Write-Log "Flask app available at: http://127.0.0.1:5000" "Cyan"
@@ -1214,6 +1378,7 @@ function Invoke-Main {
             Write-Host "  -NoAnalyzer               Skip starting analyzer services" -ForegroundColor White
             Write-Host "  -LogPath <path>           Write script logs to the specified file (default: .\\logs\\start.ps1.log)" -ForegroundColor White
             Write-Host "  -DbInitTimeoutSeconds N   Timeout for DB init phase (default: 30)" -ForegroundColor White
+            Write-Host "  -NoPurge                  Skip Celery queue purge on start" -ForegroundColor White
             Write-Host "  -Target <flask|celery|analyzer|all>  Select logs to stream (default: all)" -ForegroundColor White
             Write-Host "  -TailLines N              Number of lines to tail initially (default: 200)" -ForegroundColor White
             Write-Host "  -Service <name>           Analyzer service to filter (docker compose service name)" -ForegroundColor White

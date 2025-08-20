@@ -952,114 +952,114 @@
         ],
         "recent_apps": [
           {
-            "app_number": 28,
+            "app_number": 13,
             "app_type": "fullstack",
             "backend_framework": "python",
             "container_status": "stopped",
-            "created_at": "Wed, 20 Aug 2025 15:26:51 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:25 GMT",
             "frontend_framework": "react",
             "generation_status": "pending",
             "has_backend": true,
             "has_docker_compose": true,
             "has_frontend": true,
-            "id": 507,
+            "id": 65,
             "metadata": {
-              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app28\\backend",
-              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app28",
-              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app28\\docker-compose.yml",
-              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app28\\frontend"
+              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app13\\backend",
+              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app13",
+              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app13\\docker-compose.yml",
+              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app13\\frontend"
             },
-            "model_slug": "openai_o3",
-            "provider": "openai",
-            "updated_at": "Wed, 20 Aug 2025 15:26:51 GMT"
+            "model_slug": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+            "provider": "cognitivecomputations",
+            "updated_at": "Wed, 20 Aug 2025 19:59:25 GMT"
           },
           {
-            "app_number": 29,
+            "app_number": 14,
             "app_type": "fullstack",
             "backend_framework": "python",
             "container_status": "stopped",
-            "created_at": "Wed, 20 Aug 2025 15:26:51 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:25 GMT",
             "frontend_framework": "react",
             "generation_status": "pending",
             "has_backend": true,
             "has_docker_compose": true,
             "has_frontend": true,
-            "id": 508,
+            "id": 66,
             "metadata": {
-              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app29\\backend",
-              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app29",
-              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app29\\docker-compose.yml",
-              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app29\\frontend"
+              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app14\\backend",
+              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app14",
+              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app14\\docker-compose.yml",
+              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app14\\frontend"
             },
-            "model_slug": "openai_o3",
-            "provider": "openai",
-            "updated_at": "Wed, 20 Aug 2025 15:26:51 GMT"
+            "model_slug": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+            "provider": "cognitivecomputations",
+            "updated_at": "Wed, 20 Aug 2025 19:59:25 GMT"
           },
           {
-            "app_number": 3,
+            "app_number": 15,
             "app_type": "fullstack",
             "backend_framework": "python",
             "container_status": "stopped",
-            "created_at": "Wed, 20 Aug 2025 15:26:51 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:25 GMT",
             "frontend_framework": "react",
             "generation_status": "pending",
             "has_backend": true,
             "has_docker_compose": true,
             "has_frontend": true,
-            "id": 509,
+            "id": 67,
             "metadata": {
-              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app3\\backend",
-              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app3",
-              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app3\\docker-compose.yml",
-              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app3\\frontend"
+              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app15\\backend",
+              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app15",
+              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app15\\docker-compose.yml",
+              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app15\\frontend"
             },
-            "model_slug": "openai_o3",
-            "provider": "openai",
-            "updated_at": "Wed, 20 Aug 2025 15:26:51 GMT"
+            "model_slug": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+            "provider": "cognitivecomputations",
+            "updated_at": "Wed, 20 Aug 2025 19:59:25 GMT"
           },
           {
-            "app_number": 30,
+            "app_number": 16,
             "app_type": "fullstack",
             "backend_framework": "python",
             "container_status": "stopped",
-            "created_at": "Wed, 20 Aug 2025 15:26:51 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:25 GMT",
             "frontend_framework": "react",
             "generation_status": "pending",
             "has_backend": true,
             "has_docker_compose": true,
             "has_frontend": true,
-            "id": 510,
+            "id": 68,
             "metadata": {
-              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app30\\backend",
-              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app30",
-              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app30\\docker-compose.yml",
-              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app30\\frontend"
+              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app16\\backend",
+              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app16",
+              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app16\\docker-compose.yml",
+              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app16\\frontend"
             },
-            "model_slug": "openai_o3",
-            "provider": "openai",
-            "updated_at": "Wed, 20 Aug 2025 15:26:51 GMT"
+            "model_slug": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+            "provider": "cognitivecomputations",
+            "updated_at": "Wed, 20 Aug 2025 19:59:25 GMT"
           },
           {
-            "app_number": 4,
+            "app_number": 17,
             "app_type": "fullstack",
             "backend_framework": "python",
             "container_status": "stopped",
-            "created_at": "Wed, 20 Aug 2025 15:26:51 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:25 GMT",
             "frontend_framework": "react",
             "generation_status": "pending",
             "has_backend": true,
             "has_docker_compose": true,
             "has_frontend": true,
-            "id": 511,
+            "id": 69,
             "metadata": {
-              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app4\\backend",
-              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app4",
-              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app4\\docker-compose.yml",
-              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\openai_o3\\app4\\frontend"
+              "backend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app17\\backend",
+              "directory_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app17",
+              "docker_compose_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app17\\docker-compose.yml",
+              "frontend_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\misc\\models\\cognitivecomputations_dolphin-mistral-24b-venice-edition\\app17\\frontend"
             },
-            "model_slug": "openai_o3",
-            "provider": "openai",
-            "updated_at": "Wed, 20 Aug 2025 15:26:51 GMT"
+            "model_slug": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+            "provider": "cognitivecomputations",
+            "updated_at": "Wed, 20 Aug 2025 19:59:25 GMT"
           }
         ],
         "recent_models": [
@@ -1097,7 +1097,7 @@
             },
             "context_window": 32000,
             "cost_efficiency": 6.0,
-            "created_at": "Wed, 20 Aug 2025 15:26:46 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:24 GMT",
             "id": 26,
             "input_price_per_token": 0.0,
             "is_free": false,
@@ -1158,7 +1158,7 @@
             "supports_json_mode": false,
             "supports_streaming": true,
             "supports_vision": false,
-            "updated_at": "Wed, 20 Aug 2025 15:26:46 GMT"
+            "updated_at": "Wed, 20 Aug 2025 19:59:24 GMT"
           },
           {
             "canonical_slug": "tngtech_deepseek-r1t2-chimera",
@@ -1194,7 +1194,7 @@
             },
             "context_window": 128000,
             "cost_efficiency": 9.8,
-            "created_at": "Wed, 20 Aug 2025 15:26:46 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:24 GMT",
             "id": 25,
             "input_price_per_token": 0.0,
             "is_free": false,
@@ -1255,7 +1255,7 @@
             "supports_json_mode": false,
             "supports_streaming": true,
             "supports_vision": false,
-            "updated_at": "Wed, 20 Aug 2025 15:26:46 GMT"
+            "updated_at": "Wed, 20 Aug 2025 19:59:24 GMT"
           },
           {
             "canonical_slug": "thudm_glm-4-32b",
@@ -1291,7 +1291,7 @@
             },
             "context_window": 32000,
             "cost_efficiency": 6.0,
-            "created_at": "Wed, 20 Aug 2025 15:26:46 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:24 GMT",
             "id": 24,
             "input_price_per_token": 0.0,
             "is_free": false,
@@ -1352,7 +1352,7 @@
             "supports_json_mode": false,
             "supports_streaming": true,
             "supports_vision": false,
-            "updated_at": "Wed, 20 Aug 2025 15:26:46 GMT"
+            "updated_at": "Wed, 20 Aug 2025 19:59:24 GMT"
           },
           {
             "canonical_slug": "tencent_hunyuan-a13b-instruct",
@@ -1388,7 +1388,7 @@
             },
             "context_window": 32000,
             "cost_efficiency": 6.0,
-            "created_at": "Wed, 20 Aug 2025 15:26:46 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:24 GMT",
             "id": 23,
             "input_price_per_token": 0.0,
             "is_free": false,
@@ -1449,7 +1449,7 @@
             "supports_json_mode": false,
             "supports_streaming": true,
             "supports_vision": false,
-            "updated_at": "Wed, 20 Aug 2025 15:26:46 GMT"
+            "updated_at": "Wed, 20 Aug 2025 19:59:24 GMT"
           },
           {
             "canonical_slug": "qwen_qwen3-coder",
@@ -1485,7 +1485,7 @@
             },
             "context_window": 32000,
             "cost_efficiency": 6.0,
-            "created_at": "Wed, 20 Aug 2025 15:26:46 GMT",
+            "created_at": "Wed, 20 Aug 2025 19:59:24 GMT",
             "id": 22,
             "input_price_per_token": 0.0,
             "is_free": false,
@@ -1546,10 +1546,10 @@
             "supports_json_mode": false,
             "supports_streaming": true,
             "supports_vision": false,
-            "updated_at": "Wed, 20 Aug 2025 15:26:46 GMT"
+            "updated_at": "Wed, 20 Aug 2025 19:59:24 GMT"
           }
         ],
-        "timestamp": "2025-08-20T15:32:20.530130+00:00"
+        "timestamp": "2025-08-20T20:06:41.643909+00:00"
       }
     },
     "system_health": {
@@ -1584,7 +1584,7 @@
           "containers_running": 6,
           "error": null
         },
-        "timestamp": "2025-08-20T15:32:20.562758+00:00"
+        "timestamp": "2025-08-20T20:06:41.682854+00:00"
       }
     },
     "analysis_stats": {
@@ -1612,7 +1612,7 @@
         "data": {
           "active_analyses": 0,
           "connected": true,
-          "last_update": "2025-08-20T15:32:20.586945+00:00",
+          "last_update": "2025-08-20T20:06:41.726412+00:00",
           "service": "celery_websocket"
         },
         "preference": "celery",
@@ -1634,7 +1634,7 @@
       "status": 200,
       "ok": true,
       "body": {
-        "analysis_id": "4808b7a6-e009-46e8-b694-b7f1abe9c8e5",
+        "analysis_id": "35672717-7944-4c6b-904e-15eda1cb69c0",
         "message": "Analysis started successfully",
         "status": "success"
       }
@@ -1647,8 +1647,8 @@
         "analyses": [
           {
             "app_number": 1,
-            "created_at": "2025-08-20T15:32:20.671942+00:00",
-            "id": "4808b7a6-e009-46e8-b694-b7f1abe9c8e5",
+            "created_at": "2025-08-20T20:06:41.859138+00:00",
+            "id": "35672717-7944-4c6b-904e-15eda1cb69c0",
             "model_slug": "anthropic_claude-3.7-sonnet",
             "progress": 0,
             "status": "started",
@@ -1666,24 +1666,24 @@
         "events": [
           {
             "data": {
-              "analysis_id": "4808b7a6-e009-46e8-b694-b7f1abe9c8e5",
+              "analysis_id": "35672717-7944-4c6b-904e-15eda1cb69c0",
               "status": "started"
             },
             "event": "analysis_started",
             "room": null,
-            "timestamp": "2025-08-20T15:32:20.671951+00:00"
+            "timestamp": "2025-08-20T20:06:41.859164+00:00"
           },
           {
             "data": {
-              "analysis_id": "4808b7a6-e009-46e8-b694-b7f1abe9c8e5",
+              "analysis_id": "35672717-7944-4c6b-904e-15eda1cb69c0",
               "progress": 0,
               "stage": null,
               "status": "started",
-              "timestamp": "2025-08-20T15:32:21.296247+00:00"
+              "timestamp": "2025-08-20T20:06:42.108300+00:00"
             },
             "event": "analysis_progress",
-            "room": "analysis_4808b7a6-e009-46e8-b694-b7f1abe9c8e5",
-            "timestamp": "2025-08-20T15:32:21.296258+00:00"
+            "room": "analysis_35672717-7944-4c6b-904e-15eda1cb69c0",
+            "timestamp": "2025-08-20T20:06:42.108311+00:00"
           }
         ],
         "status": "success"

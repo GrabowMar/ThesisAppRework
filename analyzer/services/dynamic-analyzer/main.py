@@ -24,8 +24,17 @@ from typing import Dict, List, Any
 import websockets
 from websockets.asyncio.server import serve
 
-logging.basicConfig(level=logging.INFO)
+level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+level = getattr(logging, level_str, logging.INFO)
+logging.basicConfig(level=level)
 logger = logging.getLogger(__name__)
+logger.setLevel(level)
+try:
+    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
+except Exception:
+    pass
 
 class DynamicAnalyzer:
     """Dynamic web application security analyzer."""
@@ -46,9 +55,9 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('curl')
-                logger.info("✅ curl available")
+                logger.debug("curl available")
         except Exception as e:
-            logger.warning(f"❌ curl not available: {e}")
+            logger.debug(f"curl not available: {e}")
         
         # Check for wget
         try:
@@ -56,9 +65,9 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('wget')
-                logger.info("✅ wget available")
+                logger.debug("wget available")
         except Exception as e:
-            logger.warning(f"❌ wget not available: {e}")
+            logger.debug(f"wget not available: {e}")
         
         # Check for nmap
         try:
@@ -66,9 +75,9 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('nmap')
-                logger.info("✅ nmap available")
+                logger.debug("nmap available")
         except Exception as e:
-            logger.warning(f"❌ nmap not available: {e}")
+            logger.debug(f"nmap not available: {e}")
         
         return tools
     
@@ -428,7 +437,7 @@ async def handle_client(websocket):
     """Handle client connections."""
     analyzer = DynamicAnalyzer()
     client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.info(f"New client connected: {client_addr}")
+    logger.debug(f"New client connected: {client_addr}")
     
     try:
         async for message in websocket:
@@ -439,7 +448,7 @@ async def handle_client(websocket):
                 logger.error("Invalid JSON message")
                 
     except websockets.exceptions.ConnectionClosed:
-        logger.info(f"Client disconnected: {client_addr}")
+        logger.debug(f"Client disconnected: {client_addr}")
     except Exception as e:
         logger.error(f"Error with client {client_addr}: {e}")
 

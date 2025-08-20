@@ -26,8 +26,17 @@ from websockets.asyncio.server import serve
 import aiohttp
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
+level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+level = getattr(logging, level_str, logging.INFO)
+logging.basicConfig(level=level)
 logger = logging.getLogger(__name__)
+logger.setLevel(level)
+try:
+    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
+except Exception:
+    pass
 
 class AIAnalyzer:
     """AI-powered code analysis service."""
@@ -52,7 +61,7 @@ class AIAnalyzer:
             'google/gemini-flash-1.5'
         ]
         
-        logger.info(f"Available AI models: {len(models)}")
+        logger.debug(f"Available AI models: {len(models)}")
         return models
     
     async def read_source_files(self, source_path: str) -> Dict[str, str]:
@@ -78,7 +87,7 @@ class AIAnalyzer:
                         except Exception as e:
                             logger.debug(f"Could not read {file_path}: {e}")
             
-            logger.info(f"Read {len(files_content)} source files from {source_path}")
+            logger.debug(f"Read {len(files_content)} source files from {source_path}")
             return files_content
             
         except Exception as e:
@@ -460,7 +469,7 @@ Provide specific, actionable recommendations with examples."""
                     # Generate default path
                     source_path = f"/workspace/misc/models/{model_slug}/app{app_number}"
                 
-                logger.info(f"Starting AI analysis for {model_slug} app {app_number}")
+                logger.debug(f"Starting AI analysis for {model_slug} app {app_number}")
                 
                 analysis_results = await self.analyze_application_ai(model_slug, app_number, source_path)
                 
@@ -473,7 +482,7 @@ Provide specific, actionable recommendations with examples."""
                 }
                 
                 await websocket.send(json.dumps(response))
-                logger.info(f"AI analysis completed for {model_slug} app {app_number}")
+                logger.debug(f"AI analysis completed for {model_slug} app {app_number}")
                 
             elif msg_type == "list_models":
                 response = {
@@ -508,7 +517,7 @@ async def handle_client(websocket):
     """Handle client connections."""
     analyzer = AIAnalyzer()
     client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.info(f"New client connected: {client_addr}")
+    logger.debug(f"New client connected: {client_addr}")
     
     try:
         async for message in websocket:
@@ -519,7 +528,7 @@ async def handle_client(websocket):
                 logger.error("Invalid JSON message")
                 
     except websockets.exceptions.ConnectionClosed:
-        logger.info(f"Client disconnected: {client_addr}")
+        logger.debug(f"Client disconnected: {client_addr}")
     except Exception as e:
         logger.error(f"Error with client {client_addr}: {e}")
 
@@ -532,14 +541,14 @@ async def main():
     
     # Check for API key
     if not os.getenv('OPENROUTER_API_KEY'):
-        logger.warning("⚠️  OPENROUTER_API_KEY not set - AI analysis will be limited")
+        logger.warning("OPENROUTER_API_KEY not set - AI analysis will be limited")
     else:
-        logger.info("✅ OpenRouter API key configured")
+        logger.debug("OpenRouter API key configured")
     
     try:
         async with serve(handle_client, host, port):
             logger.info(f"AI Analyzer listening on ws://{host}:{port}")
-            logger.info("Service ready to accept connections")
+            logger.debug("Service ready to accept connections")
             await asyncio.Future()
     except Exception as e:
         logger.error(f"Failed to start service: {e}")

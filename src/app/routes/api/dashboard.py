@@ -167,7 +167,7 @@ def dashboard_activity_timeline():
                 'type': 'success',
                 'title': 'New App Generated',
                 'description': f'{app.model_slug} - App #{app.app_number}',
-                'created_at': app.created_at,
+                'timestamp': app.created_at,
                 'source': 'Generator',
                 'status': 'completed'
             })
@@ -185,7 +185,7 @@ def dashboard_activity_timeline():
                     'type': 'info',
                     'title': 'Security Analysis',
                     'description': f'{analysis.application.model_slug} - App #{analysis.application.app_number}',
-                    'created_at': analysis.created_at,
+                    'timestamp': analysis.created_at,
                     'source': 'Security',
                     'status': analysis.status.value if hasattr(analysis.status, 'value') else str(analysis.status)
                 })
@@ -193,9 +193,13 @@ def dashboard_activity_timeline():
                 logger.warning(f"Skipping security analysis due to missing application: {e}")
                 continue
 
-        activities.sort(key=lambda x: x['created_at'], reverse=True)
+        # Normalize any legacy keys to 'timestamp' to satisfy template expectations
+        for item in activities:
+            if 'timestamp' not in item and 'created_at' in item:
+                item['timestamp'] = item['created_at']
+        activities.sort(key=lambda x: x.get('timestamp') or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
         activities = activities[:8]
-        return render_template('partials/common/activity_timeline.html', activities=activities)
+        return render_template('components/dashboard/activity-timeline.html', activities=activities)
     except Exception as e:
         logger.error(f"Error rendering activity timeline: {e}")
         return '<div class="text-center py-3"><p class="text-muted">Unable to load activity</p></div>'
@@ -464,10 +468,10 @@ def recent_activity():
         if not activities:
             # Return fallback content that tests expect when no activity is available
             return '<div class="text-center py-3"><p class="text-muted">Unable to load activity</p></div>'
-        return render_template('partials/common/activity_timeline.html', activities=activities)
+        return render_template('components/dashboard/activity-timeline.html', activities=activities)
     except Exception as e:
         logger.error(f"Error getting recent activity: {e}")
-        return render_template('partials/common/activity_timeline.html', activities=[])
+        return render_template('components/dashboard/activity-timeline.html', activities=[])
 
 
 @api_bp.route('/recent_activity_detailed')
@@ -747,7 +751,7 @@ def dashboard_docker_status():
             'created_containers': 0,
             'resource_usage': {},
             'recent_containers': [],
-            'last_check': datetime.now().isoformat()
+            'last_check': datetime.now(timezone.utc)
         }
         
         try:
@@ -882,7 +886,8 @@ def dashboard_system_health_fragment():
                 'memory_usage': memory_percent,
                 'disk_usage': disk_percent,
             },
-            'last_check': datetime.now(timezone.utc).strftime('%H:%M:%S')
+            # Provide a datetime object so templates can call strftime safely
+            'last_check': datetime.now(timezone.utc)
         }
 
         return render_template('partials/dashboard/_system_health_inner.html', system_health=system_health)
