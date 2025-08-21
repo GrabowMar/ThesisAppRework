@@ -165,6 +165,11 @@
                                     <div id="selected-model-details"></div>
                                 </div>
                             </div>
+
+                            <!-- Inline validation -->
+                            <div id="step1-error" class="text-danger small d-none mt-2">
+                                Please select a model to continue.
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -196,6 +201,11 @@
                                     <h6 class="alert-heading">Selected Application</h6>
                                     <div id="selected-app-details"></div>
                                 </div>
+                            </div>
+
+                            <!-- Inline validation -->
+                            <div id="step2-error" class="text-danger small d-none mt-2">
+                                Please select an application to continue.
                             </div>
                         </div>
                     </div>
@@ -318,7 +328,7 @@
                             </div>
 
                             <!-- Analysis Configuration Options -->
-                            <div id="analysis-config-options" class="u-5790ff">
+                            <div id="analysis-config-options" class="u-5790ff" style="display:none;">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -375,6 +385,26 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Live estimate based on selection -->
+                            <div id="live-estimate" class="mt-3" style="display:none;">
+                                <div class="card bg-light">
+                                    <div class="card-body d-flex align-items-center">
+                                        <i class="fas fa-calculator me-3 text-primary"></i>
+                                        <div>
+                                            <div class="fw-bold">Estimated run</div>
+                                            <div class="text-muted small">
+                                                Time: <span id="estimate-time">-</span> · Cost: <span id="estimate-cost">-</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Inline validation -->
+                            <div id="step3-error" class="text-danger small d-none mt-2">
+                                Please select an analysis type to continue.
                             </div>
                         </div>
                     </div>
@@ -526,11 +556,14 @@
                                 Step <span id="current-step">1</span> of 4
                             </div>
                             <div>
-                                <button type="button" class="btn btn-primary" id="next-btn" onclick="nextStep()">
+                                <button type="button" class="btn btn-primary" id="next-btn" onclick="nextStep()" disabled>
                                     Next <i class="fas fa-chevron-right ms-1"></i>
                                 </button>
-                                <button type="submit" class="btn btn-success u-5790ff" id="launch-btn">
+                                <button type="submit" class="btn btn-success u-5790ff" id="launch-btn" style="display:none;">
                                     <i class="fas fa-rocket me-1"></i>Launch Analysis
+                                </button>
+                                <button type="button" class="btn btn-success u-5790ff" id="launch-btn-loading" style="display:none;" disabled>
+                                    <i class="fas fa-spinner fa-spin me-1"></i>Launching...
                                 </button>
                             </div>
                         </div>
@@ -599,45 +632,60 @@ function updateWizardStep() {
     // Update navigation buttons
     document.getElementById('prev-btn').disabled = currentStep === 1;
     document.getElementById('current-step').textContent = currentStep;
-    
+
+    const nextBtn = document.getElementById('next-btn');
+    const launchBtn = document.getElementById('launch-btn');
+    nextBtn.style.display = currentStep === 4 ? 'none' : 'inline-block';
+    launchBtn.style.display = currentStep === 4 ? 'inline-block' : 'none';
+
+    // Enable/disable Next based on step validation state
+    nextBtn.disabled = !canProceedFromStep(currentStep);
+
     if (currentStep === 4) {
-        document.getElementById('next-btn').style.display = 'none';
-        document.getElementById('launch-btn').style.display = 'inline-block';
         updateAnalysisSummary();
-    } else {
-        document.getElementById('next-btn').style.display = 'inline-block';
-        document.getElementById('launch-btn').style.display = 'none';
     }
 }
 
 function validateCurrentStep() {
     switch (currentStep) {
         case 1:
+            const step1Err = document.getElementById('step1-error');
             if (!selectedModel) {
-                alert('Please select a model to continue.');
+                step1Err.classList.remove('d-none');
                 return false;
-            }
+            } else { step1Err.classList.add('d-none'); }
             loadApplicationsForModel(selectedModel);
             return true;
         case 2:
+            const step2Err = document.getElementById('step2-error');
             if (!selectedApp) {
-                alert('Please select an application to continue.');
+                step2Err.classList.remove('d-none');
                 return false;
-            }
+            } else { step2Err.classList.add('d-none'); }
             return true;
         case 3:
+            const step3Err = document.getElementById('step3-error');
             if (!selectedAnalysisType) {
-                alert('Please select an analysis type to continue.');
+                step3Err.classList.remove('d-none');
                 return false;
-            }
+            } else { step3Err.classList.add('d-none'); }
             return true;
         default:
             return true;
     }
 }
 
+function canProceedFromStep(step) {
+    if (step === 1) return !!selectedModel;
+    if (step === 2) return !!selectedApp;
+    if (step === 3) return !!selectedAnalysisType;
+    return true;
+}
+
 function selectModel(modelSlug, modelName) {
     selectedModel = { slug: modelSlug, name: modelName };
+    // persist
+    try { sessionStorage.setItem('analysis_selected_model', JSON.stringify(selectedModel)); } catch (e) {}
     // update hidden input
     const modelInput = document.getElementById('input-model-slug');
     if (modelInput) modelInput.value = modelSlug;
@@ -658,6 +706,9 @@ function selectModel(modelSlug, modelName) {
     const details = document.getElementById('selected-model-details');
     details.innerHTML = `<strong>${modelName}</strong> selected for analysis`;
     preview.style.display = 'block';
+
+    // allow next
+    document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
 }
 
 function loadApplicationsForModel(model) {
@@ -671,6 +722,7 @@ function loadApplicationsForModel(model) {
 
 function selectApp(appNumber, appInfo) {
     selectedApp = { number: appNumber, info: appInfo };
+    try { sessionStorage.setItem('analysis_selected_app', JSON.stringify(selectedApp)); } catch (e) {}
     // update hidden input
     const appInput = document.getElementById('input-app-number');
     if (appInput) appInput.value = String(appNumber);
@@ -690,6 +742,8 @@ function selectApp(appNumber, appInfo) {
     const details = document.getElementById('selected-app-details');
     details.innerHTML = `<strong>Application #${appNumber}</strong> selected for analysis`;
     preview.style.display = 'block';
+
+    document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
 }
 
 function updateAnalysisConfig() {
@@ -697,6 +751,21 @@ function updateAnalysisConfig() {
     if (selected) {
         selectedAnalysisType = selected.value;
         document.getElementById('analysis-config-options').style.display = 'block';
+        document.getElementById('live-estimate').style.display = 'block';
+        // persist
+        try { sessionStorage.setItem('analysis_selected_type', selectedAnalysisType); } catch (e) {}
+        // show live estimate
+        const estimates = {
+            security: { time: '5-10 minutes', cost: '$0.05-$0.15' },
+            performance: { time: '3-8 minutes', cost: '$0.03-$0.12' },
+            dynamic: { time: '7-15 minutes', cost: '$0.08-$0.25' },
+            comprehensive: { time: '15-30 minutes', cost: '$0.15-$0.45' }
+        };
+        if (estimates[selectedAnalysisType]) {
+            document.getElementById('estimate-time').textContent = estimates[selectedAnalysisType].time;
+            document.getElementById('estimate-cost').textContent = estimates[selectedAnalysisType].cost;
+        }
+        document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
     }
 }
 
@@ -761,6 +830,41 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Restore selections from sessionStorage
+    try {
+        const savedModel = sessionStorage.getItem('analysis_selected_model');
+        if (savedModel) {
+            const m = JSON.parse(savedModel);
+            if (m?.slug && m?.name) {
+                // Wait for grid to load then select
+                const ensureSelect = () => selectModel(m.slug, m.name);
+                if (!document.querySelector(`.model-card[data-model-slug="${m.slug}"]`)) {
+                    document.addEventListener('htmx:afterSwap', (evt) => {
+                        const tgt = evt.detail && evt.detail.target ? evt.detail.target : null;
+                        if (tgt && (tgt.id === 'model-selection-grid' || tgt.closest?.('#model-selection-grid'))) {
+                            ensureSelect();
+                        }
+                    }, { once: true });
+                } else { ensureSelect(); }
+            }
+        }
+        const savedApp = sessionStorage.getItem('analysis_selected_app');
+        if (savedApp) {
+            const a = JSON.parse(savedApp);
+            if (a?.number) {
+                // Will be visually selected when list loads; set hidden input now
+                const appInput = document.getElementById('input-app-number');
+                if (appInput) appInput.value = String(a.number);
+                selectedApp = a;
+            }
+        }
+        const savedType = sessionStorage.getItem('analysis_selected_type');
+        if (savedType) {
+            const radio = document.querySelector(`input[name="analysis_type"][value="${savedType}"]`);
+            if (radio) { radio.checked = true; updateAnalysisConfig(); }
+        }
+    } catch (e) { /* ignore */ }
+
     // If a ?model=slug is present in the URL, preselect it and load applications
     try {
         const params = new URLSearchParams(window.location.search);
@@ -790,6 +894,25 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     } catch (e) { /* ignore */ }
+
+    // Keyboard navigation: Enter to advance
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+            if (['input', 'select', 'textarea'].includes(tag)) return; // don't hijack form fields
+            if (currentStep < 4 && canProceedFromStep(currentStep)) {
+                e.preventDefault();
+                nextStep();
+            }
+        }
+    });
+
+    // Submit spinner
+    const form = document.getElementById('analysis-wizard-form');
+    form.addEventListener('submit', function() {
+        document.getElementById('launch-btn').style.display = 'none';
+        document.getElementById('launch-btn-loading').style.display = 'inline-block';
+    });
 });
 </script>
 {% endblock %}

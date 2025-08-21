@@ -401,6 +401,129 @@
     </div>
 </div>
 
+<!-- Static Analyzer Findings (Bandit/Pylint) -->
+{% set static_findings = analysis.results.static_analysis if analysis.results and analysis.results.static_analysis else None %}
+{% if static_findings %}
+<div class="mt-4">
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <h6 class="mb-0"><i class="fas fa-microscope me-2"></i>Static Analyzer Findings</h6>
+            <span class="badge bg-secondary">Python</span>
+        </div>
+        <div class="card-body">
+            <div class="accordion" id="staticAnalyzerAccordion">
+                {% if static_findings.python.bandit %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingBandit">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBandit" aria-expanded="true" aria-controls="collapseBandit">
+                            Bandit Issues
+                            <span class="badge bg-{{ 'danger' if (static_findings.python.bandit.total_issues or 0) > 5 else 'warning' if (static_findings.python.bandit.total_issues or 0) > 0 else 'success' }} ms-2">
+                                {{ static_findings.python.bandit.total_issues or 0 }}
+                            </span>
+                        </button>
+                    </h2>
+                    <div id="collapseBandit" class="accordion-collapse collapse show" aria-labelledby="headingBandit" data-bs-parent="#staticAnalyzerAccordion">
+                        <div class="accordion-body">
+                            {% if static_findings.python.bandit.issues %}
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Severity</th>
+                                            <th>Test</th>
+                                            <th>File:Line</th>
+                                            <th>Message</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for iss in static_findings.python.bandit.issues %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-{{ 'danger' if iss.issue_severity == 'HIGH' else 'warning' if iss.issue_severity == 'MEDIUM' else 'secondary' }}">{{ iss.issue_severity|title }}</span>
+                                            </td>
+                                            <td>
+                                                <code class="small">{{ iss.test_id }}</code>
+                                                <div class="text-muted small">{{ iss.test_name|replace('_',' ')|title }}</div>
+                                            </td>
+                                            <td>
+                                                <code class="small">{{ iss.filename }}</code>
+                                                {% if iss.line_number %}<div class="text-muted small">Line {{ iss.line_number }}</div>{% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="small">{{ iss.issue_text }}</div>
+                                                {% if iss.more_info %}
+                                                <a href="{{ iss.more_info }}" target="_blank" class="small">More info</a>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                                <div class="text-success small"><i class="fas fa-check me-1"></i>No Bandit issues reported.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if static_findings.python.pylint %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingPylint">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePylint" aria-expanded="false" aria-controls="collapsePylint">
+                            Pylint Issues
+                            <span class="badge bg-{{ 'danger' if (static_findings.python.pylint.total_issues or 0) > 5 else 'warning' if (static_findings.python.pylint.total_issues or 0) > 0 else 'success' }} ms-2">
+                                {{ static_findings.python.pylint.total_issues or 0 }}
+                            </span>
+                        </button>
+                    </h2>
+                    <div id="collapsePylint" class="accordion-collapse collapse" aria-labelledby="headingPylint" data-bs-parent="#staticAnalyzerAccordion">
+                        <div class="accordion-body">
+                            {% if static_findings.python.pylint.issues %}
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Type</th>
+                                            <th>Message</th>
+                                            <th>Module</th>
+                                            <th>File:Line</th>
+                                            <th>Symbol</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for iss in static_findings.python.pylint.issues %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-{{ 'danger' if iss.type == 'error' else 'warning' if iss.type == 'warning' else 'secondary' }}">{{ iss.type|title }}</span>
+                                            </td>
+                                            <td class="small">{{ iss.message }}</td>
+                                            <td class="small">{{ iss.module }}</td>
+                                            <td>
+                                                <code class="small">{{ iss.path }}</code>
+                                                {% if iss.line %}<div class="text-muted small">Line {{ iss.line }}</div>{% endif %}
+                                            </td>
+                                            <td><code class="small">{{ iss.symbol }}</code></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                                <div class="text-success small"><i class="fas fa-check me-1"></i>No Pylint issues reported.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
 // Initialize security analysis charts
 function initializeSecurityCharts() {
