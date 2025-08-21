@@ -40,11 +40,11 @@ class AnalysisConfig(db.Model):
     
     # Usage tracking
     usage_count = db.Column(db.Integer, default=0)
-    last_used = db.Column(db.DateTime)
+    last_used = db.Column(db.DateTime(timezone=True))
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     # Relationships
     child_configs = db.relationship('AnalysisConfig', 
@@ -146,8 +146,8 @@ class ConfigPreset(db.Model):
     rating_count = db.Column(db.Integer, default=0)
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     def get_preset_data(self) -> Dict[str, Any]:
         """Get preset data as dictionary."""

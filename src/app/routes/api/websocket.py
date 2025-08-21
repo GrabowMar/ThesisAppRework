@@ -109,14 +109,19 @@ def start_analysis():
             })
         else:
             return jsonify({
-                'error': 'Failed to start analysis'
-            }), 500
+                'error': 'Failed to start analysis',
+                'details': 'WebSocket backend unavailable or task enqueue failed'
+            }), 503
         
     except Exception as e:
         logger.error(f"Error starting analysis: {e}")
-        return jsonify({
-            'error': str(e)
-        }), 500
+        # Map infrastructure connectivity issues to 503 (service unavailable)
+        msg = str(e).lower()
+        if any(tok in msg for tok in [
+            'redis', 'connection refused', 'econnrefused', '10061', '111', 'timeout', 'timed out', 'connect', 'refused'
+        ]):
+            return jsonify({'error': 'WebSocket backend unavailable', 'details': str(e)}), 503
+        return jsonify({'error': str(e)}), 500
 
 @websocket_api.route('/analysis/<analysis_id>/cancel', methods=['POST'])
 def cancel_analysis(analysis_id):
@@ -314,11 +319,16 @@ def test_websocket():
             })
         else:
             return jsonify({
-                'error': 'Failed to start test analysis'
-            }), 500
+                'error': 'Failed to start test analysis',
+                'details': 'WebSocket backend unavailable or task enqueue failed'
+            }), 503
         
     except Exception as e:
         logger.error(f"Error in WebSocket test: {e}")
-        return jsonify({
-            'error': str(e)
-        }), 500
+        # Map infrastructure connectivity issues to 503 (service unavailable)
+        msg = str(e).lower()
+        if any(tok in msg for tok in [
+            'redis', 'connection refused', 'econnrefused', '10061', '111', 'timeout', 'timed out', 'connect', 'refused'
+        ]):
+            return jsonify({'error': 'WebSocket backend unavailable', 'details': str(e)}), 503
+        return jsonify({'error': str(e)}), 500

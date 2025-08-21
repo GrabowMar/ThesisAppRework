@@ -1229,14 +1229,29 @@ def security_analysis_results_view(analysis_id):
             total_vulnerabilities += eslint_count
             tools_executed += 1
         
-        # Calculate scan duration
+        # Calculate scan duration (handle naive vs aware datetimes safely)
         scan_duration = 'N/A'
         if analysis.started_at and analysis.completed_at:
-            duration = analysis.completed_at - analysis.started_at
-            if duration.total_seconds() < 60:
-                scan_duration = f"{int(duration.total_seconds())}s"
-            else:
-                scan_duration = f"{int(duration.total_seconds() // 60)}m {int(duration.total_seconds() % 60)}s"
+            try:
+                from datetime import timezone as _tz
+                sa = analysis.started_at
+                ca = analysis.completed_at
+                if sa.tzinfo is None:
+                    sa = sa.replace(tzinfo=_tz.utc)
+                else:
+                    sa = sa.astimezone(_tz.utc)
+                if ca.tzinfo is None:
+                    ca = ca.replace(tzinfo=_tz.utc)
+                else:
+                    ca = ca.astimezone(_tz.utc)
+                duration = ca - sa
+                total = int(duration.total_seconds())
+                if total < 60:
+                    scan_duration = f"{total}s"
+                else:
+                    scan_duration = f"{total // 60}m {total % 60}s"
+            except Exception:
+                scan_duration = 'N/A'
         
         # Prepare severity distribution for charts
         severity_distribution = {

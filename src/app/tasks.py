@@ -92,6 +92,31 @@ _task_ctx_lock: Lock = Lock()
 _task_ctx_map = {}  # task_id -> app_context_object
 _task_ctx_managed_by_override = set()  # task_ids currently managed by _ContextTask
 
+
+# ----- datetime utilities ----------------------------------------------------
+def _seconds_between(end_dt: Optional[datetime], start_dt: Optional[datetime]) -> Optional[float]:
+    """Return seconds between two datetimes, normalizing to UTC and handling
+    naive vs aware datetimes safely. Returns None if either is missing.
+    """
+    if not end_dt or not start_dt:
+        return None
+    def to_utc(dt: datetime) -> datetime:
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    try:
+        e = to_utc(end_dt)
+        s = to_utc(start_dt)
+        return (e - s).total_seconds()
+    except Exception:
+        # Last-resort fallback via timestamps
+        try:
+            e_ts = (end_dt.replace(tzinfo=timezone.utc)).timestamp()
+            s_ts = (start_dt.replace(tzinfo=timezone.utc)).timestamp()
+            return e_ts - s_ts
+        except Exception:
+            return None
+
 def _ensure_worker_app():
     global _worker_flask_app
     if _worker_flask_app is None:
@@ -257,7 +282,17 @@ def security_analysis_task(self, model_slug: str, app_number: int,
                     analysis.status = AnalysisStatus.COMPLETED if status == 'completed' else AnalysisStatus.FAILED
                     analysis.completed_at = datetime.now(timezone.utc)
                     if analysis.started_at:
-                        analysis.analysis_duration = (analysis.completed_at - analysis.started_at).total_seconds()
+                        # Ensure both datetimes are timezone-aware (UTC)
+                        def ensure_aware(dt):
+                            if dt is None:
+                                return None
+                            if dt.tzinfo is None:
+                                return dt.replace(tzinfo=timezone.utc)
+                            return dt
+                        started = ensure_aware(analysis.started_at)
+                        completed = ensure_aware(analysis.completed_at)
+                        if started and completed:
+                            analysis.analysis_duration = (completed - started).total_seconds()
                     # Store raw result JSON
                     try:
                         analysis.results_json = _json.dumps(result)
@@ -306,7 +341,17 @@ def security_analysis_task(self, model_slug: str, app_number: int,
                         analysis.status = AnalysisStatus.FAILED
                         analysis.completed_at = datetime.now(timezone.utc)
                         if analysis.started_at:
-                            analysis.analysis_duration = (analysis.completed_at - analysis.started_at).total_seconds()
+                            # Ensure both datetimes are timezone-aware (UTC)
+                            def ensure_aware(dt):
+                                if dt is None:
+                                    return None
+                                if dt.tzinfo is None:
+                                    return dt.replace(tzinfo=timezone.utc)
+                                return dt
+                            started = ensure_aware(analysis.started_at)
+                            completed = ensure_aware(analysis.completed_at)
+                            if started and completed:
+                                analysis.analysis_duration = (completed - started).total_seconds()
                         # Append error metadata
                         meta = analysis.get_metadata() if hasattr(analysis, 'get_metadata') else {}
                         meta['last_error'] = str(e)
@@ -565,12 +610,24 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
                 if analysis:
                     analysis.status = AnalysisStatus.COMPLETED if status == 'completed' else AnalysisStatus.FAILED
                     analysis.completed_at = datetime.now(timezone.utc)
+                    analysis_duration = None
                     if analysis.started_at:
-                        analysis_duration = (analysis.completed_at - analysis.started_at).total_seconds()
-                        # Not stored explicitly in ZAPAnalysis; include in metadata
-                        meta = analysis.get_metadata()
-                        meta['analysis_duration'] = analysis_duration
-                        analysis.set_metadata(meta)
+                        # Ensure both datetimes are timezone-aware (UTC)
+                        def ensure_aware(dt):
+                            if dt is None:
+                                return None
+                            if dt.tzinfo is None:
+                                return dt.replace(tzinfo=timezone.utc)
+                            return dt
+                        started = ensure_aware(analysis.started_at)
+                        completed = ensure_aware(analysis.completed_at)
+                        if started and completed:
+                            analysis_duration = (completed - started).total_seconds()
+                        # Not stored explicitly in ZAPAnalysis; include in metadata if available
+                        if analysis_duration is not None:
+                            meta = analysis.get_metadata()
+                            meta['analysis_duration'] = analysis_duration
+                            analysis.set_metadata(meta)
                     # Store raw result JSON
                     try:
                         analysis.set_zap_report(result)

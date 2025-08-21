@@ -64,8 +64,8 @@ class ModelCapability(db.Model):
     metadata_json = db.Column(db.Text)      # Additional metadata
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Get capabilities as dictionary."""
@@ -137,8 +137,8 @@ class PortConfiguration(db.Model):
     metadata_json = db.Column(db.Text)
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     # Unique constraint for model + app combination
     __table_args__ = (db.UniqueConstraint('model', 'app_num', name='unique_model_app_port'),)
@@ -191,9 +191,9 @@ class GeneratedApplication(db.Model):
     frontend_framework = db.Column(db.String(50))
     container_status = db.Column(db.String(50), default='stopped')
     metadata_json = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
-    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), 
-                          onupdate=db.func.current_timestamp())
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, 
+                          onupdate=utc_now)
     
     # Relationships
     security_analyses = db.relationship('SecurityAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
@@ -354,10 +354,10 @@ class SecurityAnalysis(db.Model):
     global_config_json = db.Column(db.Text) # Global analysis configuration
     
     # Timestamps
-    started_at = db.Column(db.DateTime)
-    completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     def get_results(self) -> Dict[str, Any]:
         """Get results as dictionary."""
@@ -719,10 +719,10 @@ class PerformanceTest(db.Model):
     metadata_json = db.Column(db.Text)      # Test metadata
     
     # Timestamps
-    started_at = db.Column(db.DateTime)
-    completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     def get_results(self) -> Dict[str, Any]:
         """Get results as dictionary."""
@@ -802,10 +802,10 @@ class ZAPAnalysis(db.Model):
     metadata_json = db.Column(db.Text)      # Scan metadata
     
     # Timestamps
-    started_at = db.Column(db.DateTime)
-    completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     def get_zap_report(self) -> Dict[str, Any]:
         """Get ZAP report as dictionary."""
@@ -887,10 +887,10 @@ class OpenRouterAnalysis(db.Model):
     metadata_json = db.Column(db.Text)      # Analysis metadata
     
     # Timestamps
-    started_at = db.Column(db.DateTime)
-    completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     def get_findings(self) -> Dict[str, Any]:
         """Get findings as dictionary."""
@@ -975,20 +975,20 @@ class ContainerizedTest(db.Model):
     status = db.Column(db.String(50), default=ContainerState.STOPPED.value)
     
     # Health monitoring
-    last_health_check = db.Column(db.DateTime)
+    last_health_check = db.Column(db.DateTime(timezone=True))
     health_status = db.Column(db.String(50))  # healthy, unhealthy, unknown
     
     # Usage statistics
     total_requests = db.Column(db.Integer, default=0)
-    last_used = db.Column(db.DateTime)
+    last_used = db.Column(db.DateTime(timezone=True))
     
     # JSON fields
     config_json = db.Column(db.Text)        # Container configuration
     metadata_json = db.Column(db.Text)      # Additional metadata
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     def get_config(self) -> Dict[str, Any]:
         """Get configuration as dictionary."""
@@ -1051,14 +1051,14 @@ class OpenRouterModelCache(db.Model):
     model_data_json = db.Column(db.Text, nullable=False)  # Full OpenRouter model data
     
     # Cache metadata
-    cache_expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    cache_expires_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
     fetch_duration = db.Column(db.Float)  # Time taken to fetch from API
     api_response_status = db.Column(db.Integer)  # HTTP status code
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
-    last_accessed = db.Column(db.DateTime, default=utc_now)  # Track usage
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    last_accessed = db.Column(db.DateTime(timezone=True), default=utc_now)  # Track usage
     
     def get_model_data(self) -> Dict[str, Any]:
         """Get cached model data as dictionary."""
@@ -1114,13 +1114,13 @@ class ExternalModelInfoCache(db.Model):
     merged_json = db.Column(db.Text, nullable=False)
 
     # Cache metadata
-    cache_expires_at = db.Column(db.DateTime, nullable=False, index=True)
-    last_refreshed = db.Column(db.DateTime, default=utc_now)
+    cache_expires_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
+    last_refreshed = db.Column(db.DateTime(timezone=True), default=utc_now)
     source_notes = db.Column(db.String(200))  # e.g., "openrouter+hf"
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     def get_data(self) -> Dict[str, Any]:
         try:
@@ -1167,17 +1167,17 @@ class BatchAnalysis(db.Model):
     results_summary = db.Column(db.Text)    # JSON summary of results
     
     # Timing
-    started_at = db.Column(db.DateTime)
-    completed_at = db.Column(db.DateTime)
-    estimated_completion = db.Column(db.DateTime)
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+    estimated_completion = db.Column(db.DateTime(timezone=True))
     
     # JSON fields
     config_json = db.Column(db.Text)        # Full job configuration
     metadata_json = db.Column(db.Text)      # Job metadata
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=utc_now)
-    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     def get_analysis_types(self) -> List[str]:
         """Get analysis types as list."""
