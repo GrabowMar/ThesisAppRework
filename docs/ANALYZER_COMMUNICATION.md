@@ -197,6 +197,38 @@ Flask/Celery:
 - Wire new operations in `analyzer_manager.py` and add wrappers in `app/services/analyzer_integration.py`
 - Update UI routes and batch form to surface new analysis types and options
 
+## 2025-08 Enhancements (Locust & OWASP ZAP)
+
+### Performance Tester (Locust Integration)
+The performance tester now attempts a short headless Locust run for the first target URL when the `locust` package/CLI is available. Default parameters:
+- Users: 15
+- Spawn rate: 3 users/sec
+- Duration: 15s
+
+Override by passing a config object when initiating a performance test:
+```json
+{
+  "locust": { "users": 30, "spawn_rate": 5, "run_time": "30s" }
+}
+```
+Results appear under the key `locust` inside the first URL result with summary metrics:
+`requests_per_second`, `p95_response_time_ms`, `average_response_time_ms`, `total_requests`, `failures`.
+
+### Dynamic Analyzer (Optional OWASP ZAP Scan)
+If the Python client `python-owasp-zap-v2.4` is installed and a ZAP daemon is reachable at `http://localhost:${ZAP_PORT}` (default 8090), the dynamic analyzer performs:
+1. Spider scan for the first reachable URL.
+2. Passive scan wait (bounded time window).
+3. Attempted short active scan (best effort; failure does not abort overall analysis).
+
+Output structure under `zap_scan` includes:
+`alert_counts` (High/Medium/Low/Informational), `total_alerts`, `active_scan` status, and capped `alerts_sample` (first 25 alerts).
+
+Environment variables:
+- `ZAP_PORT` (default 8090)
+- `ZAP_API_KEY` (optional)
+
+If unreachable, returns `{"status": "unreachable", "message": "No ZAP daemon ..."}` instead of failing the entire dynamic analysis.
+
 ## References
 
 - `analyzer/docker-compose.yml` — services, ports, mounts

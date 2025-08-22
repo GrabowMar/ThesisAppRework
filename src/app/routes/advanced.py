@@ -510,26 +510,22 @@ def api_model_details(model_id):
 
 # Helper Functions
 def get_container_status(app):
-    """Get current container status for an application."""
+    """Get current container status for an application's backend container.
+
+    (Frontend status could be added later; for UI summaries we treat backend as canonical.)
+    """
     try:
-        # Use centralized DockerManager client
+        from app.constants import ContainerNames
         dm = ServiceLocator.get_docker_manager()
         docker_client = getattr(dm, 'client', None)
         if docker_client is None:
             return 'unknown'
-        container_name = f"{app.model_slug}_app{app.app_number}"
-        
-        containers = docker_client.containers.list(
-            all=True, 
-            filters={'name': container_name}
-        )
-        
+
+        backend_name = ContainerNames.get_container_name(app.model_slug, app.app_number, ContainerNames.BACKEND)
+        containers = docker_client.containers.list(all=True, filters={'name': backend_name})
         if containers:
-            container = containers[0]
-            return container.status
-        else:
-            return 'stopped'
-            
+            return containers[0].status
+        return 'stopped'
     except Exception as e:
         logger.warning(f"Error getting container status: {str(e)}")
         return 'unknown'
@@ -680,41 +676,50 @@ def get_file_stats(app):
         return {'files': 0, 'size': 0, 'size_mb': 0}
 
 def execute_container_action(docker_client, model_slug, app_number, action):
-    """Execute a container action (start, stop, restart)."""
+    """Execute an action on backend & frontend containers (backend primary)."""
+    from app.constants import ContainerNames
     try:
-        container_name = f"{model_slug}_app{app_number}"
-        
+        backend_name = ContainerNames.get_container_name(model_slug, app_number, ContainerNames.BACKEND)
+        frontend_name = ContainerNames.get_container_name(model_slug, app_number, ContainerNames.FRONTEND)
+
+        def ensure_started(name):
+            try:
+                c = docker_client.containers.get(name)
+                if c.status != 'running':
+                    c.start()
+                return True
+            except docker.errors.NotFound:
+                return False
+
         if action == 'start':
-            # First check if container exists
-            try:
-                container = docker_client.containers.get(container_name)
-                if container.status != 'running':
-                    container.start()
-                return True
-            except docker.errors.NotFound:
-                # Container doesn't exist, need to build it
+            backend_ok = ensure_started(backend_name)
+            frontend_ok = ensure_started(frontend_name)
+            if not (backend_ok and frontend_ok):
+                # Attempt build if either missing
                 return build_and_start_container(docker_client, model_slug, app_number)
-                
+            return True
         elif action == 'stop':
-            try:
-                container = docker_client.containers.get(container_name)
-                if container.status == 'running':
-                    container.stop()
-                return True
-            except docker.errors.NotFound:
-                return True  # Already stopped/doesn't exist
-                
+            for name in (frontend_name, backend_name):
+                try:
+                    c = docker_client.containers.get(name)
+                    if c.status == 'running':
+                        c.stop()
+                except docker.errors.NotFound:
+                    continue
+            return True
         elif action == 'restart':
-            try:
-                container = docker_client.containers.get(container_name)
-                container.restart()
-                return True
-            except docker.errors.NotFound:
-                # Build and start if doesn't exist
+            performed = False
+            for name in (backend_name, frontend_name):
+                try:
+                    c = docker_client.containers.get(name)
+                    c.restart()
+                    performed = True
+                except docker.errors.NotFound:
+                    continue
+            if not performed:
                 return build_and_start_container(docker_client, model_slug, app_number)
-                
+            return True
         return False
-        
     except Exception as e:
         logger.error(f"Error executing container action {action}: {str(e)}")
         return False

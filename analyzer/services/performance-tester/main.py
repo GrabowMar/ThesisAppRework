@@ -86,6 +86,15 @@ class PerformanceTester:
         # Always available - built-in aiohttp
         tools.append('aiohttp')
         logger.debug("aiohttp available (built-in)")
+        # Check for locust python package (import)
+        try:
+            import importlib  # noqa: F401
+            locust_spec = __import__('locust')  # type: ignore
+            if locust_spec:
+                tools.append('locust')
+                logger.debug("locust available (python package)")
+        except Exception as e:
+            logger.debug(f"locust not available: {e}")
         
         return tools
 
@@ -496,6 +505,15 @@ class PerformanceTester:
                         ab_config = {'apache_bench': {'requests': 50, 'concurrency': 5}}
                         ab_result = await self.load_test_with_ab(url, ab_config)
                         url_results['apache_bench'] = ab_result
+
+                    # Locust test if available (run only for first URL by default to save time)
+                    if 'locust' in self.available_tools and i == 0:
+                        logger.info(f"Running Locust test for {url}")
+                        locust_cfg = None
+                        if config:
+                            locust_cfg = config.get('locust') if isinstance(config, dict) else None
+                        locust_result = await self.run_locust_test(url, locust_cfg)
+                        url_results['locust'] = locust_result
                 
                 results['results'][f'url_{i+1}'] = url_results
             
@@ -539,6 +557,102 @@ class PerformanceTester:
                 'model_slug': model_slug,
                 'app_number': app_number
             }
+
+    async def run_locust_test(self, url: str, locust_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run a short Locust headless load test against the base URL.
+
+        Implementation uses the locust CLI via subprocess to avoid mixing gevent with asyncio loop.
+        Generates CSV stats which are parsed for summary metrics.
+        """
+        if 'locust' not in self.available_tools:
+            return {'status': 'tool_unavailable', 'tool': 'locust'}
+        try:
+            # Defaults (kept deliberately small for fast feedback)
+            users = 15
+            spawn_rate = 3
+            run_time = '15s'
+            host = url.rstrip('/')
+            if locust_config:
+                users = int(locust_config.get('users', users))
+                spawn_rate = float(locust_config.get('spawn_rate', spawn_rate))
+                run_time = str(locust_config.get('run_time', run_time))
+            csv_prefix = f"/tmp/locust_{abs(hash(url))}"
+            cmd = [
+                'locust', '--headless',
+                '-u', str(users),
+                '-r', str(spawn_rate),
+                '-t', run_time,
+                '-H', host,
+                '--only-summary',
+                '--csv', csv_prefix
+            ]
+            await self._progress('locust_start', f'Locust test start: {url}', url=url, users=users, spawn_rate=spawn_rate)
+            # Derive a timeout (run_time -> seconds)
+            timeout_seconds = 60
+            try:
+                if run_time.endswith('s'):
+                    timeout_seconds = int(run_time[:-1]) + 30
+                elif run_time.endswith('m'):
+                    timeout_seconds = int(run_time[:-1]) * 60 + 30
+            except Exception:
+                pass
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_seconds)
+            if result.returncode != 0:
+                await self._progress('locust_error', f'Locust failed: {url}', url=url, exit_code=result.returncode)
+                return {'status': 'error', 'tool': 'locust', 'exit_code': result.returncode, 'stderr': result.stderr}
+            # Parse CSV stats
+            stats_file = f"{csv_prefix}_stats.csv"
+            summary = {}
+            if os.path.exists(stats_file):
+                try:
+                    import csv  # noqa: F401
+                    with open(stats_file, 'r', encoding='utf-8') as f:
+                        lines = f.read().strip().splitlines()
+                    if lines:
+                        header = [h.strip() for h in lines[0].split(',')]
+                        for row_line in lines[1:]:
+                            cols = [c.strip() for c in row_line.split(',')]
+                            row = dict(zip(header, cols))
+                            name = row.get('Name') or row.get('name')
+                            if name in ('Aggregated', 'Total', 'None', ''):
+                                # Extract metrics of interest
+                                rps = row.get('Requests/s') or row.get('Requests/s ')
+                                p95 = row.get('95%')
+                                avg_rt = row.get('Average Response Time') or row.get('Average Response Time ')
+                                failures = row.get('Failures')
+                                requests = row.get('Requests')
+                                summary = {
+                                    'requests_per_second': float(rps) if rps and rps.replace('.', '', 1).isdigit() else None,
+                                    'p95_response_time_ms': float(p95) if p95 and p95.replace('.', '', 1).isdigit() else None,
+                                    'average_response_time_ms': float(avg_rt) if avg_rt and avg_rt.replace('.', '', 1).isdigit() else None,
+                                    'total_requests': int(requests) if requests and requests.isdigit() else None,
+                                    'failures': int(failures) if failures and failures.isdigit() else None
+                                }
+                                break
+                except Exception as e:
+                    summary['parse_error'] = str(e)
+            await self._progress('locust_done', f'Locust test completed: {url}', url=url, rps=summary.get('requests_per_second'))
+            return {
+                'status': 'success',
+                'tool': 'locust',
+                'url': url,
+                'config_used': {
+                    'users': users,
+                    'spawn_rate': spawn_rate,
+                    'run_time': run_time
+                },
+                'summary': summary,
+                'stdout_tail': result.stdout.splitlines()[-5:] if result.stdout else []
+            }
+        except subprocess.TimeoutExpired:
+            await self._progress('locust_timeout', f'Locust timeout: {url}', url=url)
+            return {'status': 'timeout', 'tool': 'locust', 'url': url}
+        except FileNotFoundError:
+            # Locust executable not found though package claimed present
+            return {'status': 'error', 'tool': 'locust', 'error': 'locust command not found'}
+        except Exception as e:
+            await self._progress('locust_error', f'Locust error: {e}', url=url)
+            return {'status': 'error', 'tool': 'locust', 'error': str(e)}
     
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""

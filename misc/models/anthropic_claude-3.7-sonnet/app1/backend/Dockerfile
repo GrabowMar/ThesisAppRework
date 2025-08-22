@@ -12,8 +12,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy the rest of the application code
 COPY . .
 
-# Expose the application port
-EXPOSE 6051
+ARG APP_PORT=6051
+ENV APP_PORT=${APP_PORT}
+EXPOSE ${APP_PORT}
 
 # Run the application
 CMD ["python", "app.py"]
