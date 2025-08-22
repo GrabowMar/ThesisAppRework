@@ -1,4 +1,13 @@
 {# AdminLTE (dist) integration note #}
+{# Guard: ensure 'stats' dict exists to prevent template errors if context missing #}
+{% if stats is not defined or not stats %}
+    {% set stats = {
+        'total_models': 0,
+        'total_apps': 0,
+        'security_tests': 0,
+        'performance_tests': 0
+    } %}
+{% endif %}
 <div class="row">
     <div class="col-6 mb-2">
         <div class="stat-item text-center">

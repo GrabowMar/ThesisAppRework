@@ -23,19 +23,9 @@ from sqlalchemy.orm import Query
 from ..models import GeneratedApplication
 from ..extensions import db
 from ..constants import AnalysisStatus
+from .service_base import NotFoundError, ValidationError
 
-# ---------------------------------------------------------------------------
-# Exceptions
-# ---------------------------------------------------------------------------
-
-class ApplicationServiceError(Exception):
-    """Base service error."""
-
-class NotFoundError(ApplicationServiceError):
-    """Raised when an application is not found."""
-
-class ValidationError(ApplicationServiceError):
-    """Raised on invalid input."""
+# Exceptions now provided by service_base (NotFoundError, ValidationError)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -159,7 +149,7 @@ def stop_model_containers(model_slug: str) -> Dict[str, Any]:
     return {"model_slug": model_slug, "affected": len(apps), "stopped": stopped}
 
 __all__ = [
-    'ApplicationServiceError', 'NotFoundError', 'ValidationError',
+    'NotFoundError', 'ValidationError',
     'list_applications', 'create_application', 'get_application',
     'update_application', 'delete_application',
     'start_application', 'stop_application', 'restart_application',

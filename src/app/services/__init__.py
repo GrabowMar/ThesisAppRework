@@ -17,10 +17,9 @@ from .task_manager import TaskManager
 from .analyzer_integration import AnalyzerIntegration
 from .model_service import ModelService
 
-# Note on legacy services:
-# - AnalyzerService: removed in favor of AnalyzerIntegration + Celery tasks
-# - ContainerService: removed (unused stub)
-# - PortService: internal only (not exported)
+# Legacy services removed:
+# AnalyzerService, PortService, websocket_integration_v2 legacy shim.
+# ContainerService/HuggingFaceService retained only as deprecated compatibility shims.
 
 __all__ = [
     'ServiceLocator',

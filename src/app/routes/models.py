@@ -21,6 +21,7 @@ from datetime import timedelta
 from pathlib import Path
 from ..models import PortConfiguration  # type: ignore[attr-defined]
 from ..services import application_service as app_service
+import os
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -186,12 +187,19 @@ def model_details(model_slug):
             'analyses_count': analyses_count,
         })
         
+        # Disabled analysis gating info for UI indicator
+        disabled_env = os.getenv('DISABLED_ANALYSIS_MODELS', '')
+        disabled_models = {m.strip() for m in disabled_env.split(',') if m.strip()}
+        is_disabled = model_slug in disabled_models
+
         return render_template(
             'single_page.html',
             page_title=f"Model: {enriched_data.get('model_name', model_slug)}",
             page_icon='fas fa-robot',
             main_partial='partials/models/details.html',
-            model=enriched_data
+            model=enriched_data,
+            analysis_disabled=is_disabled,
+            disabled_models=disabled_models
         )
         
     except Exception as e:

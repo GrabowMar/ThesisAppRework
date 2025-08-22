@@ -1,9 +1,14 @@
-"""
-Service Locator Pattern
-======================
+"""Service Locator Pattern
+=========================
 
 Centralized service registry for dependency injection.
-Provides clean separation between service definitions and usage.
+Now intentionally minimal: deprecated services (AnalyzerService,
+ContainerService, HuggingFaceService, PortService) are no longer
+registered here. Shims remain only to prevent import errors.
+
+All new services should reuse standardized exceptions from
+`service_base` and keep side-effects (threads, external processes)
+outside of the Flask request path when possible.
 """
 
 from typing import Dict, Optional, TypeVar
@@ -34,10 +39,8 @@ class ServiceLocator:
     @classmethod
     def _register_core_services(cls, app: Flask):
         """Register all core application services."""
-        # Import services here to avoid circular imports
+        # Import services here to avoid circular imports. Keep the list short.
         from .model_service import ModelService
-
-        # Legacy services removed: AnalyzerService, ContainerService, PortService
 
         try:
             from .docker_manager import DockerManager
@@ -54,7 +57,7 @@ class ServiceLocator:
         except ImportError:
             SecurityService = None
 
-    # Register available services
+        # Register available services
         cls.register('model_service', ModelService(app))
 
         # No registrations for removed legacy services
@@ -66,7 +69,7 @@ class ServiceLocator:
             cls.register('security_service', SecurityService())
 
         # Best-effort: ensure PortConfiguration is populated from misc/port_config.json
-        # Only do this outside of tests to avoid slowing down the suite.
+        # Only done outside tests to avoid slowing the suite.
         try:
             import os as _os
             is_testing = bool(app.config.get('TESTING')) or bool(_os.environ.get('PYTEST_CURRENT_TEST'))

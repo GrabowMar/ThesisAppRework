@@ -17,7 +17,12 @@ from sqlalchemy import text
 # Import extensions and configurations
 from config.celery_config import CeleryConfig
 from app.extensions import db, init_extensions, get_components
-from app.services.analyzer_integration import get_analyzer_integration as create_analyzer_integration
+# Lazy import analyzer integration only if enabled to reduce startup coupling
+try:
+    from app.services.analyzer_integration import get_analyzer_integration as create_analyzer_integration  # type: ignore
+except Exception:  # pragma: no cover - optional
+    def create_analyzer_integration():
+        return None  # fallback noop
 
 # Configure logging
 logging.basicConfig(
@@ -353,6 +358,33 @@ def create_app(config_name: str = 'default') -> Flask:
         }
     
     logger.info(f"Flask application created successfully with config: {config_name}")
+
+    # Log disabled analysis models (environment-driven gating) for operator visibility
+    try:  # pragma: no cover - simple logging utility
+        _disabled_env = os.getenv('DISABLED_ANALYSIS_MODELS', '')
+        _disabled_set = {m.strip() for m in _disabled_env.split(',') if m.strip()}
+        if _disabled_set:
+            logger.warning(
+                "Analysis tasks DISABLED for models: %s (set via DISABLED_ANALYSIS_MODELS)",
+                ", ".join(sorted(_disabled_set))
+            )
+        else:
+            logger.info("No models disabled for analysis (DISABLED_ANALYSIS_MODELS empty)")
+    except Exception as _log_err:  # pragma: no cover
+        logger.debug(f"Could not log disabled models: {_log_err}")
+
+    # Inject current_app (and optionally config flags) into Jinja for templates that were
+    # previously referencing it implicitly. This prevents UndefinedError in lean test mode.
+    @app.context_processor  # type: ignore[misc]
+    def inject_current_app():  # pragma: no cover - simple
+        from flask import current_app as _ca
+        return {
+            'current_app': _ca,
+            'FEATURES': {
+                'codegen': False,  # flag retained for templates to feature-gate UI elements
+                'batch_jobs': False,
+            }
+        }
     
     return app
 

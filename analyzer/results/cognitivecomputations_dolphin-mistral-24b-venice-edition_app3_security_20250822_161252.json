@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "model_slug": "anthropic_claude-3.7-sonnet",
-    "app_number": 1,
+    "model_slug": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+    "app_number": 3,
     "analysis_type": "security",
-    "timestamp": "2025-08-21T16:32:08.107431",
+    "timestamp": "2025-08-22T16:12:52.102571",
     "analyzer_version": "1.0.0"
   },
   "results": {
@@ -11,9 +11,9 @@
     "status": "success",
     "service": "static-analyzer",
     "analysis": {
-      "model_slug": "anthropic_claude-3.7-sonnet",
-      "app_number": 1,
-      "analysis_time": "2025-08-21T14:32:02.473682",
+      "model_slug": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
+      "app_number": 3,
+      "analysis_time": "2025-08-22T14:12:47.671335",
       "tools_used": [
         "bandit",
         "pylint",
@@ -29,10 +29,10 @@
             "status": "success",
             "issues": [
               {
-                "code": "11 if __name__ == \"__main__\":\n12     app.run(host='0.0.0.0', port=6051)\n",
+                "code": "11 if __name__ == \"__main__\":\n12     app.run(host='0.0.0.0', port=5005)\n",
                 "col_offset": 17,
                 "end_col_offset": 26,
-                "filename": "/app/sources/anthropic_claude-3.7-sonnet/app1/backend/app.py",
+                "filename": "/app/sources/cognitivecomputations_dolphin-mistral-24b-venice-edition/app3/backend/app.py",
                 "issue_confidence": "MEDIUM",
                 "issue_cwe": {
                   "id": 605,
@@ -51,7 +51,7 @@
             ],
             "total_issues": 1,
             "metrics": {
-              "/app/sources/anthropic_claude-3.7-sonnet/app1/backend/app.py": {
+              "/app/sources/cognitivecomputations_dolphin-mistral-24b-venice-edition/app3/backend/app.py": {
                 "CONFIDENCE.HIGH": 0,
                 "CONFIDENCE.LOW": 0,
                 "CONFIDENCE.MEDIUM": 1,
@@ -85,6 +85,19 @@
             "status": "success",
             "issues": [
               {
+                "type": "convention",
+                "module": "app",
+                "obj": "",
+                "line": 9,
+                "column": 0,
+                "endLine": null,
+                "endColumn": null,
+                "path": "sources/cognitivecomputations_dolphin-mistral-24b-venice-edition/app3/backend/app.py",
+                "symbol": "line-too-long",
+                "message": "Line too long (117/100)",
+                "message-id": "C0301"
+              },
+              {
                 "type": "error",
                 "module": "app",
                 "obj": "",
@@ -92,7 +105,7 @@
                 "column": 0,
                 "endLine": 1,
                 "endColumn": 32,
-                "path": "sources/anthropic_claude-3.7-sonnet/app1/backend/app.py",
+                "path": "sources/cognitivecomputations_dolphin-mistral-24b-venice-edition/app3/backend/app.py",
                 "symbol": "import-error",
                 "message": "Unable to import 'flask'",
                 "message-id": "E0401"
@@ -105,13 +118,13 @@
                 "column": 0,
                 "endLine": 2,
                 "endColumn": 27,
-                "path": "sources/anthropic_claude-3.7-sonnet/app1/backend/app.py",
+                "path": "sources/cognitivecomputations_dolphin-mistral-24b-venice-edition/app3/backend/app.py",
                 "symbol": "import-error",
                 "message": "Unable to import 'flask_cors'",
                 "message-id": "E0401"
               }
             ],
-            "total_issues": 2,
+            "total_issues": 3,
             "files_analyzed": 1,
             "config_used": {}
           }
@@ -139,7 +152,7 @@
             "typescript": 0,
             "css": 1,
             "html": 1,
-            "json": 658,
+            "json": 1,
             "dockerfile": 2,
             "docker_compose": 1
           },
@@ -149,11 +162,11 @@
             "dockerfile": true,
             "gitignore": false
           },
-          "total_files": 666
+          "total_files": 9
         }
       },
       "summary": {
-        "total_issues_found": 3,
+        "total_issues_found": 4,
         "tools_run_successfully": 2,
         "severity_breakdown": {
           "error": 0,
@@ -164,6 +177,6 @@
         "configuration_preset": "default"
       }
     },
-    "timestamp": "2025-08-21T14:32:07.310907"
+    "timestamp": "2025-08-22T14:12:51.743405"
   }
 }

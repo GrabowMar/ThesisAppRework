@@ -8,25 +8,23 @@ containerized analyzer services through analyzer integration.
 
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
+import os
 import json as _json
 
 from celery import Celery
 from celery.signals import task_prerun, task_postrun, worker_ready
 from threading import Lock
 
-# Import analyzer integration service
-try:
-    from app.services.analyzer_integration import get_analyzer_integration as _get_analyzer_integration
-    from app.services.batch_service import batch_service
-    
-    _analyzer_integration_available = True
-        
-except ImportError:
-    print("Warning: Could not import analyzer integration service.")
-    
-    _analyzer_integration_available = False
-    _get_analyzer_integration = None
-    batch_service = None
+# Import engine registry & batch service (best-effort)
+try:  # pragma: no cover - import guard
+    from app.services.analysis_engines import get_engine
+except Exception:  # pragma: no cover
+    get_engine = None  # type: ignore
+
+try:  # pragma: no cover
+    from app.services.batch_service import batch_service  # type: ignore
+except Exception:  # pragma: no cover
+    batch_service = None  # type: ignore
 
 # Import configuration
 from config.celery_config import (
@@ -39,6 +37,35 @@ from config.celery_config import (
     CELERY_SEND_EVENTS, CELERY_TASK_REJECT_ON_WORKER_LOST, CELERY_TASK_DEFAULT_RETRY_DELAY,
     CELERY_TASK_MAX_RETRIES, CELERYBEAT_SCHEDULE
 )
+
+# ---------------------------------------------------------------------------
+# Model Disable Gating
+# ---------------------------------------------------------------------------
+# Allow operators to disable ALL analysis tasks for specific model slugs via
+# environment variable: DISABLED_ANALYSIS_MODELS="model_a,model_b"
+# This provides a quick mitigation for noisy / resource-heavy automatic
+# "sanity checks" on a model (e.g., anthropic_claude-3.7-sonnet) without
+# needing to identify and refactor their upstream trigger immediately.
+
+_disabled_env = os.getenv('DISABLED_ANALYSIS_MODELS', '')
+DISABLED_ANALYSIS_MODELS = {
+    m.strip() for m in _disabled_env.split(',') if m.strip()
+}
+
+# Emit a concise banner at import time so workers clearly show gating state
+try:  # pragma: no cover - logging side effect
+    if DISABLED_ANALYSIS_MODELS:
+        print(
+            "[tasks] Disabled analysis models:",
+            ", ".join(sorted(DISABLED_ANALYSIS_MODELS))
+        )
+    else:
+        print("[tasks] No disabled analysis models configured")
+except Exception:
+    pass
+
+def _is_model_disabled(model_slug: str) -> bool:
+    return model_slug in DISABLED_ANALYSIS_MODELS
 
 def create_celery_app(app_name: str = 'ai_research_platform') -> Celery:
     """Create and configure Celery application."""
@@ -186,15 +213,19 @@ try:
 except Exception as _ctx_err:  # pragma: no cover - best effort safety
     print(f"Warning: Could not set Celery ContextTask: {_ctx_err}")
 
-def get_analyzer_service():
-    """Get analyzer integration service instance."""
+def _run_engine(engine_name: str, model_slug: str, app_number: int, **kwargs):
+    """Helper to invoke an analysis engine and return payload dict.
+
+    Falls back to descriptive error dict if engine registry unavailable.
+    """
+    if not get_engine:
+        return {'status': 'error', 'error': 'engine_registry_unavailable'}
     try:
-        if _analyzer_integration_available and _get_analyzer_integration:
-            return _get_analyzer_integration()
-        return None
-    except Exception as e:
-        print(f"Failed to get analyzer integration: {e}")
-        return None
+        engine = get_engine(engine_name)
+        result = engine.run(model_slug, app_number, **kwargs)
+        return result.to_dict()
+    except Exception as e:  # pragma: no cover - defensive
+        return {'status': 'error', 'error': str(e)}
 
 def update_task_progress(current: int, total: int, status: Optional[str] = None, metadata: Optional[Dict] = None):
     """Update task progress for monitoring."""
@@ -230,6 +261,17 @@ def security_analysis_task(self, model_slug: str, app_number: int,
         options: Additional analysis options
     """
     
+    # Early exit if model globally disabled
+    if _is_model_disabled(model_slug):
+        return {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'analysis_type': 'security',
+            'status': 'skipped',
+            'reason': 'model_disabled',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
+
     batch_job_id = options.get('batch_job_id') if options else None
     analysis_id = options.get('analysis_id') if options else None
 
@@ -239,10 +281,7 @@ def security_analysis_task(self, model_slug: str, app_number: int,
     from app.constants import AnalysisStatus
 
     try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            raise Exception("Analyzer service not available")
-
+        # Engines are stateless; no container start step now
         update_task_progress(0, 100, "Initializing security analysis")
 
         # Fetch analysis record (if provided) and mark RUNNING
@@ -258,20 +297,13 @@ def security_analysis_task(self, model_slug: str, app_number: int,
         if not tools:
             tools = ['bandit', 'safety', 'pylint']
 
-        update_task_progress(10, 100, "Starting analyzer services")
-
-        if not analyzer_service.start_analyzer_services():
-            raise Exception("Failed to start analyzer services")
-
+        update_task_progress(10, 100, "Preparing engine")
         update_task_progress(20, 100, "Running security analysis")
 
-        # Run the analysis using analyzer integration
-        result = analyzer_service.run_security_analysis(
-            model_slug, app_number, tools, options
-        )
+        # Run the analysis via engine
+        result = _run_engine('security', model_slug, app_number, tools=tools, options=options)
 
         update_task_progress(80, 100, "Processing results")
-
         status = result.get('status', 'completed')
 
         # Persist results
@@ -300,13 +332,15 @@ def security_analysis_task(self, model_slug: str, app_number: int,
                         analysis.results_json = _json.dumps({'raw_result': str(result)})
 
                     # Update summary counts if present
-                    summary = result.get('summary') or {}
+                    summary = result.get('summary') if isinstance(result, dict) else {}
+                    if not isinstance(summary, dict):
+                        summary = {}
                     # Some analyzers may return counts at top-level
-                    analysis.total_issues = summary.get('total_issues') or result.get('total_issues') or 0
-                    analysis.critical_severity_count = summary.get('critical') or result.get('critical_count') or 0
-                    analysis.high_severity_count = summary.get('high') or result.get('high_count') or 0
-                    analysis.medium_severity_count = summary.get('medium') or result.get('medium_count') or 0
-                    analysis.low_severity_count = summary.get('low') or result.get('low_count') or 0
+                    analysis.total_issues = (summary.get('total_issues') if isinstance(summary, dict) else 0) or (result.get('total_issues') if isinstance(result, dict) else 0) or 0
+                    analysis.critical_severity_count = (summary.get('critical') if isinstance(summary, dict) else 0) or (result.get('critical_count') if isinstance(result, dict) else 0) or 0
+                    analysis.high_severity_count = (summary.get('high') if isinstance(summary, dict) else 0) or (result.get('high_count') if isinstance(result, dict) else 0) or 0
+                    analysis.medium_severity_count = (summary.get('medium') if isinstance(summary, dict) else 0) or (result.get('medium_count') if isinstance(result, dict) else 0) or 0
+                    analysis.low_severity_count = (summary.get('low') if isinstance(summary, dict) else 0) or (result.get('low_count') if isinstance(result, dict) else 0) or 0
                     # Track tools run
                     if isinstance(tools, list):
                         analysis.tools_run_count = len(tools)
@@ -432,15 +466,22 @@ def performance_test_task(self, model_slug: str, app_number: int,
         test_config: Performance test configuration
     """
     
+    if _is_model_disabled(model_slug):
+        return {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'analysis_type': 'performance',
+            'status': 'skipped',
+            'reason': 'model_disabled',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
+
     batch_job_id = test_config.get('batch_job_id') if test_config else None
     
     try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            raise Exception("Analyzer service not available")
-        
+        # Engines are stateless; no container start step now
         update_task_progress(0, 100, "Initializing performance testing")
-        
+
         # Default configuration
         config = test_config or {
             'users': 10,
@@ -448,19 +489,13 @@ def performance_test_task(self, model_slug: str, app_number: int,
             'duration': 300,
             'host': f'http://localhost:800{app_number}'
         }
-        
-        update_task_progress(10, 100, "Starting analyzer services")
-        
-        if not analyzer_service.start_analyzer_services():
-            raise Exception("Failed to start analyzer services")
-        
+
+        update_task_progress(10, 100, "Preparing engine")
         update_task_progress(20, 100, "Running performance tests")
-        
-        # Run performance test using analyzer integration
-        result = analyzer_service.run_performance_test(
-            model_slug, app_number, config
-        )
-        
+
+        # Run performance test via engine
+        result = _run_engine('performance', model_slug, app_number, test_config=config)
+
         update_task_progress(80, 100, "Processing performance results")
         
         final_result = {
@@ -502,31 +537,32 @@ def static_analysis_task(self, model_slug: str, app_number: int,
         options: Additional analysis options
     """
     
+    if _is_model_disabled(model_slug):
+        return {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'analysis_type': 'static',
+            'status': 'skipped',
+            'reason': 'model_disabled',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
+
     batch_job_id = options.get('batch_job_id') if options else None
     
     try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            raise Exception("Analyzer service not available")
-        
+        # Engines are stateless; no container start step now
         update_task_progress(0, 100, "Initializing static analysis")
-        
+
         # Default tools
         if not tools:
             tools = ['pylint', 'flake8']
-        
-        update_task_progress(10, 100, "Starting analyzer services")
-        
-        if not analyzer_service.start_analyzer_services():
-            raise Exception("Failed to start analyzer services")
-        
+
+        update_task_progress(10, 100, "Preparing engine")
         update_task_progress(20, 100, "Running static analysis")
-        
-        # Run static analysis using analyzer integration
-        result = analyzer_service.run_static_analysis(
-            model_slug, app_number, tools, options
-        )
-        
+
+        # Run static analysis via engine
+        result = _run_engine('static', model_slug, app_number, tools=tools, options=options)
+
         update_task_progress(80, 100, "Processing static analysis results")
         
         final_result = {
@@ -565,6 +601,16 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
         app_number: Application number
         options: Additional options (e.g., target URLs, timeouts)
     """
+    if _is_model_disabled(model_slug):
+        return {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'analysis_type': 'dynamic',
+            'status': 'skipped',
+            'reason': 'model_disabled',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
+
     batch_job_id = options.get('batch_job_id') if options else None
     analysis_id = options.get('analysis_id') if options else None
 
@@ -574,10 +620,7 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
     from app.constants import AnalysisStatus
 
     try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            raise Exception("Analyzer service not available")
-
+        # Engines are stateless; no container start step now
         update_task_progress(0, 100, "Initializing dynamic analysis")
 
         # Mark RUNNING if an analysis record is provided
@@ -589,18 +632,13 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
                     analysis.started_at = datetime.now(timezone.utc)
                     session.commit()
 
-        update_task_progress(10, 100, "Starting analyzer services")
-
-        if not analyzer_service.start_analyzer_services():
-            raise Exception("Failed to start analyzer services")
-
+        update_task_progress(10, 100, "Preparing engine")
         update_task_progress(20, 100, "Running dynamic analysis")
 
-        # Run dynamic analysis using analyzer integration
-        result = analyzer_service.run_dynamic_analysis(model_slug, app_number, options)
+        # Run dynamic analysis via engine
+        result = _run_engine('dynamic', model_slug, app_number, options=options)
 
         update_task_progress(80, 100, "Processing dynamic analysis results")
-
         status = result.get('status', 'completed')
 
         # Persist results if analysis record provided
@@ -635,11 +673,13 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
                         analysis.set_zap_report({'raw_result': str(result)})
 
                     # Attempt to map summary counts if present
-                    summary = result.get('summary') or {}
-                    analysis.high_risk_alerts = summary.get('high', summary.get('high_risk_alerts', 0)) or 0
-                    analysis.medium_risk_alerts = summary.get('medium', summary.get('medium_risk_alerts', 0)) or 0
-                    analysis.low_risk_alerts = summary.get('low', summary.get('low_risk_alerts', 0)) or 0
-                    analysis.informational_alerts = summary.get('informational', summary.get('info', 0)) or 0
+                    summary = result.get('summary') if isinstance(result, dict) else {}
+                    if not isinstance(summary, dict):
+                        summary = {}
+                    analysis.high_risk_alerts = (summary.get('high') if isinstance(summary, dict) else 0) or (summary.get('high_risk_alerts') if isinstance(summary, dict) else 0) or 0
+                    analysis.medium_risk_alerts = (summary.get('medium') if isinstance(summary, dict) else 0) or (summary.get('medium_risk_alerts') if isinstance(summary, dict) else 0) or 0
+                    analysis.low_risk_alerts = (summary.get('low') if isinstance(summary, dict) else 0) or (summary.get('low_risk_alerts') if isinstance(summary, dict) else 0) or 0
+                    analysis.informational_alerts = (summary.get('informational') if isinstance(summary, dict) else 0) or (summary.get('info') if isinstance(summary, dict) else 0) or 0
                     session.commit()
 
         final_result = {
@@ -696,58 +736,14 @@ def ai_analysis_task(self, model_slug: str, app_number: int,
         options: Additional analysis options
     """
     
-    batch_job_id = options.get('batch_job_id') if options else None
-    
-    try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            raise Exception("Analyzer service not available")
-        
-        update_task_progress(0, 100, "Initializing AI analysis")
-        
-        # Default analysis types
-        if not analysis_types:
-            analysis_types = ['code_quality', 'security_review']
-        
-        update_task_progress(10, 100, "Starting analyzer services")
-        
-        if not analyzer_service.start_analyzer_services():
-            raise Exception("Failed to start analyzer services")
-        
-        update_task_progress(20, 100, "Running AI analysis")
-        
-        # Run AI analysis using analyzer integration
-        result = analyzer_service.run_ai_analysis(
-            model_slug, app_number, analysis_types, options
-        )
-        
-        update_task_progress(80, 100, "Processing AI analysis results")
-        
-        final_result = {
-            'model_slug': model_slug,
-            'app_number': app_number,
-            'analysis_type': 'ai',
-            'analysis_types': analysis_types,
-            'result': result,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'status': result.get('status', 'completed')
-        }
-        
-        # Update batch progress if this is part of a batch
-        update_batch_progress(batch_job_id, task_completed=True, result=final_result)
-        
-        update_task_progress(100, 100, "AI analysis completed")
-        
-        return final_result
-        
-    except Exception as e:
-        error_msg = f"AI analysis failed: {str(e)}"
-        update_task_progress(0, 100, f"Error: {error_msg}")
-        
-        # Update batch progress for failed task
-        update_batch_progress(batch_job_id, task_failed=True)
-        
-        raise self.retry(exc=e, countdown=60, max_retries=3)
+    # Deprecated placeholder – composite AI engine not yet implemented
+    return {
+        'status': 'deprecated',
+        'message': 'ai_analysis_task deprecated pending composite AI engine implementation',
+        'model_slug': model_slug,
+        'app_number': app_number,
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    }
 
 @celery.task(bind=True, name='app.tasks.batch_analysis_task')
 def batch_analysis_task(self, models: List[str], apps: List[int],
@@ -762,106 +758,14 @@ def batch_analysis_task(self, models: List[str], apps: List[int],
         options: Additional options
     """
     
-    batch_job_id = options.get('batch_job_id') if options else None
-    
-    try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            raise Exception("Analyzer service not available")
-        
-        update_task_progress(0, 100, "Initializing batch analysis")
-        
-        total_tasks = len(models) * len(apps) * len(analysis_types)
-        completed_tasks = 0
-        results = {}
-        
-        update_task_progress(5, 100, "Starting analyzer services")
-        
-        if not analyzer_service.start_analyzer_services():
-            raise Exception("Failed to start analyzer services")
-        
-        for model in models:
-            model_results = {}
-            for app in apps:
-                app_results = {}
-                for analysis_type in analysis_types:
-                    try:
-                        if analysis_type == 'security':
-                            result = analyzer_service.run_security_analysis(
-                                model, app, 
-                                options.get('security_tools', ['bandit']) if options else ['bandit'], 
-                                options
-                            )
-                        elif analysis_type == 'performance':
-                            result = analyzer_service.run_performance_test(
-                                model, app, 
-                                options.get('performance_config', {}) if options else {}
-                            )
-                        elif analysis_type == 'static':
-                            result = analyzer_service.run_static_analysis(
-                                model, app, 
-                                options.get('static_tools', ['pylint']) if options else ['pylint'], 
-                                options
-                            )
-                        elif analysis_type in ('dynamic', 'zap'):
-                            result = analyzer_service.run_dynamic_analysis(
-                                model, app, 
-                                options.get('dynamic_options', {}) if options else {}
-                            )
-                        elif analysis_type == 'ai':
-                            result = analyzer_service.run_ai_analysis(
-                                model, app, 
-                                options.get('ai_types', ['code_quality']) if options else ['code_quality'], 
-                                options
-                            )
-                        else:
-                            result = {'status': 'failed', 'error': f'Unknown analysis type: {analysis_type}'}
-                        
-                        app_results[analysis_type] = result
-                        completed_tasks += 1
-                        
-                        progress = int((completed_tasks / total_tasks) * 90) + 5
-                        update_task_progress(
-                            progress, 100, 
-                            f"Completed {analysis_type} for {model} app {app}"
-                        )
-                        
-                    except Exception as e:
-                        app_results[analysis_type] = {'status': 'failed', 'error': str(e)}
-                        completed_tasks += 1
-                
-                model_results[f'app_{app}'] = app_results
-            
-            results[model] = model_results
-        
-        update_task_progress(95, 100, "Processing batch results")
-        
-        final_result = {
-            'models': models,
-            'apps': apps,
-            'analysis_types': analysis_types,
-            'results': results,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'status': 'completed',
-            'total_tasks': total_tasks,
-            'completed_tasks': completed_tasks
-        }
-        
-        # Update batch progress if this is part of a batch
-        update_batch_progress(batch_job_id, task_completed=True, result=final_result)
-        
-        update_task_progress(100, 100, "Batch analysis completed")
-        
-        return final_result
-        
-    except Exception as e:
-        error_msg = f"Batch analysis failed: {str(e)}"
-        update_task_progress(0, 100, f"Error: {error_msg}")
-        
-        # Update batch progress for failed task
-        update_batch_progress(batch_job_id, task_failed=True)
-        
-        raise self.retry(exc=e, countdown=120, max_retries=2)
+    return {
+        'status': 'deprecated',
+        'message': 'batch_analysis_task deprecated – use individual engine tasks or future orchestrator',
+        'models': models,
+        'apps': apps,
+        'analysis_types': analysis_types,
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    }
 
 # =============================================================================
 # CONTAINER MANAGEMENT TASKS
@@ -877,38 +781,13 @@ def container_management_task(self, action: str, service: Optional[str] = None):
         service: Specific service name (optional)
     """
     
-    try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            raise Exception("Analyzer service not available")
-        
-        update_task_progress(0, 100, f"Performing {action} on containers")
-        
-        if action == 'start':
-            result = analyzer_service.start_analyzer_services()
-        elif action == 'stop':
-            result = analyzer_service.stop_analyzer_services()
-        elif action == 'restart':
-            result = analyzer_service.restart_analyzer_services()
-        elif action == 'status':
-            result = analyzer_service.get_services_status()
-        else:
-            raise ValueError(f"Unknown action: {action}")
-        
-        update_task_progress(100, 100, f"Container {action} completed")
-        
-        return {
-            'action': action,
-            'service': service,
-            'result': result,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'status': 'completed'
-        }
-        
-    except Exception as e:
-        error_msg = f"Container management failed: {str(e)}"
-        update_task_progress(0, 100, f"Error: {error_msg}")
-        raise self.retry(exc=e, countdown=30, max_retries=3)
+    return {
+        'status': 'deprecated',
+        'message': f'container_management_task action {action} deprecated – externalized to infra tooling',
+        'action': action,
+        'service': service,
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    }
 
 # =============================================================================
 # MONITORING TASKS
@@ -918,49 +797,21 @@ def container_management_task(self, action: str, service: Optional[str] = None):
 def health_check_analyzers():
     """Periodic health check of analyzer services."""
     
-    try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            return {'status': 'unavailable', 'error': 'Analyzer service not available'}
-        
-        health_result = analyzer_service.health_check()
-        
-        return {
-            'health_check': health_result,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'status': 'completed'
-        }
-        
-    except Exception as e:
-        return {
-            'status': 'failed',
-            'error': str(e),
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }
+    return {
+        'status': 'deprecated',
+        'message': 'Analyzer service health check deprecated with engine refactor',
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    }
 
 @celery.task(name='app.tasks.monitor_analyzer_containers')
 def monitor_analyzer_containers():
     """Monitor analyzer container resources and performance."""
     
-    try:
-        analyzer_service = get_analyzer_service()
-        if not analyzer_service:
-            return {'status': 'unavailable', 'error': 'Analyzer service not available'}
-        
-        status_info = analyzer_service.get_services_status()
-        
-        return {
-            'monitoring': status_info,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'status': 'completed'
-        }
-        
-    except Exception as e:
-        return {
-            'status': 'failed',
-            'error': str(e),
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }
+    return {
+        'status': 'deprecated',
+        'message': 'Container monitoring deprecated with engine refactor',
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    }
 
 @celery.task(name='app.tasks.cleanup_expired_results')
 def cleanup_expired_results():
@@ -1037,48 +888,22 @@ def run_enhanced_analysis(self, model_slug: str, app_number: int, config: Dict) 
     print(f"Starting enhanced analysis task {task_id} for {model_slug} app {app_number}")
     
     try:
-        # Get analyzer integration service
-        analyzer_integration = get_analyzer_service()
-        if not analyzer_integration:
-            return {
-                'status': 'error',
-                'error': 'Analyzer integration service not available',
-                'task_id': task_id
-            }
+        # Placeholder composite orchestration – deprecated
         results = {}
         
         # Update task progress
         self.update_state(state='PROGRESS', meta={'stage': 'starting', 'progress': 0})
         
-        # Run static analysis with enhanced configuration
+        # Deprecated – no-op sections retained for backward compatibility
         if config.get('static'):
-            print(f"Running enhanced static analysis for {model_slug} app {app_number}")
             self.update_state(state='PROGRESS', meta={'stage': 'static_analysis', 'progress': 20})
-            
-            static_result = analyzer_integration.run_static_analysis(
-                model_slug, app_number, config['static']
-            )
-            results['static_analysis'] = static_result
-        
-        # Run performance testing with enhanced configuration
+            results['static_analysis'] = {'status': 'deprecated'}
         if config.get('performance'):
-            print(f"Running enhanced performance testing for {model_slug} app {app_number}")
             self.update_state(state='PROGRESS', meta={'stage': 'performance_testing', 'progress': 50})
-            
-            performance_result = analyzer_integration.run_performance_test(
-                model_slug, app_number, config['performance']
-            )
-            results['performance_testing'] = performance_result
-        
-        # Run AI analysis with enhanced configuration
+            results['performance_testing'] = {'status': 'deprecated'}
         if config.get('ai'):
-            print(f"Running enhanced AI analysis for {model_slug} app {app_number}")
             self.update_state(state='PROGRESS', meta={'stage': 'ai_analysis', 'progress': 80})
-            
-            ai_result = analyzer_integration.run_ai_analysis(
-                model_slug, app_number, config['ai']
-            )
-            results['ai_analysis'] = ai_result
+            results['ai_analysis'] = {'status': 'deprecated'}
         
         # Compile final results
         self.update_state(state='PROGRESS', meta={'stage': 'finalizing', 'progress': 95})

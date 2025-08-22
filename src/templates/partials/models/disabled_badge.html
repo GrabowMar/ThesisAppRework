@@ -1,0 +1,9 @@
+{#
+  Renders a prominent badge if a model's analyses are disabled via DISABLED_ANALYSIS_MODELS.
+  Expects: analysis_disabled (bool), model (dict-like), disabled_models (set)
+#}
+{% if analysis_disabled %}
+<span class="badge bg-danger ms-3" data-bs-toggle="tooltip" title="All analysis tasks skipped for this model (env: DISABLED_ANALYSIS_MODELS)">
+  <i class="fas fa-ban me-1"></i> Analysis Disabled
+</span>
+{% endif %}

@@ -3,7 +3,7 @@ WebSocket API Routes
 Provides REST endpoints for WebSocket service interaction and testing
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from app.extensions import get_websocket_service
 import logging
 from pathlib import Path
@@ -294,7 +294,23 @@ def test_websocket():
 
         # If no explicit slug provided, fall back to a discoverable one
         if not model_slug:
-            model_slug = _pick_available_model_slug(preferred=['anthropic_claude-3.7-sonnet', 'openai_gpt_4', 'openai_gpt-4.1']) or 'anthropic_claude-3.7-sonnet'
+            # Build preferred list from config (optional) instead of hard-coding specific vendors
+            preferred_cfg = current_app.config.get('WEBSOCKET_MODEL_PREFERENCE') or []
+            if isinstance(preferred_cfg, str):
+                preferred_list = [s.strip() for s in preferred_cfg.split(',') if s.strip()]
+            else:
+                preferred_list = list(preferred_cfg) if isinstance(preferred_cfg, (list, tuple)) else []
+            model_slug = _pick_available_model_slug(preferred=preferred_list) or _pick_available_model_slug()
+
+        # Respect DISABLED_ANALYSIS_MODELS env (same logic as tasks) to avoid auto kicking off for disabled models
+        from app.tasks import DISABLED_ANALYSIS_MODELS  # local import to avoid circular on module load
+        if model_slug in DISABLED_ANALYSIS_MODELS:
+            return jsonify({
+                'status': 'skipped',
+                'reason': 'model_disabled',
+                'model_slug': model_slug,
+                'message': 'Model is disabled for analysis – adjust DISABLED_ANALYSIS_MODELS to enable'
+            }), 200
 
         # Build test payload honoring selected slug/app
         test_data = {
