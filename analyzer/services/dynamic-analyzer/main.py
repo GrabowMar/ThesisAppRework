@@ -481,6 +481,9 @@ class DynamicAnalyzer:
                         f"http://localhost:{base_port}",
                         f"http://localhost:{base_port + 1}"
                     ]
+                    logger.info(f"No target_urls supplied; using default heuristic ports {target_urls}")
+                else:
+                    logger.info(f"Received explicit target_urls: {target_urls}")
                 
                 logger.info(f"Starting dynamic analysis for {model_slug} app {app_number}")
                 

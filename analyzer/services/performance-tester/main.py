@@ -21,6 +21,7 @@ import logging
 import os
 import subprocess
 import statistics
+from urllib.parse import urlparse
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 import websockets
@@ -120,64 +121,154 @@ class PerformanceTester:
             pass
     
     async def measure_response_time(self, url: str, num_requests: int = 10) -> Dict[str, Any]:
-        """Measure response times using aiohttp."""
+        """Measure response times using aiohttp.
+
+        Enhancements:
+          * Collect sample errors for diagnostics instead of silent generic failure.
+          * Optional fallback: if all requests fail for a localhost URL inside container,
+            retry against host.docker.internal (common need when target app runs on host).
+            Controlled by PERF_ENABLE_HOST_FALLBACK (default=1) env.
+        """
         try:
             logger.info(f"Measuring response time for {url} ({num_requests} requests)")
             await self._progress('measuring', f'Measuring response time: {url}', url=url, requests=num_requests)
-            
-            response_times = []
+
+            response_times: List[float] = []
             successful_requests = 0
             failed_requests = 0
-            status_codes = []
-            
+            status_codes: List[int] = []
+            sample_errors: List[str] = []
+
+            # Allow early fallback after a configurable number of consecutive/total failures
+            try:
+                max_fail_before_fallback_env = os.getenv('PERF_MAX_FAIL_BEFORE_FALLBACK', '0')
+                max_fail_before_fallback = int(max_fail_before_fallback_env)
+            except ValueError:
+                max_fail_before_fallback = 0
+            early_fallback_triggered = False
+
+            # Predefine fallback-related vars so they're always bound
+            host_is_local = False
+            enable_fallback = os.getenv('PERF_ENABLE_HOST_FALLBACK', '1') not in {'0', 'false', 'False'}
+            fallback_used = False
+
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
                 for i in range(num_requests):
                     try:
                         start_time = datetime.now()
                         async with session.get(url) as response:
-                            await response.read()  # Read the response body
+                            await response.read()
                             end_time = datetime.now()
-                            
-                            response_time = (end_time - start_time).total_seconds() * 1000  # milliseconds
-                            response_times.append(response_time)
+                            rt = (end_time - start_time).total_seconds() * 1000
+                            response_times.append(rt)
                             status_codes.append(response.status)
                             successful_requests += 1
-                            
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         failed_requests += 1
+                        if len(sample_errors) < 5:
+                            sample_errors.append(str(e))
                         logger.debug(f"Request {i+1} failed: {e}")
-            
-            if response_times:
-                await self._progress('measured', f'Response time measured: {url}', url=url,
-                                     avg_ms=statistics.mean(response_times))
-                return {
-                    'status': 'success',
-                    'url': url,
-                    'total_requests': num_requests,
-                    'successful_requests': successful_requests,
-                    'failed_requests': failed_requests,
-                    'response_times': {
-                        'min': min(response_times),
-                        'max': max(response_times),
-                        'avg': statistics.mean(response_times),
-                        'median': statistics.median(response_times),
-                        'p95': self._percentile(response_times, 95),
-                        'p99': self._percentile(response_times, 99)
-                    },
-                    'status_codes': list(set(status_codes)),
-                    'success_rate': (successful_requests / num_requests) * 100
-                }
-            else:
-                await self._progress('failed', f'No successful requests: {url}', url=url)
-                return {
-                    'status': 'failed',
-                    'url': url,
-                    'error': 'No successful requests'
-                }
-                
-        except Exception as e:
+                        # Trigger early fallback if threshold reached and we have zero successes so far
+                        if (max_fail_before_fallback > 0 and failed_requests >= max_fail_before_fallback
+                                and successful_requests == 0):
+                            early_fallback_triggered = True
+                            logger.info(
+                                f"Early fallback trigger: {failed_requests} consecutive failures for {url}; will attempt host fallback if enabled"
+                            )
+                            break
+
+                if not response_times:
+                    # Attempt localhost -> host.docker.internal fallback if enabled
+                    parsed = urlparse(url)
+                    host_is_local = parsed.hostname in {'localhost', '127.0.0.1'}
+                    if host_is_local and enable_fallback:
+                        fallback_url = url.replace('localhost', 'host.docker.internal').replace('127.0.0.1', 'host.docker.internal')
+                        logger.info(f"No successes for {url}; attempting host gateway fallback {fallback_url}")
+                        try:
+                            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+                                for i in range(min(5, num_requests)):
+                                    try:
+                                        start_time = datetime.now()
+                                        async with session.get(fallback_url) as response:
+                                            await response.read()
+                                            end_time = datetime.now()
+                                            rt = (end_time - start_time).total_seconds() * 1000
+                                            response_times.append(rt)
+                                            status_codes.append(response.status)
+                                            successful_requests += 1
+                                    except Exception as e:  # noqa: BLE001
+                                        failed_requests += 1
+                                        if len(sample_errors) < 5:
+                                            sample_errors.append(str(e))
+                            if response_times:
+                                fallback_used = True
+                                url = fallback_url  # report successful fallback URL as canonical for metrics
+                        except Exception as fe:  # noqa: BLE001
+                            if len(sample_errors) < 5:
+                                sample_errors.append(f"fallback_error: {fe}")
+
+                if not response_times:
+                    await self._progress('failed', f'No successful requests: {url}', url=url)
+                    return {
+                        'status': 'failed',
+                        'url': url,
+                        'error': 'No successful requests',
+                        'sample_errors': sample_errors,
+                        'attempted_fallback': host_is_local and enable_fallback,
+                        'fallback_succeeded': False
+                    }
+                else:
+                    # Fallback produced successes
+                    await self._progress('measured', f'Response time measured (fallback): {url}', url=url,
+                                         avg_ms=statistics.mean(response_times))
+                    return {
+                        'status': 'success',
+                        'url': url,
+                        'total_requests': successful_requests + failed_requests,
+                        'successful_requests': successful_requests,
+                        'failed_requests': failed_requests,
+                        'response_times': {
+                            'min': min(response_times),
+                            'max': max(response_times),
+                            'avg': statistics.mean(response_times),
+                            'median': statistics.median(response_times),
+                            'p95': self._percentile(response_times, 95),
+                            'p99': self._percentile(response_times, 99)
+                        },
+                        'status_codes': list(set(status_codes)),
+                        'success_rate': (successful_requests / (successful_requests + failed_requests)) * 100 if (successful_requests + failed_requests) else 0,
+                        'sample_errors': sample_errors,
+                        'attempted_fallback': True,
+                        'fallback_used': fallback_used,
+                        'early_fallback_triggered': early_fallback_triggered
+                    }
+
+            # Normal success path
+            await self._progress('measured', f'Response time measured: {url}', url=url,
+                                 avg_ms=statistics.mean(response_times))
+            return {
+                'status': 'success',
+                'url': url,
+                'total_requests': successful_requests + failed_requests,
+                'successful_requests': successful_requests,
+                'failed_requests': failed_requests,
+                'response_times': {
+                    'min': min(response_times),
+                    'max': max(response_times),
+                    'avg': statistics.mean(response_times),
+                    'median': statistics.median(response_times),
+                    'p95': self._percentile(response_times, 95),
+                    'p99': self._percentile(response_times, 99)
+                },
+                'status_codes': list(set(status_codes)),
+                'success_rate': (successful_requests / (successful_requests + failed_requests)) * 100 if (successful_requests + failed_requests) else 0,
+                'sample_errors': sample_errors,
+                'early_fallback_triggered': early_fallback_triggered
+            }
+
+        except Exception as e:  # pragma: no cover
             await self._progress('error', f'Error measuring response time: {e}', url=url)
-            return {'status': 'error', 'error': str(e)}
+            return {'status': 'error', 'error': str(e), 'url': url}
     
     def _percentile(self, data: List[float], percentile: int) -> float:
         """Calculate percentile of data."""
@@ -271,8 +362,9 @@ class PerformanceTester:
                 gnuplot_file = f'/tmp/ab_results_{hash(url)}.tsv'
                 cmd.extend(['-g', gnuplot_file])
             
-            # Add URL
-            cmd.append(url)
+            # ab requires a path component; ensure trailing slash so we don't get 'invalid URL'
+            ab_url = url if url.endswith('/') or urlparse(url).path else url + '/'
+            cmd.append(ab_url)
             
             # Calculate timeout for subprocess
             subprocess_timeout = timeout + 30
@@ -490,30 +582,44 @@ class PerformanceTester:
                 # Basic response time test
                 logger.info(f"Testing response times for {url}")
                 response_time_result = await self.measure_response_time(url, num_requests=10)
+                effective_url = response_time_result.get('url', url)
                 url_results['response_time'] = response_time_result
+                url_results['effective_url'] = effective_url
                 
-                # Only do load testing if basic test succeeds
-                if response_time_result.get('status') == 'success':
-                    # Concurrent load test
-                    logger.info(f"Running concurrent load test for {url}")
-                    load_test_result = await self.concurrent_load_test(url, num_requests=20, concurrency=3)
+                # Only do load testing if basic test succeeds (success_rate threshold configurable)
+                success_status = response_time_result.get('status') == 'success'
+                success_rate = response_time_result.get('success_rate', 0)
+                min_rate_env = os.getenv('PERF_MIN_SUCCESS_RATE', '0')
+                try:
+                    min_success_rate = float(min_rate_env)
+                except ValueError:
+                    min_success_rate = 0.0
+                if success_status and success_rate >= min_success_rate:
+                    # Concurrent load test (use effective URL which may be fallback)
+                    logger.info(f"Running concurrent load test for {effective_url}")
+                    load_test_result = await self.concurrent_load_test(effective_url, num_requests=20, concurrency=3)
                     url_results['load_test'] = load_test_result
                     
                     # Apache Bench test if available
                     if 'ab' in self.available_tools:
-                        logger.info(f"Running Apache Bench test for {url}")
+                        logger.info(f"Running Apache Bench test for {effective_url}")
                         ab_config = {'apache_bench': {'requests': 50, 'concurrency': 5}}
-                        ab_result = await self.load_test_with_ab(url, ab_config)
+                        ab_result = await self.load_test_with_ab(effective_url, ab_config)
                         url_results['apache_bench'] = ab_result
 
                     # Locust test if available (run only for first URL by default to save time)
                     if 'locust' in self.available_tools and i == 0:
-                        logger.info(f"Running Locust test for {url}")
+                        logger.info(f"Running Locust test for {effective_url}")
                         locust_cfg = None
                         if config:
                             locust_cfg = config.get('locust') if isinstance(config, dict) else None
-                        locust_result = await self.run_locust_test(url, locust_cfg)
+                        locust_result = await self.run_locust_test(effective_url, locust_cfg)
                         url_results['locust'] = locust_result
+                else:
+                    if not success_status:
+                        logger.info(f"Skipping heavy load tests for {url} due to failed response_time status")
+                    else:
+                        logger.info(f"Skipping heavy load tests for {url} due to success_rate {success_rate:.2f}% below threshold {min_success_rate:.2f}%")
                 
                 results['results'][f'url_{i+1}'] = url_results
             
@@ -523,7 +629,11 @@ class PerformanceTester:
                 'successful_tests': 0,
                 'average_response_time': 0,
                 'best_performing_url': None,
-                'worst_performing_url': None
+                'worst_performing_url': None,
+                'fallback_attempts': 0,
+                'fallback_successes': 0,
+                'early_fallback_triggers': 0,
+                'urls_with_fallback': []
             }
             
             avg_response_times = []
@@ -536,6 +646,14 @@ class PerformanceTester:
                     avg_rt = response_time_result['response_times']['avg']
                     avg_response_times.append(avg_rt)
                     url_performance.append((url_key, avg_rt))
+                if response_time_result:
+                    if response_time_result.get('attempted_fallback'):
+                        summary['fallback_attempts'] += 1
+                    if response_time_result.get('fallback_used'):
+                        summary['fallback_successes'] += 1
+                        summary['urls_with_fallback'].append(url_key)
+                    if response_time_result.get('early_fallback_triggered'):
+                        summary['early_fallback_triggers'] += 1
             
             if avg_response_times:
                 summary['average_response_time'] = statistics.mean(avg_response_times)
@@ -567,6 +685,22 @@ class PerformanceTester:
         if 'locust' not in self.available_tools:
             return {'status': 'tool_unavailable', 'tool': 'locust'}
         try:
+            # Auto-generate a minimal locustfile if none present in CWD to avoid CLI error
+            default_locustfile = 'locustfile.py'
+            if not os.path.exists(default_locustfile):
+                try:
+                    with open(default_locustfile, 'w', encoding='utf-8') as lf:
+                        lf.write(
+                            "from locust import HttpUser, task, between\n\n"
+                            "class QuickUser(HttpUser):\n"
+                            "    wait_time = between(0.5, 1.5)\n\n"
+                            "    @task\n"
+                            "    def index(self):\n"
+                            "        self.client.get('/')\n"
+                        )
+                    logger.debug("Auto-generated minimal locustfile.py for test run")
+                except Exception as gen_err:  # noqa: BLE001
+                    logger.warning(f"Failed to auto-generate locustfile.py: {gen_err}")
             # Defaults (kept deliberately small for fast feedback)
             users = 15
             spawn_rate = 3
@@ -683,7 +817,14 @@ class PerformanceTester:
             elif msg_type == "performance_test":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
-                target_urls = message_data.get("target_urls", [])
+                # Accept new 'target_urls' list; fall back to legacy single 'target_url'
+                target_urls = message_data.get("target_urls")
+                if not target_urls:
+                    single = message_data.get("target_url")
+                    if single:
+                        target_urls = [single]
+                if not isinstance(target_urls, list):  # defensive normalization
+                    target_urls = []
                 config = message_data.get("config", None)
                 
                 if not target_urls:

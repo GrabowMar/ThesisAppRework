@@ -205,6 +205,7 @@ def analyses_create_submit():
                 return render_template('partials/common/error.html', error='Application not found for given model/app'), 404
 
             from ..services import analysis_service as svc
+            from ..extensions import db
             # SECURITY (all tools enabled)
             sec_created = svc.create_comprehensive_security_analysis(app.id)
             sec_started = svc.start_security_analysis(sec_created['id'])

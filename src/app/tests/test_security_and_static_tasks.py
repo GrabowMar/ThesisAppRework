@@ -125,9 +125,9 @@ def test_static_analysis_success_default_tools():
     with app.app_context():
         db.create_all()
         g = _seed_app()
-        model_slug = g.model_slug
-        app_number = g.app_number
-    # Inject static engine result
+        model_slug = str(g.model_slug)
+        app_number = int(g.app_number)
+    # Run outside context using primitive values (task is DB-independent)
     result = static_analysis_task.run(model_slug, app_number, tools=None, options={'force_engine_result': {'status': 'completed', 'summary': {}}})  # type: ignore[attr-defined]
     assert result['status'] in ('completed', 'success')
     assert set(result['tools']) == {'pylint', 'flake8'}
@@ -138,12 +138,10 @@ def test_static_analysis_custom_tools_passed():
     with app.app_context():
         db.create_all()
         g = _seed_app()
-        model_slug = g.model_slug
-        app_number = g.app_number
-    # Provide force result and verify tools echoed back in payload
+        model_slug = str(g.model_slug)
+        app_number = int(g.app_number)
     custom = ['pylint', 'mypy']
     force_res = {'status': 'completed'}
     result = static_analysis_task.run(model_slug, app_number, tools=custom, options={'force_engine_result': force_res})  # type: ignore[attr-defined]
     assert result['status'] in ('completed', 'success')
     assert result['tools'] == custom
-    # Since we inject result directly we rely on returned tools list

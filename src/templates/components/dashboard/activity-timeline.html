@@ -106,7 +106,11 @@ Dependencies: Moment.js for time formatting, user avatar system
                                     
                                     {% if show_timestamps %}
                                         <small class="text-muted timeline-timestamp" data-timestamp="{{ activity.timestamp.isoformat() }}">
-                                            {{ moment(activity.timestamp).fromNow() }}
+                                            {% if moment is defined %}
+                                                {{ moment(activity.timestamp).fromNow() }}
+                                            {% else %}
+                                                {{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                                            {% endif %}
                                         </small>
                                     {% endif %}
                                 </div>

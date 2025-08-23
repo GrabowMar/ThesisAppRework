@@ -9,7 +9,7 @@ param(
         "start", "stop", "restart", "status",
         "worker-only", "beat-only", "flask-only",
         "flask-restart", "flask-stop", "analyzer-build",
-        "logs"
+    "logs", "rebuild-service"
     )]
     [string]$Action = "start",
     # Optional: path to a log file. Defaults to logs/start.ps1.log under repo root
@@ -1282,6 +1282,41 @@ function Invoke-Main {
         "analyzer-build" {
             Write-Log "Building analyzer stack (manual trigger)..." "Cyan"
             Build-AnalyzerStack
+        }
+
+        "rebuild-service" {
+            if (-not $Service -or $Service.Trim() -eq "") {
+                Write-Warning-Log "Specify -Service <name> (e.g. performance-tester) for rebuild-service action"
+                break
+            }
+            Write-Log "Rebuilding analyzer service '$Service'..." "Cyan"
+            $analyzerDir = Join-Path $RepoRoot "analyzer"
+            $composeFile = Join-Path $analyzerDir "docker-compose.yml"
+            if (-not (Test-Path $composeFile)) { Write-Warning-Log "docker-compose.yml not found in analyzer directory"; break }
+            $usedCompose = $false
+            try {
+                if (Get-Command docker -ErrorAction SilentlyContinue) {
+                    Write-Info-Log "Running: docker compose build $Service"
+                    Start-Process -FilePath "docker" -ArgumentList @("compose","-f","docker-compose.yml","build",$Service) -WorkingDirectory $analyzerDir -NoNewWindow -Wait | Out-Null
+                    $usedCompose = $true
+                    Write-Info-Log "Running: docker compose up -d --no-deps --force-recreate $Service"
+                    Start-Process -FilePath "docker" -ArgumentList @("compose","-f","docker-compose.yml","up","-d","--no-deps","--force-recreate",$Service) -WorkingDirectory $analyzerDir -NoNewWindow -Wait | Out-Null
+                }
+            } catch { Write-Warning-Log "docker compose rebuild failed: $_" }
+            if (-not $usedCompose -and (Get-Command docker-compose -ErrorAction SilentlyContinue)) {
+                try {
+                    Write-Info-Log "Running: docker-compose build $Service"
+                    Start-Process -FilePath "docker-compose" -ArgumentList @("-f","docker-compose.yml","build",$Service) -WorkingDirectory $analyzerDir -NoNewWindow -Wait | Out-Null
+                    Write-Info-Log "Running: docker-compose up -d --no-deps --force-recreate $Service"
+                    Start-Process -FilePath "docker-compose" -ArgumentList @("-f","docker-compose.yml","up","-d","--no-deps","--force-recreate",$Service) -WorkingDirectory $analyzerDir -NoNewWindow -Wait | Out-Null
+                    $usedCompose = $true
+                } catch { Write-Warning-Log "docker-compose rebuild failed: $_" }
+            }
+            if ($usedCompose) {
+                Write-Log "Rebuild triggered for analyzer service '$Service'" "Green"
+            } else {
+                Write-Warning-Log "Could not rebuild service '$Service' (Docker not available)"
+            }
         }
         
         "logs" {

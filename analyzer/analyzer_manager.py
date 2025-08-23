@@ -146,6 +146,52 @@ class AnalyzerManager:
             self._models_root = (Path(__file__).parent / ".." / "misc" / "models").resolve()
         except Exception:
             self._models_root = None
+        # Lazy-loaded port configuration cache
+        self._port_config_cache: Optional[List[Dict[str, Any]]] = None
+
+    # -----------------------------------------------------------------
+    # Port Configuration Helpers
+    # -----------------------------------------------------------------
+    def _load_port_config(self) -> List[Dict[str, Any]]:
+        """Load port_config.json once and cache it.
+
+        Returns empty list if file missing or invalid. The file can be large
+        (thousands of entries) so we avoid repeatedly reading it for every
+        analysis request.
+        """
+        if self._port_config_cache is not None:
+            return self._port_config_cache
+        try:
+            root = Path(__file__).parent.parent  # project root (analyzer/..)
+            cfg_path = (root / 'misc' / 'port_config.json').resolve()
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                self._port_config_cache = data  # type: ignore[assignment]
+            else:  # unexpected shape
+                self._port_config_cache = []
+        except Exception as e:
+            logger.warning(f"Could not load port_config.json: {e}")
+            self._port_config_cache = []
+        return self._port_config_cache
+
+    def _resolve_app_ports(self, model_slug: str, app_number: int) -> Optional[Tuple[int, int]]:
+        """Resolve backend & frontend ports for a model/app.
+
+        Searches cached port config list for matching (model_name, app_number).
+        Falls back to None if not found so caller can choose defaults.
+        """
+        try:
+            for entry in self._load_port_config():
+                if (entry.get('model_name') == model_slug and
+                        int(entry.get('app_number', -1)) == int(app_number)):
+                    b = entry.get('backend_port')
+                    f = entry.get('frontend_port')
+                    if isinstance(b, int) and isinstance(f, int):
+                        return b, f
+        except Exception:
+            pass
+        return None
 
     def _resolve_compose_cmd(self) -> List[str]:
         """Detect the appropriate docker compose command.
@@ -477,12 +523,19 @@ class AnalyzerManager:
                                   target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run dynamic (ZAP-like) analysis against running app endpoints."""
         logger.info(f"🕷️  Running dynamic (ZAP) analysis on {model_slug} app {app_number}")
-
+        resolved_urls: List[str] = []
+        if target_urls:
+            resolved_urls = list(target_urls)
+        else:
+            ports = self._resolve_app_ports(model_slug, app_number)
+            if ports:
+                backend_port, frontend_port = ports
+                resolved_urls = [f"http://localhost:{backend_port}", f"http://localhost:{frontend_port}"]
         message = {
             "type": "dynamic_analyze",
             "model_slug": model_slug,
             "app_number": app_number,
-            "target_urls": target_urls or [],
+            "target_urls": resolved_urls,  # empty list acceptable; service will fallback
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
@@ -494,15 +547,23 @@ class AnalyzerManager:
                                  duration: int = 60) -> Dict[str, Any]:
         """Run performance test on an application."""
         logger.info(f"⚡ Running performance test on {model_slug} app {app_number}")
-        
-        if not target_url:
-            target_url = f"http://localhost:300{app_number}"  # Default port pattern
-        
+        # New behavior: send explicit target_urls list derived from port config when available.
+        urls: List[str] = []
+        if target_url:
+            urls.append(target_url)
+        else:
+            ports = self._resolve_app_ports(model_slug, app_number)
+            if ports:
+                backend_port, frontend_port = ports
+                urls = [f"http://localhost:{backend_port}", f"http://localhost:{frontend_port}"]
+        # Backwards compatible: we still include legacy 'target_url' key (first url or None)
+        legacy_single = urls[0] if urls else (target_url or f"http://localhost:300{app_number}")
         message = {
             "type": "performance_test",
             "model_slug": model_slug,
             "app_number": app_number,
-            "target_url": target_url,
+            "target_url": legacy_single,  # legacy field (service ignores if target_urls present)
+            "target_urls": urls,
             "users": users,
             "duration": duration,
             "timestamp": datetime.now().isoformat(),

@@ -56,11 +56,9 @@ def test_performance_and_zap_results_json_roundtrip(app):
         zap.target_url = 'http://localhost:6101'
         zap.scan_type = 'active'
         zap.status = AnalysisStatus.RUNNING
-        db.session.add(perf)
-        db.session.add(zap)
+        db.session.add_all([perf, zap])
         db.session.commit()
 
-        # Simulate analyzer completion
         perf_payload = {
             'model_slug': ga.model_slug,
             'app_number': ga.app_number,
@@ -74,9 +72,7 @@ def test_performance_and_zap_results_json_roundtrip(app):
                     }
                 }
             },
-            'summary': {
-                'average_response_time': 210.5
-            }
+            'summary': {'average_response_time': 210.5}
         }
         zap_payload = {
             'target': 'http://localhost:6101',
@@ -84,20 +80,21 @@ def test_performance_and_zap_results_json_roundtrip(app):
             'total_alerts': 6,
             'active_scan': {'status': 'completed'}
         }
-
         perf.set_results(perf_payload)
         zap.set_zap_report(zap_payload)  # type: ignore[attr-defined]
         perf.status = AnalysisStatus.COMPLETED
         zap.status = AnalysisStatus.COMPLETED
         db.session.commit()
+        perf_id = perf.id
+        zap_id = zap.id
 
-        # Roundtrip assertions
-        loaded_perf = PerformanceTest.query.get(perf.id)
-        loaded_zap = ZAPAnalysis.query.get(zap.id)
-        assert loaded_perf is not None
-        assert loaded_zap is not None
-        perf_results = loaded_perf.get_results()
-        zap_results = loaded_zap.get_zap_report()  # type: ignore[attr-defined]
+    # Open fresh context and reload by ID to avoid detached attribute refresh
+    with app.app_context():
+        perf_loaded = db.session.get(PerformanceTest, perf_id)
+        zap_loaded = db.session.get(ZAPAnalysis, zap_id)
+        assert perf_loaded is not None and zap_loaded is not None
+        perf_results = perf_loaded.get_results()
+        zap_results = zap_loaded.get_zap_report()  # type: ignore[attr-defined]
         assert perf_results.get('results', {}).get('url_1', {}).get('locust') is not None
         assert zap_results.get('alert_counts', {}).get('High') == 1
         assert perf_results['summary']['average_response_time'] == 210.5

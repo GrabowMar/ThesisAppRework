@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "model_slug": "pf_ext",
-    "app_number": 12,
+    "model_slug": "anthropic_claude-3.7-sonnet",
+    "app_number": 1,
     "analysis_type": "performance",
-    "timestamp": "2025-08-23T01:05:13.183464",
+    "timestamp": "2025-08-23T08:31:09.968581",
     "analyzer_version": "1.0.0"
   },
   "results": {
@@ -11,9 +11,9 @@
     "status": "success",
     "service": "performance-tester",
     "analysis": {
-      "model_slug": "pf_ext",
-      "app_number": 12,
-      "analysis_time": "2025-08-22T23:04:19.379904",
+      "model_slug": "anthropic_claude-3.7-sonnet",
+      "app_number": 1,
+      "analysis_time": "2025-08-23T06:30:24.215630",
       "tools_used": [
         "curl",
         "ab",
@@ -22,21 +22,21 @@
         "locust"
       ],
       "target_urls": [
-        "http://localhost:6120",
-        "http://localhost:6121"
+        "http://localhost:6051",
+        "http://localhost:9051"
       ],
       "results": {
         "url_1": {
           "response_time": {
             "status": "failed",
-            "url": "http://localhost:6120",
+            "url": "http://localhost:6051",
             "error": "No successful requests"
           }
         },
         "url_2": {
           "response_time": {
             "status": "failed",
-            "url": "http://localhost:6121",
+            "url": "http://localhost:9051",
             "error": "No successful requests"
           }
         }
@@ -49,6 +49,6 @@
         "worst_performing_url": null
       }
     },
-    "timestamp": "2025-08-22T23:05:12.838613"
+    "timestamp": "2025-08-23T06:31:10.176540"
   }
 }
