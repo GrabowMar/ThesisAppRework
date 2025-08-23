@@ -17,6 +17,44 @@
 {% set page_title = "Files - " + application.model_slug|replace('_', ' ')|title + " #" + application.app_number|string %}
 {% set active_page = "applications" %}
 
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-folder-open{% endblock %}
+{% block page_title %}Application Files{% endblock %}
+{% block page_subtitle %}{{ application.model_slug|replace('_', ' ')|title }} - Application #{{ application.app_number }}{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <button class="btn btn-outline-primary" onclick="refreshFileTree()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+    <button class="btn btn-outline-success" onclick="uploadFiles()">
+        <i class="fas fa-upload me-1"></i>Upload
+    </button>
+    <button class="btn btn-outline-info" onclick="downloadAll()">
+        <i class="fas fa-download me-1"></i>Download All
+    </button>
+    <div class="btn-group" role="group">
+        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fas fa-cog"></i>
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="createNewFile()">
+                <i class="fas fa-file-plus me-2"></i>New File
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="createNewFolder()">
+                <i class="fas fa-folder-plus me-2"></i>New Folder
+            </a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#" onclick="compareFiles()">
+                <i class="fas fa-exchange-alt me-2"></i>Compare Files
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="findInFiles()">
+                <i class="fas fa-search me-2"></i>Find in Files
+            </a></li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
 {% block head_extra %}
 <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.css" rel="stylesheet">
@@ -27,57 +65,7 @@
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('models.applications') }}">Applications</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('models.application_detail', model_slug=application.model_slug, app_number=application.app_number) }}">{{ application.model_slug|replace('_', ' ')|title }} #{{ application.app_number }}</a></li>
-                    <li class="breadcrumb-item active">Files</li>
-                </ol>
-            </nav>
-            
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-1">Application Files</h1>
-                    <p class="text-muted">{{ application.model_slug|replace('_', ' ')|title }} - Application #{{ application.app_number }}</p>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-outline-primary" onclick="refreshFileTree()">
-                        <i class="fas fa-sync-alt me-1"></i>Refresh
-                    </button>
-                    <button class="btn btn-outline-success" onclick="uploadFiles()">
-                        <i class="fas fa-upload me-1"></i>Upload
-                    </button>
-                    <button class="btn btn-outline-info" onclick="downloadAll()">
-                        <i class="fas fa-download me-1"></i>Download All
-                    </button>
-                    <div class="btn-group" role="group">
-                        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                            <i class="fas fa-cog"></i>
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" onclick="createNewFile()">
-                                <i class="fas fa-file-plus me-2"></i>New File
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="createNewFolder()">
-                                <i class="fas fa-folder-plus me-2"></i>New Folder
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="compareFiles()">
-                                <i class="fas fa-exchange-alt me-2"></i>Compare Files
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="findInFiles()">
-                                <i class="fas fa-search me-2"></i>Find in Files
-                            </a></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Page header now provided by standardized macro via base template -->
 
     <!-- File Browser -->
     <div class="file-browser">

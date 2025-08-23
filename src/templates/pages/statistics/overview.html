@@ -32,7 +32,7 @@
   - /api/statistics/trends (trend data)
 #}
 
-{% extends 'layouts/dashboard.html' %}
+{% extends 'layouts/base.html' %}
 
 {% block title %}Statistics Overview - {{ super() }}{% endblock %}
 
@@ -51,30 +51,35 @@
 </nav>
 {% endblock %}
 
-{% block dashboard_title %}Statistics Overview{% endblock %}
-
-{% block quick_actions %}
-<div class="export-buttons">
-    <div class="btn-group">
-        <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
-            <i class="fas fa-download me-1"></i>Export
-        </button>
-        <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="/api/statistics/export/pdf"><i class="fas fa-file-pdf me-2"></i>PDF Report</a></li>
-            <li><a class="dropdown-item" href="/api/statistics/export/excel"><i class="fas fa-file-excel me-2"></i>Excel</a></li>
-            <li><a class="dropdown-item" href="/api/statistics/export/csv"><i class="fas fa-file-csv me-2"></i>CSV Data</a></li>
-        </ul>
-    </div>
-    <button type="button" class="btn btn-outline-secondary btn-sm ms-2"
-            hx-get="/api/statistics/refresh"
-            hx-target="#statistics-content"
-            hx-indicator="#global-spinner">
-        <i class="fas fa-sync-alt me-1"></i>Refresh
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-chart-bar{% endblock %}
+{% block page_title %}Statistics Overview{% endblock %}
+{% block page_subtitle %}Your AI analysis control center{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="fas fa-download me-1"></i>Export
     </button>
+    <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="/api/statistics/export/pdf"><i class="fas fa-file-pdf me-2"></i>PDF Report</a></li>
+        <li><a class="dropdown-item" href="/api/statistics/export/excel"><i class="fas fa-file-excel me-2"></i>Excel</a></li>
+        <li><a class="dropdown-item" href="/api/statistics/export/csv"><i class="fas fa-file-csv me-2"></i>CSV Data</a></li>
+    </ul>
 </div>
+<button type="button" class="btn btn-outline-secondary btn-sm ms-1"
+        hx-get="/api/statistics/refresh"
+        hx-target="#statistics-content"
+        hx-indicator="#global-spinner">
+    <i class="fas fa-sync-alt me-1"></i>Refresh
+</button>
 {% endblock %}
 
-{% block dashboard_stats %}
+{% block content %}
+<div class="container-fluid" id="statistics-content">
+<div class="row mb-4">
+{% endblock %}
+
+{% block dashboard_stats %}{# preserved inner blocks temporarily; could be refactored later #}
 <div class="col-xl-3 col-lg-6 mb-4">
     <div class="card metric-card bg-gradient-primary text-white">
         <div class="card-body">

@@ -1,10 +1,8 @@
-{# sidebar component (documentation trimmed) #}
+{# integrated sidebar with header bar (documentation trimmed) #}
 
 {%- set collapsed = collapsed|default(false) -%}
 {%- set variant = variant|default("dark") -%}
-{%- set show_user_info = show_user_info|default(true) -%}
-{%- set show_search = show_search|default(false) -%}
-{%- set show_quick_stats = show_quick_stats|default(false) -%}
+{%- set show_user_info = show_user_info|default(false) -%}
 {%- set fixed_position = fixed_position|default(true) -%}
 {%- set enable_tooltips = enable_tooltips|default(true) -%}
 
@@ -16,66 +14,177 @@
   {% set current_app = namespace(view_functions={}) %}
 {% endif %}
 
+<!-- Integrated Header Bar -->
+<nav class="integrated-header navbar navbar-expand-lg navbar-dark" 
+     id="integrated-header" 
+     role="navigation" 
+     aria-label="Main navigation">
+  
+  <div class="container-fluid">
+    <!-- Sidebar toggle (desktop) -->
+    <button class="sidebar-toggle btn btn-ghost btn-sm me-3" type="button" aria-label="Toggle sidebar" onclick="toggleSidebar()">
+      <i class="fas fa-bars"></i>
+    </button>
+    
+    <!-- Brand/Logo -->
+    <a class="navbar-brand d-flex align-items-center py-0" href="{{ url_for('main.dashboard') }}" aria-label="Go to dashboard">
+      <i class="fas fa-robot text-primary me-2" aria-hidden="true"></i>
+      <span class="fw-bold">AI Analysis</span>
+    </a>
+
+  {# Desktop nav tabs removed per redesign #}
+
+    <!-- Mobile hamburger menu toggle -->
+    <button class="navbar-toggler py-0 px-2 d-lg-none" 
+            type="button" 
+            data-bs-toggle="offcanvas" 
+            data-bs-target="#mobile-sidebar" 
+            aria-controls="mobile-sidebar" 
+            aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Header Actions & Status -->
+    <div class="navbar-actions d-flex align-items-center ms-auto">
+      <!-- File Menu -->
+      <div class="dropdown me-2">
+        <button class="btn btn-ghost btn-sm dropdown-toggle" 
+                type="button" 
+                id="file-menu" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                title="File operations">
+          <i class="fas fa-folder me-1"></i>File
+        </button>
+        <ul class="dropdown-menu" aria-labelledby="file-menu">
+          <li><a class="dropdown-item" href="{{ url_for('analysis.analyses_create_page') }}">
+            <i class="fas fa-plus me-2"></i>New Analysis
+          </a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="{{ url_for('models.applications') }}">
+            <i class="fas fa-folder-open me-2"></i>Open Applications
+          </a></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1">
+            <i class="fas fa-save me-2"></i>Save (Not Available)
+          </a></li>
+        </ul>
+      </div>
+
+      <!-- Export Menu -->
+      <div class="dropdown me-2">
+        <button class="btn btn-ghost btn-sm dropdown-toggle" 
+                type="button" 
+                id="export-menu" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                title="Export options">
+          <i class="fas fa-download me-1"></i>Export
+        </button>
+        <ul class="dropdown-menu" aria-labelledby="export-menu">
+          <li><a class="dropdown-item" href="{{ url_for('statistics.statistics_overview') }}">
+            <i class="fas fa-chart-bar me-2"></i>Statistics Report
+          </a></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1">
+            <i class="fas fa-file-csv me-2"></i>Export CSV (Not Available)
+          </a></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1">
+            <i class="fas fa-file-pdf me-2"></i>Export PDF (Not Available)
+          </a></li>
+        </ul>
+      </div>
+
+      <!-- Status Icons -->
+      <div class="status-indicators d-flex align-items-center me-3">
+        <!-- Analysis Status -->
+        <div class="status-icon me-2" title="Analysis Status">
+          <i class="fas fa-chart-line text-primary"></i>
+          <span class="status-badge bg-success" id="analysis-status">3</span>
+        </div>
+
+        <!-- System Health -->
+        <div class="status-icon me-2" title="System Health">
+          <a href="{{ url_for('main.system_status') }}" class="text-decoration-none">
+            <i class="fas fa-server text-info"></i>
+            <span class="status-badge bg-success" id="system-status-badge">●</span>
+          </a>
+        </div>
+
+        <!-- Database Status -->
+        <div class="status-icon me-2" title="Database Status">
+          <i class="fas fa-database text-warning"></i>
+          <span class="status-badge bg-success" id="db-status">●</span>
+        </div>
+      </div>
+
+      <!-- Theme Toggle -->
+      <button class="btn btn-ghost btn-sm me-2" 
+              type="button"
+              id="theme-toggle"
+              aria-label="Toggle theme"
+              title="Toggle light/dark theme">
+        <i class="fas fa-sun" id="theme-icon" aria-hidden="true"></i>
+      </button>
+
+      <!-- Settings -->
+      <div class="dropdown">
+        <button class="btn btn-ghost btn-sm" 
+                type="button" 
+                id="settings-menu" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                title="Settings">
+          <i class="fas fa-cog"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settings-menu">
+          <li><h6 class="dropdown-header">Theme</h6></li>
+          <li><button class="dropdown-item theme-option" data-theme="light">
+            <i class="fas fa-sun me-2"></i>Light
+          </button></li>
+          <li><button class="dropdown-item theme-option" data-theme="dark">
+            <i class="fas fa-moon me-2"></i>Dark
+          </button></li>
+          <li><button class="dropdown-item theme-option" data-theme="auto">
+            <i class="fas fa-adjust me-2"></i>Auto
+          </button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1">
+            <i class="fas fa-cog me-2"></i>Preferences (Not Available)
+          </a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</nav>
+
 <!-- Desktop Sidebar -->
-<aside class="sidebar sidebar-{{ variant }} {{ 'collapsed' if collapsed else '' }} {{ 'position-fixed' if fixed_position else '' }} d-none d-lg-flex flex-column" 
+<aside class="integrated-sidebar sidebar-{{ variant }} {{ 'collapsed' if collapsed else '' }} {{ 'position-fixed' if fixed_position else '' }} d-none d-lg-flex flex-column" 
        id="desktop-sidebar"
        role="navigation" 
        aria-label="Main sidebar navigation">
   
-  <!-- User info section (if enabled) -->
+  <!-- User info section (simplified) -->
   {% if show_user_info and current_user %}
   <div class="sidebar-user-info p-3 border-bottom border-secondary">
     <div class="d-flex align-items-center">
       <div class="flex-shrink-0">
         <img src="{{ current_user.avatar_url if current_user.avatar_url else url_for('static', filename='images/default-avatar.svg') }}" 
              class="rounded-circle sidebar-avatar" 
-             width="40" 
-             height="40" 
+             width="32" 
+             height="32" 
              alt="{{ current_user.name }} avatar">
       </div>
-      <div class="flex-grow-1 ms-3 sidebar-user-text">
-        <div class="fw-semibold text-white">{{ current_user.name }}</div>
-        <div class="small text-white-50">{{ current_user.role|title if current_user.role else 'User' }}</div>
-      </div>
-      <div class="flex-shrink-0">
-        <button class="btn btn-link btn-sm text-white-50 p-0" 
-                type="button"
-                data-bs-toggle="dropdown"
-                aria-label="User menu">
-          <i class="fas fa-ellipsis-v"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-dark">
-          <li><a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">Profile (not available)</a></li>
-          <li><a class="dropdown-item disabled" href="#" tabindex="-1" aria-disabled="true">Settings (not available)</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li>
-            <button type="button" class="dropdown-item text-muted" disabled>Logout (not available)</button>
-          </li>
-        </ul>
+      <div class="flex-grow-1 ms-2 sidebar-user-text">
+        <div class="fw-semibold text-white small">{{ current_user.name }}</div>
+        <div class="text-white-50" style="font-size: 0.75rem;">{{ current_user.role|title if current_user.role else 'User' }}</div>
       </div>
     </div>
   </div>
   {% endif %}
 
-  <!-- Search within sidebar (if enabled) -->
-  {# Sidebar search removed per request #}
-
-  {# Quick stats removed to simplify UI per request #}
-
-  <!-- Main navigation menu -->
-  <nav class="sidebar-nav flex-grow-1" role="navigation" aria-label="Sidebar navigation menu">
+  <!-- Simplified navigation menu -->
+  <nav class="sidebar-nav flex-grow-1 py-2" role="navigation" aria-label="Sidebar navigation menu">
     <ul class="nav nav-pills flex-column" id="sidebar-nav-list">
       
-      <!-- Dashboard -->
-      <li class="nav-item">
-        <a class="nav-link {{ 'active' if request.endpoint == 'main.dashboard' else '' }}" 
-           href="{{ url_for('main.dashboard') }}"
-           {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Dashboard Overview"' if enable_tooltips and collapsed else '' }}>
-          <i class="nav-icon fas fa-tachometer-alt" aria-hidden="true"></i>
-          <span class="nav-text">Dashboard</span>
-        </a>
-      </li>
-
       <!-- Analysis Section -->
       <li class="nav-item">
         <a class="nav-link nav-link-collapse {{ 'active' if request.endpoint and 'analysis' in request.endpoint else '' }}" 
@@ -91,57 +200,32 @@
         </a>
         <div class="collapse {{ 'show' if request.endpoint and 'analysis' in request.endpoint else '' }}" id="analysis-menu">
           <ul class="nav nav-pills flex-column nav-sub">
-        <li class="nav-item">
-          <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analysis_hub' else '' }}" 
-            href="{{ url_for('analysis.analysis_hub') }}">
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analysis_hub' else '' }}" 
+                 href="{{ url_for('analysis.analysis_hub') }}">
                 <i class="nav-icon fas fa-home" aria-hidden="true"></i>
                 <span class="nav-text">Hub</span>
               </a>
             </li>
             <li class="nav-item">
-          <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analyses_create_page' else '' }}" 
-            href="{{ url_for('analysis.analyses_create_page') }}">
-                <i class="nav-icon fas fa-plus" aria-hidden="true"></i>
-                <span class="nav-text">New Analysis</span>
-              </a>
-            </li>
-        <li class="nav-item">
-          <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analyses_list_page' else '' }}" 
-            href="{{ url_for('analysis.analyses_list_page') }}">
+              <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analyses_list_page' else '' }}" 
+                 href="{{ url_for('analysis.analyses_list_page') }}">
                 <i class="nav-icon fas fa-list" aria-hidden="true"></i>
-                <span class="nav-text">All Results</span>
+                <span class="nav-text">Results</span>
               </a>
             </li>
-        {# Compare route not implemented; hide link to avoid 404 #}
           </ul>
         </div>
       </li>
 
       <!-- Models Section -->
       <li class="nav-item">
-        <a class="nav-link nav-link-collapse {{ 'active' if request.endpoint and 'models' in request.endpoint else '' }}" 
-           data-bs-toggle="collapse" 
-           data-bs-target="#models-menu"
-           aria-expanded="{{ 'true' if request.endpoint and 'models' in request.endpoint else 'false' }}"
-           aria-controls="models-menu"
-           href="#"
-           role="button">
+        <a class="nav-link {{ 'active' if request.endpoint and 'models' in request.endpoint and 'applications' not in request.endpoint else '' }}" 
+           href="{{ url_for('models.models_overview') }}"
+           {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="AI Models"' if enable_tooltips and collapsed else '' }}>
           <i class="nav-icon fas fa-brain" aria-hidden="true"></i>
           <span class="nav-text">Models</span>
-          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
         </a>
-        <div class="collapse {{ 'show' if request.endpoint and 'models' in request.endpoint else '' }}" id="models-menu">
-          <ul class="nav nav-pills flex-column nav-sub">
-            <li class="nav-item">
-              <a class="nav-link {{ 'active' if request.endpoint == 'models.models_overview' else '' }}" 
-                 href="{{ url_for('models.models_overview') }}">
-                <i class="nav-icon fas fa-th-large" aria-hidden="true"></i>
-                <span class="nav-text">Overview</span>
-              </a>
-            </li>
-            {# Comparison/Capabilities not implemented; hide to avoid 404 #}
-          </ul>
-        </div>
       </li>
 
       <!-- Applications Section -->
@@ -159,34 +243,23 @@
         </a>
         <div class="collapse {{ 'show' if request.endpoint and 'applications' in request.endpoint else '' }}" id="applications-menu">
           <ul class="nav nav-pills flex-column nav-sub">
-        <li class="nav-item">
-          <a class="nav-link {{ 'active' if request.endpoint == 'models.applications' else '' }}" 
-            href="{{ url_for('models.applications') }}">
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if request.endpoint == 'models.applications' else '' }}" 
+                 href="{{ url_for('models.applications') }}">
                 <i class="nav-icon fas fa-list" aria-hidden="true"></i>
                 <span class="nav-text">All Apps</span>
               </a>
             </li>
             <li class="nav-item">
-          <a class="nav-link" 
-            href="{{ url_for('models.applications') }}?status=running">
-                <i class="nav-icon fas fa-play text-success" aria-hidden="true"></i>
-                <span class="nav-text">Running</span>
-                <span class="badge bg-success ms-auto sidebar-badge">0</span>
-              </a>
-            </li>
-            <li class="nav-item">
-          <a class="nav-link" 
-            href="{{ url_for('models.applications') }}?status=stopped">
-                <i class="nav-icon fas fa-stop text-danger" aria-hidden="true"></i>
-                <span class="nav-text">Stopped</span>
-                <span class="badge bg-secondary ms-auto sidebar-badge">0</span>
+              <a class="nav-link" 
+                 href="{{ url_for('models.applications') }}?filter=recent">
+                <i class="nav-icon fas fa-clock text-info" aria-hidden="true"></i>
+                <span class="nav-text">Recent</span>
               </a>
             </li>
           </ul>
         </div>
       </li>
-
-  {# Batch Jobs feature deprecated / not implemented in lean build; hidden to avoid 500s #}
 
       <!-- Statistics -->
       <li class="nav-item">
@@ -199,56 +272,19 @@
       </li>
 
       <!-- Divider -->
-      <li class="nav-divider my-3"></li>
+      <li class="nav-divider my-2"></li>
 
       <!-- System Section -->
       <li class="nav-item">
-        <a class="nav-link nav-link-collapse" 
-           data-bs-toggle="collapse" 
-           data-bs-target="#system-menu"
-           aria-expanded="false"
-           aria-controls="system-menu"
-           href="#"
-           role="button">
-          <i class="nav-icon fas fa-server" aria-hidden="true"></i>
+        <a class="nav-link {{ 'active' if request.endpoint == 'main.system_status' else '' }}" 
+           href="{{ url_for('main.system_status') }}"
+           {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="System Health"' if enable_tooltips and collapsed else '' }}>
+          <i class="nav-icon fas fa-heartbeat" aria-hidden="true"></i>
           <span class="nav-text">System</span>
-          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
         </a>
-        <div class="collapse" id="system-menu">
-          <ul class="nav nav-pills flex-column nav-sub">
-            <li class="nav-item">
-              <a class="nav-link {{ 'active' if request.endpoint == 'main.system_status' else '' }}" 
-                 href="{{ url_for('main.system_status') }}">
-                <i class="nav-icon fas fa-heartbeat" aria-hidden="true"></i>
-                <span class="nav-text">Health</span>
-              </a>
-            </li>
-            {# Logs/Settings not implemented; hide to avoid 404 #}
-          </ul>
-        </div>
       </li>
     </ul>
   </nav>
-
-  <!-- Quick actions footer -->
-  <div class="sidebar-footer p-3 border-top border-secondary">
-    <div class="d-grid gap-2">
-  <button class="btn btn-primary btn-sm" 
-              type="button"
-      onclick="location.href='{{ url_for('analysis.analyses_create_page') }}'"
-              {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Start New Analysis"' if enable_tooltips and collapsed else '' }}>
-        <i class="fas fa-plus me-1" aria-hidden="true"></i>
-        <span class="sidebar-btn-text">New Analysis</span>
-      </button>
-      <button class="btn btn-outline-light btn-sm sidebar-collapse-btn" 
-              type="button"
-              onclick="toggleSidebar()"
-              aria-label="Toggle sidebar">
-        <i class="fas fa-angle-double-left sidebar-collapse-icon" aria-hidden="true"></i>
-        <span class="sidebar-btn-text">Collapse</span>
-      </button>
-    </div>
-  </div>
 </aside>
 
 <!-- Mobile Sidebar (Offcanvas) -->
@@ -259,7 +295,7 @@
   <div class="offcanvas-header border-bottom border-secondary">
     <h5 class="offcanvas-title" id="mobile-sidebar-label">
       <i class="fas fa-robot me-2 text-primary" aria-hidden="true"></i>
-      AI Model Analysis
+      AI Analysis
     </h5>
     <button type="button" 
             class="btn-close btn-close-white" 
@@ -267,243 +303,299 @@
             aria-label="Close sidebar"></button>
   </div>
   <div class="offcanvas-body p-0">
-    {# Render a simplified copy of the nav for mobile to avoid recursion #}
+    {# Simplified mobile nav #}
     <nav class="sidebar-nav" role="navigation" aria-label="Mobile sidebar navigation">
       <ul class="nav nav-pills flex-column">
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}"><i class="nav-icon fas fa-tachometer-alt"></i><span class="nav-text">Dashboard</span></a></li>
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('analysis.analysis_hub') }}"><i class="nav-icon fas fa-chart-line"></i><span class="nav-text">Analysis</span></a></li>
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('models.models_overview') }}"><i class="nav-icon fas fa-brain"></i><span class="nav-text">Models</span></a></li>
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('models.applications') }}"><i class="nav-icon fas fa-boxes"></i><span class="nav-text">Applications</span></a></li>
-  {# Batch overview link removed in lean mode to avoid referencing unregistered blueprint #}
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}"><i class="nav-icon fas fa-chart-bar"></i><span class="nav-text">Statistics</span></a></li>
-        <li class="nav-divider my-3"></li>
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('main.system_status') }}"><i class="nav-icon fas fa-heartbeat"></i><span class="nav-text">System Health</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}"><i class="nav-icon fas fa-tachometer-alt"></i><span class="nav-text">Dashboard</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('analysis.analysis_hub') }}"><i class="nav-icon fas fa-chart-line"></i><span class="nav-text">Analysis</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('models.models_overview') }}"><i class="nav-icon fas fa-brain"></i><span class="nav-text">Models</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('models.applications') }}"><i class="nav-icon fas fa-boxes"></i><span class="nav-text">Applications</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}"><i class="nav-icon fas fa-chart-bar"></i><span class="nav-text">Statistics</span></a></li>
+        <li class="nav-divider my-2"></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.system_status') }}"><i class="nav-icon fas fa-heartbeat"></i><span class="nav-text">System</span></a></li>
       </ul>
     </nav>
   </div>
 </div>
 
-<!-- Sidebar JavaScript -->
+<!-- Integrated Navigation JavaScript -->
 <script>
-class SidebarManager {
+class IntegratedNavManager {
   constructor() {
     this.sidebar = document.getElementById('desktop-sidebar');
-    this.searchInput = document.getElementById('sidebar-search-input');
     this.navItems = document.querySelectorAll('.sidebar-nav .nav-link');
+    this.themeToggle = document.getElementById('theme-toggle');
+    this.themeIcon = document.getElementById('theme-icon');
+    this.systemStatusBadge = document.getElementById('system-status-badge');
+    this.analysisStatus = document.getElementById('analysis-status');
+    this.dbStatus = document.getElementById('db-status');
+    this.themeOptions = document.querySelectorAll('.theme-option');
     
-  this.isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    this.isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    this.currentTheme = this.getStoredTheme() || this.getPreferredTheme();
     
     this.init();
   }
   
   init() {
-    this.setupSearch();
     this.setupTooltips();
-    this.setupCollapse();
     this.setupNavigation();
+    this.setupThemeToggle();
+    this.setupThemeOptions();
+    this.setupStatusPolling();
+    this.setupMobileMenu();
+    
+    // Apply initial states
+    this.setTheme(this.currentTheme);
     this.loadSidebarState();
     
-    // Apply initial state
+    // Set initial sidebar state
     if (this.isCollapsed) {
       this.collapseSidebar();
     } else {
-      document.body.classList.add('with-sidebar');
+      this.expandSidebar();
     }
-  }
-  
-  setupSearch() {
-    if (!this.searchInput) return;
     
-    this.searchInput.addEventListener('input', (e) => {
-      this.filterNavItems(e.target.value);
-    });
-    
-    // Clear search on escape
-    this.searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        this.searchInput.value = '';
-        this.filterNavItems('');
-        this.searchInput.blur();
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (this.getStoredTheme() === 'auto') {
+        this.setTheme('auto');
       }
     });
-  }
-  
-  filterNavItems(query) {
-    const normalizedQuery = query.toLowerCase().trim();
-    
-    this.navItems.forEach(link => {
-      const text = link.querySelector('.nav-text');
-      if (!text) return;
-      
-      const navItem = link.closest('.nav-item');
-      const textContent = text.textContent.toLowerCase();
-      
-      if (normalizedQuery === '' || textContent.includes(normalizedQuery)) {
-        navItem.style.display = '';
-        
-        // If it's a sub-menu item that matches, show its parent
-        const parentCollapse = link.closest('.collapse');
-        if (parentCollapse) {
-          parentCollapse.classList.add('show');
-          const parentToggle = document.querySelector(`[data-bs-target="#${parentCollapse.id}"]`);
-          if (parentToggle) {
-            parentToggle.setAttribute('aria-expanded', 'true');
-          }
-        }
-      } else {
-        navItem.style.display = 'none';
-      }
-    });
-    
-    // Hide empty sections
-    document.querySelectorAll('.nav-sub').forEach(subNav => {
-      const visibleItems = Array.from(subNav.querySelectorAll('.nav-item')).filter(item => 
-        item.style.display !== 'none'
-      );
-      
-      const parentCollapse = subNav.closest('.collapse');
-      if (parentCollapse && visibleItems.length === 0) {
-        parentCollapse.classList.remove('show');
-      }
-    });
-  }
-  
-  setupTooltips() {
-    if (!this.sidebar) return;
-    
-    // Initialize tooltips for collapsed state
-    const tooltipElements = this.sidebar.querySelectorAll('[data-bs-toggle="tooltip"]');
-    tooltipElements.forEach(element => {
-      new bootstrap.Tooltip(element);
-    });
-  }
-  
-  setupCollapse() {
-    // Update collapse icons
-    document.querySelectorAll('.nav-link-collapse').forEach(link => {
-      link.addEventListener('click', (e) => {
-        const arrow = link.querySelector('.nav-arrow');
-        const target = document.querySelector(link.getAttribute('data-bs-target'));
-        
-        if (target) {
-          target.addEventListener('show.bs.collapse', () => {
-            arrow.style.transform = 'rotate(90deg)';
-          });
-          
-          target.addEventListener('hide.bs.collapse', () => {
-            arrow.style.transform = 'rotate(0deg)';
-          });
-        }
-      });
-    });
-  }
-  
-  setupNavigation() {
-    // Add click handlers for navigation items
-    this.navItems.forEach(link => {
-      if (!link.classList.contains('nav-link-collapse')) {
-        link.addEventListener('click', (e) => {
-          // Remove active class from all items
-          this.navItems.forEach(item => item.classList.remove('active'));
-          
-          // Add active class to clicked item
-          link.classList.add('active');
-          
-          // Save active state
-          localStorage.setItem('activeSidebarItem', link.getAttribute('href'));
-        });
-      }
-    });
-  }
-  
-  loadSidebarState() {
-    // Restore active item
-    const activeItem = localStorage.getItem('activeSidebarItem');
-    if (activeItem) {
-      const link = document.querySelector(`.nav-link[href="${activeItem}"]`);
-      if (link) {
-        link.classList.add('active');
-        
-        // If it's in a collapsed section, expand it
-        const parentCollapse = link.closest('.collapse');
-        if (parentCollapse) {
-          parentCollapse.classList.add('show');
-          const toggle = document.querySelector(`[data-bs-target="#${parentCollapse.id}"]`);
-          if (toggle) {
-            toggle.setAttribute('aria-expanded', 'true');
-            const arrow = toggle.querySelector('.nav-arrow');
-            if (arrow) {
-              arrow.style.transform = 'rotate(90deg)';
-            }
-          }
-        }
-      }
-    }
   }
   
   collapseSidebar() {
     if (!this.sidebar) return;
     
-  this.sidebar.classList.add('collapsed');
+    this.sidebar.classList.add('collapsed');
+    document.body.classList.add('sidebar-collapsed');
+    document.body.classList.remove('with-sidebar');
     this.isCollapsed = true;
     localStorage.setItem('sidebarCollapsed', 'true');
-  document.body.classList.add('with-sidebar');
-  document.body.classList.add('sidebar-collapsed');
     
-    // Update collapse button icon
-    const collapseIcon = document.querySelector('.sidebar-collapse-icon');
-    if (collapseIcon) {
-      collapseIcon.className = 'fas fa-angle-double-right';
+    // Update main content classes
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.classList.remove('sidebar-expanded');
+      mainContent.classList.add('sidebar-collapsed');
     }
     
-    // Enable tooltips in collapsed mode
-    this.enableCollapsedTooltips();
+    // Update toggle button
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+    if (toggleBtn) {
+      toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
+      toggleBtn.title = 'Expand sidebar';
+    }
     
-    // Collapse all expanded menus
-    document.querySelectorAll('.sidebar-nav .collapse.show').forEach(collapse => {
-      collapse.classList.remove('show');
-    });
-    
-    // Dispatch custom event
-    window.dispatchEvent(new CustomEvent('sidebar:collapsed'));
+    // Enable tooltips for collapsed state
+    this.setupTooltips();
   }
   
   expandSidebar() {
     if (!this.sidebar) return;
     
-  this.sidebar.classList.remove('collapsed');
+    this.sidebar.classList.remove('collapsed');
+    document.body.classList.remove('sidebar-collapsed');
+    document.body.classList.add('with-sidebar');
     this.isCollapsed = false;
     localStorage.setItem('sidebarCollapsed', 'false');
-  document.body.classList.add('with-sidebar');
-  document.body.classList.remove('sidebar-collapsed');
     
-    // Update collapse button icon
-    const collapseIcon = document.querySelector('.sidebar-collapse-icon');
-    if (collapseIcon) {
-      collapseIcon.className = 'fas fa-angle-double-left';
+    // Update main content classes
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.classList.add('sidebar-expanded');
+      mainContent.classList.remove('sidebar-collapsed');
     }
     
-    // Disable tooltips in expanded mode
-    this.disableCollapsedTooltips();
-    
-    // Dispatch custom event
-    window.dispatchEvent(new CustomEvent('sidebar:expanded'));
+    // Update toggle button
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+    if (toggleBtn) {
+      toggleBtn.innerHTML = '<i class="fas fa-angle-double-left"></i>';
+      toggleBtn.title = 'Collapse sidebar';
+    }
   }
   
-  enableCollapsedTooltips() {
-    this.sidebar.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
-      const tooltip = bootstrap.Tooltip.getInstance(element);
-      if (tooltip) {
-        tooltip.enable();
+  setupTooltips() {
+    if (this.isCollapsed && window.bootstrap) {
+      // Initialize tooltips for collapsed sidebar
+      const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+      });
+    }
+  }
+  
+  setupNavigation() {
+    // Handle collapsible menu arrows
+    document.querySelectorAll('.nav-link-collapse').forEach(link => {
+      const arrow = link.querySelector('.nav-arrow');
+      if (!arrow) return;
+      
+      const target = document.querySelector(link.getAttribute('data-bs-target'));
+      
+      if (target) {
+        target.addEventListener('show.bs.collapse', () => {
+          arrow.style.transform = 'rotate(90deg)';
+        });
+        
+        target.addEventListener('hide.bs.collapse', () => {
+          arrow.style.transform = 'rotate(0deg)';
+        });
       }
     });
   }
   
-  disableCollapsedTooltips() {
-    this.sidebar.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
-      const tooltip = bootstrap.Tooltip.getInstance(element);
-      if (tooltip) {
-        tooltip.disable();
+  setupThemeToggle() {
+    if (!this.themeToggle) return;
+    
+    this.themeToggle.addEventListener('click', () => {
+      const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+      this.setTheme(newTheme);
+      this.storeTheme(newTheme);
+    });
+  }
+
+  setupThemeOptions() {
+    this.themeOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        const theme = option.dataset.theme;
+        this.setTheme(theme);
+        this.storeTheme(theme);
+      });
+    });
+  }
+  
+  getStoredTheme() {
+    return localStorage.getItem('theme');
+  }
+  
+  storeTheme(theme) {
+    localStorage.setItem('theme', theme);
+    this.currentTheme = theme;
+  }
+  
+  getPreferredTheme() {
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  }
+  
+  setTheme(theme) {
+    let actualTheme = theme;
+    if (theme === 'auto') {
+      actualTheme = this.getPreferredTheme();
+    }
+    
+    // Sync both custom data-theme and Bootstrap data-bs-theme
+    document.documentElement.setAttribute('data-theme', actualTheme);
+    document.documentElement.setAttribute('data-bs-theme', actualTheme);
+    
+    if (this.themeIcon) {
+      if (theme === 'auto') {
+        this.themeIcon.className = 'fas fa-adjust';
+      } else {
+        this.themeIcon.className = actualTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+      }
+    }
+    
+    // Update theme options active state
+    this.themeOptions.forEach(option => {
+      if (option.dataset.theme === theme) {
+        option.classList.add('active');
+      } else {
+        option.classList.remove('active');
+      }
+    });
+    
+    this.currentTheme = theme;
+  }
+
+  setupStatusPolling() {
+    // Poll status every 30 seconds
+    this.updateSystemStatus();
+    this.updateAnalysisStatus();
+    this.updateDatabaseStatus();
+    
+    setInterval(() => {
+      this.updateSystemStatus();
+      this.updateAnalysisStatus();
+      this.updateDatabaseStatus();
+    }, 30000);
+  }
+  
+  async updateSystemStatus() {
+    if (!this.systemStatusBadge) return;
+    
+    try {
+      const response = await fetch('/api/system/health');
+      const data = await response.json();
+      
+      if (data.status === 'healthy') {
+        this.systemStatusBadge.className = 'status-badge bg-success';
+        this.systemStatusBadge.innerHTML = '●';
+      } else if (data.status === 'warning') {
+        this.systemStatusBadge.className = 'status-badge bg-warning';
+        this.systemStatusBadge.innerHTML = '●';
+      } else {
+        this.systemStatusBadge.className = 'status-badge bg-danger';
+        this.systemStatusBadge.innerHTML = '●';
+      }
+    } catch (error) {
+      console.error('Failed to update system status:', error);
+      this.systemStatusBadge.className = 'status-badge bg-secondary';
+      this.systemStatusBadge.innerHTML = '●';
+    }
+  }
+
+  async updateAnalysisStatus() {
+    if (!this.analysisStatus) return;
+    
+    try {
+      const response = await fetch('/api/analysis/count');
+      const data = await response.json();
+      this.analysisStatus.textContent = data.running || 0;
+      
+      if (data.running > 0) {
+        this.analysisStatus.className = 'status-badge bg-primary';
+      } else {
+        this.analysisStatus.className = 'status-badge bg-secondary';
+      }
+    } catch (error) {
+      console.error('Failed to update analysis status:', error);
+      this.analysisStatus.textContent = '0';
+      this.analysisStatus.className = 'status-badge bg-secondary';
+    }
+  }
+
+  async updateDatabaseStatus() {
+    if (!this.dbStatus) return;
+    
+    try {
+      const response = await fetch('/api/system/db-health');
+      const data = await response.json();
+      
+      if (data.status === 'healthy') {
+        this.dbStatus.className = 'status-badge bg-success';
+      } else {
+        this.dbStatus.className = 'status-badge bg-danger';
+      }
+    } catch (error) {
+      console.error('Failed to update database status:', error);
+      this.dbStatus.className = 'status-badge bg-warning';
+    }
+  }
+  
+  setupMobileMenu() {
+    // Enhanced mobile menu behavior
+    const mobileSidebar = document.getElementById('mobile-sidebar');
+    if (!mobileSidebar) return;
+    
+    // Close mobile menu when clicking on nav links
+    mobileSidebar.addEventListener('click', (e) => {
+      if (e.target.classList.contains('nav-link') && window.innerWidth < 992) {
+        const offcanvas = bootstrap.Offcanvas.getInstance(mobileSidebar);
+        if (offcanvas) offcanvas.hide();
       }
     });
   }
@@ -515,19 +607,77 @@ class SidebarManager {
       this.collapseSidebar();
     }
   }
-}
-
-// Global function for toggle button
-function toggleSidebar() {
-  if (window.sidebarManager) {
-    window.sidebarManager.toggleSidebar();
+  
+  loadSidebarState() {
+    // Restore active item
+    const activeItem = localStorage.getItem('activeSidebarItem');
+    if (activeItem) {
+      const link = document.querySelector(`a[href="${activeItem}"]`);
+      if (link) {
+        // Remove active from all
+        document.querySelectorAll('.sidebar-nav .nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+      }
+    }
   }
 }
 
-// Initialize sidebar when DOM is ready
+// Initialize integrated navigation when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  window.sidebarManager = new SidebarManager();
+  window.integratedNavManager = new IntegratedNavManager();
 });
+
+// Global sidebar toggle function
+function toggleSidebar() {
+  const manager = window.integratedNavManager;
+  if (manager) {
+    manager.toggleSidebar();
+  } else {
+    // Fallback if manager not available
+    const sidebar = document.getElementById('desktop-sidebar');
+    const mainContent = document.querySelector('.main-content');
+    
+    if (sidebar) {
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      
+      if (isCollapsed) {
+        sidebar.classList.remove('collapsed');
+        document.body.classList.add('with-sidebar');
+        document.body.classList.remove('sidebar-collapsed');
+        
+        if (mainContent) {
+          mainContent.classList.add('sidebar-expanded');
+          mainContent.classList.remove('sidebar-collapsed');
+        }
+        
+        localStorage.setItem('sidebarCollapsed', 'false');
+      } else {
+        sidebar.classList.add('collapsed');
+        document.body.classList.remove('with-sidebar');
+        document.body.classList.add('sidebar-collapsed');
+        
+        if (mainContent) {
+          mainContent.classList.remove('sidebar-expanded');
+          mainContent.classList.add('sidebar-collapsed');
+        }
+        
+        localStorage.setItem('sidebarCollapsed', 'true');
+      }
+    }
+  }
+}
+
+// Initialize integrated navigation when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  window.integratedNavManager = new IntegratedNavManager();
+});
+
+// Global sidebar toggle function
+function toggleSidebar() {
+  if (window.integratedNavManager) {
+    window.integratedNavManager.toggleSidebar();
+  }
+}
 
 // HTMX event listeners
 document.body.addEventListener('htmx:afterRequest', (event) => {
@@ -542,11 +692,8 @@ document.body.addEventListener('htmx:afterRequest', (event) => {
 
 // Listen for sidebar toggle from navbar
 window.addEventListener('toggle:sidebar', () => {
-  if (window.sidebarManager) {
-    window.sidebarManager.toggleSidebar();
+  if (window.integratedNavManager) {
+    window.integratedNavManager.toggleSidebar();
   }
 });
 </script>
-
-<!-- Sidebar Styles -->
-

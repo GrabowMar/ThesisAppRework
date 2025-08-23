@@ -82,15 +82,9 @@
         </div>
     </div>
     
-    {# Navigation Header #}
-    {% block header %}
-    {# Include shared navbar component #}
-    {% include 'ui/elements/navigation/navbar.html' %}
-    {% endblock %}
-    
-    {# Sidebar Navigation #}
+    {# Integrated Sidebar Navigation (includes header functionality) #}
     {% block sidebar %}
-    {# Include shared sidebar component (desktop + mobile offcanvas) #}
+    {# Include integrated sidebar with header #}
     {% include 'ui/elements/navigation/sidebar.html' %}
     {% endblock %}
     
@@ -116,13 +110,15 @@
 
             {# Optional standard page header (opt-in via blocks) #}
             {% from 'ui/elements/common/_page_header.html' import page_header %}
-            {# Provide empty defaults so self.page_title() is always callable #}
-            {% block page_title %}{% endblock %}
-            {% block page_subtitle %}{% endblock %}
-            {% block page_icon %}{% endblock %}
-            {% set _title = self.page_title()|trim %}
+            {# Capture header-related blocks so their raw text doesn't emit before macro rendering #}
+            {% set _page_title %}{% block page_title %}{% endblock %}{% endset %}
+            {% set _page_subtitle %}{% block page_subtitle %}{% endblock %}{% endset %}
+            {% set _page_icon %}{% block page_icon %}{% endblock %}{% endset %}
+            {% set _page_actions %}{% block page_actions %}{% endblock %}{% endset %}
+            {% set _page_header_variant %}{% block page_header_variant %}accent{% endblock %}{% endset %}
+            {% set _title = _page_title|trim %}
             {% if _title %}
-                {{ page_header(_title, self.page_subtitle()|trim, icon=self.page_icon()|trim) }}
+                {{ page_header(_title, _page_subtitle|trim, icon=_page_icon|trim, actions_html=_page_actions|trim, variant=_page_header_variant|trim) }}
             {% endif %}
 
             {# Page Content #}
@@ -135,12 +131,8 @@
         </div>
     </main>
     
-    {# Footer #}
-    {% block footer %}
-    <footer class="footer mt-auto py-3 bg-light">
-        <!-- Footer content will be implemented -->
-    </footer>
-    {% endblock %}
+    {# Footer removed per redesign; block kept for optional overrides #}
+    {% block footer %}{% endblock %}
     
     {# JavaScript Dependencies #}
     {% block javascript %}
@@ -156,17 +148,63 @@
     <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
     
     <!-- Project JavaScript -->
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/components.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/features.js') }}"></script>
     
-        <!-- Optional global hook to gently highlight swapped comparison panel (guarded) -->
-            <script>
-                window.addEventListener('htmx:afterSwap', function () {
-                    var panel = document.getElementById('comparison-panel');
-                    if (!panel) return;
-                    panel.classList.add('border-primary');
-                    setTimeout(function () { panel.classList.remove('border-primary'); }, 500);
-                });
-            </script>
+    <!-- Application-specific event handlers -->
+    <script>
+        // Enhanced HTMX event handlers
+        document.addEventListener('htmx:afterSwap', function(evt) {
+            // Gently highlight swapped comparison panel
+            const panel = document.getElementById('comparison-panel');
+            if (panel) {
+                panel.classList.add('border-primary');
+                setTimeout(() => panel.classList.remove('border-primary'), 500);
+            }
+            
+            // Re-initialize components in swapped content
+            const target = evt.target;
+            target.querySelectorAll('[data-table]').forEach(table => {
+                new window.Components.DataTable(table, JSON.parse(table.dataset.table || '{}'));
+            });
+            
+            target.querySelectorAll('[data-code-viewer]').forEach(element => {
+                new window.Components.CodeViewer(element, JSON.parse(element.dataset.codeViewer || '{}'));
+            });
+            
+            // Re-initialize tooltips
+            if (typeof bootstrap !== 'undefined') {
+                const tooltips = target.querySelectorAll('[data-bs-toggle="tooltip"]');
+                tooltips.forEach(el => new bootstrap.Tooltip(el));
+            }
+        });
+
+        // Global keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + / : Show keyboard shortcuts help
+            if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+                e.preventDefault();
+                window.App.showToast('Keyboard Shortcuts: Ctrl+K (Search), Ctrl+B (Sidebar), Ctrl+Shift+T (Theme)', 'info', 5000);
+            }
+        });
+
+        // Performance monitoring
+        window.addEventListener('load', function() {
+            if (window.performance) {
+                const loadTime = window.performance.timing.loadEventEnd - window.performance.timing.navigationStart;
+                console.log(`🚀 Page loaded in ${loadTime}ms`);
+                
+                // Report slow loads
+                if (loadTime > 3000) {
+                    console.warn('⚠️ Slow page load detected');
+                }
+            }
+        });
+    </script>
     {% endblock %}
     
     {# Additional JavaScript #}

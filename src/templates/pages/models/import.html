@@ -3,15 +3,16 @@
 
 {% block title %}Import Models - AI Model Analysis Platform{% endblock %}
 
+{% block page_icon %}fas fa-upload{% endblock %}
+{% block page_title %}Import Models{% endblock %}
+{% block page_subtitle %}Upload a JSON export or OpenRouter payload to add/update models{% endblock %}
+{% block page_actions %}
+  <a href="/models" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+{% endblock %}
+{% block page_header_variant %}accent{% endblock %}
+
 {% block content %}
 <div class="container py-4">
-  <div class="row mb-3">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-      <h1 class="h4 mb-0"><i class="fas fa-upload me-2"></i>Import Models</h1>
-      <a href="/models" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back to Models</a>
-    </div>
-  </div>
-
   <div class="card">
     <div class="card-body">
       <p class="text-muted">Upload a JSON file exported from this app (via Export Data) or an OpenRouter models JSON payload.</p>

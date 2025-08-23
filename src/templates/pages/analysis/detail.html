@@ -22,62 +22,46 @@
 
 {% block title %}Analysis #{{ analysis.id }} - {{ analysis.analysis_type|title }} - AI Model Analysis Platform{% endblock %}
 
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-{{ analysis_type_icons[analysis.analysis_type] }} text-{{ analysis_type_colors[analysis.analysis_type] }}{% endblock %}
+{% block page_title %}{{ analysis.analysis_type|title }} Analysis <small class="text-muted">#{{ analysis.id }}</small>{% endblock %}
+{% block page_subtitle %}
+<strong>{{ analysis.model_slug|replace('_', ' ')|title }}</strong> · Application #{{ analysis.app_number }} · <span class="text-nowrap">{{ analysis.created_at|datetime }}</span>
+{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <button class="btn btn-outline-primary" onclick="exportResults()">
+        <i class="fas fa-download me-1"></i>Export
+    </button>
+    <button class="btn btn-outline-secondary" onclick="shareAnalysis()">
+        <i class="fas fa-share me-1"></i>Share
+    </button>
+    <div class="btn-group">
+        <button class="btn btn-outline-info dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fas fa-cog me-1"></i>Actions
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="rerunAnalysis()">
+                <i class="fas fa-redo me-2"></i>Rerun Analysis
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="compareWithOthers()">
+                <i class="fas fa-balance-scale me-2"></i>Compare
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="viewLogs()">
+                <i class="fas fa-file-alt me-2"></i>View Logs
+            </a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#" onclick="deleteAnalysis()">
+                <i class="fas fa-trash me-2"></i>Delete Analysis
+            </a></li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <nav aria-label="breadcrumb">
-                        <ol class="breadcrumb mb-2">
-                            <li class="breadcrumb-item"><a href="/dashboard">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="/analysis">Analyses</a></li>
-                            <li class="breadcrumb-item active">{{ analysis.analysis_type|title }} #{{ analysis.id }}</li>
-                        </ol>
-                    </nav>
-                    <h1 class="h3 mb-1">
-                        <i class="fas fa-{{ analysis_type_icons[analysis.analysis_type] }} text-{{ analysis_type_colors[analysis.analysis_type] }} me-2"></i>
-                        {{ analysis.analysis_type|title }} Analysis
-                        <small class="text-muted">#{{ analysis.id }}</small>
-                    </h1>
-                    <p class="mb-0 text-muted">
-                        <strong>{{ analysis.model_slug|replace('_', ' ')|title }}</strong> · 
-                        Application #{{ analysis.app_number }} · 
-                        <span class="text-nowrap">{{ analysis.created_at|datetime }}</span>
-                    </p>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-outline-primary" onclick="exportResults()">
-                        <i class="fas fa-download me-1"></i>Export
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="shareAnalysis()">
-                        <i class="fas fa-share me-1"></i>Share
-                    </button>
-                    <div class="btn-group">
-                        <button class="btn btn-outline-info dropdown-toggle" data-bs-toggle="dropdown">
-                            <i class="fas fa-cog me-1"></i>Actions
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" onclick="rerunAnalysis()">
-                                <i class="fas fa-redo me-2"></i>Rerun Analysis
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="compareWithOthers()">
-                                <i class="fas fa-balance-scale me-2"></i>Compare
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="viewLogs()">
-                                <i class="fas fa-file-alt me-2"></i>View Logs
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteAnalysis()">
-                                <i class="fas fa-trash me-2"></i>Delete Analysis
-                            </a></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Page header now provided by standardized macro via base template -->
 
     <!-- Status Overview -->
     <div class="row mb-4">

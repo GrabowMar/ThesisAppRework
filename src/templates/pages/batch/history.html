@@ -52,34 +52,31 @@
 
 {% block title %}Batch Job History - AI Analysis Platform{% endblock %}
 
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-history text-primary{% endblock %}
+{% block page_title %}Batch Job History{% endblock %}
+{% block page_subtitle %}Historical execution data, metrics, and performance analytics{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <button class="btn btn-outline-primary btn-sm" onclick="refreshHistory()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="exportHistory()">
+        <i class="fas fa-download me-1"></i>Export
+    </button>
+    <button class="btn btn-outline-danger btn-sm" onclick="cleanupBatchHistory()">
+        <i class="fas fa-broom me-1"></i>Cleanup
+    </button>
+</div>
+{% endblock %}
+
 {% block extra_css %}
 
 {% endblock %}
 
 {% block content %}
-<div class="content-wrapper">
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1>
-                        <i class="fas fa-history me-2"></i>
-                        Batch Job History
-                    </h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ url_for('batch.batch_overview') }}">Batch Jobs</a></li>
-                        <li class="breadcrumb-item active">History</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <section class="content">
-        <div class="container-fluid batch-history-container">
+<div class="container-fluid batch-history-container">
+    <!-- Standardized page header rendered by base template -->
             
             <!-- Metrics Overview -->
             <div class="metrics-grid">
@@ -547,8 +544,7 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
+    
 </div>
 {% endblock %}
 

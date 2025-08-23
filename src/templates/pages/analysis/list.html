@@ -56,30 +56,19 @@
 
 {% endblock %}
 
-{% block content %}
-<div class="content-wrapper">
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1>
-                        <i class="fas fa-list-alt me-2"></i>
-                        Analysis Results
-                    </h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ url_for('analysis.analysis_hub') }}">Analysis</a></li>
-                        <li class="breadcrumb-item active">Results List</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-    </div>
+{% block page_icon %}fas fa-list-alt text-primary{% endblock %}
+{% block page_title %}Analysis Results{% endblock %}
+{% block page_subtitle %}All analyses across models with filtering and bulk actions{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('analysis.analysis_hub') }}"><i class="fas fa-flask me-1"></i>Analysis Hub</a>
+    <a class="btn btn-sm btn-primary" href="{{ url_for('analysis.analyses_create_page') }}"><i class="fas fa-plus me-1"></i>New Analysis</a>
+    <button type="button" class="btn btn-sm btn-outline-info" onclick="refreshAnalysisList()"><i class="fas fa-sync me-1"></i>Refresh</button>
+</div>
+{% endblock %}
 
-    <section class="content">
-        <div class="container-fluid analysis-list-container">
+{% block content %}
+<div class="analysis-list-container">
             
             <!-- Filters and Search -->
             <div class="card filters-card">

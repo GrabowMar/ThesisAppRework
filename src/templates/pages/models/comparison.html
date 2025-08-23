@@ -55,27 +55,20 @@
 
 {% endblock %}
 
-{% block content %}
-<div class="content-wrapper">
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1>Model Comparison</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ url_for('models.models_overview') }}">Models</a></li>
-                        <li class="breadcrumb-item active">Comparison</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-    </div>
+{% block page_icon %}fas fa-table-columns text-primary{% endblock %}
+{% block page_title %}Model Comparison{% endblock %}
+{% block page_subtitle %}Side-by-side capabilities, pricing, performance & reliability{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('models.models_overview') }}"><i class="fas fa-robot me-1"></i>Models</a>
+    <button type="button" class="btn btn-sm btn-outline-info" onclick="window.scrollTo({top:0,behavior:'smooth'})"><i class="fas fa-arrow-up me-1"></i>Top</button>
+</div>
+{% endblock %}
 
-    <section class="content">
-        <div class="container-fluid">
+{% block content %}
+<div class="model-comparison-page">
+    <section>
+        <div class="container-fluid px-0">
             <!-- Comparison Controls -->
             <div class="card">
                 <div class="card-header">

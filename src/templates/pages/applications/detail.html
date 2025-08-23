@@ -1,29 +1,26 @@
 {# slug: pages/applications/detail (auto-migrated) #}
 {# AdminLTE (dist) integrated template #}
 {% extends 'layouts/base.html' %}
-{% set page_title = 'Application ' ~ (app_data.app_number) ~ ' — ' ~ (model.display_name or application.model_slug) %}
 {% set active_page = 'applications' %}
+
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-cube text-primary{% endblock %}
+{% block page_title %}Application {{ app_data.app_number }}{% endblock %}
+{% block page_subtitle %}{{ model.display_name }} • {{ app_data.model_slug }}{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <a class="btn btn-sm btn-outline-secondary" href="/models"><i class="fas fa-robot me-1"></i>Models</a>
+    <a class="btn btn-sm btn-outline-primary" href="/models/applications?model={{ app_data.model_slug }}"><i class="fas fa-cubes me-1"></i>Applications</a>
+    <a class="btn btn-sm btn-outline-success" href="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv"><i class="fas fa-file-csv me-1"></i>Export</a>
+</div>
+{% endblock %}
 
 {% block head_extra %}
 
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <i class="fas fa-cube text-muted mr-2"></i>
-        <h1 class="h4 d-inline align-middle">Application {{ app_data.app_number }}</h1>
-        <p class="text-muted mb-0 small">{{ model.display_name }} • {{ app_data.model_slug }}</p>
-    </div>
-    <div class="btn-group">
-        <a class="btn btn-sm btn-outline-secondary" href="/models"><i class="fas fa-robot me-1"></i> Models</a>
-        <a class="btn btn-sm btn-outline-primary" href="/models/applications?model={{ app_data.model_slug }}"><i class="fas fa-cubes me-1"></i> Applications</a>
-        <a class="btn btn-sm btn-outline-success" href="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv"><i class="fas fa-file-csv me-1"></i> Export</a>
-    </div>
-  
-</div>
-
-<div class="app-detail row g-3">
+<div class="app-detail-layout row g-3">
     <!-- Sidebar (anchors) -->
     <div class="col-12 col-md-3 col-xl-2">
         <div class="position-sticky">

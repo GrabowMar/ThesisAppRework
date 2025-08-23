@@ -32,6 +32,22 @@
 
 {% block title %}Analysis Hub - {{ super() }}{% endblock %}
 
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-tachometer-alt{% endblock %}
+{% block page_title %}Analysis Hub{% endblock %}
+{% block page_subtitle %}Comprehensive analysis dashboard and management center{% endblock %}
+{% block page_actions %}
+    <a href="/analysis/create" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i>New Analysis
+    </a>
+    <a href="/analysis/list" class="btn btn-outline-secondary">
+        <i class="fas fa-list me-1"></i>View All
+    </a>
+    <a href="/analysis/tasks" class="btn btn-outline-info">
+        <i class="fas fa-tasks me-1"></i>Tasks
+    </a>
+{% endblock %}
+
 {% block extra_head %}
 {{ super() }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -80,20 +96,6 @@
 {% endblock %}
 
 {% block content %}
-{% from 'ui/elements/common/_page_header.html' import page_header %}
-{% set _hub_actions %}
-    <a href="/analysis/create" class="btn btn-primary">
-        <i class="fas fa-plus me-1"></i>New Analysis
-    </a>
-    <a href="/analysis/list" class="btn btn-outline-secondary">
-        <i class="fas fa-list me-1"></i>View All
-    </a>
-    <a href="/analysis/tasks" class="btn btn-outline-info">
-        <i class="fas fa-tasks me-1"></i>Tasks
-    </a>
-{% endset %}
-
-{{ page_header('Analysis Hub', 'Comprehensive analysis dashboard and management center', icon='fas fa-tachometer-alt', actions_html=_hub_actions) }}
 
 <div class="analysis-hub-dashboard">
     

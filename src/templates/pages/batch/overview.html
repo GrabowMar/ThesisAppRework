@@ -14,8 +14,30 @@
 #}
 
 {% extends 'layouts/base.html' %}
-{% set page_title = "Batch Operations" %}
 {% set active_page = "batch" %}
+
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-layer-group text-primary{% endblock %}
+{% block page_title %}Batch Operations{% endblock %}
+{% block page_subtitle %}Manage and monitor bulk analysis operations across multiple applications{% endblock %}
+{% block page_actions %}
+<button class="btn btn-success" onclick="createBatchOperation()">
+    <i class="fas fa-plus me-1"></i>New Batch Operation
+</button>
+<div class="btn-group ms-1">
+    <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="fas fa-cog me-1"></i>Actions
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="#" onclick="pauseAllBatches()"><i class="fas fa-pause me-2"></i>Pause All</a></li>
+        <li><a class="dropdown-item" href="#" onclick="resumeAllBatches()"><i class="fas fa-play me-2"></i>Resume All</a></li>
+        <li><a class="dropdown-item" href="#" onclick="cancelAllBatches()"><i class="fas fa-stop me-2"></i>Cancel All</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="#" onclick="exportBatchResults()"><i class="fas fa-download me-2"></i>Export Results</a></li>
+        <li><a class="dropdown-item" href="#" onclick="cleanupBatchHistory()"><i class="fas fa-broom me-2"></i>Cleanup History</a></li>
+    </ul>
+</div>
+{% endblock %}
 
 {% block head_extra %}
 
@@ -23,45 +45,7 @@
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Header Section -->
-    <div class="row mb-4">
-        <div class="col">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h2 mb-2">Batch Operations</h1>
-                    <p class="text-muted">Manage and monitor bulk analysis operations across multiple applications</p>
-                </div>
-                <div>
-                    <button class="btn btn-success" onclick="createBatchOperation()">
-                        <i class="fas fa-plus me-2"></i>New Batch Operation
-                    </button>
-                    <div class="btn-group ms-2" role="group">
-                        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                            <i class="fas fa-cog me-1"></i>Actions
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" onclick="pauseAllBatches()">
-                                <i class="fas fa-pause me-2"></i>Pause All
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="resumeAllBatches()">
-                                <i class="fas fa-play me-2"></i>Resume All
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="cancelAllBatches()">
-                                <i class="fas fa-stop me-2"></i>Cancel All
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="exportBatchResults()">
-                                <i class="fas fa-download me-2"></i>Export Results
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="cleanupBatchHistory()">
-                                <i class="fas fa-broom me-2"></i>Cleanup History
-                            </a></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Standard page header rendered by base template -->
 
     <!-- Statistics Overview -->
     <div class="batch-stats">

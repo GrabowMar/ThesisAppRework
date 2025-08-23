@@ -20,64 +20,45 @@
 
 {% block title %}AI Models Overview - AI Model Analysis Platform{% endblock %}
 
-{% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-1">
-                        <i class="fas fa-brain text-primary me-2"></i>
-                        AI Models Overview
-                    </h1>
-                    <p class="mb-0 text-muted">
-                        Comprehensive view of available AI models with capabilities, pricing, and performance data
-                    </p>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-outline-primary" onclick="refreshModels()">
-                        <i class="fas fa-sync-alt me-1"></i>Refresh
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="tagInstalledModels()" title="Scan misc/models and tag installed models">
-                        <i class="fas fa-tags me-1"></i>Tag Installed
-                    </button>
-                    <button class="btn btn-outline-success" onclick="exportModelsData()">
-                        <i class="fas fa-download me-1"></i>Export Data
-                    </button>
-                    <button class="btn btn-outline-info" onclick="showComparison()">
-                        <i class="fas fa-balance-scale me-1"></i>Compare
-                    </button>
-                    {% if models_stats.total_models == 0 %}
-                    <button class="btn btn-outline-warning" onclick="initData()" title="Load demo model data">
-                        <i class="fas fa-database me-1"></i>Initialize Data
-                    </button>
-                    {% endif %}
-                    <div class="btn-group">
-                        <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
-                            <i class="fas fa-plus me-1"></i>Actions
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/models/add">
-                                <i class="fas fa-plus me-2"></i>Add New Model
-                            </a></li>
-                            <li><a class="dropdown-item" href="/models/import">
-                                <i class="fas fa-upload me-2"></i>Import Models
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            
-                            <li><a class="dropdown-item" href="/models/benchmarks">
-                                <i class="fas fa-chart-bar me-2"></i>Benchmarks
-                            </a></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
+{% block page_title %}AI Models Overview{% endblock %}
+{% block page_subtitle %}Comprehensive view of available AI models with capabilities, pricing, and performance data{% endblock %}
+{% block page_icon %}fas fa-brain text-primary{% endblock %}
+{% block page_actions %}
+    <button class="btn btn-outline-primary" onclick="refreshModels()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+    <button class="btn btn-outline-secondary" onclick="tagInstalledModels()" title="Scan misc/models and tag installed models">
+        <i class="fas fa-tags me-1"></i>Tag Installed
+    </button>
+    <button class="btn btn-outline-success" onclick="exportModelsData()">
+        <i class="fas fa-download me-1"></i>Export Data
+    </button>
+    <button class="btn btn-outline-info" onclick="showComparison()">
+        <i class="fas fa-balance-scale me-1"></i>Compare
+    </button>
+    {% if models_stats.total_models == 0 %}
+    <button class="btn btn-outline-warning" onclick="initData()" title="Load demo model data">
+        <i class="fas fa-database me-1"></i>Initialize Data
+    </button>
+    {% endif %}
+    <div class="btn-group">
+        <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fas fa-plus me-1"></i>Actions
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="/models/add"><i class="fas fa-plus me-2"></i>Add New Model</a></li>
+            <li><a class="dropdown-item" href="/models/import"><i class="fas fa-upload me-2"></i>Import Models</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/models/benchmarks"><i class="fas fa-chart-bar me-2"></i>Benchmarks</a></li>
+        </ul>
     </div>
+{% endblock %}
+
+{% block content %}
+<div class="models-overview">
 
     <!-- Statistics Overview -->
-    <div class="row mb-4">
+    <div class="row g-3 mb-4 kpi-cards-row">
         <div class="col-lg-3 col-md-6">
             <div class="card bg-primary text-white">
                 <div class="card-body">
@@ -141,7 +122,7 @@
     </div>
 
     <!-- Filters and Controls -->
-    <div class="row mb-4">
+    <div class="row mb-4 filters-row">
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
