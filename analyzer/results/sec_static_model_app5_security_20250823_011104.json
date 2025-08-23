@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "model_slug": "sec_static_model",
+    "app_number": 5,
+    "analysis_type": "security",
+    "timestamp": "2025-08-23T01:11:04.199320",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "static_analysis_result",
+    "status": "success",
+    "service": "static-analyzer",
+    "analysis": {
+      "status": "error",
+      "error": "Model path not found: /app/sources/sec_static_model/app5"
+    },
+    "timestamp": "2025-08-22T23:11:04.276907"
+  }
+}

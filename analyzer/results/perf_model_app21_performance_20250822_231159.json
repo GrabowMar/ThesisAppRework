@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "model_slug": "perf_model",
+    "app_number": 21,
+    "analysis_type": "performance",
+    "timestamp": "2025-08-22T23:11:59.702718",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "performance_test_result",
+    "status": "success",
+    "service": "performance-tester",
+    "analysis": {
+      "model_slug": "perf_model",
+      "app_number": 21,
+      "analysis_time": "2025-08-22T21:11:08.327670",
+      "tools_used": [
+        "curl",
+        "ab",
+        "wget",
+        "aiohttp",
+        "locust"
+      ],
+      "target_urls": [
+        "http://localhost:6210",
+        "http://localhost:6211"
+      ],
+      "results": {
+        "url_1": {
+          "response_time": {
+            "status": "failed",
+            "url": "http://localhost:6210",
+            "error": "No successful requests"
+          }
+        },
+        "url_2": {
+          "response_time": {
+            "status": "failed",
+            "url": "http://localhost:6211",
+            "error": "No successful requests"
+          }
+        }
+      },
+      "summary": {
+        "total_urls_tested": 2,
+        "successful_tests": 0,
+        "average_response_time": 0,
+        "best_performing_url": null,
+        "worst_performing_url": null
+      }
+    },
+    "timestamp": "2025-08-22T21:11:59.696599"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "model_slug": "pf_ext",
+    "app_number": 12,
+    "analysis_type": "performance",
+    "timestamp": "2025-08-23T01:22:44.453107",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "performance_test_result",
+    "status": "success",
+    "service": "performance-tester",
+    "analysis": {
+      "model_slug": "pf_ext",
+      "app_number": 12,
+      "analysis_time": "2025-08-22T23:21:50.226271",
+      "tools_used": [
+        "curl",
+        "ab",
+        "wget",
+        "aiohttp",
+        "locust"
+      ],
+      "target_urls": [
+        "http://localhost:6120",
+        "http://localhost:6121"
+      ],
+      "results": {
+        "url_1": {
+          "response_time": {
+            "status": "failed",
+            "url": "http://localhost:6120",
+            "error": "No successful requests"
+          }
+        },
+        "url_2": {
+          "response_time": {
+            "status": "failed",
+            "url": "http://localhost:6121",
+            "error": "No successful requests"
+          }
+        }
+      },
+      "summary": {
+        "total_urls_tested": 2,
+        "successful_tests": 0,
+        "average_response_time": 0,
+        "best_performing_url": null,
+        "worst_performing_url": null
+      }
+    },
+    "timestamp": "2025-08-22T23:22:44.460467"
+  }
+}
