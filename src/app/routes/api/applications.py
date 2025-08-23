@@ -6,7 +6,8 @@ API endpoints for application management and CRUD operations.
 """
 
 import logging
-from flask import request, render_template
+from flask import request
+from app.utils.template_paths import render_template_compat as render_template
 
 from ..response_utils import (
     json_success, json_error, handle_exceptions,
@@ -122,7 +123,9 @@ def api_get_application_types():
 @handle_exceptions(logger_override=logger)
 def api_get_application_code(app_id):
     """API endpoint: Get application code/metadata (standardized)."""
-    app = GeneratedApplication.query.get(app_id)
+    from app.extensions import get_session
+    with get_session() as _s:
+        app = _s.get(GeneratedApplication, app_id)
     if not app:
         return json_error('Application not found', status=404, error_type='NotFound')
     return json_success({
@@ -141,7 +144,9 @@ def api_get_application_code(app_id):
 @handle_exceptions(logger_override=logger)
 def api_update_application_status(app_id):
     """API endpoint: Update application status (standardized)."""
-    app = GeneratedApplication.query.get(app_id)
+    from app.extensions import get_session
+    with get_session() as _s:
+        app = _s.get(GeneratedApplication, app_id)
     if not app:
         return json_error('Application not found', status=404, error_type='NotFound')
     data = request.get_json() or {}
@@ -355,7 +360,9 @@ def api_applications_bulk_download():
 @handle_exceptions(logger_override=logger)
 def api_application_details(app_id):
     """API endpoint to get application details (standardized)."""
-    app = GeneratedApplication.query.get(app_id)
+    from app.extensions import get_session
+    with get_session() as _s:
+        app = _s.get(GeneratedApplication, app_id)
     if not app:
         return json_error(f'Application {app_id} not found', status=404, error_type='NotFound')
     return json_success({
@@ -407,7 +414,9 @@ def api_applications_cleanup():
 def api_application_logs_modal(app_id):
     """API endpoint to get application logs modal."""
     try:
-        app = GeneratedApplication.query.get(app_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            app = _s.get(GeneratedApplication, app_id)
         if not app:
             return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
         
@@ -524,7 +533,9 @@ def api_application_logs_modal_by_slug(model_slug, app_num):
 def api_application_logs(app_id):
     """API endpoint for application logs."""
     try:
-        app = GeneratedApplication.query.get(app_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            app = _s.get(GeneratedApplication, app_id)
         if not app:
             return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
         

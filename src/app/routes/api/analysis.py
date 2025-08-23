@@ -301,7 +301,9 @@ def api_batch_status(batch_id):
 def api_analysis_configure_modal(app_id):
     """API endpoint to get analysis configuration modal."""
     try:
-        app = GeneratedApplication.query.get(app_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            app = _s.get(GeneratedApplication, app_id)
         if not app:
             return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
 
@@ -317,7 +319,9 @@ def api_analysis_start(app_id):
     try:
         from ...services.background_service import get_background_service
 
-        app = GeneratedApplication.query.get(app_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            app = _s.get(GeneratedApplication, app_id)
         if not app:
             return jsonify({'error': f'Application {app_id} not found'}), 404
 
@@ -506,7 +510,9 @@ def api_analysis_bulk_start():
         errors = []
         for app_id in app_ids:
             try:
-                app = GeneratedApplication.query.get(int(app_id))
+                from app.extensions import get_session
+                with get_session() as _s:
+                    app = _s.get(GeneratedApplication, int(app_id))
                 if not app:
                     errors.append({'app_id': app_id, 'error': 'Not found'})
                     continue

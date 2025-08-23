@@ -1,0 +1,367 @@
+{# slug: ui/elements/dashboard/chart-card (auto-migrated) #}
+{# 
+Dashboard Chart Card Component
+
+Purpose: Displays charts with title, controls, and responsive layout for dashboard widgets
+Usage: {{ chart_card(title="Performance Trends", chart_type="line", chart_id="perf-chart", data=chart_data) }}
+Routes: Used in dashboard views and statistics pages
+Features:
+- Chart.js integration with responsive design
+- Loading states and error handling
+- Chart type selection and controls
+- Export functionality (PNG, PDF, CSV)
+- Real-time data updates via HTMX
+- Fullscreen modal support
+Technical: Bootstrap 5 cards, Chart.js, HTMX, Canvas API for export
+Dependencies: Chart.js library, html2canvas for export, FileSaver.js
+#}
+
+{# Set default values for optional parameters #}
+{%- set title = title or 'Chart' -%}
+{%- set chart_type = chart_type or 'line' -%}
+{%- set chart_id = chart_id or ('chart-' ~ (title | replace(' ', '-') | lower)) -%}
+{%- set data = data or {} -%}
+{%- set options = options or {} -%}
+{%- set height = height or 300 -%}
+{%- set loading = loading or false -%}
+{%- set error = error or None -%}
+{%- set show_controls = show_controls or true -%}
+{%- set show_export = show_export or true -%}
+{%- set show_fullscreen = show_fullscreen or true -%}
+{%- set refresh_url = refresh_url or None -%}
+{%- set color_scheme = color_scheme or 'default' -%}
+
+<div class="card shadow mb-4 chart-card" id="card-{{ chart_id }}">
+    {# Card Header with Title and Controls #}
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">{{ title }}</h6>
+        
+        {% if show_controls or show_export or show_fullscreen %}
+            <div class="dropdown no-arrow">
+                <a class="dropdown-toggle" href="#" role="button" id="dropdown-{{ chart_id }}" 
+                   data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                </a>
+                <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" 
+                     aria-labelledby="dropdown-{{ chart_id }}">
+                    
+                    {% if refresh_url %}
+                        <a class="dropdown-item" href="#" onclick="refreshChart('{{ chart_id }}', '{{ refresh_url }}')">
+                            <i class="fas fa-sync-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+                            Refresh Data
+                        </a>
+                        <div class="dropdown-divider"></div>
+                    {% endif %}
+                    
+                    {% if show_controls %}
+                        <h6 class="dropdown-header">Chart Type:</h6>
+                        <a class="dropdown-item chart-type-option" href="#" data-type="line" data-chart="{{ chart_id }}">
+                            <i class="fas fa-chart-line fa-sm fa-fw mr-2"></i> Line Chart
+                        </a>
+                        <a class="dropdown-item chart-type-option" href="#" data-type="bar" data-chart="{{ chart_id }}">
+                            <i class="fas fa-chart-bar fa-sm fa-fw mr-2"></i> Bar Chart
+                        </a>
+                        <a class="dropdown-item chart-type-option" href="#" data-type="pie" data-chart="{{ chart_id }}">
+                            <i class="fas fa-chart-pie fa-sm fa-fw mr-2"></i> Pie Chart
+                        </a>
+                        <div class="dropdown-divider"></div>
+                    {% endif %}
+                    
+                    {% if show_export %}
+                        <h6 class="dropdown-header">Export:</h6>
+                        <a class="dropdown-item" href="#" onclick="exportChart('{{ chart_id }}', 'png')">
+                            <i class="fas fa-file-image fa-sm fa-fw mr-2 text-gray-400"></i>
+                            Export as PNG
+                        </a>
+                        <a class="dropdown-item" href="#" onclick="exportChart('{{ chart_id }}', 'pdf')">
+                            <i class="fas fa-file-pdf fa-sm fa-fw mr-2 text-gray-400"></i>
+                            Export as PDF
+                        </a>
+                        <a class="dropdown-item" href="#" onclick="exportChart('{{ chart_id }}', 'csv')">
+                            <i class="fas fa-file-csv fa-sm fa-fw mr-2 text-gray-400"></i>
+                            Export Data as CSV
+                        </a>
+                    {% endif %}
+                    
+                    {% if show_fullscreen %}
+                        {% if show_export %}<div class="dropdown-divider"></div>{% endif %}
+                        <a class="dropdown-item" href="#" onclick="openChartFullscreen('{{ chart_id }}')">
+                            <i class="fas fa-expand fa-sm fa-fw mr-2 text-gray-400"></i>
+                            View Fullscreen
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    {# Card Body with Chart Canvas #}
+    <div class="card-body">
+        {% if error %}
+            {# Error State #}
+            <div class="text-center py-5">
+                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                <p class="text-muted">{{ error }}</p>
+                {% if refresh_url %}
+                    <button class="btn btn-primary btn-sm" onclick="refreshChart('{{ chart_id }}', '{{ refresh_url }}')">
+                        <i class="fas fa-sync-alt mr-1"></i> Retry
+                    </button>
+                {% endif %}
+            </div>
+        {% elif loading %}
+            {# Loading State #}
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading chart...</span>
+                </div>
+                <p class="text-muted mt-2">Loading chart data...</p>
+            </div>
+        {% else %}
+            {# Chart Canvas #}
+            <div class="chart-container" style="position: relative; height: {{ height }}px;">
+                <canvas id="{{ chart_id }}" 
+                        data-chart-type="{{ chart_type }}"
+                        data-chart-data="{{ data | tojson | e }}"
+                        data-chart-options="{{ options | tojson | e }}"
+                        data-color-scheme="{{ color_scheme }}"
+                        role="img" 
+                        aria-label="Chart: {{ title }}">
+                </canvas>
+            </div>
+        {% endif %}
+    </div>
+    
+    {# Optional Card Footer for Additional Info #}
+    {% if caller %}
+        <div class="card-footer bg-light">
+            {{ caller() }}
+        </div>
+    {% endif %}
+</div>
+
+{# Fullscreen Modal #}
+{% if show_fullscreen %}
+    <div class="modal fade" id="fullscreen-modal-{{ chart_id }}" tabindex="-1" 
+         aria-labelledby="fullscreen-modal-label-{{ chart_id }}" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fullscreen-modal-label-{{ chart_id }}">{{ title }}</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="chart-container" style="position: relative; height: 70vh;">
+                        <canvas id="{{ chart_id }}-fullscreen"></canvas>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="exportChart('{{ chart_id }}-fullscreen', 'png')">
+                        <i class="fas fa-download mr-1"></i> Export Chart
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+{# JavaScript for Chart Management #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Chart instances storage
+    window.chartInstances = window.chartInstances || {};
+
+    // Color schemes
+    const colorSchemes = {
+        default: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796'],
+        blue: ['#4e73df', '#2653d4', '#1d4ed8', '#1e40af', '#1d4ed8'],
+        green: ['#1cc88a', '#17a673', '#059669', '#047857', '#065f46'],
+        purple: ['#6f42c1', '#5a2d91', '#553c9a', '#4c1d95', '#3730a3'],
+        orange: ['#f6c23e', '#f4b619', '#d97706', '#b45309', '#92400e']
+    };
+
+    // Initialize all charts
+    initializeChart('{{ chart_id }}');
+
+    function initializeChart(chartId) {
+        const canvas = document.getElementById(chartId);
+        if (!canvas) return;
+
+        const chartType = canvas.getAttribute('data-chart-type');
+        const chartData = JSON.parse(canvas.getAttribute('data-chart-data'));
+        const chartOptions = JSON.parse(canvas.getAttribute('data-chart-options'));
+        const colorScheme = canvas.getAttribute('data-color-scheme') || 'default';
+
+        // Apply color scheme to datasets
+        if (chartData.datasets) {
+            chartData.datasets.forEach((dataset, index) => {
+                const colors = colorSchemes[colorScheme];
+                if (!dataset.backgroundColor) {
+                    dataset.backgroundColor = chartType === 'pie' ? colors : colors[index % colors.length];
+                }
+                if (!dataset.borderColor && chartType !== 'pie') {
+                    dataset.borderColor = colors[index % colors.length];
+                }
+            });
+        }
+
+        // Default options
+        const defaultOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                }
+            },
+            scales: chartType !== 'pie' ? {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        borderDash: [2],
+                        borderDashOffset: 2,
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                }
+            } : {}
+        };
+
+        // Merge options
+        const finalOptions = Object.assign({}, defaultOptions, chartOptions);
+
+        // Create chart
+        const ctx = canvas.getContext('2d');
+        window.chartInstances[chartId] = new Chart(ctx, {
+            type: chartType,
+            data: chartData,
+            options: finalOptions
+        });
+    }
+
+    // Chart type change handler
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('chart-type-option')) {
+            e.preventDefault();
+            const newType = e.target.getAttribute('data-type');
+            const chartId = e.target.getAttribute('data-chart');
+            changeChartType(chartId, newType);
+        }
+    });
+
+    window.changeChartType = function(chartId, newType) {
+        const chart = window.chartInstances[chartId];
+        if (chart) {
+            chart.config.type = newType;
+            chart.update();
+        }
+    };
+
+    window.refreshChart = function(chartId, refreshUrl) {
+        const cardElement = document.getElementById('card-' + chartId);
+        
+        // Show loading state
+        const cardBody = cardElement.querySelector('.card-body');
+        cardBody.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Refreshing chart...</span>
+                </div>
+                <p class="text-muted mt-2">Refreshing chart data...</p>
+            </div>
+        `;
+
+        // Fetch new data via HTMX or fetch API
+        fetch(refreshUrl)
+            .then(response => response.json())
+            .then(data => {
+                const chart = window.chartInstances[chartId];
+                if (chart) {
+                    chart.data = data;
+                    chart.update();
+                    // Restore canvas
+                    cardBody.innerHTML = `
+                        <div class="chart-container" style="position: relative; height: {{ height }}px;">
+                            <canvas id="${chartId}"></canvas>
+                        </div>
+                    `;
+                    initializeChart(chartId);
+                }
+            })
+            .catch(error => {
+                cardBody.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                        <p class="text-muted">Failed to refresh chart data</p>
+                        <button class="btn btn-primary btn-sm" onclick="refreshChart('${chartId}', '${refreshUrl}')">
+                            <i class="fas fa-sync-alt mr-1"></i> Retry
+                        </button>
+                    </div>
+                `;
+            });
+    };
+
+    window.exportChart = function(chartId, format) {
+        const chart = window.chartInstances[chartId];
+        if (!chart) return;
+
+        const canvas = chart.canvas;
+        
+        if (format === 'png') {
+            const url = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${chartId}-chart.png`;
+            a.click();
+        } else if (format === 'csv') {
+            // Export data as CSV
+            const data = chart.data;
+            let csv = 'Label,Value\n';
+            
+            if (data.labels && data.datasets[0]) {
+                data.labels.forEach((label, index) => {
+                    csv += `${label},${data.datasets[0].data[index]}\n`;
+                });
+            }
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${chartId}-data.csv`;
+            a.click();
+        }
+    };
+
+    window.openChartFullscreen = function(chartId) {
+        const modal = $('#fullscreen-modal-' + chartId);
+        const originalChart = window.chartInstances[chartId];
+        
+        if (originalChart) {
+            modal.modal('show');
+            
+            modal.on('shown.bs.modal', function() {
+                const fullscreenCanvas = document.getElementById(chartId + '-fullscreen');
+                const ctx = fullscreenCanvas.getContext('2d');
+                
+                // Clone chart configuration
+                const config = JSON.parse(JSON.stringify(originalChart.config));
+                window.chartInstances[chartId + '-fullscreen'] = new Chart(ctx, config);
+            });
+        }
+    };
+});
+</script>
+
+{# CSS for chart card styling #}
+

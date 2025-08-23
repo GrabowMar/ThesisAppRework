@@ -11,7 +11,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any
 
-from flask import Blueprint, render_template
+from flask import Blueprint
+from ..utils.template_paths import render_template_compat as render_template
 from sqlalchemy import func, desc
 
 from ..extensions import db

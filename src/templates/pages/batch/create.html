@@ -1,0 +1,1243 @@
+{# slug: pages/batch/create (auto-migrated) #}
+{#
+    Batch Job Creation Form
+    
+    Purpose: Comprehensive form for creating batch analysis jobs with model selection,
+             parameter configuration, scheduling options, and advanced settings.
+             
+    Routes:
+    - GET /batch/create - Display batch job creation form
+    - POST /batch/create - Submit new batch job
+    - GET /api/models/capabilities - Get model capabilities for selection
+    - GET /api/applications/list - Get available applications for analysis
+    
+    Features:
+    - Multi-step wizard for complex batch configuration
+    - Model selection with capability filtering and recommendations
+    - Application selection with port status verification
+    - Analysis type configuration with parameter customization
+    - Scheduling options (immediate, delayed, recurring)
+    - Resource allocation and priority settings
+    - Email notifications and webhook configuration
+    - Job validation and cost estimation
+    - Save/load batch templates for reuse
+    - Progress tracking and real-time feedback
+    
+    Technical Implementation:
+    - Multi-step form with Bootstrap wizard components
+    - HTMX for dynamic form sections and validation
+    - Real-time cost calculation and resource estimation
+    - Form persistence with local storage
+    - Server-side validation with detailed error handling
+    - Integration with Celery for job scheduling
+    
+    Dependencies:
+    - layouts/base.html - Base layout with navigation
+    - components/forms/model-selector.html - Model selection component
+    - components/forms/app-selector.html - Application selection component
+    - components/forms/date-range.html - Date/time picker component
+    - components/common/loading.html - Loading states
+    - utils/macros/ui.html - UI helper macros
+    
+    Data Expected:
+    - available_models: List of models with capabilities and pricing
+    - available_applications: List of generated applications
+    - analysis_types: Available analysis types and their parameters
+    - user_templates: Saved batch job templates
+    - resource_limits: System resource constraints
+#}
+
+{% extends 'layouts/base.html' %}
+
+{% block title %}Create Batch Job - AI Analysis Platform{% endblock %}
+
+{% block extra_css %}
+
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1>
+                        <i class="fas fa-layer-group me-2"></i>
+                        Create Batch Job
+                    </h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url_for('batch.batch_overview') }}">Batch Jobs</a></li>
+                        <li class="breadcrumb-item active">Create</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="content">
+        <div class="container-fluid">
+            <!-- Template Actions -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="template-actions">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle" 
+                                    type="button" 
+                                    data-bs-toggle="dropdown">
+                                <i class="fas fa-folder-open me-1"></i>
+                                Load Template
+                            </button>
+                            <ul class="dropdown-menu">
+                                {% for template in user_templates %}
+                                <li>
+                                    <a class="dropdown-item" 
+                                       href="#" 
+                                       onclick="loadTemplate('{{ template.id }}')">
+                                        <i class="fas fa-file me-2"></i>
+                                        {{ template.name }}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                                {% if not user_templates %}
+                                <li><span class="dropdown-item-text text-muted">No saved templates</span></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                        <button type="button" 
+                                class="btn btn-outline-info"
+                                onclick="saveTemplate()">
+                            <i class="fas fa-save me-1"></i>
+                            Save as Template
+                        </button>
+                        <button type="button" 
+                                class="btn btn-outline-warning"
+                                onclick="resetForm()">
+                            <i class="fas fa-undo me-1"></i>
+                            Reset Form
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batch Creation Wizard -->
+            <div class="card batch-wizard">
+                <!-- Wizard Navigation -->
+                <div class="wizard-nav">
+                    <ul class="wizard-steps">
+                        <li class="wizard-step active" data-step="1">
+                            <span>Models & Applications</span>
+                        </li>
+                        <li class="wizard-step" data-step="2">
+                            <span>Analysis Configuration</span>
+                        </li>
+                        <li class="wizard-step" data-step="3">
+                            <span>Scheduling & Resources</span>
+                        </li>
+                        <li class="wizard-step" data-step="4">
+                            <span>Review & Submit</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Wizard Content -->
+                <div class="wizard-content">
+                    <form id="batch-job-form">
+                        <!-- Step 1: Models & Applications -->
+                        <div class="step-section active" id="step-1">
+                            <h4>
+                                <i class="fas fa-robot me-2"></i>
+                                Select Models & Applications
+                            </h4>
+                            <p class="text-muted">Choose the AI models and applications you want to analyze.</p>
+
+                            <!-- Model Selection -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5>AI Models</h5>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-primary" onclick="selectAllModels()">
+                                            Select All
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="clearModelSelection()">
+                                            Clear
+                                        </button>
+                                        <div class="btn-group">
+                                            <button type="button" 
+                                                    class="btn btn-outline-info dropdown-toggle" 
+                                                    data-bs-toggle="dropdown">
+                                                Filter by Provider
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="filterModels('all')">All Providers</a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="filterModels('openai')">OpenAI</a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="filterModels('anthropic')">Anthropic</a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="filterModels('google')">Google</a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="model-grid" id="model-grid">
+                                    {% for model in available_models %}
+                                    <div class="model-card" 
+                                         data-model="{{ model.slug }}" 
+                                         data-provider="{{ model.provider.lower() }}"
+                                         onclick="toggleModelSelection('{{ model.slug }}')">
+                                        <div class="form-check checkbox">
+                                            <input class="form-check-input model-checkbox" 
+                                                   type="checkbox" 
+                                                   name="models" 
+                                                   value="{{ model.slug }}"
+                                                   id="model-{{ loop.index }}">
+                                        </div>
+                                        
+                                        <div class="provider-badge badge bg-secondary">
+                                            {{ model.provider }}
+                                        </div>
+                                        
+                                        <h6 class="card-title">{{ model.name }}</h6>
+                                        <p class="card-text text-muted small">{{ model.description }}</p>
+                                        
+                                        <div class="capability-indicators">
+                                            <div class="capability-indicator">
+                                                Code
+                                                <span class="capability-score score-{{ model.capabilities.code_generation.level }}"></span>
+                                            </div>
+                                            <div class="capability-indicator">
+                                                Analysis
+                                                <span class="capability-score score-{{ model.capabilities.text_analysis.level }}"></span>
+                                            </div>
+                                            <div class="capability-indicator">
+                                                Reasoning
+                                                <span class="capability-score score-{{ model.capabilities.reasoning.level }}"></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-2 small text-muted">
+                                            <i class="fas fa-dollar-sign me-1"></i>
+                                            ${{ "%.4f"|format(model.pricing.input_price) }}/1K tokens
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- Application Selection -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5>Applications</h5>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" 
+                                                class="btn btn-outline-primary"
+                                                hx-get="/api/applications/refresh-status"
+                                                hx-target="#application-grid"
+                                                hx-indicator="#app-loading">
+                                            <i class="fas fa-sync me-1"></i>
+                                            Refresh Status
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="selectAllApps()">
+                                            Select All
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="app-loading" class="text-center py-3 d-none">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Refreshing application status...</span>
+                                    </div>
+                                </div>
+
+                                <div class="row" id="application-grid">
+                                    {% for model_slug, apps in available_applications.items() %}
+                                    <div class="col-12 mb-3">
+                                        <h6 class="text-muted">{{ model_slug|title }} Applications</h6>
+                                        <div class="row">
+                                            {% for app in apps %}
+                                            <div class="col-lg-4 col-md-6 mb-2">
+                                                <div class="form-check card h-100">
+                                                    <div class="card-body d-flex align-items-center">
+                                                        <input class="form-check-input app-checkbox me-3" 
+                                                               type="checkbox" 
+                                                               name="applications" 
+                                                               value="{{ model_slug }}-{{ app.number }}"
+                                                               id="app-{{ model_slug }}-{{ app.number }}">
+                                                        <div class="flex-grow-1">
+                                                            <label class="form-check-label fw-bold" 
+                                                                   for="app-{{ model_slug }}-{{ app.number }}">
+                                                                App {{ app.number }}
+                                                            </label>
+                                                            <div class="small text-muted">
+                                                                Frontend: {{ app.frontend_port }}
+                                                                | Backend: {{ app.backend_port }}
+                                                            </div>
+                                                            <div class="mt-1">
+                                                                {% if app.status == 'running' %}
+                                                                <span class="badge bg-success">
+                                                                    <i class="fas fa-check me-1"></i>Running
+                                                                </span>
+                                                                {% elif app.status == 'stopped' %}
+                                                                <span class="badge bg-secondary">
+                                                                    <i class="fas fa-stop me-1"></i>Stopped
+                                                                </span>
+                                                                {% else %}
+                                                                <span class="badge bg-warning">
+                                                                    <i class="fas fa-question me-1"></i>Unknown
+                                                                </span>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Analysis Configuration -->
+                        <div class="step-section" id="step-2">
+                            <h4>
+                                <i class="fas fa-cogs me-2"></i>
+                                Analysis Configuration
+                            </h4>
+                            <p class="text-muted">Configure the types of analysis and their parameters.</p>
+
+                            <!-- Analysis Types -->
+                            <div class="mb-4">
+                                <h5>Analysis Types</h5>
+                                <div class="row">
+                                    {% for analysis_type in analysis_types %}
+                                    <div class="col-lg-6 col-md-12 mb-3">
+                                        <div class="form-check card">
+                                            <div class="card-body">
+                                                <div class="d-flex align-items-start">
+                                                    <input class="form-check-input analysis-type-checkbox me-3 mt-1" 
+                                                           type="checkbox" 
+                                                           name="analysis_types" 
+                                                           value="{{ analysis_type.name }}"
+                                                           id="analysis-{{ analysis_type.name }}"
+                                                           onchange="toggleAnalysisConfig('{{ analysis_type.name }}')">
+                                                    <div class="flex-grow-1">
+                                                        <label class="form-check-label fw-bold" 
+                                                               for="analysis-{{ analysis_type.name }}">
+                                                            <i class="fas fa-{{ analysis_type.icon }} me-2"></i>
+                                                            {{ analysis_type.label }}
+                                                        </label>
+                                                        <p class="card-text text-muted small mb-2">
+                                                            {{ analysis_type.description }}
+                                                        </p>
+                                                        <div class="small">
+                                                            <span class="badge bg-info">~{{ analysis_type.duration }} minutes</span>
+                                                            <span class="badge bg-warning">${{ analysis_type.cost_estimate }} estimated</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- Dynamic Analysis Configuration -->
+                            <div id="analysis-configurations">
+                                {% for analysis_type in analysis_types %}
+                                <div class="analysis-config d-none" id="config-{{ analysis_type.name }}">
+                                    <h6>
+                                        <i class="fas fa-{{ analysis_type.icon }} me-2"></i>
+                                        {{ analysis_type.label }} Configuration
+                                    </h6>
+                                    
+                                    {% if analysis_type.parameters %}
+                                    {% for param_group in analysis_type.parameters %}
+                                    <div class="parameter-group">
+                                        <h6 class="mb-3">{{ param_group.label }}</h6>
+                                        <div class="row">
+                                            {% for param in param_group.parameters %}
+                                            <div class="col-lg-6 mb-3">
+                                                <label class="form-label">{{ param.label }}</label>
+                                                {% if param.type == 'select' %}
+                                                <select class="form-select" 
+                                                        name="{{ analysis_type.name }}_{{ param.name }}"
+                                                        {% if param.required %}required{% endif %}>
+                                                    {% for option in param.options %}
+                                                    <option value="{{ option.value }}" 
+                                                            {% if option.value == param.default %}selected{% endif %}>
+                                                        {{ option.label }}
+                                                    </option>
+                                                    {% endfor %}
+                                                </select>
+                                                {% elif param.type == 'number' %}
+                                                <input type="number" 
+                                                       class="form-control"
+                                                       name="{{ analysis_type.name }}_{{ param.name }}"
+                                                       value="{{ param.default }}"
+                                                       min="{{ param.min }}"
+                                                       max="{{ param.max }}"
+                                                       step="{{ param.step or 1 }}"
+                                                       {% if param.required %}required{% endif %}>
+                                                {% elif param.type == 'boolean' %}
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" 
+                                                           type="checkbox"
+                                                           name="{{ analysis_type.name }}_{{ param.name }}"
+                                                           {% if param.default %}checked{% endif %}>
+                                                    <label class="form-check-label">{{ param.help_text }}</label>
+                                                </div>
+                                                {% else %}
+                                                <input type="text" 
+                                                       class="form-control"
+                                                       name="{{ analysis_type.name }}_{{ param.name }}"
+                                                       value="{{ param.default }}"
+                                                       {% if param.required %}required{% endif %}>
+                                                {% endif %}
+                                                {% if param.help_text %}
+                                                <div class="form-text">{{ param.help_text }}</div>
+                                                {% endif %}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Scheduling & Resources -->
+                        <div class="step-section" id="step-3">
+                            <h4>
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                Scheduling & Resources
+                            </h4>
+                            <p class="text-muted">Set when and how your batch job should run.</p>
+
+                            <!-- Scheduling Options -->
+                            <div class="mb-4">
+                                <h5>Scheduling</h5>
+                                <div class="scheduling-options">
+                                    <div class="schedule-card" data-schedule="immediate" onclick="selectSchedule('immediate')">
+                                        <div class="schedule-icon">
+                                            <i class="fas fa-bolt"></i>
+                                        </div>
+                                        <h6>Start Immediately</h6>
+                                        <p class="small text-muted">Begin processing as soon as submitted</p>
+                                        <input type="radio" name="schedule_type" value="immediate" class="d-none">
+                                    </div>
+                                    
+                                    <div class="schedule-card" data-schedule="delayed" onclick="selectSchedule('delayed')">
+                                        <div class="schedule-icon">
+                                            <i class="fas fa-clock"></i>
+                                        </div>
+                                        <h6>Schedule for Later</h6>
+                                        <p class="small text-muted">Set a specific date and time</p>
+                                        <input type="radio" name="schedule_type" value="delayed" class="d-none">
+                                    </div>
+                                    
+                                    <div class="schedule-card" data-schedule="recurring" onclick="selectSchedule('recurring')">
+                                        <div class="schedule-icon">
+                                            <i class="fas fa-repeat"></i>
+                                        </div>
+                                        <h6>Recurring Job</h6>
+                                        <p class="small text-muted">Run on a regular schedule</p>
+                                        <input type="radio" name="schedule_type" value="recurring" class="d-none">
+                                    </div>
+                                </div>
+
+                                <!-- Schedule Configuration -->
+                                <div id="schedule-config" class="mt-3 d-none">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div class="row u-5790ff" id="delayed-config">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Start Date</label>
+                                                    <input type="date" class="form-control" name="start_date">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Start Time</label>
+                                                    <input type="time" class="form-control" name="start_time">
+                                                </div>
+                                            </div>
+                                            
+                                            <div id="recurring-config" class="u-5790ff">
+                                                <div class="row">
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Frequency</label>
+                                                        <select class="form-select" name="frequency">
+                                                            <option value="hourly">Hourly</option>
+                                                            <option value="daily">Daily</option>
+                                                            <option value="weekly">Weekly</option>
+                                                            <option value="monthly">Monthly</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Interval</label>
+                                                        <input type="number" class="form-control" name="interval" value="1" min="1">
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">End Date (Optional)</label>
+                                                        <input type="date" class="form-control" name="end_date">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Resource Configuration -->
+                            <div class="mb-4">
+                                <h5>Resource Allocation</h5>
+                                <div class="row">
+                                    <div class="col-lg-4 mb-3">
+                                        <label class="form-label">
+                                            Priority Level
+                                            <i class="fas fa-info-circle text-muted ms-1" 
+                                               title="Higher priority jobs are processed first"></i>
+                                        </label>
+                                        <select class="form-select" name="priority">
+                                            <option value="low">Low Priority</option>
+                                            <option value="normal" selected>Normal Priority</option>
+                                            <option value="high">High Priority</option>
+                                            <option value="urgent">Urgent</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-lg-4 mb-3">
+                                        <label class="form-label">
+                                            Max Concurrent Jobs
+                                        </label>
+                                        <input type="number" 
+                                               class="form-control" 
+                                               name="max_concurrent" 
+                                               value="5" 
+                                               min="1" 
+                                               max="{{ resource_limits.max_concurrent }}">
+                                        <div class="form-text">Limit: {{ resource_limits.max_concurrent }}</div>
+                                    </div>
+                                    
+                                    <div class="col-lg-4 mb-3">
+                                        <label class="form-label">
+                                            Timeout (minutes)
+                                        </label>
+                                        <input type="number" 
+                                               class="form-control" 
+                                               name="timeout" 
+                                               value="30" 
+                                               min="5" 
+                                               max="{{ resource_limits.max_timeout }}">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Notifications -->
+                            <div class="mb-4">
+                                <h5>Notifications</h5>
+                                <div class="row">
+                                    <div class="col-lg-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" 
+                                                   type="checkbox" 
+                                                   name="email_notifications"
+                                                   id="email-notifications"
+                                                   onchange="toggleEmailConfig()">
+                                            <label class="form-check-label" for="email-notifications">
+                                                Email Notifications
+                                            </label>
+                                        </div>
+                                        <div id="email-config" class="mt-2 d-none">
+                                            <input type="email" 
+                                                   class="form-control" 
+                                                   name="notification_email" 
+                                                   placeholder="your@email.com">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-lg-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" 
+                                                   type="checkbox" 
+                                                   name="webhook_notifications"
+                                                   id="webhook-notifications"
+                                                   onchange="toggleWebhookConfig()">
+                                            <label class="form-check-label" for="webhook-notifications">
+                                                Webhook Notifications
+                                            </label>
+                                        </div>
+                                        <div id="webhook-config" class="mt-2 d-none">
+                                            <input type="url" 
+                                                   class="form-control" 
+                                                   name="webhook_url" 
+                                                   placeholder="https://your-webhook-url.com">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 4: Review & Submit -->
+                        <div class="step-section" id="step-4">
+                            <h4>
+                                <i class="fas fa-check me-2"></i>
+                                Review & Submit
+                            </h4>
+                            <p class="text-muted">Review your batch job configuration before submission.</p>
+
+                            <!-- Validation Errors -->
+                            <div class="validation-errors d-none" id="validation-errors">
+                                <h6>
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    Please fix the following issues:
+                                </h6>
+                                <div id="validation-error-list"></div>
+                            </div>
+
+                            <!-- Job Summary -->
+                            <div class="row">
+                                <div class="col-lg-8 mb-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">Job Summary</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row mb-3">
+                                                <div class="col-4 fw-bold">Selected Models:</div>
+                                                <div class="col-8" id="summary-models">-</div>
+                                            </div>
+                                            <div class="row mb-3">
+                                                <div class="col-4 fw-bold">Applications:</div>
+                                                <div class="col-8" id="summary-applications">-</div>
+                                            </div>
+                                            <div class="row mb-3">
+                                                <div class="col-4 fw-bold">Analysis Types:</div>
+                                                <div class="col-8" id="summary-analysis-types">-</div>
+                                            </div>
+                                            <div class="row mb-3">
+                                                <div class="col-4 fw-bold">Schedule:</div>
+                                                <div class="col-8" id="summary-schedule">-</div>
+                                            </div>
+                                            <div class="row mb-3">
+                                                <div class="col-4 fw-bold">Priority:</div>
+                                                <div class="col-8" id="summary-priority">-</div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-4 fw-bold">Total Jobs:</div>
+                                                <div class="col-8" id="summary-total-jobs">-</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-4 mb-4">
+                                    <!-- Cost Estimate -->
+                                    <div class="cost-estimate">
+                                        <h6 class="mb-3">
+                                            <i class="fas fa-calculator me-2"></i>
+                                            Cost Estimate
+                                        </h6>
+                                        <div class="cost-breakdown">
+                                            <div class="cost-item">
+                                                <div class="cost-value" id="estimated-cost">$0.00</div>
+                                                <div class="cost-label">Total Cost</div>
+                                            </div>
+                                            <div class="cost-item">
+                                                <div class="cost-value" id="estimated-duration">0h</div>
+                                                <div class="cost-label">Duration</div>
+                                            </div>
+                                            <div class="cost-item">
+                                                <div class="cost-value" id="estimated-tokens">0K</div>
+                                                <div class="cost-label">Tokens</div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-3 small text-muted">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Estimates based on average usage. Actual costs may vary.
+                                        </div>
+                                    </div>
+
+                                    <!-- Job Name -->
+                                    <div class="mt-4">
+                                        <label class="form-label fw-bold">Job Name (Optional)</label>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               name="job_name" 
+                                               placeholder="My Batch Analysis Job">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Wizard Actions -->
+                <div class="wizard-actions">
+                    <div>
+                        <button type="button" 
+                                class="btn btn-secondary me-2 u-5790ff" 
+                                id="prev-step" 
+                                onclick="previousStep()"
+                               >
+                            <i class="fas fa-chevron-left me-1"></i>
+                            Previous
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <button type="button" 
+                                class="btn btn-outline-secondary me-2"
+                                onclick="saveDraft()">
+                            <i class="fas fa-save me-1"></i>
+                            Save Draft
+                        </button>
+                        <button type="button" 
+                                class="btn btn-primary" 
+                                id="next-step" 
+                                onclick="nextStep()">
+                            Next
+                            <i class="fas fa-chevron-right ms-1"></i>
+                        </button>
+                        <button type="submit" 
+                                class="btn btn-success u-5790ff" 
+                                id="submit-job" 
+                               
+                                onclick="submitBatchJob()">
+                            <i class="fas fa-play me-1"></i>
+                            Submit Batch Job
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize batch job creation
+    initializeBatchJobCreation();
+    
+    // Load any saved draft
+    loadDraft();
+    
+    // Setup real-time cost calculation
+    setupCostCalculation();
+});
+
+let currentStep = 1;
+const totalSteps = 4;
+
+function initializeBatchJobCreation() {
+    // Initialize default schedule
+    selectSchedule('immediate');
+    
+    // Setup form validation
+    setupFormValidation();
+    
+    // Setup auto-save
+    setupAutoSave();
+    
+    // Update summary as user makes changes
+    setupSummaryUpdates();
+}
+
+function nextStep() {
+    if (validateCurrentStep()) {
+        if (currentStep < totalSteps) {
+            currentStep++;
+            updateWizardDisplay();
+            updateSummary();
+        }
+    }
+}
+
+function previousStep() {
+    if (currentStep > 1) {
+        currentStep--;
+        updateWizardDisplay();
+    }
+}
+
+function updateWizardDisplay() {
+    // Update step indicators
+    document.querySelectorAll('.wizard-step').forEach((step, index) => {
+        const stepNumber = index + 1;
+        step.classList.remove('active', 'completed');
+        
+        if (stepNumber < currentStep) {
+            step.classList.add('completed');
+        } else if (stepNumber === currentStep) {
+            step.classList.add('active');
+        }
+    });
+    
+    // Update step sections
+    document.querySelectorAll('.step-section').forEach((section, index) => {
+        section.classList.remove('active');
+        if (index + 1 === currentStep) {
+            section.classList.add('active');
+        }
+    });
+    
+    // Update navigation buttons
+    const prevBtn = document.getElementById('prev-step');
+    const nextBtn = document.getElementById('next-step');
+    const submitBtn = document.getElementById('submit-job');
+    
+    prevBtn.style.display = currentStep === 1 ? 'none' : 'inline-block';
+    
+    if (currentStep === totalSteps) {
+        nextBtn.style.display = 'none';
+        submitBtn.style.display = 'inline-block';
+    } else {
+        nextBtn.style.display = 'inline-block';
+        submitBtn.style.display = 'none';
+    }
+}
+
+function validateCurrentStep() {
+    const errors = [];
+    
+    switch (currentStep) {
+        case 1:
+            if (!document.querySelectorAll('.model-checkbox:checked').length) {
+                errors.push('Please select at least one AI model.');
+            }
+            if (!document.querySelectorAll('.app-checkbox:checked').length) {
+                errors.push('Please select at least one application.');
+            }
+            break;
+            
+        case 2:
+            if (!document.querySelectorAll('.analysis-type-checkbox:checked').length) {
+                errors.push('Please select at least one analysis type.');
+            }
+            break;
+            
+        case 3:
+            const scheduleType = document.querySelector('input[name="schedule_type"]:checked');
+            if (!scheduleType) {
+                errors.push('Please select a scheduling option.');
+            }
+            
+            if (scheduleType && scheduleType.value === 'delayed') {
+                const startDate = document.querySelector('input[name="start_date"]').value;
+                const startTime = document.querySelector('input[name="start_time"]').value;
+                if (!startDate || !startTime) {
+                    errors.push('Please specify start date and time for scheduled job.');
+                }
+            }
+            break;
+    }
+    
+    if (errors.length > 0) {
+        showValidationErrors(errors);
+        return false;
+    }
+    
+    hideValidationErrors();
+    return true;
+}
+
+function showValidationErrors(errors) {
+    const errorsContainer = document.getElementById('validation-errors');
+    const errorsList = document.getElementById('validation-error-list');
+    
+    errorsList.innerHTML = errors.map(error => `
+        <div class="validation-error">
+            <i class="fas fa-exclamation-circle text-danger me-2"></i>
+            ${error}
+        </div>
+    `).join('');
+    
+    errorsContainer.classList.remove('d-none');
+    errorsContainer.scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideValidationErrors() {
+    document.getElementById('validation-errors').classList.add('d-none');
+}
+
+// Model Selection Functions
+function toggleModelSelection(modelSlug) {
+    const checkbox = document.querySelector(`input[value="${modelSlug}"]`);
+    const card = document.querySelector(`[data-model="${modelSlug}"]`);
+    
+    checkbox.checked = !checkbox.checked;
+    card.classList.toggle('selected', checkbox.checked);
+    
+    updateCostEstimate();
+    updateSummary();
+}
+
+function selectAllModels() {
+    document.querySelectorAll('.model-checkbox').forEach(cb => {
+        cb.checked = true;
+        const card = document.querySelector(`[data-model="${cb.value}"]`);
+        card.classList.add('selected');
+    });
+    updateCostEstimate();
+    updateSummary();
+}
+
+function clearModelSelection() {
+    document.querySelectorAll('.model-checkbox').forEach(cb => {
+        cb.checked = false;
+        const card = document.querySelector(`[data-model="${cb.value}"]`);
+        card.classList.remove('selected');
+    });
+    updateCostEstimate();
+    updateSummary();
+}
+
+function filterModels(provider) {
+    const modelCards = document.querySelectorAll('.model-card');
+    
+    modelCards.forEach(card => {
+        if (provider === 'all' || card.dataset.provider === provider) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function selectAllApps() {
+    document.querySelectorAll('.app-checkbox').forEach(cb => {
+        cb.checked = true;
+    });
+    updateSummary();
+}
+
+// Analysis Configuration
+function toggleAnalysisConfig(analysisType) {
+    const checkbox = document.getElementById(`analysis-${analysisType}`);
+    const config = document.getElementById(`config-${analysisType}`);
+    
+    if (checkbox.checked) {
+        config.classList.remove('d-none');
+    } else {
+        config.classList.add('d-none');
+    }
+    
+    updateCostEstimate();
+    updateSummary();
+}
+
+// Scheduling
+function selectSchedule(scheduleType) {
+    // Update visual selection
+    document.querySelectorAll('.schedule-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    document.querySelector(`[data-schedule="${scheduleType}"]`).classList.add('selected');
+    
+    // Update radio button
+    document.querySelector(`input[value="${scheduleType}"]`).checked = true;
+    
+    // Show/hide configuration
+    const configContainer = document.getElementById('schedule-config');
+    const delayedConfig = document.getElementById('delayed-config');
+    const recurringConfig = document.getElementById('recurring-config');
+    
+    if (scheduleType === 'immediate') {
+        configContainer.classList.add('d-none');
+    } else {
+        configContainer.classList.remove('d-none');
+        delayedConfig.style.display = scheduleType === 'delayed' ? 'flex' : 'none';
+        recurringConfig.style.display = scheduleType === 'recurring' ? 'block' : 'none';
+    }
+    
+    updateSummary();
+}
+
+function toggleEmailConfig() {
+    const checkbox = document.getElementById('email-notifications');
+    const config = document.getElementById('email-config');
+    
+    if (checkbox.checked) {
+        config.classList.remove('d-none');
+    } else {
+        config.classList.add('d-none');
+    }
+}
+
+function toggleWebhookConfig() {
+    const checkbox = document.getElementById('webhook-notifications');
+    const config = document.getElementById('webhook-config');
+    
+    if (checkbox.checked) {
+        config.classList.remove('d-none');
+    } else {
+        config.classList.add('d-none');
+    }
+}
+
+// Cost Calculation
+function setupCostCalculation() {
+    // Update cost when selections change
+    document.addEventListener('change', function(e) {
+        if (e.target.matches('.model-checkbox, .app-checkbox, .analysis-type-checkbox, input[name="priority"]')) {
+            updateCostEstimate();
+        }
+    });
+}
+
+function updateCostEstimate() {
+    const selectedModels = document.querySelectorAll('.model-checkbox:checked');
+    const selectedApps = document.querySelectorAll('.app-checkbox:checked');
+    const selectedAnalyses = document.querySelectorAll('.analysis-type-checkbox:checked');
+    
+    // Calculate total jobs
+    const totalJobs = selectedModels.length * selectedApps.length * selectedAnalyses.length;
+    
+    // Estimate cost based on model pricing and analysis complexity
+    let totalCost = 0;
+    let totalDuration = 0;
+    let totalTokens = 0;
+    
+    selectedModels.forEach(modelCb => {
+        const modelSlug = modelCb.value;
+        // Get model data and calculate cost
+        // This would typically be fetched from the server
+        const estimatedCostPerJob = 0.50; // Placeholder
+        const estimatedDurationPerJob = 15; // minutes
+        const estimatedTokensPerJob = 5000; // tokens
+        
+        totalCost += estimatedCostPerJob * selectedApps.length * selectedAnalyses.length;
+        totalDuration += estimatedDurationPerJob * selectedApps.length * selectedAnalyses.length;
+        totalTokens += estimatedTokensPerJob * selectedApps.length * selectedAnalyses.length;
+    });
+    
+    // Update display
+    document.getElementById('estimated-cost').textContent = `$${totalCost.toFixed(2)}`;
+    document.getElementById('estimated-duration').textContent = `${Math.round(totalDuration / 60)}h`;
+    document.getElementById('estimated-tokens').textContent = `${Math.round(totalTokens / 1000)}K`;
+    document.getElementById('summary-total-jobs').textContent = totalJobs;
+}
+
+// Summary Updates
+function setupSummaryUpdates() {
+    document.addEventListener('change', updateSummary);
+}
+
+function updateSummary() {
+    // Update models summary
+    const selectedModels = Array.from(document.querySelectorAll('.model-checkbox:checked'))
+        .map(cb => cb.closest('.model-card').querySelector('h6').textContent);
+    document.getElementById('summary-models').textContent = 
+        selectedModels.length ? selectedModels.join(', ') : '-';
+    
+    // Update applications summary
+    const selectedApps = document.querySelectorAll('.app-checkbox:checked').length;
+    document.getElementById('summary-applications').textContent = 
+        selectedApps ? `${selectedApps} applications` : '-';
+    
+    // Update analysis types summary
+    const selectedAnalyses = Array.from(document.querySelectorAll('.analysis-type-checkbox:checked'))
+        .map(cb => cb.closest('.form-check').querySelector('label').textContent.trim());
+    document.getElementById('summary-analysis-types').textContent = 
+        selectedAnalyses.length ? selectedAnalyses.join(', ') : '-';
+    
+    // Update schedule summary
+    const scheduleType = document.querySelector('input[name="schedule_type"]:checked');
+    let scheduleText = '-';
+    if (scheduleType) {
+        switch (scheduleType.value) {
+            case 'immediate':
+                scheduleText = 'Start immediately';
+                break;
+            case 'delayed':
+                const date = document.querySelector('input[name="start_date"]').value;
+                const time = document.querySelector('input[name="start_time"]').value;
+                scheduleText = date && time ? `${date} at ${time}` : 'Scheduled';
+                break;
+            case 'recurring':
+                const frequency = document.querySelector('select[name="frequency"]').value;
+                scheduleText = `Recurring ${frequency}`;
+                break;
+        }
+    }
+    document.getElementById('summary-schedule').textContent = scheduleText;
+    
+    // Update priority summary
+    const priority = document.querySelector('select[name="priority"]').value;
+    document.getElementById('summary-priority').textContent = 
+        priority.charAt(0).toUpperCase() + priority.slice(1);
+}
+
+// Form Submission
+function submitBatchJob() {
+    if (validateCurrentStep()) {
+        const formData = new FormData(document.getElementById('batch-job-form'));
+        
+        // Add additional data
+        const selectedModels = Array.from(document.querySelectorAll('.model-checkbox:checked'))
+            .map(cb => cb.value);
+        const selectedApps = Array.from(document.querySelectorAll('.app-checkbox:checked'))
+            .map(cb => cb.value);
+        const selectedAnalyses = Array.from(document.querySelectorAll('.analysis-type-checkbox:checked'))
+            .map(cb => cb.value);
+        
+        formData.append('selected_models', JSON.stringify(selectedModels));
+        formData.append('selected_apps', JSON.stringify(selectedApps));
+        formData.append('selected_analyses', JSON.stringify(selectedAnalyses));
+        
+        // Show loading state
+        const submitBtn = document.getElementById('submit-job');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
+        submitBtn.disabled = true;
+        
+        // Submit via HTMX
+        htmx.ajax('POST', '/batch/create', {
+            values: Object.fromEntries(formData.entries()),
+            target: 'body',
+            swap: 'none'
+        }).then(response => {
+            // Handle success
+            window.location.href = '/batch/overview';
+        }).catch(error => {
+            // Handle error
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            
+            alert('Failed to submit batch job. Please try again.');
+        });
+    }
+}
+
+// Template Management
+function saveTemplate() {
+    const templateName = prompt('Enter template name:');
+    if (templateName) {
+        const templateData = gatherFormData();
+        templateData.name = templateName;
+        
+        htmx.ajax('POST', '/api/batch/templates', {
+            values: templateData
+        }).then(() => {
+            alert('Template saved successfully!');
+        });
+    }
+}
+
+function loadTemplate(templateId) {
+    htmx.ajax('GET', `/api/batch/templates/${templateId}`, {
+        target: 'body',
+        swap: 'none'
+    }).then(response => {
+        // Populate form with template data
+        const templateData = JSON.parse(response.response);
+        populateFormFromTemplate(templateData);
+    });
+}
+
+function resetForm() {
+    if (confirm('Are you sure you want to reset the form? All changes will be lost.')) {
+        document.getElementById('batch-job-form').reset();
+        currentStep = 1;
+        updateWizardDisplay();
+        clearAllSelections();
+        updateCostEstimate();
+        updateSummary();
+    }
+}
+
+function clearAllSelections() {
+    document.querySelectorAll('.model-card').forEach(card => card.classList.remove('selected'));
+    document.querySelectorAll('.schedule-card').forEach(card => card.classList.remove('selected'));
+    document.querySelectorAll('.analysis-config').forEach(config => config.classList.add('d-none'));
+}
+
+// Auto-save and Draft Management
+function setupAutoSave() {
+    setInterval(saveDraft, 30000); // Auto-save every 30 seconds
+}
+
+function saveDraft() {
+    const draftData = gatherFormData();
+    localStorage.setItem('batch-job-draft', JSON.stringify(draftData));
+}
+
+function loadDraft() {
+    const draftData = localStorage.getItem('batch-job-draft');
+    if (draftData) {
+        try {
+            const data = JSON.parse(draftData);
+            populateFormFromTemplate(data);
+        } catch (e) {
+            console.error('Failed to load draft:', e);
+        }
+    }
+}
+
+function gatherFormData() {
+    const formData = new FormData(document.getElementById('batch-job-form'));
+    const data = Object.fromEntries(formData.entries());
+    
+    // Add checkbox selections
+    data.selectedModels = Array.from(document.querySelectorAll('.model-checkbox:checked'))
+        .map(cb => cb.value);
+    data.selectedApps = Array.from(document.querySelectorAll('.app-checkbox:checked'))
+        .map(cb => cb.value);
+    data.selectedAnalyses = Array.from(document.querySelectorAll('.analysis-type-checkbox:checked'))
+        .map(cb => cb.value);
+    
+    return data;
+}
+
+function populateFormFromTemplate(data) {
+    // Populate form fields
+    Object.entries(data).forEach(([key, value]) => {
+        const field = document.querySelector(`[name="${key}"]`);
+        if (field) {
+            if (field.type === 'checkbox') {
+                field.checked = value;
+            } else {
+                field.value = value;
+            }
+        }
+    });
+    
+    // Handle special selections
+    if (data.selectedModels) {
+        data.selectedModels.forEach(modelSlug => {
+            const checkbox = document.querySelector(`input[value="${modelSlug}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                toggleModelSelection(modelSlug);
+            }
+        });
+    }
+    
+    if (data.selectedApps) {
+        data.selectedApps.forEach(appId => {
+            const checkbox = document.querySelector(`input[value="${appId}"]`);
+            if (checkbox) checkbox.checked = true;
+        });
+    }
+    
+    if (data.selectedAnalyses) {
+        data.selectedAnalyses.forEach(analysisType => {
+            const checkbox = document.getElementById(`analysis-${analysisType}`);
+            if (checkbox) {
+                checkbox.checked = true;
+                toggleAnalysisConfig(analysisType);
+            }
+        });
+    }
+    
+    updateCostEstimate();
+    updateSummary();
+}
+</script>
+{% endblock %}

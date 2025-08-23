@@ -9,7 +9,8 @@ Provides endpoints for creating, monitoring, and managing bulk analysis jobs.
 import logging
 from datetime import datetime  # noqa: F401 (may be used by remaining endpoints)
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
+from flask import Blueprint, request, jsonify, redirect, url_for, flash
+from ..utils.template_paths import render_template_compat as render_template
 from sqlalchemy import desc
 
 from ..extensions import db

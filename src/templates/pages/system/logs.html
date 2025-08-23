@@ -1,0 +1,847 @@
+{# slug: pages/system/logs (auto-migrated) #}
+{#
+  System Logs View
+  
+  Purpose: Real-time log viewing and management interface
+  Features:
+  - Live log streaming with WebSocket/SSE
+  - Multiple log files (application, error, access)
+  - Log level filtering and search
+  - Log download and export
+  - Log rotation management
+  
+  Routes:
+  - GET /system/logs
+  - GET /system/logs/<log_type>
+  
+  Technical Details:
+  - Extends base.html layout  
+  - WebSocket/SSE for real-time log streaming
+  - Responsive log viewer with virtual scrolling
+  - Advanced filtering and search capabilities
+  
+  Components Used:
+  - components/forms/filter-panel.html
+  - components/common/loading.html
+  - components/common/alert.html
+  
+  HTMX Endpoints:
+  - /api/logs/stream (real-time log stream)
+  - /api/logs/search (log search)
+  - /api/logs/download (log download)
+#}
+
+{% extends 'layouts/base.html' %}
+
+{% block title %}System Logs - {{ super() }}{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="/system/status">System</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Logs</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="logs-view">
+    {# Header and Controls #}
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-file-alt me-2"></i>System Logs
+                    </h1>
+                    <p class="text-muted mb-0">Monitor system activity in real-time</p>
+                </div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-primary" id="toggle-stream">
+                        <i class="fas fa-play me-1"></i>Start Stream
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-download me-1"></i>Export
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="exportLogs('txt')">
+                            <i class="fas fa-file-alt me-2"></i>Text File</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportLogs('csv')">
+                            <i class="fas fa-file-csv me-2"></i>CSV File</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportLogs('json')">
+                            <i class="fas fa-file-code me-2"></i>JSON File</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#export-modal">
+                            <i class="fas fa-cog me-2"></i>Custom Export</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {# Log Controls #}
+    <div class="log-controls">
+        <div class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Log File</label>
+                <select class="form-select form-select-sm" id="log-file">
+                    <option value="app">Application</option>
+                    <option value="error">Error</option>
+                    <option value="access">Access</option>
+                    <option value="celery">Celery Worker</option>
+                    <option value="analyzer">Analyzer</option>
+                    <option value="system">System</option>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Log Level</label>
+                <select class="form-select form-select-sm" id="log-level">
+                    <option value="">All Levels</option>
+                    <option value="DEBUG">Debug</option>
+                    <option value="INFO">Info</option>
+                    <option value="WARNING">Warning</option>
+                    <option value="ERROR">Error</option>
+                    <option value="CRITICAL">Critical</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Search</label>
+                <div class="input-group input-group-sm">
+                    <input type="search" class="form-control" id="log-search" placeholder="Search logs...">
+                    <button class="btn btn-outline-secondary" type="button" id="search-btn">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Time Range</label>
+                <select class="form-select form-select-sm" id="time-range">
+                    <option value="live">Live Stream</option>
+                    <option value="1h">Last Hour</option>
+                    <option value="6h">Last 6 Hours</option>
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="btn-group btn-group-sm w-100">
+                    <button type="button" class="btn btn-outline-secondary" id="clear-logs">
+                        <i class="fas fa-eraser me-1"></i>Clear
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="refresh-logs">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="toggle-wrap">
+                        <i class="fas fa-align-left me-1"></i>Wrap
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        {# Active Filters #}
+        <div class="mt-2" id="active-filters">
+            <!-- Active filter badges will appear here -->
+        </div>
+        
+        {# Log Statistics #}
+        <div class="log-stats mt-2" id="log-stats">
+            <span class="me-3"><i class="fas fa-list me-1"></i>Lines: <span id="total-lines">0</span></span>
+            <span class="me-3"><i class="fas fa-exclamation-triangle me-1"></i>Warnings: <span id="warning-count">0</span></span>
+            <span class="me-3"><i class="fas fa-times-circle me-1"></i>Errors: <span id="error-count">0</span></span>
+            <span class="me-3"><i class="fas fa-clock me-1"></i>Last Update: <span id="last-update">Never</span></span>
+        </div>
+    </div>
+    
+    {# Log Viewer #}
+    <div class="log-viewer-container">
+        <div class="log-viewer" id="log-viewer">
+            <div class="connection-status connection-disconnected" id="connection-status">
+                <i class="fas fa-circle me-1"></i>Disconnected
+            </div>
+            
+            <div class="auto-scroll-btn">
+                <button type="button" class="btn btn-sm btn-outline-light active" id="auto-scroll-toggle">
+                    <i class="fas fa-arrow-down me-1"></i>Auto Scroll
+                </button>
+            </div>
+            
+            <div id="log-content">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-file-alt fa-3x mb-3"></i>
+                    <h5>No logs loaded</h5>
+                    <p>Select a log file and start streaming to view logs</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Export Modal #}
+<div class="modal fade" id="export-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Export Logs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="export-form">
+                    <div class="mb-3">
+                        <label class="form-label">Export Format</label>
+                        <select class="form-select" name="format">
+                            <option value="txt">Text File (.txt)</option>
+                            <option value="csv">CSV File (.csv)</option>
+                            <option value="json">JSON File (.json)</option>
+                            <option value="xlsx">Excel File (.xlsx)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Date Range</label>
+                        <div class="row">
+                            <div class="col-6">
+                                <input type="datetime-local" class="form-control" name="start_date" 
+                                       value="{{ (now() - timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M') }}">
+                            </div>
+                            <div class="col-6">
+                                <input type="datetime-local" class="form-control" name="end_date" 
+                                       value="{{ now().strftime('%Y-%m-%dT%H:%M') }}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Log Levels</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="levels" value="DEBUG" checked>
+                            <label class="form-check-label">Debug</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="levels" value="INFO" checked>
+                            <label class="form-check-label">Info</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="levels" value="WARNING" checked>
+                            <label class="form-check-label">Warning</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="levels" value="ERROR" checked>
+                            <label class="form-check-label">Error</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="levels" value="CRITICAL" checked>
+                            <label class="form-check-label">Critical</label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="include_metadata" checked>
+                            <label class="form-check-label">Include metadata (timestamps, levels, etc.)</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="export-logs-btn">Export Logs</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+    // System Logs JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // Log viewer state
+        let isStreaming = false;
+        let autoScroll = true;
+        let websocket = null;
+        let eventSource = null;
+        let currentLogFile = 'app';
+        let logBuffer = [];
+        let maxBufferSize = 10000;
+        let searchTerm = '';
+        let logStats = {
+            totalLines: 0,
+            warningCount: 0,
+            errorCount: 0,
+            lastUpdate: null
+        };
+        
+        // Elements
+        const logViewer = document.getElementById('log-viewer');
+        const logContent = document.getElementById('log-content');
+        const toggleStreamBtn = document.getElementById('toggle-stream');
+        const connectionStatus = document.getElementById('connection-status');
+        const autoScrollToggle = document.getElementById('auto-scroll-toggle');
+        const logFileSelect = document.getElementById('log-file');
+        const logLevelSelect = document.getElementById('log-level');
+        const logSearch = document.getElementById('log-search');
+        const timeRangeSelect = document.getElementById('time-range');
+        
+        // Initialize
+        init();
+        
+        function init() {
+            bindEvents();
+            updateConnectionStatus('disconnected');
+            loadInitialLogs();
+        }
+        
+        function bindEvents() {
+            // Stream toggle
+            toggleStreamBtn.addEventListener('click', toggleStream);
+            
+            // Auto-scroll toggle
+            autoScrollToggle.addEventListener('click', function() {
+                autoScroll = !autoScroll;
+                this.classList.toggle('active', autoScroll);
+                if (autoScroll) {
+                    scrollToBottom();
+                }
+            });
+            
+            // Log file change
+            logFileSelect.addEventListener('change', function() {
+                currentLogFile = this.value;
+                if (isStreaming) {
+                    stopStream();
+                    startStream();
+                } else {
+                    loadLogs();
+                }
+            });
+            
+            // Level filter
+            logLevelSelect.addEventListener('change', function() {
+                filterLogs();
+                updateActiveFilters();
+            });
+            
+            // Search
+            logSearch.addEventListener('input', debounce(function() {
+                searchTerm = this.value;
+                searchLogs();
+                updateActiveFilters();
+            }, 300));
+            
+            // Time range
+            timeRangeSelect.addEventListener('change', function() {
+                if (this.value === 'live') {
+                    if (!isStreaming) {
+                        startStream();
+                    }
+                } else {
+                    if (isStreaming) {
+                        stopStream();
+                    }
+                    loadHistoricalLogs(this.value);
+                }
+            });
+            
+            // Control buttons
+            document.getElementById('clear-logs').addEventListener('click', clearLogs);
+            document.getElementById('refresh-logs').addEventListener('click', refreshLogs);
+            document.getElementById('toggle-wrap').addEventListener('click', toggleWrap);
+            document.getElementById('search-btn').addEventListener('click', function() {
+                searchTerm = logSearch.value;
+                searchLogs();
+                updateActiveFilters();
+            });
+            
+            // Export
+            document.getElementById('export-logs-btn').addEventListener('click', exportLogsCustom);
+            
+            // Scroll detection
+            logViewer.addEventListener('scroll', function() {
+                const isAtBottom = logViewer.scrollTop + logViewer.clientHeight >= logViewer.scrollHeight - 10;
+                autoScrollToggle.classList.toggle('active', autoScroll && isAtBottom);
+            });
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey || e.metaKey) {
+                    switch (e.key) {
+                        case 'f':
+                            e.preventDefault();
+                            logSearch.focus();
+                            break;
+                        case 'k':
+                            e.preventDefault();
+                            clearLogs();
+                            break;
+                        case 'r':
+                            e.preventDefault();
+                            refreshLogs();
+                            break;
+                    }
+                }
+            });
+        }
+        
+        function toggleStream() {
+            if (isStreaming) {
+                stopStream();
+            } else {
+                startStream();
+            }
+        }
+        
+        function startStream() {
+            if (isStreaming) return;
+            
+            isStreaming = true;
+            toggleStreamBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Stop Stream';
+            toggleStreamBtn.className = 'btn btn-outline-danger';
+            updateConnectionStatus('connecting');
+            
+            // Try WebSocket first, fallback to EventSource
+            if (window.WebSocket) {
+                connectWebSocket();
+            } else {
+                connectEventSource();
+            }
+        }
+        
+        function stopStream() {
+            if (!isStreaming) return;
+            
+            isStreaming = false;
+            toggleStreamBtn.innerHTML = '<i class="fas fa-play me-1"></i>Start Stream';
+            toggleStreamBtn.className = 'btn btn-outline-primary';
+            
+            if (websocket) {
+                websocket.close();
+                websocket = null;
+            }
+            
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            updateConnectionStatus('disconnected');
+        }
+        
+        function connectWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs?file=${currentLogFile}`;
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = function() {
+                updateConnectionStatus('connected');
+            };
+            
+            websocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'log_line') {
+                    addLogLine(data.line);
+                } else if (data.type === 'log_batch') {
+                    data.lines.forEach(line => addLogLine(line));
+                }
+                updateStats();
+            };
+            
+            websocket.onclose = function() {
+                updateConnectionStatus('disconnected');
+                if (isStreaming) {
+                    // Attempt reconnection after 3 seconds
+                    setTimeout(() => {
+                        if (isStreaming) {
+                            connectWebSocket();
+                        }
+                    }, 3000);
+                }
+            };
+            
+            websocket.onerror = function() {
+                updateConnectionStatus('disconnected');
+                // Fallback to EventSource
+                if (window.EventSource) {
+                    websocket = null;
+                    connectEventSource();
+                }
+            };
+        }
+        
+        function connectEventSource() {
+            const url = `/api/logs/stream?file=${currentLogFile}`;
+            eventSource = new EventSource(url);
+            
+            eventSource.onopen = function() {
+                updateConnectionStatus('connected');
+            };
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                addLogLine(data.line);
+                updateStats();
+            };
+            
+            eventSource.onerror = function() {
+                updateConnectionStatus('disconnected');
+                if (isStreaming) {
+                    // Attempt reconnection after 3 seconds
+                    setTimeout(() => {
+                        if (isStreaming && eventSource.readyState === EventSource.CLOSED) {
+                            connectEventSource();
+                        }
+                    }, 3000);
+                }
+            };
+        }
+        
+        function addLogLine(line) {
+            // Parse log line
+            const logLine = parseLogLine(line);
+            
+            // Add to buffer
+            logBuffer.push(logLine);
+            if (logBuffer.length > maxBufferSize) {
+                logBuffer.shift();
+            }
+            
+            // Create log element
+            const logElement = createLogElement(logLine);
+            
+            // Apply filters
+            if (shouldShowLine(logLine)) {
+                logContent.appendChild(logElement);
+                
+                // Auto-scroll if enabled
+                if (autoScroll) {
+                    scrollToBottom();
+                }
+            }
+        }
+        
+        function parseLogLine(line) {
+            // Parse log line format: TIMESTAMP LEVEL MESSAGE
+            const match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ (\w+) (.+)$/);
+            
+            if (match) {
+                return {
+                    timestamp: match[1],
+                    level: match[2],
+                    message: match[3],
+                    raw: line
+                };
+            } else {
+                return {
+                    timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                    level: 'INFO',
+                    message: line,
+                    raw: line
+                };
+            }
+        }
+        
+        function createLogElement(logLine) {
+            const div = document.createElement('div');
+            div.className = `log-line level-${logLine.level.toLowerCase()}`;
+            
+            const timestampSpan = document.createElement('span');
+            timestampSpan.className = 'log-timestamp';
+            timestampSpan.textContent = logLine.timestamp;
+            
+            const levelSpan = document.createElement('span');
+            levelSpan.className = `log-level ${logLine.level}`;
+            levelSpan.textContent = logLine.level;
+            
+            const messageSpan = document.createElement('span');
+            messageSpan.className = 'log-message';
+            messageSpan.textContent = logLine.message;
+            
+            // Highlight search terms
+            if (searchTerm && logLine.message.toLowerCase().includes(searchTerm.toLowerCase())) {
+                messageSpan.innerHTML = highlightSearchTerm(logLine.message, searchTerm);
+            }
+            
+            div.appendChild(timestampSpan);
+            div.appendChild(document.createTextNode(' '));
+            div.appendChild(levelSpan);
+            div.appendChild(messageSpan);
+            
+            return div;
+        }
+        
+        function shouldShowLine(logLine) {
+            // Level filter
+            const selectedLevel = logLevelSelect.value;
+            if (selectedLevel && logLine.level !== selectedLevel) {
+                return false;
+            }
+            
+            // Search filter
+            if (searchTerm) {
+                const searchLower = searchTerm.toLowerCase();
+                return logLine.message.toLowerCase().includes(searchLower) || 
+                       logLine.level.toLowerCase().includes(searchLower);
+            }
+            
+            return true;
+        }
+        
+        function highlightSearchTerm(text, term) {
+            const regex = new RegExp(`(${term})`, 'gi');
+            return text.replace(regex, '<span class="log-search-highlight">$1</span>');
+        }
+        
+        function updateConnectionStatus(status) {
+            const statusElement = connectionStatus;
+            statusElement.className = `connection-status connection-${status}`;
+            
+            switch (status) {
+                case 'connected':
+                    statusElement.innerHTML = '<i class="fas fa-circle me-1"></i>Connected';
+                    break;
+                case 'connecting':
+                    statusElement.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Connecting';
+                    break;
+                case 'disconnected':
+                    statusElement.innerHTML = '<i class="fas fa-circle me-1"></i>Disconnected';
+                    break;
+            }
+        }
+        
+        function scrollToBottom() {
+            logViewer.scrollTop = logViewer.scrollHeight;
+        }
+        
+        function loadInitialLogs() {
+            clearLogs();
+            logContent.innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"><span class="visually-hidden">Loading logs...</span></div></div>';
+            
+            fetch(`/api/logs/recent?file=${currentLogFile}&limit=1000`)
+                .then(response => response.json())
+                .then(data => {
+                    clearLogs();
+                    if (data.lines && data.lines.length > 0) {
+                        data.lines.forEach(line => addLogLine(line));
+                        scrollToBottom();
+                    } else {
+                        logContent.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-file-alt fa-3x mb-3"></i><h5>No logs available</h5><p>No recent log entries found</p></div>';
+                    }
+                    updateStats();
+                })
+                .catch(error => {
+                    console.error('Error loading logs:', error);
+                    logContent.innerHTML = '<div class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle fa-3x mb-3"></i><h5>Error Loading Logs</h5><p>Failed to load log file</p></div>';
+                });
+        }
+        
+        function loadLogs() {
+            loadInitialLogs();
+        }
+        
+        function loadHistoricalLogs(timeRange) {
+            clearLogs();
+            logContent.innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"><span class="visually-hidden">Loading logs...</span></div></div>';
+            
+            fetch(`/api/logs/historical?file=${currentLogFile}&range=${timeRange}`)
+                .then(response => response.json())
+                .then(data => {
+                    clearLogs();
+                    if (data.lines && data.lines.length > 0) {
+                        data.lines.forEach(line => addLogLine(line));
+                        scrollToBottom();
+                    } else {
+                        logContent.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-file-alt fa-3x mb-3"></i><h5>No logs available</h5><p>No log entries found for the selected time range</p></div>';
+                    }
+                    updateStats();
+                })
+                .catch(error => {
+                    console.error('Error loading historical logs:', error);
+                    logContent.innerHTML = '<div class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle fa-3x mb-3"></i><h5>Error Loading Logs</h5><p>Failed to load historical logs</p></div>';
+                });
+        }
+        
+        function clearLogs() {
+            logContent.innerHTML = '';
+            logBuffer = [];
+            logStats = {
+                totalLines: 0,
+                warningCount: 0,
+                errorCount: 0,
+                lastUpdate: null
+            };
+            updateStats();
+        }
+        
+        function refreshLogs() {
+            if (isStreaming) {
+                stopStream();
+                startStream();
+            } else {
+                loadLogs();
+            }
+        }
+        
+        function filterLogs() {
+            const lines = logContent.querySelectorAll('.log-line');
+            let visibleCount = 0;
+            
+            lines.forEach(line => {
+                const level = line.className.match(/level-(\w+)/)?.[1]?.toUpperCase();
+                const selectedLevel = logLevelSelect.value;
+                
+                let show = true;
+                
+                // Level filter
+                if (selectedLevel && level !== selectedLevel) {
+                    show = false;
+                }
+                
+                // Search filter
+                if (searchTerm) {
+                    const text = line.textContent.toLowerCase();
+                    if (!text.includes(searchTerm.toLowerCase())) {
+                        show = false;
+                    }
+                }
+                
+                line.style.display = show ? 'block' : 'none';
+                if (show) visibleCount++;
+            });
+        }
+        
+        function searchLogs() {
+            filterLogs();
+            
+            // Highlight search terms
+            if (searchTerm) {
+                const lines = logContent.querySelectorAll('.log-line .log-message');
+                lines.forEach(messageEl => {
+                    const originalText = messageEl.textContent;
+                    messageEl.innerHTML = highlightSearchTerm(originalText, searchTerm);
+                });
+            } else {
+                // Remove highlights
+                const lines = logContent.querySelectorAll('.log-line .log-message');
+                lines.forEach(messageEl => {
+                    messageEl.innerHTML = messageEl.textContent;
+                });
+            }
+        }
+        
+        function updateActiveFilters() {
+            const filtersContainer = document.getElementById('active-filters');
+            let filtersHtml = '';
+            
+            if (logLevelSelect.value) {
+                filtersHtml += `<span class="filter-badge">Level: ${logLevelSelect.value} <button class="btn-close btn-close-white btn-sm" onclick="clearFilter('level')"></button></span>`;
+            }
+            
+            if (searchTerm) {
+                filtersHtml += `<span class="filter-badge">Search: "${searchTerm}" <button class="btn-close btn-close-white btn-sm" onclick="clearFilter('search')"></button></span>`;
+            }
+            
+            filtersContainer.innerHTML = filtersHtml;
+        }
+        
+        function updateStats() {
+            const lines = logContent.querySelectorAll('.log-line');
+            logStats.totalLines = lines.length;
+            logStats.warningCount = logContent.querySelectorAll('.level-warning').length;
+            logStats.errorCount = logContent.querySelectorAll('.level-error, .level-critical').length;
+            logStats.lastUpdate = new Date();
+            
+            document.getElementById('total-lines').textContent = logStats.totalLines;
+            document.getElementById('warning-count').textContent = logStats.warningCount;
+            document.getElementById('error-count').textContent = logStats.errorCount;
+            document.getElementById('last-update').textContent = logStats.lastUpdate.toLocaleTimeString();
+        }
+        
+        function toggleWrap() {
+            logViewer.style.whiteSpace = logViewer.style.whiteSpace === 'pre' ? 'pre-wrap' : 'pre';
+        }
+        
+        function exportLogs(format) {
+            const params = new URLSearchParams({
+                file: currentLogFile,
+                format: format,
+                level: logLevelSelect.value,
+                search: searchTerm,
+                lines: Math.min(logStats.totalLines, 10000) // Limit export size
+            });
+            
+            window.open(`/api/logs/export?${params.toString()}`, '_blank');
+        }
+        
+        function exportLogsCustom() {
+            const formData = new FormData(document.getElementById('export-form'));
+            formData.append('file', currentLogFile);
+            formData.append('search', searchTerm);
+            
+            fetch('/api/logs/export-custom', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `logs_${currentLogFile}_${new Date().toISOString().split('T')[0]}.${formData.get('format')}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                bootstrap.Modal.getInstance(document.getElementById('export-modal')).hide();
+            })
+            .catch(error => {
+                console.error('Export error:', error);
+            });
+        }
+        
+        // Global functions
+        window.clearFilter = function(type) {
+            if (type === 'level') {
+                logLevelSelect.value = '';
+                filterLogs();
+            } else if (type === 'search') {
+                logSearch.value = '';
+                searchTerm = '';
+                searchLogs();
+            }
+            updateActiveFilters();
+        };
+        
+        // Utility function
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (websocket) websocket.close();
+            if (eventSource) eventSource.close();
+        });
+    });
+</script>
+{% endblock %}

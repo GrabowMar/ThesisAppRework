@@ -1,0 +1,521 @@
+{# slug: ui/elements/forms/model-selector (auto-migrated) #}
+{# 
+Form Model Selector Component
+
+Purpose: Model selection dropdown with capabilities and pricing information
+Usage: {{ model_selector(name='model', selected='openai_gpt-4o', show_pricing=true) }}
+Routes: Used in analysis creation, batch job forms, and model comparison views
+Features:
+- Searchable dropdown with model filtering
+- Model capabilities display (icons and labels)
+- Pricing information integration
+- Provider grouping and badges
+- Model availability status indicators
+- Validation and error states
+- HTMX integration for dynamic loading
+- Accessibility support with proper ARIA attributes
+Technical: Bootstrap Select, JSON data integration, custom filtering, provider icons
+Dependencies: Bootstrap 5 forms, model capabilities JSON, provider configurations
+#}
+
+{# Set default values for optional parameters #}
+{%- set name = name or 'model' -%}
+{%- set selected = selected or None -%}
+{%- set placeholder = placeholder or 'Select a model...' -%}
+{%- set required = required if required is not none else false -%}
+{%- set multiple = multiple if multiple is not none else false -%}
+{%- set show_capabilities = show_capabilities if show_capabilities is not none else true -%}
+{%- set show_pricing = show_pricing if show_pricing is not none else false -%}
+{%- set show_provider = show_provider if show_provider is not none else true -%}
+{%- set show_status = show_status if show_status is not none else true -%}
+{%- set group_by_provider = group_by_provider if group_by_provider is not none else true -%}
+{%- set searchable = searchable if searchable is not none else true -%}
+{%- set component_id = id or 'model-selector-' ~ range(1000, 9999) | random -%}
+{%- set size = size or 'normal' -%}
+{%- set disabled = disabled if disabled is not none else false -%}
+{%- set htmx_endpoint = htmx_endpoint or None -%}
+{%- set filter_capabilities = filter_capabilities or [] -%}
+{%- set exclude_models = exclude_models or [] -%}
+
+{# Mock model data - in real implementation, this would come from your model service #}
+{%- set models = models or [
+    {
+        'id': 'openai_gpt-4o',
+        'name': 'GPT-4o',
+        'provider': 'OpenAI',
+        'status': 'active',
+        'capabilities': ['text', 'vision', 'function_calling'],
+        'pricing': {'input': 0.005, 'output': 0.015},
+        'description': 'Most advanced GPT model with vision capabilities'
+    },
+    {
+        'id': 'openai_gpt-4-turbo',
+        'name': 'GPT-4 Turbo',
+        'provider': 'OpenAI', 
+        'status': 'active',
+        'capabilities': ['text', 'vision', 'function_calling'],
+        'pricing': {'input': 0.01, 'output': 0.03},
+        'description': 'Fast and efficient GPT-4 model'
+    },
+    {
+        'id': 'anthropic_claude-3-sonnet',
+        'name': 'Claude 3 Sonnet',
+        'provider': 'Anthropic',
+        'status': 'active',
+        'capabilities': ['text', 'vision', 'long_context'],
+        'pricing': {'input': 0.003, 'output': 0.015},
+        'description': 'Balanced performance and cost model'
+    },
+    {
+        'id': 'anthropic_claude-3-opus',
+        'name': 'Claude 3 Opus',
+        'provider': 'Anthropic',
+        'status': 'active',
+        'capabilities': ['text', 'vision', 'long_context', 'reasoning'],
+        'pricing': {'input': 0.015, 'output': 0.075},
+        'description': 'Most powerful Claude model'
+    },
+    {
+        'id': 'google_gemini-pro',
+        'name': 'Gemini Pro',
+        'provider': 'Google',
+        'status': 'active',
+        'capabilities': ['text', 'vision', 'code'],
+        'pricing': {'input': 0.00025, 'output': 0.0005},
+        'description': 'Google\'s advanced AI model'
+    },
+    {
+        'id': 'meta_llama-2-70b',
+        'name': 'Llama 2 70B',
+        'provider': 'Meta',
+        'status': 'beta',
+        'capabilities': ['text', 'code'],
+        'pricing': {'input': 0.0007, 'output': 0.0009},
+        'description': 'Open source large language model'
+    }
+] -%}
+
+{# Filter models based on criteria #}
+{%- set filtered_models = [] -%}
+{%- for model in models -%}
+    {%- if model.id not in exclude_models -%}
+        {%- if not filter_capabilities or (filter_capabilities | intersect(model.capabilities)) -%}
+            {%- set _ = filtered_models.append(model) -%}
+        {%- endif -%}
+    {%- endif -%}
+{%- endfor -%}
+
+{# Group models by provider if requested #}
+{%- set grouped_models = {} -%}
+{%- if group_by_provider -%}
+    {%- for model in filtered_models -%}
+        {%- if model.provider not in grouped_models -%}
+            {%- set _ = grouped_models.update({model.provider: []}) -%}
+        {%- endif -%}
+        {%- set _ = grouped_models[model.provider].append(model) -%}
+    {%- endfor -%}
+{%- endif -%}
+
+{# Capability icons mapping #}
+{%- set capability_icons = {
+    'text': 'fas fa-font',
+    'vision': 'fas fa-eye',
+    'function_calling': 'fas fa-cogs',
+    'long_context': 'fas fa-scroll',
+    'reasoning': 'fas fa-brain',
+    'code': 'fas fa-code',
+    'multimodal': 'fas fa-layer-group'
+} -%}
+
+{# Provider colors #}
+{%- set provider_colors = {
+    'OpenAI': 'success',
+    'Anthropic': 'info', 
+    'Google': 'warning',
+    'Meta': 'primary',
+    'Microsoft': 'info',
+    'Cohere': 'secondary'
+} -%}
+
+<div class="model-selector-container" id="{{ component_id }}-container">
+    <div class="form-group">
+        {% if label %}
+            <label for="{{ component_id }}" class="form-label">
+                {{ label }}
+                {% if required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+        {% endif %}
+        
+        {# Custom Select Implementation #}
+        <div class="model-select-wrapper">
+            <select class="form-select model-select {{ 'is-invalid' if error else '' }}"
+                    id="{{ component_id }}"
+                    name="{{ name }}"
+                    {% if required %}required{% endif %}
+                    {% if disabled %}disabled{% endif %}
+                    {% if multiple %}multiple{% endif %}
+                    {% if htmx_endpoint %}
+                        hx-get="{{ htmx_endpoint }}"
+                        hx-trigger="change"
+                        hx-target="{{ htmx_target or '#' + component_id + '-info' }}"
+                    {% endif %}
+                    data-placeholder="{{ placeholder }}"
+                    data-searchable="{{ searchable|lower }}"
+                    aria-describedby="{{ component_id }}-help">
+                
+                {% if not required and not multiple %}
+                    <option value="">{{ placeholder }}</option>
+                {% endif %}
+                
+                {% if group_by_provider %}
+                    {% for provider, provider_models in grouped_models.items() %}
+                        <optgroup label="{{ provider }}">
+                            {% for model in provider_models %}
+                                <option value="{{ model.id }}"
+                                        {% if selected and ((selected is string and selected == model.id) or (selected is iterable and model.id in selected)) %}selected{% endif %}
+                                        data-provider="{{ model.provider }}"
+                                        data-status="{{ model.status }}"
+                                        data-capabilities="{{ model.capabilities|join(',') }}"
+                                        {% if show_pricing and model.pricing %}
+                                            data-pricing-input="{{ model.pricing.input }}"
+                                            data-pricing-output="{{ model.pricing.output }}"
+                                        {% endif %}
+                                        data-description="{{ model.description }}">
+                                    {{ model.name }}
+                                    {% if show_status and model.status != 'active' %} ({{ model.status|title }}){% endif %}
+                                </option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                {% else %}
+                    {% for model in filtered_models %}
+                        <option value="{{ model.id }}"
+                                {% if selected and ((selected is string and selected == model.id) or (selected is iterable and model.id in selected)) %}selected{% endif %}
+                                data-provider="{{ model.provider }}"
+                                data-status="{{ model.status }}"
+                                data-capabilities="{{ model.capabilities|join(',') }}"
+                                {% if show_pricing and model.pricing %}
+                                    data-pricing-input="{{ model.pricing.input }}"
+                                    data-pricing-output="{{ model.pricing.output }}"
+                                {% endif %}
+                                data-description="{{ model.description }}">
+                            {% if show_provider %}[{{ model.provider }}] {% endif %}{{ model.name }}
+                            {% if show_status and model.status != 'active' %} ({{ model.status|title }}){% endif %}
+                        </option>
+                    {% endfor %}
+                {% endif %}
+            </select>
+            
+            {# Search input overlay for custom searchable functionality #}
+            {% if searchable %}
+                <div class="model-search-overlay u-5790ff">
+                    <input type="text" 
+                           class="form-control model-search-input" 
+                           placeholder="Search models..." 
+                           aria-label="Search models">
+                    <div class="model-search-results"></div>
+                </div>
+            {% endif %}
+        </div>
+        
+        {# Model Information Display #}
+        <div class="model-info mt-2 u-5790ff" id="{{ component_id }}-info">
+            <div class="card card-body p-3 bg-light border">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h6 class="model-info-name mb-1"></h6>
+                        <small class="model-info-provider text-muted"></small>
+                    </div>
+                    <div class="model-info-status"></div>
+                </div>
+                
+                <p class="model-info-description small text-muted mb-2"></p>
+                
+                {% if show_capabilities %}
+                    <div class="model-capabilities mb-2">
+                        <small class="text-muted d-block mb-1">Capabilities:</small>
+                        <div class="capabilities-list"></div>
+                    </div>
+                {% endif %}
+                
+                {% if show_pricing %}
+                    <div class="model-pricing">
+                        <small class="text-muted d-block mb-1">Pricing per 1K tokens:</small>
+                        <div class="pricing-info">
+                            <span class="badge bg-primary me-2">
+                                Input: $<span class="pricing-input">0.00</span>
+                            </span>
+                            <span class="badge bg-secondary">
+                                Output: $<span class="pricing-output">0.00</span>
+                            </span>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {# Help text #}
+        {% if help_text %}
+            <div class="form-text" id="{{ component_id }}-help">{{ help_text }}</div>
+        {% endif %}
+        
+        {# Error message #}
+        {% if error %}
+            <div class="invalid-feedback">{{ error }}</div>
+        {% endif %}
+    </div>
+</div>
+
+{# JavaScript for model selector functionality #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('{{ component_id }}-container');
+    const select = document.getElementById('{{ component_id }}');
+    const modelInfo = document.getElementById('{{ component_id }}-info');
+    
+    if (!container || !select) return;
+    
+    // Model data for JavaScript access
+    const models = {{ models|tojson }};
+    const capabilityIcons = {{ capability_icons|tojson }};
+    const providerColors = {{ provider_colors|tojson }};
+    
+    // Initialize model selector
+    initializeModelSelector();
+    
+    function initializeModelSelector() {
+        // Show model info on selection change
+        select.addEventListener('change', function() {
+            updateModelInfo(this.value);
+        });
+        
+        // Initialize with current selection
+        if (select.value) {
+            updateModelInfo(select.value);
+        }
+        
+        // Initialize search functionality if enabled
+        {% if searchable %}
+            initializeSearch();
+        {% endif %}
+        
+        // Initialize tooltips for capability badges
+        initializeTooltips();
+    }
+    
+    function updateModelInfo(modelId) {
+        if (!modelId || !modelInfo) {
+            modelInfo.style.display = 'none';
+            return;
+        }
+        
+        const model = models.find(m => m.id === modelId);
+        if (!model) return;
+        
+        // Update model name and provider
+        const nameElement = modelInfo.querySelector('.model-info-name');
+        const providerElement = modelInfo.querySelector('.model-info-provider');
+        const statusElement = modelInfo.querySelector('.model-info-status');
+        const descriptionElement = modelInfo.querySelector('.model-info-description');
+        
+        if (nameElement) nameElement.textContent = model.name;
+        if (providerElement) providerElement.textContent = model.provider;
+        if (descriptionElement) descriptionElement.textContent = model.description;
+        
+        // Update status badge
+        if (statusElement && {{ 'true' if show_status else 'false' }}) {
+            const statusClass = model.status === 'active' ? 'success' : 
+                               model.status === 'beta' ? 'warning' : 'secondary';
+            statusElement.innerHTML = `<span class="badge bg-${statusClass}">${model.status.charAt(0).toUpperCase() + model.status.slice(1)}</span>`;
+        }
+        
+        // Update capabilities
+        {% if show_capabilities %}
+            const capabilitiesList = modelInfo.querySelector('.capabilities-list');
+            if (capabilitiesList && model.capabilities) {
+                capabilitiesList.innerHTML = model.capabilities.map(cap => {
+                    const icon = capabilityIcons[cap] || 'fas fa-circle';
+                    return `<span class="badge bg-light text-dark me-1 mb-1" data-bs-toggle="tooltip" title="${cap.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}">
+                        <i class="${icon} me-1"></i>${cap.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </span>`;
+                }).join('');
+                
+                // Reinitialize tooltips
+                initializeTooltips();
+            }
+        {% endif %}
+        
+        // Update pricing
+        {% if show_pricing %}
+            const pricingInput = modelInfo.querySelector('.pricing-input');
+            const pricingOutput = modelInfo.querySelector('.pricing-output');
+            if (pricingInput && pricingOutput && model.pricing) {
+                pricingInput.textContent = model.pricing.input.toFixed(4);
+                pricingOutput.textContent = model.pricing.output.toFixed(4);
+            }
+        {% endif %}
+        
+        // Show model info
+        modelInfo.style.display = 'block';
+        
+        // Emit model change event
+        const event = new CustomEvent('modelChanged', {
+            detail: {
+                modelId: modelId,
+                model: model,
+                componentId: '{{ component_id }}'
+            }
+        });
+        document.dispatchEvent(event);
+    }
+    
+    {% if searchable %}
+    function initializeSearch() {
+        const searchOverlay = container.querySelector('.model-search-overlay');
+        const searchInput = container.querySelector('.model-search-input');
+        const searchResults = container.querySelector('.model-search-results');
+        
+        if (!searchOverlay || !searchInput || !searchResults) return;
+        
+        // Show search overlay on select focus
+        select.addEventListener('focus', function() {
+            if (!select.disabled) {
+                searchOverlay.style.display = 'block';
+                searchInput.focus();
+            }
+        });
+        
+        // Hide search overlay on outside click
+        document.addEventListener('click', function(e) {
+            if (!container.contains(e.target)) {
+                searchOverlay.style.display = 'none';
+            }
+        });
+        
+        // Search functionality
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const filteredModels = models.filter(model => 
+                model.name.toLowerCase().includes(query) ||
+                model.provider.toLowerCase().includes(query) ||
+                model.description.toLowerCase().includes(query) ||
+                model.capabilities.some(cap => cap.toLowerCase().includes(query))
+            );
+            
+            renderSearchResults(filteredModels);
+        });
+        
+        function renderSearchResults(filteredModels) {
+            if (filteredModels.length === 0) {
+                searchResults.innerHTML = '<div class="p-2 text-muted text-center">No models found</div>';
+                return;
+            }
+            
+            const resultsHtml = filteredModels.map(model => {
+                const providerColor = providerColors[model.provider] || 'secondary';
+                const statusBadge = model.status !== 'active' ? 
+                    `<span class="badge bg-${model.status === 'beta' ? 'warning' : 'secondary'} ms-1">${model.status}</span>` : '';
+                
+                return `
+                    <div class="search-result-item p-2 border-bottom" data-model-id="${model.id}" role="button" tabindex="0">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-medium">${model.name} ${statusBadge}</div>
+                                <small class="text-muted">
+                                    <span class="badge bg-${providerColor} me-1">${model.provider}</span>
+                                    ${model.description}
+                                </small>
+                            </div>
+                            ${show_pricing && model.pricing ? `
+                                <small class="text-muted">
+                                    $${model.pricing.input.toFixed(4)}/$${model.pricing.output.toFixed(4)}
+                                </small>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            searchResults.innerHTML = resultsHtml;
+            
+            // Add click handlers
+            searchResults.querySelectorAll('.search-result-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const modelId = this.dataset.modelId;
+                    select.value = modelId;
+                    select.dispatchEvent(new Event('change'));
+                    searchOverlay.style.display = 'none';
+                });
+                
+                // Keyboard navigation
+                item.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.click();
+                    }
+                });
+            });
+        }
+    }
+    {% endif %}
+    
+    function initializeTooltips() {
+        if (window.bootstrap && bootstrap.Tooltip) {
+            const tooltipElements = modelInfo.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltipElements.forEach(element => {
+                new bootstrap.Tooltip(element);
+            });
+        }
+    }
+    
+    // Public API functions
+    window.ModelSelector = window.ModelSelector || {};
+    window.ModelSelector['{{ component_id }}'] = {
+        getValue: () => select.value,
+        setValue: (value) => {
+            select.value = value;
+            updateModelInfo(value);
+        },
+        getSelectedModel: () => models.find(m => m.id === select.value),
+        updateModels: (newModels) => {
+            // Update models array and rebuild options
+            models.length = 0;
+            models.push(...newModels);
+            rebuildOptions();
+        },
+        disable: () => { select.disabled = true; },
+        enable: () => { select.disabled = false; }
+    };
+    
+    function rebuildOptions() {
+        // Clear existing options
+        select.innerHTML = '';
+        
+        // Rebuild options (simplified version)
+        if (!{{ required|lower }} && !{{ multiple|lower }}) {
+            const placeholderOption = document.createElement('option');
+            placeholderOption.value = '';
+            placeholderOption.textContent = '{{ placeholder }}';
+            select.appendChild(placeholderOption);
+        }
+        
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = `${show_provider ? '[' + model.provider + '] ' : ''}${model.name}${model.status !== 'active' ? ' (' + model.status + ')' : ''}`;
+            option.dataset.provider = model.provider;
+            option.dataset.status = model.status;
+            option.dataset.capabilities = model.capabilities.join(',');
+            if (model.pricing) {
+                option.dataset.pricingInput = model.pricing.input;
+                option.dataset.pricingOutput = model.pricing.output;
+            }
+            option.dataset.description = model.description;
+            select.appendChild(option);
+        });
+    }
+});
+</script>
+
+{# CSS for model selector styling #}
+

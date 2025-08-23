@@ -1,0 +1,1079 @@
+{# slug: pages/applications/partials/file-browser (auto-migrated) #}
+{#
+  File Browser Component - Application File System Navigator
+  
+  Purpose: Provide file system navigation for generated applications with tree view, file preview, and management
+  
+  Usage:
+    {# removed self-include of pages/applications/partials/file-browser.html #}
+  
+  Dependencies:
+    - Bootstrap 5.3+ (modal, dropdown, tooltip components)
+    - HTMX 1.9+ (for dynamic loading and actions)
+    - Font Awesome 6+ (for file type icons)
+    - Prism.js (for syntax highlighting in preview)
+  
+  Routes:
+    - /api/applications/{app_id}/files (GET) - List directory contents
+    - /api/applications/{app_id}/files/preview (GET) - Preview file content
+    - /api/applications/{app_id}/files/download (GET) - Download file
+    - /api/applications/{app_id}/files/upload (POST) - Upload file
+    - /api/applications/{app_id}/files/create (POST) - Create new file/folder
+    - /api/applications/{app_id}/files/delete (DELETE) - Delete file/folder
+  
+  Features:
+    - Tree view with expandable folders
+    - File type recognition with appropriate icons
+    - In-browser file preview with syntax highlighting
+    - Upload/download functionality
+    - Search and filtering capabilities
+    - Breadcrumb navigation
+    - Responsive design with mobile support
+    - Keyboard navigation support
+#}
+
+{%- set app_id = app_id|default(0) -%}
+{%- set root_path = root_path|default('/') -%}
+{%- set current_path = current_path|default(root_path) -%}
+{%- set enable_upload = enable_upload|default(false) -%}
+{%- set enable_download = enable_download|default(true) -%}
+{%- set enable_preview = enable_preview|default(true) -%}
+{%- set enable_edit = enable_edit|default(false) -%}
+{%- set enable_delete = enable_delete|default(false) -%}
+{%- set show_hidden = show_hidden|default(false) -%}
+{%- set max_file_size = max_file_size|default(10485760) -%}
+{%- set allowed_extensions = allowed_extensions|default([]) -%}
+{%- set compact_mode = compact_mode|default(false) -%}
+
+<div class="file-browser-container" 
+     id="file-browser-{{ app_id }}"
+     data-app-id="{{ app_id }}"
+     data-root-path="{{ root_path }}"
+     data-current-path="{{ current_path }}"
+     data-max-file-size="{{ max_file_size }}">
+
+  <!-- File Browser Header -->
+  <div class="file-browser-header bg-light border-bottom p-3">
+    
+    <!-- Breadcrumb Navigation -->
+    <div class="file-breadcrumb-container mb-2">
+      <nav aria-label="File browser navigation">
+        <ol class="breadcrumb mb-0" id="file-breadcrumb-{{ app_id }}">
+          <li class="breadcrumb-item">
+            <button type="button" 
+                    class="btn btn-link p-0 text-decoration-none"
+                    onclick="fileBrowser{{ app_id }}.navigateTo('{{ root_path }}')"
+                    title="Root directory">
+              <i class="fas fa-home" aria-hidden="true"></i>
+            </button>
+          </li>
+          <!-- Dynamic breadcrumb items will be inserted here -->
+        </ol>
+      </nav>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="file-toolbar d-flex justify-content-between align-items-center flex-wrap gap-2">
+      
+      <!-- Search and Filters -->
+      <div class="file-search-controls d-flex align-items-center gap-2 flex-grow-1">
+        
+        <!-- Search Input -->
+        <div class="input-group" style="max-width: 300px;">
+          <span class="input-group-text">
+            <i class="fas fa-search" aria-hidden="true"></i>
+          </span>
+          <input type="text" 
+                 class="form-control form-control-sm"
+                 id="file-search-{{ app_id }}"
+                 placeholder="Search files..."
+                 autocomplete="off"
+                 hx-get="{{ url_for('api.app_files', app_id=app_id) }}"
+                 hx-trigger="keyup changed delay:300ms"
+                 hx-include="[data-file-filter]"
+                 hx-target="#file-tree-{{ app_id }}"
+                 hx-swap="innerHTML">
+        </div>
+        
+        <!-- File Type Filter -->
+        <select class="form-select form-select-sm" 
+                id="file-type-filter-{{ app_id }}"
+                data-file-filter="type"
+                style="max-width: 150px;"
+                hx-get="{{ url_for('api.app_files', app_id=app_id) }}"
+                hx-trigger="change"
+                hx-include="#file-search-{{ app_id }}, [data-file-filter]"
+                hx-target="#file-tree-{{ app_id }}"
+                hx-swap="innerHTML">
+          <option value="">All files</option>
+          <option value="code">Code files</option>
+          <option value="config">Config files</option>
+          <option value="docs">Documentation</option>
+          <option value="assets">Assets</option>
+          <option value="other">Other</option>
+        </select>
+        
+        <!-- Show Hidden Files Toggle -->
+        <div class="form-check">
+          <input class="form-check-input" 
+                 type="checkbox" 
+                 id="show-hidden-{{ app_id }}"
+                 data-file-filter="hidden"
+                 {{ 'checked' if show_hidden else '' }}
+                 hx-get="{{ url_for('api.app_files', app_id=app_id) }}"
+                 hx-trigger="change"
+                 hx-include="#file-search-{{ app_id }}, [data-file-filter]"
+                 hx-target="#file-tree-{{ app_id }}"
+                 hx-swap="innerHTML">
+          <label class="form-check-label small" for="show-hidden-{{ app_id }}">
+            Hidden
+          </label>
+        </div>
+      </div>
+      
+      <!-- Action Buttons -->
+      <div class="file-actions d-flex align-items-center gap-2">
+        
+        <!-- Refresh -->
+        <button type="button" 
+                class="btn btn-outline-secondary btn-sm"
+                onclick="fileBrowser{{ app_id }}.refresh()"
+                title="Refresh">
+          <i class="fas fa-sync-alt" aria-hidden="true"></i>
+        </button>
+        
+        <!-- Upload File -->
+        {% if enable_upload %}
+        <button type="button" 
+                class="btn btn-outline-primary btn-sm"
+                data-bs-toggle="modal"
+                data-bs-target="#upload-modal-{{ app_id }}"
+                title="Upload files">
+          <i class="fas fa-upload me-1" aria-hidden="true"></i>
+          <span class="d-none d-md-inline">Upload</span>
+        </button>
+        {% endif %}
+        
+        <!-- New Folder -->
+        {% if enable_upload %}
+        <button type="button" 
+                class="btn btn-outline-info btn-sm"
+                onclick="fileBrowser{{ app_id }}.createFolder()"
+                title="New folder">
+          <i class="fas fa-folder-plus me-1" aria-hidden="true"></i>
+          <span class="d-none d-md-inline">Folder</span>
+        </button>
+        {% endif %}
+        
+        <!-- View Mode Toggle -->
+        <div class="btn-group" role="group">
+          <input type="radio" 
+                 class="btn-check" 
+                 name="view-mode-{{ app_id }}" 
+                 id="view-tree-{{ app_id }}"
+                 autocomplete="off" 
+                 checked>
+          <label class="btn btn-outline-secondary btn-sm" for="view-tree-{{ app_id }}" title="Tree view">
+            <i class="fas fa-sitemap" aria-hidden="true"></i>
+          </label>
+
+          <input type="radio" 
+                 class="btn-check" 
+                 name="view-mode-{{ app_id }}" 
+                 id="view-list-{{ app_id }}"
+                 autocomplete="off">
+          <label class="btn btn-outline-secondary btn-sm" for="view-list-{{ app_id }}" title="List view">
+            <i class="fas fa-list" aria-hidden="true"></i>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- File Browser Content -->
+  <div class="file-browser-content d-flex" style="height: 500px;">
+    
+    <!-- File Tree Panel -->
+    <div class="file-tree-panel border-end" style="min-width: 300px; max-width: 400px; width: 30%; overflow-y: auto;">
+      <div class="file-tree p-2" 
+           id="file-tree-{{ app_id }}"
+           hx-get="{{ url_for('api.app_files', app_id=app_id) }}"
+           hx-trigger="load"
+           hx-include="#file-search-{{ app_id }}, [data-file-filter]"
+           hx-swap="innerHTML">
+        
+        <!-- Loading Indicator -->
+        <div class="text-center py-4">
+          <div class="spinner-border spinner-border-sm text-primary" role="status">
+            <span class="visually-hidden">Loading files...</span>
+          </div>
+          <div class="small text-muted mt-2">Loading files...</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- File Preview Panel -->
+    <div class="file-preview-panel flex-grow-1 d-flex flex-column">
+      
+      <!-- Preview Header -->
+      <div class="preview-header bg-light border-bottom p-2 d-none" id="preview-header-{{ app_id }}">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="file-info">
+            <strong class="file-name" id="preview-filename-{{ app_id }}"></strong>
+            <small class="text-muted ms-2" id="preview-fileinfo-{{ app_id }}"></small>
+          </div>
+          <div class="preview-actions">
+            
+            {% if enable_download %}
+            <button type="button" 
+                    class="btn btn-sm btn-outline-primary me-1"
+                    id="download-btn-{{ app_id }}"
+                    title="Download file">
+              <i class="fas fa-download" aria-hidden="true"></i>
+            </button>
+            {% endif %}
+            
+            {% if enable_edit %}
+            <button type="button" 
+                    class="btn btn-sm btn-outline-info me-1"
+                    id="edit-btn-{{ app_id }}"
+                    title="Edit file">
+              <i class="fas fa-edit" aria-hidden="true"></i>
+            </button>
+            {% endif %}
+            
+            <button type="button" 
+                    class="btn btn-sm btn-outline-secondary"
+                    onclick="fileBrowser{{ app_id }}.closePreview()"
+                    title="Close preview">
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Preview Content -->
+      <div class="preview-content flex-grow-1 position-relative" id="preview-content-{{ app_id }}">
+        
+        <!-- Default State -->
+        <div class="preview-placeholder d-flex align-items-center justify-content-center h-100 text-muted">
+          <div class="text-center">
+            <i class="fas fa-file-alt fa-3x mb-3" aria-hidden="true"></i>
+            <div class="h5">Select a file to preview</div>
+            <div class="small">Choose a file from the tree to view its contents</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- File Browser Footer -->
+  <div class="file-browser-footer bg-light border-top p-2">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="file-stats small text-muted" id="file-stats-{{ app_id }}">
+        <!-- File count and size info will be loaded here -->
+      </div>
+      <div class="current-path small font-monospace text-muted" id="current-path-display-{{ app_id }}">
+        {{ current_path }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+{% if enable_upload %}
+<div class="modal fade" 
+     id="upload-modal-{{ app_id }}" 
+     tabindex="-1" 
+     aria-labelledby="upload-modal-label-{{ app_id }}"
+     aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="upload-modal-label-{{ app_id }}">
+          <i class="fas fa-upload me-2" aria-hidden="true"></i>
+          Upload Files
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Upload Form -->
+        <form id="upload-form-{{ app_id }}" 
+              hx-post="{{ url_for('api.app_file_upload', app_id=app_id) }}"
+              hx-encoding="multipart/form-data"
+              hx-target="#upload-results-{{ app_id }}"
+              hx-swap="innerHTML">
+          
+          <!-- Current Directory Display -->
+          <div class="mb-3">
+            <label class="form-label">Upload to:</label>
+            <div class="form-control-plaintext font-monospace bg-light p-2 rounded" 
+                 id="upload-target-path-{{ app_id }}">
+              {{ current_path }}
+            </div>
+          </div>
+          
+          <!-- File Input -->
+          <div class="mb-3">
+            <label for="file-upload-input-{{ app_id }}" class="form-label">Select Files</label>
+            <input type="file" 
+                   class="form-control" 
+                   id="file-upload-input-{{ app_id }}"
+                   name="files[]"
+                   multiple
+                   accept="{{ ','.join(allowed_extensions) if allowed_extensions else '' }}">
+            <div class="form-text">
+              {% if allowed_extensions %}
+              Allowed types: {{ allowed_extensions|join(', ') }}<br>
+              {% endif %}
+              Maximum file size: {{ (max_file_size / 1024 / 1024)|round(1) }} MB
+            </div>
+          </div>
+          
+          <!-- Upload Options -->
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" 
+                     type="checkbox" 
+                     id="overwrite-existing-{{ app_id }}"
+                     name="overwrite">
+              <label class="form-check-label" for="overwrite-existing-{{ app_id }}">
+                Overwrite existing files
+              </label>
+            </div>
+          </div>
+          
+          <!-- Upload Button -->
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-upload me-2" aria-hidden="true"></i>
+              Upload Files
+            </button>
+          </div>
+        </form>
+        
+        <!-- Upload Results -->
+        <div id="upload-results-{{ app_id }}" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Context Menu -->
+<div class="context-menu d-none" id="file-context-menu-{{ app_id }}">
+  <div class="list-group">
+    
+    {% if enable_preview %}
+    <button type="button" 
+            class="list-group-item list-group-item-action context-menu-item"
+            data-action="preview">
+      <i class="fas fa-eye me-2" aria-hidden="true"></i>
+      Preview
+    </button>
+    {% endif %}
+    
+    {% if enable_download %}
+    <button type="button" 
+            class="list-group-item list-group-item-action context-menu-item"
+            data-action="download">
+      <i class="fas fa-download me-2" aria-hidden="true"></i>
+      Download
+    </button>
+    {% endif %}
+    
+    {% if enable_edit %}
+    <button type="button" 
+            class="list-group-item list-group-item-action context-menu-item"
+            data-action="edit">
+      <i class="fas fa-edit me-2" aria-hidden="true"></i>
+      Edit
+    </button>
+    {% endif %}
+    
+    <button type="button" 
+            class="list-group-item list-group-item-action context-menu-item"
+            data-action="copy-path">
+      <i class="fas fa-copy me-2" aria-hidden="true"></i>
+      Copy Path
+    </button>
+    
+    {% if enable_delete %}
+    <div class="dropdown-divider"></div>
+    <button type="button" 
+            class="list-group-item list-group-item-action context-menu-item text-danger"
+            data-action="delete">
+      <i class="fas fa-trash me-2" aria-hidden="true"></i>
+      Delete
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- File Browser JavaScript -->
+<script>
+class FileBrowser {
+  constructor(containerId, appId, options = {}) {
+    this.container = document.getElementById(containerId);
+    this.appId = appId;
+    this.options = {
+      enableUpload: {{ 'true' if enable_upload else 'false' }},
+      enableDownload: {{ 'true' if enable_download else 'false' }},
+      enablePreview: {{ 'true' if enable_preview else 'false' }},
+      enableEdit: {{ 'true' if enable_edit else 'false' }},
+      enableDelete: {{ 'true' if enable_delete else 'false' }},
+      maxFileSize: {{ max_file_size }},
+      allowedExtensions: {{ allowed_extensions|tojson if allowed_extensions else '[]' }},
+      ...options
+    };
+    
+    this.currentPath = '{{ current_path }}';
+    this.rootPath = '{{ root_path }}';
+    this.selectedFile = null;
+    this.contextMenuTarget = null;
+    
+    this.init();
+  }
+  
+  init() {
+    this.setupEventListeners();
+    this.setupContextMenu();
+    this.setupKeyboardNavigation();
+    this.loadFileStats();
+  }
+  
+  setupEventListeners() {
+    // File tree interactions
+    this.container.addEventListener('click', (e) => {
+      const fileItem = e.target.closest('.file-item');
+      if (fileItem) {
+        this.handleFileClick(fileItem, e);
+      }
+      
+      const folderToggle = e.target.closest('.folder-toggle');
+      if (folderToggle) {
+        this.toggleFolder(folderToggle.closest('.folder-item'));
+      }
+    });
+    
+    // View mode toggle
+    const viewModeInputs = this.container.querySelectorAll(`input[name="view-mode-${this.appId}"]`);
+    viewModeInputs.forEach(input => {
+      input.addEventListener('change', () => {
+        if (input.checked) {
+          this.changeViewMode(input.id.includes('tree') ? 'tree' : 'list');
+        }
+      });
+    });
+    
+    // Upload form handling
+    if (this.options.enableUpload) {
+      const uploadForm = document.getElementById(`upload-form-${this.appId}`);
+      const fileInput = document.getElementById(`file-upload-input-${this.appId}`);
+      
+      if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+          this.validateFiles(e.target.files);
+        });
+      }
+      
+      // Update upload target path when current path changes
+      this.updateUploadTargetPath();
+    }
+  }
+  
+  setupContextMenu() {
+    const contextMenu = document.getElementById(`file-context-menu-${this.appId}`);
+    if (!contextMenu) return;
+    
+    // Right-click to show context menu
+    this.container.addEventListener('contextmenu', (e) => {
+      const fileItem = e.target.closest('.file-item, .folder-item');
+      if (fileItem) {
+        e.preventDefault();
+        this.showContextMenu(e, fileItem);
+      }
+    });
+    
+    // Context menu item clicks
+    contextMenu.addEventListener('click', (e) => {
+      const action = e.target.closest('.context-menu-item')?.dataset.action;
+      if (action && this.contextMenuTarget) {
+        this.handleContextMenuAction(action, this.contextMenuTarget);
+      }
+      this.hideContextMenu();
+    });
+    
+    // Hide context menu on outside click
+    document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target)) {
+        this.hideContextMenu();
+      }
+    });
+  }
+  
+  setupKeyboardNavigation() {
+    this.container.addEventListener('keydown', (e) => {
+      switch (e.key) {
+        case 'Enter':
+          if (this.selectedFile) {
+            this.previewFile(this.selectedFile);
+          }
+          break;
+        case 'Delete':
+          if (this.selectedFile && this.options.enableDelete) {
+            this.deleteFile(this.selectedFile);
+          }
+          break;
+        case 'F2':
+          if (this.selectedFile && this.options.enableEdit) {
+            this.editFile(this.selectedFile);
+          }
+          break;
+        case 'Escape':
+          this.closePreview();
+          break;
+      }
+    });
+  }
+  
+  handleFileClick(fileItem, event) {
+    // Update selection
+    this.container.querySelectorAll('.file-item.selected, .folder-item.selected')
+                  .forEach(item => item.classList.remove('selected'));
+    fileItem.classList.add('selected');
+    this.selectedFile = fileItem;
+    
+    // Double-click to preview/open
+    if (event.detail === 2) {
+      if (fileItem.classList.contains('file-item')) {
+        this.previewFile(fileItem);
+      } else if (fileItem.classList.contains('folder-item')) {
+        this.navigateTo(fileItem.dataset.path);
+      }
+    }
+  }
+  
+  toggleFolder(folderItem) {
+    const isExpanded = folderItem.classList.contains('expanded');
+    const childrenContainer = folderItem.querySelector('.folder-children');
+    
+    if (isExpanded) {
+      folderItem.classList.remove('expanded');
+      childrenContainer.classList.add('d-none');
+    } else {
+      folderItem.classList.add('expanded');
+      childrenContainer.classList.remove('d-none');
+      
+      // Load folder contents if not already loaded
+      if (!childrenContainer.dataset.loaded) {
+        this.loadFolderContents(folderItem.dataset.path, childrenContainer);
+      }
+    }
+  }
+  
+  async loadFolderContents(path, container) {
+    try {
+      const response = await fetch(`/api/applications/${this.appId}/files?path=${encodeURIComponent(path)}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        container.innerHTML = this.renderFileTree(data.files, path);
+        container.dataset.loaded = 'true';
+      } else {
+        container.innerHTML = '<div class="text-danger small p-2">Failed to load folder contents</div>';
+      }
+    } catch (error) {
+      console.error('Error loading folder contents:', error);
+      container.innerHTML = '<div class="text-danger small p-2">Error loading folder</div>';
+    }
+  }
+  
+  renderFileTree(files, basePath = '') {
+    return files.map(file => {
+      const isFolder = file.type === 'directory';
+      const icon = this.getFileIcon(file);
+      const itemClass = isFolder ? 'folder-item' : 'file-item';
+      const fullPath = basePath ? `${basePath}/${file.name}` : file.name;
+      
+      if (isFolder) {
+        return `
+          <div class="${itemClass}" data-path="${fullPath}" data-name="${file.name}">
+            <div class="file-tree-item d-flex align-items-center py-1 px-2 rounded">
+              <button class="folder-toggle btn btn-sm btn-link p-0 me-1" type="button">
+                <i class="fas fa-chevron-right folder-chevron" aria-hidden="true"></i>
+              </button>
+              <i class="${icon} me-2 text-warning" aria-hidden="true"></i>
+              <span class="file-name flex-grow-1">${file.name}</span>
+              <small class="text-muted">${file.items || 0} items</small>
+            </div>
+            <div class="folder-children ms-3 d-none"></div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="${itemClass}" data-path="${fullPath}" data-name="${file.name}" data-size="${file.size}">
+            <div class="file-tree-item d-flex align-items-center py-1 px-2 rounded">
+              <i class="${icon} me-2" aria-hidden="true"></i>
+              <span class="file-name flex-grow-1">${file.name}</span>
+              <small class="text-muted">${this.formatFileSize(file.size)}</small>
+            </div>
+          </div>
+        `;
+      }
+    }).join('');
+  }
+  
+  getFileIcon(file) {
+    if (file.type === 'directory') {
+      return 'fas fa-folder';
+    }
+    
+    const extension = file.name.split('.').pop().toLowerCase();
+    const iconMap = {
+      // Code files
+      'js': 'fab fa-js-square text-warning',
+      'ts': 'fab fa-js-square text-primary',
+      'py': 'fab fa-python text-info',
+      'html': 'fab fa-html5 text-danger',
+      'css': 'fab fa-css3-alt text-primary',
+      'scss': 'fab fa-sass text-primary',
+      'json': 'fas fa-code text-success',
+      'xml': 'fas fa-code text-warning',
+      'yaml': 'fas fa-code text-info',
+      'yml': 'fas fa-code text-info',
+      
+      // Documents
+      'md': 'fab fa-markdown text-dark',
+      'txt': 'fas fa-file-alt text-muted',
+      'pdf': 'fas fa-file-pdf text-danger',
+      'doc': 'fas fa-file-word text-primary',
+      'docx': 'fas fa-file-word text-primary',
+      
+      // Images
+      'jpg': 'fas fa-file-image text-success',
+      'jpeg': 'fas fa-file-image text-success',
+      'png': 'fas fa-file-image text-success',
+      'gif': 'fas fa-file-image text-success',
+      'svg': 'fas fa-file-image text-info',
+      'ico': 'fas fa-file-image text-warning',
+      
+      // Config files
+      'env': 'fas fa-cog text-secondary',
+      'config': 'fas fa-cogs text-secondary',
+      'ini': 'fas fa-cogs text-secondary',
+      'conf': 'fas fa-cogs text-secondary',
+      
+      // Package files
+      'package.json': 'fab fa-npm text-danger',
+      'requirements.txt': 'fab fa-python text-info',
+      'Dockerfile': 'fab fa-docker text-primary',
+      'docker-compose.yml': 'fab fa-docker text-primary'
+    };
+    
+    return iconMap[extension] || iconMap[file.name] || 'fas fa-file text-muted';
+  }
+  
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+  
+  async previewFile(fileItem) {
+    const filePath = fileItem.dataset.path;
+    const fileName = fileItem.dataset.name;
+    const fileSize = parseInt(fileItem.dataset.size || '0');
+    
+    // Show preview header
+    const previewHeader = document.getElementById(`preview-header-${this.appId}`);
+    const previewContent = document.getElementById(`preview-content-${this.appId}`);
+    const filenameElement = document.getElementById(`preview-filename-${this.appId}`);
+    const fileinfoElement = document.getElementById(`preview-fileinfo-${this.appId}`);
+    
+    previewHeader.classList.remove('d-none');
+    filenameElement.textContent = fileName;
+    fileinfoElement.textContent = `${this.formatFileSize(fileSize)} • ${filePath}`;
+    
+    // Show loading state
+    previewContent.innerHTML = `
+      <div class="d-flex align-items-center justify-content-center h-100">
+        <div class="text-center">
+          <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading preview...</span>
+          </div>
+          <div class="text-muted">Loading preview...</div>
+        </div>
+      </div>
+    `;
+    
+    try {
+      const response = await fetch(`/api/applications/${this.appId}/files/preview?path=${encodeURIComponent(filePath)}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        this.renderPreview(data.content, data.type, fileName);
+        this.updatePreviewActions(filePath);
+      } else {
+        this.showPreviewError(data.error || 'Failed to load file preview');
+      }
+    } catch (error) {
+      console.error('Error loading file preview:', error);
+      this.showPreviewError('Error loading file preview');
+    }
+  }
+  
+  renderPreview(content, type, fileName) {
+    const previewContent = document.getElementById(`preview-content-${this.appId}`);
+    const extension = fileName.split('.').pop().toLowerCase();
+    
+    switch (type) {
+      case 'text':
+        previewContent.innerHTML = `
+          <div class="code-preview h-100 overflow-auto">
+            <pre class="h-100 mb-0"><code class="language-${extension}">${this.escapeHtml(content)}</code></pre>
+          </div>
+        `;
+        
+        // Apply syntax highlighting if Prism.js is available
+        if (typeof Prism !== 'undefined') {
+          Prism.highlightAll();
+        }
+        break;
+        
+      case 'image':
+        previewContent.innerHTML = `
+          <div class="image-preview d-flex align-items-center justify-content-center h-100 p-3">
+            <img src="data:${content}" class="img-fluid" style="max-height: 100%; max-width: 100%;" alt="${fileName}">
+          </div>
+        `;
+        break;
+        
+      case 'binary':
+        previewContent.innerHTML = `
+          <div class="binary-preview d-flex align-items-center justify-content-center h-100 text-muted">
+            <div class="text-center">
+              <i class="fas fa-file fa-3x mb-3" aria-hidden="true"></i>
+              <div class="h5">Binary File</div>
+              <div>This file cannot be previewed in the browser</div>
+            </div>
+          </div>
+        `;
+        break;
+        
+      default:
+        this.showPreviewError('Unsupported file type for preview');
+    }
+  }
+  
+  showPreviewError(message) {
+    const previewContent = document.getElementById(`preview-content-${this.appId}`);
+    previewContent.innerHTML = `
+      <div class="preview-error d-flex align-items-center justify-content-center h-100 text-danger">
+        <div class="text-center">
+          <i class="fas fa-exclamation-triangle fa-3x mb-3" aria-hidden="true"></i>
+          <div class="h5">Preview Error</div>
+          <div>${message}</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  updatePreviewActions(filePath) {
+    const downloadBtn = document.getElementById(`download-btn-${this.appId}`);
+    const editBtn = document.getElementById(`edit-btn-${this.appId}`);
+    
+    if (downloadBtn) {
+      downloadBtn.onclick = () => this.downloadFile(filePath);
+    }
+    
+    if (editBtn) {
+      editBtn.onclick = () => this.editFile({ dataset: { path: filePath } });
+    }
+  }
+  
+  closePreview() {
+    const previewHeader = document.getElementById(`preview-header-${this.appId}`);
+    const previewContent = document.getElementById(`preview-content-${this.appId}`);
+    
+    previewHeader.classList.add('d-none');
+    previewContent.innerHTML = `
+      <div class="preview-placeholder d-flex align-items-center justify-content-center h-100 text-muted">
+        <div class="text-center">
+          <i class="fas fa-file-alt fa-3x mb-3" aria-hidden="true"></i>
+          <div class="h5">Select a file to preview</div>
+          <div class="small">Choose a file from the tree to view its contents</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  showContextMenu(event, target) {
+    const contextMenu = document.getElementById(`file-context-menu-${this.appId}`);
+    this.contextMenuTarget = target;
+    
+    // Position the context menu
+    contextMenu.style.position = 'fixed';
+    contextMenu.style.left = event.clientX + 'px';
+    contextMenu.style.top = event.clientY + 'px';
+    contextMenu.classList.remove('d-none');
+    
+    // Ensure menu stays within viewport
+    const rect = contextMenu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      contextMenu.style.left = (event.clientX - rect.width) + 'px';
+    }
+    if (rect.bottom > window.innerHeight) {
+      contextMenu.style.top = (event.clientY - rect.height) + 'px';
+    }
+  }
+  
+  hideContextMenu() {
+    const contextMenu = document.getElementById(`file-context-menu-${this.appId}`);
+    contextMenu.classList.add('d-none');
+    this.contextMenuTarget = null;
+  }
+  
+  handleContextMenuAction(action, target) {
+    const filePath = target.dataset.path;
+    
+    switch (action) {
+      case 'preview':
+        this.previewFile(target);
+        break;
+      case 'download':
+        this.downloadFile(filePath);
+        break;
+      case 'edit':
+        this.editFile(target);
+        break;
+      case 'copy-path':
+        this.copyToClipboard(filePath);
+        break;
+      case 'delete':
+        this.deleteFile(target);
+        break;
+    }
+  }
+  
+  downloadFile(filePath) {
+    const downloadUrl = `/api/applications/${this.appId}/files/download?path=${encodeURIComponent(filePath)}`;
+    window.open(downloadUrl, '_blank');
+  }
+  
+  editFile(fileItem) {
+    // This would typically open an editor modal or navigate to an editor page
+    alert('Edit functionality would be implemented here');
+  }
+  
+  async deleteFile(fileItem) {
+    const filePath = fileItem.dataset.path;
+    const fileName = fileItem.dataset.name;
+    
+    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/applications/${this.appId}/files/delete`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ path: filePath })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        fileItem.remove();
+        this.closePreview();
+        this.loadFileStats();
+      } else {
+        alert(`Failed to delete file: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      alert('Error deleting file');
+    }
+  }
+  
+  async copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      // Show brief success indication
+      const toast = document.createElement('div');
+      toast.className = 'toast-notification';
+      toast.textContent = 'Path copied to clipboard';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+    }
+  }
+  
+  validateFiles(files) {
+    const errors = [];
+    
+    Array.from(files).forEach(file => {
+      // Check file size
+      if (file.size > this.options.maxFileSize) {
+        errors.push(`File "${file.name}" is too large (max ${this.formatFileSize(this.options.maxFileSize)})`);
+      }
+      
+      // Check file extension
+      if (this.options.allowedExtensions.length > 0) {
+        const extension = '.' + file.name.split('.').pop().toLowerCase();
+        if (!this.options.allowedExtensions.includes(extension)) {
+          errors.push(`File type "${extension}" is not allowed for "${file.name}"`);
+        }
+      }
+    });
+    
+    // Display validation errors
+    const uploadResults = document.getElementById(`upload-results-${this.appId}`);
+    if (errors.length > 0) {
+      uploadResults.innerHTML = `
+        <div class="alert alert-danger">
+          <strong>Upload Validation Errors:</strong>
+          <ul class="mb-0 mt-2">
+            ${errors.map(error => `<li>${error}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+      return false;
+    } else {
+      uploadResults.innerHTML = '';
+      return true;
+    }
+  }
+  
+  updateUploadTargetPath() {
+    const targetPathElement = document.getElementById(`upload-target-path-${this.appId}`);
+    if (targetPathElement) {
+      targetPathElement.textContent = this.currentPath;
+    }
+  }
+  
+  async loadFileStats() {
+    try {
+      const response = await fetch(`/api/applications/${this.appId}/files/stats`);
+      const data = await response.json();
+      
+      const statsElement = document.getElementById(`file-stats-${this.appId}`);
+      if (statsElement && data.success) {
+        statsElement.textContent = `${data.fileCount} files, ${data.folderCount} folders, ${this.formatFileSize(data.totalSize)}`;
+      }
+    } catch (error) {
+      console.error('Error loading file stats:', error);
+    }
+  }
+  
+  navigateTo(path) {
+    this.currentPath = path;
+    document.getElementById(`current-path-display-${this.appId}`).textContent = path;
+    this.updateBreadcrumb();
+    this.updateUploadTargetPath();
+    this.refresh();
+  }
+  
+  updateBreadcrumb() {
+    const breadcrumb = document.getElementById(`file-breadcrumb-${this.appId}`);
+    const pathParts = this.currentPath.replace(this.rootPath, '').split('/').filter(part => part);
+    
+    let breadcrumbHTML = `
+      <li class="breadcrumb-item">
+        <button type="button" class="btn btn-link p-0 text-decoration-none"
+                onclick="fileBrowser${this.appId}.navigateTo('${this.rootPath}')" title="Root directory">
+          <i class="fas fa-home" aria-hidden="true"></i>
+        </button>
+      </li>
+    `;
+    
+    let currentPath = this.rootPath;
+    pathParts.forEach((part, index) => {
+      currentPath += '/' + part;
+      const isLast = index === pathParts.length - 1;
+      
+      if (isLast) {
+        breadcrumbHTML += `
+          <li class="breadcrumb-item active" aria-current="page">${part}</li>
+        `;
+      } else {
+        breadcrumbHTML += `
+          <li class="breadcrumb-item">
+            <button type="button" class="btn btn-link p-0 text-decoration-none"
+                    onclick="fileBrowser${this.appId}.navigateTo('${currentPath}')">${part}</button>
+          </li>
+        `;
+      }
+    });
+    
+    breadcrumb.innerHTML = breadcrumbHTML;
+  }
+  
+  changeViewMode(mode) {
+    const treePanel = this.container.querySelector('.file-tree-panel');
+    
+    if (mode === 'list') {
+      treePanel.classList.add('list-view');
+    } else {
+      treePanel.classList.remove('list-view');
+    }
+  }
+  
+  async createFolder() {
+    const folderName = prompt('Enter folder name:');
+    if (!folderName) return;
+    
+    try {
+      const response = await fetch(`/api/applications/${this.appId}/files/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          path: this.currentPath,
+          name: folderName,
+          type: 'directory'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        this.refresh();
+      } else {
+        alert(`Failed to create folder: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      alert('Error creating folder');
+    }
+  }
+  
+  refresh() {
+    const fileTree = document.getElementById(`file-tree-${this.appId}`);
+    htmx.trigger(fileTree, 'load');
+    this.loadFileStats();
+  }
+  
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+}
+
+// Initialize file browser
+const fileBrowser{{ app_id }} = new FileBrowser('file-browser-{{ app_id }}', {{ app_id }});
+
+// Make it globally accessible for HTML onclick handlers
+window.fileBrowser{{ app_id }} = fileBrowser{{ app_id }};
+</script>
+
+<!-- File Browser Styles -->
+

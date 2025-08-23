@@ -1,0 +1,657 @@
+{# slug: pages/applications/partials/app-card (auto-migrated) #}
+{#
+  App Card Component - Application Preview Card
+  
+  Purpose: Display AI-generated application with status, metadata, actions, and thumbnail preview
+  
+  Usage:
+    {# removed self-include of pages/applications/partials/app-card.html #}
+  
+  Dependencies:
+    - Bootstrap 5.3+ (card, badge, dropdown components)
+    - HTMX 1.9+ (for dynamic actions and status updates)
+    - Font Awesome 6+ (for icons)
+  
+  Routes:
+    - /applications/{app_id} (GET) - Application detail page
+    - /applications/{app_id}/start (POST) - Start application
+    - /applications/{app_id}/stop (POST) - Stop application
+    - /applications/{app_id}/restart (POST) - Restart application
+    - /applications/{app_id}/logs (GET) - View application logs
+    - /applications/{app_id}/analyze (GET) - Create new analysis
+  
+  Features:
+    - Real-time status updates with WebSocket/polling
+    - Thumbnail preview with fallback
+    - Quick action buttons (start/stop/restart)
+    - Port status indicators with live testing
+    - Technology stack badges
+    - Analysis count and last analysis info
+    - Responsive design with multiple card styles
+    - Loading states and error handling
+#}
+
+{%- set app = app|default({}) -%}
+{%- set show_thumbnail = show_thumbnail|default(true) -%}
+{%- set show_actions = show_actions|default(true) -%}
+{%- set show_metadata = show_metadata|default(true) -%}
+{%- set card_style = card_style|default("standard") -%}
+{%- set enable_quick_actions = enable_quick_actions|default(true) -%}
+{%- set show_analysis_info = show_analysis_info|default(true) -%}
+{%- set compact_mode = compact_mode|default(false) -%}
+
+{# Extract app properties with defaults #}
+{%- set app_id = app.id|default(0) -%}
+{%- set app_name = app.name|default('Unknown Application') -%}
+{%- set model_slug = app.model_slug|default('unknown') -%}
+{%- set app_number = app.app_number|default(0) -%}
+{%- set app_status = app.status|default('unknown') -%}
+{%- set frontend_port = app.frontend_port|default(0) -%}
+{%- set backend_port = app.backend_port|default(0) -%}
+{%- set thumbnail = app.thumbnail|default('') -%}
+{%- set description = app.description|default('No description available') -%}
+{%- set technologies = app.technologies|default([]) -%}
+{%- set analysis_count = app.analysis_count|default(0) -%}
+{%- set created_at = app.created_at -%}
+{%- set last_updated = app.last_updated -%}
+
+{# Define status configurations #}
+{%- set status_config = {
+  'running': {'color': 'success', 'icon': 'fas fa-play-circle', 'text': 'Running', 'pulse': true},
+  'stopped': {'color': 'danger', 'icon': 'fas fa-stop-circle', 'text': 'Stopped', 'pulse': false},
+  'starting': {'color': 'warning', 'icon': 'fas fa-spinner', 'text': 'Starting', 'pulse': true},
+  'stopping': {'color': 'warning', 'icon': 'fas fa-spinner', 'text': 'Stopping', 'pulse': true},
+  'error': {'color': 'danger', 'icon': 'fas fa-exclamation-circle', 'text': 'Error', 'pulse': false},
+  'unknown': {'color': 'secondary', 'icon': 'fas fa-question-circle', 'text': 'Unknown', 'pulse': false}
+} -%}
+{%- set current_status = status_config.get(app_status, status_config['unknown']) -%}
+
+{# Define card style classes #}
+{%- set card_classes = {
+  'standard': 'card',
+  'elevated': 'card shadow-sm',
+  'bordered': 'card border',
+  'minimal': 'card border-0'
+}.get(card_style, 'card') -%}
+
+<div class="app-card-container {{ 'compact' if compact_mode else '' }}" 
+     id="app-card-{{ app_id }}"
+     data-app-id="{{ app_id }}"
+  data-app-status="{{ app_status }}"
+  data-model-slug="{{ model_slug }}"
+  data-app-number="{{ app_number }}">
+  
+  <div class="{{ card_classes }} app-card h-100">
+    
+    <!-- Card Header with Status -->
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+      
+      <!-- App Name and Model -->
+      <div class="app-header-info flex-grow-1">
+        <h6 class="card-title mb-0 text-truncate">
+          <a href="{{ url_for('models.application_detail', model_slug=model_slug, app_number=app_number) }}" 
+             class="text-decoration-none app-name-link"
+             title="View {{ app_name }} details">
+            {{ app_name }}
+          </a>
+        </h6>
+        <small class="text-muted">
+          {{ model_slug.replace('_', ' ').title() if model_slug != 'unknown' else 'Unknown Model' }}
+        </small>
+      </div>
+      
+      <!-- Status Badge -->
+      <div class="app-status-container">
+    <span class="badge bg-{{ current_status.color }} {{ 'badge-pulse' if current_status.pulse else '' }}" 
+      id="app-status-{{ app_id }}"
+      title="Application status: {{ current_status.text }}">
+          <i class="{{ current_status.icon }} me-1" aria-hidden="true"></i>
+          {{ current_status.text }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Thumbnail (if enabled and available) -->
+    {% if show_thumbnail and not compact_mode %}
+    <div class="app-thumbnail-container position-relative">
+      {% if thumbnail %}
+      <img src="{{ thumbnail }}" 
+           class="card-img-top app-thumbnail" 
+           alt="{{ app_name }} preview"
+           loading="lazy"
+           onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/app-placeholder.svg') }}'; this.parentElement.classList.add('thumbnail-error');">
+      {% else %}
+      <div class="app-thumbnail-placeholder card-img-top d-flex align-items-center justify-content-center bg-light">
+        <div class="text-center text-muted">
+          <i class="fas fa-image fa-2x mb-2" aria-hidden="true"></i>
+          <div class="small">No Preview</div>
+        </div>
+      </div>
+      {% endif %}
+      
+      <!-- Thumbnail Overlay with Quick Actions -->
+      {% if enable_quick_actions and show_actions %}
+      <div class="app-thumbnail-overlay">
+        <div class="app-quick-actions">
+          
+          {% if frontend_port %}
+          <button type="button" 
+                  class="btn btn-sm btn-primary me-1"
+                  onclick="window.open('http://localhost:{{ frontend_port }}', '_blank')"
+                  title="Open Frontend (Port {{ frontend_port }})"
+                  {{ 'disabled' if app_status != 'running' else '' }}>
+            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+          </button>
+          {% endif %}
+          
+          <button type="button" 
+                  class="btn btn-sm btn-outline-light"
+                  onclick="location.href='{{ url_for('models.application_detail', model_slug=model_slug, app_number=app_number) }}'"
+                  title="View Details">
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
+          </button>
+          
+          <div class="dropdown d-inline">
+            <button class="btn btn-sm btn-outline-light dropdown-toggle" 
+                    type="button" 
+                    data-bs-toggle="dropdown" 
+                    aria-expanded="false"
+                    title="More Actions">
+              <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item" href="{{ url_for('analysis.analyses_create_page') }}">
+                  <i class="fas fa-chart-line me-2" aria-hidden="true"></i>
+                  New Analysis
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('models.application_detail', model_slug=model_slug, app_number=app_number) }}#files">
+                  <i class="fas fa-folder-open me-2" aria-hidden="true"></i>
+                  Browse Files
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('models.application_detail', model_slug=model_slug, app_number=app_number) }}#logs">
+                  <i class="fas fa-file-alt me-2" aria-hidden="true"></i>
+                  View Logs
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Card Body -->
+    <div class="card-body {{ 'py-2' if compact_mode else '' }}">
+      
+      <!-- Description -->
+      {% if not compact_mode %}
+      <p class="card-text text-muted small mb-3">
+        {{ description[:100] + '...' if description|length > 100 else description }}
+      </p>
+      {% endif %}
+
+      <!-- Port Information -->
+      {% if show_metadata and (frontend_port or backend_port) %}
+      <div class="app-ports mb-3">
+        <div class="row g-2">
+          {% if frontend_port %}
+          <div class="col-6">
+            <div class="port-info d-flex align-items-center">
+              <i class="fas fa-desktop me-2 text-primary" aria-hidden="true"></i>
+              <div class="port-details flex-grow-1">
+                <div class="port-label small text-muted">Frontend</div>
+                <div class="port-value">
+                  <span class="font-monospace">{{ frontend_port }}</span>
+                  <span class="port-status ms-1" 
+                        id="port-status-{{ frontend_port }}"
+                        >
+                    <i class="fas fa-circle text-muted" title="Checking..." aria-hidden="true"></i>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if backend_port %}
+          <div class="col-6">
+            <div class="port-info d-flex align-items-center">
+              <i class="fas fa-server me-2 text-info" aria-hidden="true"></i>
+              <div class="port-details flex-grow-1">
+                <div class="port-label small text-muted">Backend</div>
+                <div class="port-value">
+                  <span class="font-monospace">{{ backend_port }}</span>
+                  <span class="port-status ms-1" 
+                        id="port-status-{{ backend_port }}"
+                        >
+                    <i class="fas fa-circle text-muted" title="Checking..." aria-hidden="true"></i>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Technology Stack -->
+      {% if show_metadata and technologies and not compact_mode %}
+      <div class="app-technologies mb-3">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fas fa-code me-2 text-secondary" aria-hidden="true"></i>
+          <small class="text-muted">Technologies</small>
+        </div>
+        <div class="technology-badges">
+          {% for tech in technologies[:4] %}
+          <span class="badge bg-light text-dark me-1 mb-1">{{ tech }}</span>
+          {% endfor %}
+          {% if technologies|length > 4 %}
+          <span class="badge bg-secondary">+{{ technologies|length - 4 }} more</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Analysis Information -->
+      {% if show_analysis_info and show_metadata %}
+      <div class="app-analysis-info mb-3">
+        <div class="row g-2 text-center">
+          <div class="col">
+            <div class="analysis-stat">
+              <div class="stat-number text-primary">{{ analysis_count }}</div>
+              <div class="stat-label small text-muted">Analyses</div>
+            </div>
+          </div>
+          {% if created_at %}
+          <div class="col">
+            <div class="analysis-stat">
+              <div class="stat-number small">{{ moment(created_at).format('MMM D') }}</div>
+              <div class="stat-label small text-muted">Created</div>
+            </div>
+          </div>
+          {% endif %}
+          {% if last_updated %}
+          <div class="col">
+            <div class="analysis-stat">
+              <div class="stat-number small">{{ moment(last_updated).fromNow() }}</div>
+              <div class="stat-label small text-muted">Updated</div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Card Footer with Actions -->
+    {% if show_actions %}
+    <div class="card-footer bg-transparent border-top-0 pt-0">
+      
+      {% if enable_quick_actions %}
+      <!-- Quick Control Buttons -->
+      <div class="app-controls d-flex gap-1 mb-2">
+        
+        <!-- Start/Stop Button -->
+        {% if app_status == 'running' %}
+        <button type="button" 
+                class="btn btn-outline-danger btn-sm flex-fill"
+                hx-post="{{ url_for('api.api_application_stop', app_id=app_id) }}"
+                hx-confirm="Stop {{ app_name }}?"
+                hx-target="#app-card-{{ app_id }}"
+                hx-swap="outerHTML"
+                hx-indicator="#app-loading-{{ app_id }}">
+          <i class="fas fa-stop me-1" aria-hidden="true"></i>
+          Stop
+        </button>
+        {% elif app_status == 'stopped' %}
+        <button type="button" 
+                class="btn btn-outline-success btn-sm flex-fill"
+                hx-post="{{ url_for('api.api_application_start', app_id=app_id) }}"
+                hx-target="#app-card-{{ app_id }}"
+                hx-swap="outerHTML"
+                hx-indicator="#app-loading-{{ app_id }}">
+          <i class="fas fa-play me-1" aria-hidden="true"></i>
+          Start
+        </button>
+        {% else %}
+        <button type="button" 
+                class="btn btn-outline-secondary btn-sm flex-fill" 
+                disabled>
+          <i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>
+          {{ current_status.text }}
+        </button>
+        {% endif %}
+        
+        <!-- Restart Button -->
+        <button type="button" 
+                class="btn btn-outline-warning btn-sm"
+                hx-post="{{ url_for('api.api_application_restart', app_id=app_id) }}"
+                hx-confirm="Restart {{ app_name }}?"
+                hx-target="#app-card-{{ app_id }}"
+                hx-swap="outerHTML"
+                hx-indicator="#app-loading-{{ app_id }}"
+                title="Restart Application"
+                {{ 'disabled' if app_status in ['starting', 'stopping'] else '' }}>
+          <i class="fas fa-redo me-1" aria-hidden="true"></i>
+        </button>
+      </div>
+      {% endif %}
+      
+      <!-- Main Action Buttons -->
+      <div class="app-actions d-flex gap-1">
+        
+        <!-- View Details -->
+  <a href="{{ url_for('models.application_detail', model_slug=model_slug, app_number=app_number) }}" 
+           class="btn btn-outline-primary btn-sm flex-fill">
+          <i class="fas fa-info-circle me-1" aria-hidden="true"></i>
+          Details
+        </a>
+        
+        <!-- Open Frontend -->
+        {% if frontend_port %}
+        <button type="button" 
+                class="btn btn-primary btn-sm flex-fill"
+                onclick="window.open('http://localhost:{{ frontend_port }}', '_blank')"
+                title="Open Application"
+                {{ 'disabled' if app_status != 'running' else '' }}>
+          <i class="fas fa-external-link-alt me-1" aria-hidden="true"></i>
+          Open
+        </button>
+        {% endif %}
+        
+        <!-- New Analysis -->
+  <a href="{{ url_for('analysis.analyses_create_page') }}" 
+           class="btn btn-outline-info btn-sm">
+          <i class="fas fa-chart-line me-1" aria-hidden="true"></i>
+          Analyze
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Loading Overlay -->
+    <div class="app-loading-overlay d-none" id="app-loading-{{ app_id }}">
+      <div class="d-flex justify-content-center align-items-center h-100">
+        <div class="text-center">
+          <div class="spinner-border text-primary mb-2" role="status" aria-hidden="true"></div>
+          <div class="small text-muted">Processing...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- App Card JavaScript -->
+<script>
+class AppCardManager {
+  constructor(cardElement) {
+    this.card = cardElement;
+    this.appId = cardElement.dataset.appId;
+    this.currentStatus = cardElement.dataset.appStatus;
+  this.modelSlug = cardElement.dataset.modelSlug;
+  this.appNumber = cardElement.dataset.appNumber;
+    
+    this.init();
+  }
+  
+  init() {
+    this.setupEventListeners();
+    this.setupStatusPolling();
+  // Port status live checking disabled (no backend endpoint available)
+  }
+  
+  setupEventListeners() {
+    // Handle thumbnail loading errors
+    const thumbnail = this.card.querySelector('.app-thumbnail');
+    if (thumbnail) {
+      thumbnail.addEventListener('error', (e) => {
+        this.handleThumbnailError(e.target);
+      });
+      
+      thumbnail.addEventListener('load', (e) => {
+        e.target.classList.add('loaded');
+      });
+    }
+    
+    // Handle quick action buttons
+    const quickActions = this.card.querySelectorAll('.app-quick-actions button');
+    quickActions.forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent card click event
+      });
+    });
+    
+    // Handle card hover effects
+    this.card.addEventListener('mouseenter', () => {
+      this.card.classList.add('app-card-hover');
+    });
+    
+    this.card.addEventListener('mouseleave', () => {
+      this.card.classList.remove('app-card-hover');
+    });
+  }
+  
+  handleThumbnailError(img) {
+    const container = img.parentElement;
+    container.innerHTML = `
+      <div class="app-thumbnail-placeholder card-img-top d-flex align-items-center justify-content-center bg-light">
+        <div class="text-center text-muted">
+          <i class="fas fa-image fa-2x mb-2" aria-hidden="true"></i>
+          <div class="small">No Preview</div>
+        </div>
+      </div>
+    `;
+    container.classList.add('thumbnail-error');
+  }
+  
+  setupStatusPolling() {
+    // Enhanced status polling with exponential backoff
+  let pollInterval = 30000; // Start with 30 seconds
+    let maxInterval = 300000; // Max 5 minutes
+    let failureCount = 0;
+    
+    const pollStatus = () => {
+      const statusElement = this.card.querySelector(`#app-status-${this.appId}`);
+      if (!statusElement) return;
+      
+    // Use model/app-number based status endpoint
+    fetch(`/api/app/${this.modelSlug}/${this.appNumber}/status`)
+        .then(response => response.json())
+        .then(data => {
+      // If wrapped in success envelope, unwrap
+      const payload = data && data.data ? data.data : data;
+      this.updateStatus(payload);
+          failureCount = 0;
+          pollInterval = 30000; // Reset to 30 seconds on success
+        })
+        .catch(error => {
+          console.error(`Failed to poll status for app ${this.appId}:`, error);
+          failureCount++;
+          pollInterval = Math.min(pollInterval * 1.5, maxInterval);
+        })
+        .finally(() => {
+          setTimeout(pollStatus, pollInterval);
+        });
+    };
+    
+    // Start polling after initial delay
+    setTimeout(pollStatus, 5000);
+  }
+  
+  updateStatus(statusData) {
+    const { status, frontend_healthy, backend_healthy } = statusData;
+    
+    if (status !== this.currentStatus) {
+      this.currentStatus = status;
+      this.card.dataset.appStatus = status;
+      
+      // Update status badge
+      const statusBadge = this.card.querySelector(`#app-status-${this.appId}`);
+      if (statusBadge) {
+        this.updateStatusBadge(statusBadge, status);
+      }
+      
+      // Update control buttons
+      this.updateControlButtons(status);
+      
+      // Dispatch status change event
+      this.card.dispatchEvent(new CustomEvent('app:statusChanged', {
+        detail: { appId: this.appId, status, statusData }
+      }));
+    }
+    
+    // Update port status indicators
+    this.updatePortStatus('frontend', frontend_healthy);
+    this.updatePortStatus('backend', backend_healthy);
+  }
+  
+  updateStatusBadge(badge, status) {
+    const statusConfig = {
+      'running': { color: 'success', icon: 'fas fa-play-circle', text: 'Running', pulse: true },
+      'stopped': { color: 'danger', icon: 'fas fa-stop-circle', text: 'Stopped', pulse: false },
+      'starting': { color: 'warning', icon: 'fas fa-spinner fa-spin', text: 'Starting', pulse: true },
+      'stopping': { color: 'warning', icon: 'fas fa-spinner fa-spin', text: 'Stopping', pulse: true },
+      'error': { color: 'danger', icon: 'fas fa-exclamation-circle', text: 'Error', pulse: false },
+      'unknown': { color: 'secondary', icon: 'fas fa-question-circle', text: 'Unknown', pulse: false }
+    };
+    
+    const config = statusConfig[status] || statusConfig['unknown'];
+    
+    // Update badge classes
+    badge.className = `badge bg-${config.color} ${config.pulse ? 'badge-pulse' : ''}`;
+    
+    // Update badge content
+    badge.innerHTML = `
+      <i class="${config.icon} me-1" aria-hidden="true"></i>
+      ${config.text}
+    `;
+    
+    // Update tooltip
+    badge.setAttribute('title', `Application status: ${config.text}`);
+  }
+  
+  updateControlButtons(status) {
+    const controlsContainer = this.card.querySelector('.app-controls');
+    if (!controlsContainer) return;
+    
+    const startStopButton = controlsContainer.querySelector('button[hx-post*="start"], button[hx-post*="stop"]');
+    const restartButton = controlsContainer.querySelector('button[hx-post*="restart"]');
+    const openButton = this.card.querySelector('button[onclick*="window.open"]');
+    
+    if (startStopButton) {
+      if (status === 'running') {
+        startStopButton.className = 'btn btn-outline-danger btn-sm flex-fill';
+        startStopButton.innerHTML = '<i class="fas fa-stop me-1" aria-hidden="true"></i>Stop';
+        startStopButton.setAttribute('hx-post', `/api/applications/${this.appId}/stop`);
+        startStopButton.setAttribute('hx-confirm', `Stop application?`);
+        startStopButton.disabled = false;
+      } else if (status === 'stopped') {
+        startStopButton.className = 'btn btn-outline-success btn-sm flex-fill';
+        startStopButton.innerHTML = '<i class="fas fa-play me-1" aria-hidden="true"></i>Start';
+        startStopButton.setAttribute('hx-post', `/api/applications/${this.appId}/start`);
+        startStopButton.removeAttribute('hx-confirm');
+        startStopButton.disabled = false;
+      } else {
+        startStopButton.className = 'btn btn-outline-secondary btn-sm flex-fill';
+        startStopButton.innerHTML = `<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>${status}`;
+        startStopButton.disabled = true;
+      }
+    }
+    
+    if (restartButton) {
+      restartButton.disabled = ['starting', 'stopping'].includes(status);
+    }
+    
+    if (openButton) {
+      openButton.disabled = status !== 'running';
+    }
+  }
+  
+  updatePortStatus(type, healthy) {
+    const portElements = this.card.querySelectorAll(`.port-status`);
+    portElements.forEach(element => {
+      if (element.id.includes(type)) {
+        if (healthy === true) {
+          element.innerHTML = '<i class="fas fa-circle text-success" title="Port accessible" aria-hidden="true"></i>';
+        } else if (healthy === false) {
+          element.innerHTML = '<i class="fas fa-circle text-danger" title="Port not accessible" aria-hidden="true"></i>';
+        } else {
+          element.innerHTML = '<i class="fas fa-circle text-muted" title="Status unknown" aria-hidden="true"></i>';
+        }
+      }
+    });
+  }
+  
+  // Port status check disabled due to missing API endpoint
+  
+  // Public API
+  refresh() {
+    const statusElement = this.card.querySelector(`#app-status-${this.appId}`);
+    if (statusElement) {
+      htmx.trigger(statusElement, 'load');
+    }
+  }
+  
+  showLoading() {
+    const loadingOverlay = this.card.querySelector(`#app-loading-${this.appId}`);
+    if (loadingOverlay) {
+      loadingOverlay.classList.remove('d-none');
+    }
+  }
+  
+  hideLoading() {
+    const loadingOverlay = this.card.querySelector(`#app-loading-${this.appId}`);
+    if (loadingOverlay) {
+      loadingOverlay.classList.add('d-none');
+    }
+  }
+}
+
+// Initialize app cards
+document.addEventListener('DOMContentLoaded', () => {
+  const appCards = document.querySelectorAll('.app-card-container');
+  appCards.forEach(card => {
+    const manager = new AppCardManager(card);
+    
+    // Store manager instance for external access
+    card._appCardManager = manager;
+  });
+});
+
+// HTMX event listeners for app cards
+document.body.addEventListener('htmx:beforeRequest', (event) => {
+  if (event.detail.elt.closest('.app-card')) {
+    const card = event.detail.elt.closest('.app-card-container');
+    if (card && card._appCardManager) {
+      card._appCardManager.showLoading();
+    }
+  }
+});
+
+document.body.addEventListener('htmx:afterRequest', (event) => {
+  if (event.detail.elt.closest('.app-card')) {
+    const card = event.detail.elt.closest('.app-card-container');
+    if (card && card._appCardManager) {
+      card._appCardManager.hideLoading();
+    }
+  }
+});
+
+// Global function for external control
+window.refreshAppCard = function(appId) {
+  const card = document.querySelector(`#app-card-${appId}`);
+  if (card && card._appCardManager) {
+    card._appCardManager.refresh();
+  }
+};
+</script>
+
+<!-- App Card Styles -->
+

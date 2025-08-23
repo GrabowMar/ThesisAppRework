@@ -1,0 +1,62 @@
+{# slug: ui/elements/dashboard/_dashboard_stats_inner (auto-migrated) #}
+{#
+    Dashboard Stats Fragment (Bootstrap cards)
+    Injects directly inside the existing .row#dashboard-stats container
+    Keep 'stat-card' class on cards to satisfy tests and shared styles.
+ #}
+
+<div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-primary text-white h-100 stat-card">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0"><i class="fas fa-robot fa-2x"></i></div>
+                <div class="flex-grow-1 ms-3">
+                    <div class="h4 mb-0" id="total-models">{{ stats.total_models or 0 }}</div>
+                    <div class="small">AI Models</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+<div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-warning text-white h-100 stat-card">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0"><i class="fas fa-code fa-2x"></i></div>
+                <div class="flex-grow-1 ms-3">
+                    <div class="h4 mb-0" id="total-applications">{{ stats.total_apps or 0 }}</div>
+                    <div class="small">Applications</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+<div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-info text-white h-100 stat-card">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0"><i class="fas fa-shield-alt fa-2x"></i></div>
+                <div class="flex-grow-1 ms-3">
+                    <div class="h4 mb-0" id="security-tests">{{ stats.security_tests or 0 }}</div>
+                    <div class="small">Security Tests</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+<div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-success text-white h-100 stat-card">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0"><i class="fas fa-tachometer-alt fa-2x"></i></div>
+                <div class="flex-grow-1 ms-3">
+                    <div class="h4 mb-0" id="performance-tests">{{ stats.performance_tests or 0 }}</div>
+                    <div class="small">Performance Tests</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>

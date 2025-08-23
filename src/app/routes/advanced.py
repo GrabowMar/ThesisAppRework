@@ -3,7 +3,8 @@ Advanced routes for Apps Grid and Models Overview pages.
 Handles HTMX requests, filtering, pagination, and dynamic content loading.
 """
 
-from flask import Blueprint, render_template, request, jsonify, abort
+from flask import Blueprint, request, jsonify, abort
+from ..utils.template_paths import render_template_compat as render_template
 from sqlalchemy import and_, or_, func, desc, cast, String
 import json
 import os

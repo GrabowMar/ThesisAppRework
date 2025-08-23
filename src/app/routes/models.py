@@ -7,7 +7,8 @@ Routes for managing AI models and their generated applications.
 
 import logging
 
-from flask import Blueprint, render_template, request, flash, Response
+from flask import Blueprint, request, flash, Response
+from ..utils.template_paths import render_template_compat as render_template
 
 from ..models import (
     ModelCapability, GeneratedApplication,

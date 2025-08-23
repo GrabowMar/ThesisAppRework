@@ -1,0 +1,209 @@
+{# slug: ui/elements/misc/recent-activity (auto-migrated) #}
+{#
+    HTMX Fragment: Recent Activity Timeline Update
+    Route: /api/dashboard/activity
+    Purpose: Real-time activity feed updates for dashboard
+    
+    Usage:
+    - Polled every 15 seconds via HTMX from dashboard
+    - Shows recent system activities, analysis completions, errors
+    - Updates activity timeline with smooth animations
+    
+    HTMX Integration:
+    - hx-get="/api/dashboard/activity"
+    - hx-trigger="every 15s"
+    - hx-target="#recent-activity"
+    
+    Data Expected:
+    - activities: List of recent activity objects
+    - activity.type: Activity type (analysis, system, user, error)
+    - activity.title: Activity title/description
+    - activity.timestamp: When the activity occurred
+    - activity.metadata: Additional activity context
+#}
+
+<!-- Recent Activity Timeline Fragment -->
+<div id="recent-activity" hx-swap-oob="true">
+    {% if activities %}
+    <div class="activity-timeline">
+        {% for activity in activities %}
+        <div class="activity-item" data-activity-id="{{ activity.id }}">
+            <div class="activity-marker bg-{{ activity.type_color or 'primary' }}">
+                {% if activity.type == 'analysis' %}
+                    <i class="fas fa-chart-bar"></i>
+                {% elif activity.type == 'system' %}
+                    <i class="fas fa-cog"></i>
+                {% elif activity.type == 'user' %}
+                    <i class="fas fa-user"></i>
+                {% elif activity.type == 'error' %}
+                    <i class="fas fa-exclamation-triangle"></i>
+                {% elif activity.type == 'model' %}
+                    <i class="fas fa-brain"></i>
+                {% elif activity.type == 'application' %}
+                    <i class="fas fa-rocket"></i>
+                {% else %}
+                    <i class="fas fa-circle"></i>
+                {% endif %}
+            </div>
+            
+            <div class="activity-content">
+                <div class="activity-header">
+                    <h6 class="activity-title mb-1">{{ activity.title }}</h6>
+                    <small class="activity-time text-muted">
+                        <i class="fas fa-clock me-1"></i>{{ activity.timestamp|timeago }}
+                    </small>
+                </div>
+                
+                <div class="activity-body">
+                    <p class="mb-2 text-muted">{{ activity.description }}</p>
+                    
+                    {% if activity.metadata %}
+                    <div class="activity-metadata">
+                        {% if activity.type == 'analysis' %}
+                            <div class="d-flex flex-wrap gap-1">
+                                {% if activity.metadata.model_slug %}
+                                <span class="badge bg-info">{{ activity.metadata.model_slug }}</span>
+                                {% endif %}
+                                {% if activity.metadata.app_number %}
+                                <span class="badge bg-secondary">App #{{ activity.metadata.app_number }}</span>
+                                {% endif %}
+                                {% if activity.metadata.analysis_type %}
+                                <span class="badge bg-primary">{{ activity.metadata.analysis_type|title }}</span>
+                                {% endif %}
+                                {% if activity.metadata.status %}
+                                <span class="badge bg-{{ 'success' if activity.metadata.status == 'completed' else 'warning' if activity.metadata.status == 'running' else 'danger' }}">
+                                    {{ activity.metadata.status|title }}
+                                </span>
+                                {% endif %}
+                            </div>
+                        {% elif activity.type == 'system' %}
+                            {% if activity.metadata.service %}
+                            <span class="badge bg-secondary">{{ activity.metadata.service|title }}</span>
+                            {% endif %}
+                            {% if activity.metadata.resource_usage %}
+                            <small class="text-muted">
+                                CPU: {{ activity.metadata.resource_usage.cpu|round(1) }}% | 
+                                Memory: {{ activity.metadata.resource_usage.memory|round(1) }}%
+                            </small>
+                            {% endif %}
+                        {% elif activity.type == 'error' %}
+                            {% if activity.metadata.error_type %}
+                            <span class="badge bg-danger">{{ activity.metadata.error_type }}</span>
+                            {% endif %}
+                            {% if activity.metadata.affected_service %}
+                            <span class="badge bg-warning">{{ activity.metadata.affected_service }}</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if activity.actions %}
+                <div class="activity-actions mt-2">
+                    {% for action in activity.actions %}
+                    <a href="{{ action.url }}" 
+                       class="btn btn-sm btn-outline-{{ action.style or 'primary' }} me-1"
+                       {% if action.hx_get %}hx-get="{{ action.hx_get }}"{% endif %}
+                       {% if action.hx_target %}hx-target="{{ action.hx_target }}"{% endif %}>
+                        {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
+                        {{ action.text }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Load More Button -->
+    {% if has_more_activities %}
+    <div class="text-center mt-3">
+        <button class="btn btn-sm btn-outline-primary" 
+                hx-get="/api/dashboard/activity?offset={{ activities|length }}" 
+                hx-target="#recent-activity .activity-timeline" 
+                hx-swap="beforeend">
+            <i class="fas fa-chevron-down me-1"></i>Load More Activities
+        </button>
+    </div>
+    {% endif %}
+    
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+        <div class="mb-3">
+            <i class="fas fa-clock text-muted" style="font-size: 3rem;"></i>
+        </div>
+        <h6 class="text-muted">No Recent Activity</h6>
+        <p class="text-muted small mb-0">
+            System activities will appear here as they occur
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Activity Update Timestamp -->
+<div class="text-muted small mt-2" hx-swap-oob="innerHTML:#activity-timestamp">
+    Activity feed updated: {{ timestamp|datetime if timestamp else 'Never' }}
+</div>
+
+<!-- JavaScript for Activity Updates -->
+<script>
+document.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'recent-activity') {
+        // Highlight new activities
+        const newItems = event.detail.target.querySelectorAll('.activity-item:not(.seen)');
+        newItems.forEach((item, index) => {
+            // Add a subtle animation delay for each new item
+            item.style.opacity = '0';
+            item.style.transform = 'translateY(10px)';
+            
+            setTimeout(() => {
+                item.style.transition = 'all 0.3s ease-out';
+                item.style.opacity = '1';
+                item.style.transform = 'translateY(0)';
+                item.classList.add('seen');
+                
+                // Add a brief highlight effect
+                item.style.backgroundColor = 'rgba(13, 110, 253, 0.1)';
+                setTimeout(() => {
+                    item.style.backgroundColor = '';
+                }, 2000);
+            }, index * 100);
+        });
+        
+        // Update relative timestamps
+        updateTimestamps();
+    }
+});
+
+// Update timestamps every minute
+setInterval(updateTimestamps, 60000);
+
+function updateTimestamps() {
+    document.querySelectorAll('.activity-time').forEach(timeElement => {
+        // This would need to be implemented with proper timestamp formatting
+        // For now, we'll let the server handle the timeago formatting
+    });
+}
+
+// Auto-dismiss notification-style activities after 30 seconds
+document.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'recent-activity') {
+        const notificationActivities = event.detail.target.querySelectorAll('.activity-item[data-auto-dismiss="true"]');
+        notificationActivities.forEach(activity => {
+            setTimeout(() => {
+                activity.style.transition = 'all 0.5s ease-out';
+                activity.style.opacity = '0';
+                activity.style.height = '0';
+                activity.style.margin = '0';
+                activity.style.padding = '0';
+                setTimeout(() => activity.remove(), 500);
+            }, 30000);
+        });
+    }
+});
+</script>
+
+<!-- Custom CSS for Activity Timeline -->
+

@@ -1,0 +1,692 @@
+{# slug: pages/models/comparison (auto-migrated) #}
+{#
+    Model Comparison Matrix View
+    
+    Purpose: Comprehensive side-by-side comparison of AI models with detailed capability
+             analysis, pricing comparison, performance metrics, and recommendation system.
+             
+    Routes:
+    - GET /models/comparison - Show model comparison interface
+    - GET /models/comparison?models=model1,model2,model3 - Compare specific models
+    - POST /api/models/comparison - Update comparison parameters
+    
+    Features:
+    - Multi-model comparison matrix with customizable parameters
+    - Interactive capability scoring and visualization
+    - Pricing analysis with cost-per-token calculations
+    - Performance benchmarks and speed comparisons
+    - Provider reliability and availability metrics
+    - Recommendation engine based on use case
+    - Export comparison results (PDF, CSV, JSON)
+    - Real-time model status and availability
+    - Custom scoring weights and filters
+    - Historical performance tracking
+    
+    Technical Implementation:
+    - HTMX for dynamic model selection and comparison updates
+    - Chart.js for performance visualization and scoring charts
+    - Bootstrap 5 responsive comparison matrix
+    - Real-time pricing updates via WebSocket
+    - Local storage for comparison preferences
+    - CSV/PDF export functionality
+    - Accessibility with keyboard navigation
+    
+    Dependencies:
+    - layouts/base.html - Base layout with navigation
+    - components/models/capability-matrix.html - Capability comparison grid
+    - components/models/pricing-info.html - Pricing comparison tables
+    - components/statistics/chart-container.html - Performance charts
+    - components/common/loading.html - Loading states
+    - utils/macros/ui.html - UI helper macros
+    
+    Data Expected:
+    - models: List of model objects with specifications and capabilities
+    - comparison_data: Performance benchmarks and metrics
+    - pricing_data: Current pricing information for all models
+    - availability_status: Real-time model availability
+    - user_preferences: Saved comparison weights and filters
+#}
+
+{% extends 'layouts/base.html' %}
+
+{% block title %}Model Comparison - AI Analysis Platform{% endblock %}
+
+{% block extra_css %}
+
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1>Model Comparison</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url_for('models.models_overview') }}">Models</a></li>
+                        <li class="breadcrumb-item active">Comparison</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="content">
+        <div class="container-fluid">
+            <!-- Comparison Controls -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-sliders-h me-2"></i>
+                        Comparison Settings
+                    </h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-tool" data-bs-toggle="collapse" data-bs-target="#comparison-controls">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body collapse show" id="comparison-controls">
+                    <div class="comparison-controls">
+                        <div class="row">
+                            <!-- Model Selection -->
+                            <div class="col-lg-4">
+                                <h6 class="mb-3">Select Models to Compare</h6>
+                                <div id="model-selector-container">
+                                    {% for model in available_models %}
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input model-checkbox" 
+                                               type="checkbox" 
+                                               value="{{ model.slug }}" 
+                                               id="model-{{ loop.index }}"
+                                               {% if model.slug in selected_models %}checked{% endif %}
+                                               hx-post="/api/models/comparison/update"
+                                               hx-target="#comparison-matrix"
+                                               hx-indicator="#comparison-loading">
+                                        <label class="form-check-label" for="model-{{ loop.index }}">
+                                            <span class="badge bg-primary me-2">{{ model.provider }}</span>
+                                            {{ model.name }}
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="select-popular">
+                                    <i class="fas fa-star me-1"></i>
+                                    Select Popular Models
+                                </button>
+                            </div>
+
+                            <!-- Comparison Weights -->
+                            <div class="col-lg-4">
+                                <h6 class="mb-3">Scoring Weights</h6>
+                                <div class="weight-controls">
+                                    <div class="mb-3">
+                                        <label class="form-label">Performance
+                                            <span class="feature-weight" id="performance-weight">50%</span>
+                                        </label>
+                                        <input type="range" 
+                                               class="form-range weight-slider" 
+                                               id="performance-slider"
+                                               min="0" max="100" value="50">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Cost Efficiency
+                                            <span class="feature-weight" id="cost-weight">30%</span>
+                                        </label>
+                                        <input type="range" 
+                                               class="form-range weight-slider" 
+                                               id="cost-slider"
+                                               min="0" max="100" value="30">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Availability
+                                            <span class="feature-weight" id="availability-weight">20%</span>
+                                        </label>
+                                        <input type="range" 
+                                               class="form-range weight-slider" 
+                                               id="availability-slider"
+                                               min="0" max="100" value="20">
+                                    </div>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="reset-weights">
+                                        <i class="fas fa-undo me-1"></i>
+                                        Reset to Default
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Use Case Filter -->
+                            <div class="col-lg-4">
+                                <h6 class="mb-3">Use Case Focus</h6>
+                                <select class="form-select mb-3" id="use-case-filter">
+                                    <option value="general">General Purpose</option>
+                                    <option value="code">Code Generation</option>
+                                    <option value="analysis">Text Analysis</option>
+                                    <option value="creative">Creative Writing</option>
+                                    <option value="reasoning">Complex Reasoning</option>
+                                    <option value="multimodal">Multimodal Tasks</option>
+                                </select>
+                                
+                                <div class="d-grid gap-2">
+                                    <button type="button" 
+                                            class="btn btn-primary"
+                                            hx-post="/api/models/comparison/refresh"
+                                            hx-target="#comparison-matrix"
+                                            hx-indicator="#comparison-loading">
+                                        <i class="fas fa-sync me-1"></i>
+                                        Update Comparison
+                                    </button>
+                                    <button type="button" 
+                                            class="btn btn-outline-success"
+                                            onclick="exportComparison()">
+                                        <i class="fas fa-download me-1"></i>
+                                        Export Results
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div class="text-center py-4 d-none" id="comparison-loading">
+                <div class="spinner-border text-primary me-3" role="status">
+                    <span class="visually-hidden">Updating comparison...</span>
+                </div>
+                <span class="text-muted">Updating comparison matrix...</span>
+            </div>
+
+            <!-- Comparison Matrix -->
+            <div id="comparison-matrix">
+                {% if selected_models %}
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-table me-2"></i>
+                            Model Comparison Matrix
+                        </h3>
+                        <div class="card-tools">
+                            <span class="badge bg-info">{{ selected_models|length }} models selected</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="comparison-matrix">
+                            <table class="table table-bordered comparison-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="feature-column" style="min-width: 200px; background: #f8f9fa;">
+                                            Features & Capabilities
+                                        </th>
+                                        {% for model in models %}
+                                        <th class="model-column">
+                                            <div class="model-header {% if model.recommended %}recommendation-card{% endif %}">
+                                                {% if model.recommended %}
+                                                <div class="badge bg-success mb-2">
+                                                    <i class="fas fa-star me-1"></i>
+                                                    Recommended
+                                                </div>
+                                                {% endif %}
+                                                <div class="provider-badge badge bg-secondary">
+                                                    {{ model.provider }}
+                                                </div>
+                                                <h6 class="mb-1">{{ model.name }}</h6>
+                                                <div class="small opacity-75">{{ model.version }}</div>
+                                                <div class="mt-2">
+                                                    <div class="badge bg-light text-dark">
+                                                        Overall Score: {{ model.overall_score }}/100
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Pricing Section -->
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-dollar-sign me-2"></i>
+                                            Input Pricing (per 1K tokens)
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <div class="price-highlight">
+                                                ${{ "%.4f"|format(model.pricing.input_price) }}
+                                            </div>
+                                            {% if model.pricing.input_discount %}
+                                            <small class="text-success">
+                                                {{ model.pricing.input_discount }}% off
+                                            </small>
+                                            {% endif %}
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-dollar-sign me-2"></i>
+                                            Output Pricing (per 1K tokens)
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <div class="price-highlight">
+                                                ${{ "%.4f"|format(model.pricing.output_price) }}
+                                            </div>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <!-- Performance Section -->
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-tachometer-alt me-2"></i>
+                                            Tokens per Second
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <div class="fw-bold">{{ model.performance.tokens_per_second }}</div>
+                                            <small class="text-muted">avg tokens/sec</small>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-clock me-2"></i>
+                                            Response Time
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <div class="fw-bold">{{ model.performance.avg_response_time }}ms</div>
+                                            <small class="text-muted">average latency</small>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <!-- Capabilities Section -->
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-brain me-2"></i>
+                                            Context Window
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <div class="fw-bold">{{ "{:,}".format(model.capabilities.context_window) }}</div>
+                                            <small class="text-muted">tokens</small>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-code me-2"></i>
+                                            Code Generation
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <span class="capability-score score-{{ model.capabilities.code_generation.level }}">
+                                                {{ model.capabilities.code_generation.score }}
+                                            </span>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-search me-2"></i>
+                                            Text Analysis
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <span class="capability-score score-{{ model.capabilities.text_analysis.level }}">
+                                                {{ model.capabilities.text_analysis.score }}
+                                            </span>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-lightbulb me-2"></i>
+                                            Creative Writing
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <span class="capability-score score-{{ model.capabilities.creative_writing.level }}">
+                                                {{ model.capabilities.creative_writing.score }}
+                                            </span>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-puzzle-piece me-2"></i>
+                                            Reasoning
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <span class="capability-score score-{{ model.capabilities.reasoning.level }}">
+                                                {{ model.capabilities.reasoning.score }}
+                                            </span>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <!-- Availability Section -->
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-server me-2"></i>
+                                            Availability (30d)
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <div class="fw-bold text-{{ 'success' if model.availability.uptime >= 99 else 'warning' if model.availability.uptime >= 95 else 'danger' }}">
+                                                {{ model.availability.uptime }}%
+                                            </div>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <tr class="feature-row">
+                                        <td class="fw-bold bg-light">
+                                            <i class="fas fa-shield-alt me-2"></i>
+                                            Rate Limits
+                                        </td>
+                                        {% for model in models %}
+                                        <td class="text-center">
+                                            <div class="small">
+                                                <div>{{ model.rate_limits.requests_per_minute }}/min</div>
+                                                <div class="text-muted">{{ model.rate_limits.tokens_per_minute }}/min tokens</div>
+                                            </div>
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Charts -->
+                <div class="row mt-4">
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Performance Comparison</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="performance-chart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Cost Efficiency</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="cost-chart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendations -->
+                {% if recommendations %}
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title">
+                            <i class="fas fa-lightbulb me-2"></i>
+                            Recommendations
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for rec in recommendations %}
+                            <div class="col-lg-4 mb-3">
+                                <div class="card border-{{ rec.type }}">
+                                    <div class="card-header bg-{{ rec.type }} text-white">
+                                        <h6 class="card-title mb-0">
+                                            <i class="fas fa-{{ rec.icon }} me-2"></i>
+                                            {{ rec.title }}
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="card-text">{{ rec.description }}</p>
+                                        <div class="badge bg-secondary">{{ rec.model_name }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <!-- Empty State -->
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <div class="empty-icon text-muted mb-3">
+                            <i class="fas fa-balance-scale fa-3x"></i>
+                        </div>
+                        <h5 class="text-muted">No Models Selected</h5>
+                        <p class="text-muted">Select at least 2 models from the controls above to start comparing.</p>
+                        <button type="button" class="btn btn-primary" id="quick-compare">
+                            <i class="fas fa-bolt me-1"></i>
+                            Quick Compare Popular Models
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize comparison functionality
+    initializeComparison();
+    
+    // Setup charts if models are selected
+    {% if selected_models %}
+    setupPerformanceChart();
+    setupCostChart();
+    {% endif %}
+});
+
+function initializeComparison() {
+    // Weight slider handlers
+    setupWeightSliders();
+    
+    // Quick actions
+    setupQuickActions();
+    
+    // Export functionality
+    setupExportFunctions();
+}
+
+function setupWeightSliders() {
+    const sliders = document.querySelectorAll('.weight-slider');
+    
+    sliders.forEach(slider => {
+        slider.addEventListener('input', function() {
+            const value = this.value;
+            const weightSpan = document.getElementById(this.id.replace('slider', 'weight'));
+            if (weightSpan) {
+                weightSpan.textContent = value + '%';
+            }
+            
+            // Update comparison scores
+            updateComparisonScores();
+        });
+    });
+    
+    // Reset weights button
+    document.getElementById('reset-weights')?.addEventListener('click', function() {
+        document.getElementById('performance-slider').value = 50;
+        document.getElementById('cost-slider').value = 30;
+        document.getElementById('availability-slider').value = 20;
+        
+        // Update displays
+        document.getElementById('performance-weight').textContent = '50%';
+        document.getElementById('cost-weight').textContent = '30%';
+        document.getElementById('availability-weight').textContent = '20%';
+        
+        updateComparisonScores();
+    });
+}
+
+function setupQuickActions() {
+    // Select popular models
+    document.getElementById('select-popular')?.addEventListener('click', function() {
+        const popularModels = ['openai_gpt-4', 'anthropic_claude-3-sonnet', 'google_gemini-pro'];
+        const checkboxes = document.querySelectorAll('.model-checkbox');
+        
+        checkboxes.forEach(cb => {
+            cb.checked = popularModels.includes(cb.value);
+        });
+        
+        // Trigger comparison update
+        htmx.trigger('#model-selector-container', 'change');
+    });
+    
+    // Quick compare button
+    document.getElementById('quick-compare')?.addEventListener('click', function() {
+        // Scroll to controls and select popular models
+        document.getElementById('comparison-controls').scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => {
+            document.getElementById('select-popular').click();
+        }, 500);
+    });
+}
+
+function setupExportFunctions() {
+    window.exportComparison = function() {
+        const format = prompt('Export format: pdf, csv, or json?', 'pdf');
+        if (!format) return;
+        
+        // Get current comparison state
+        const selectedModels = Array.from(document.querySelectorAll('.model-checkbox:checked')).map(cb => cb.value);
+        const weights = {
+            performance: document.getElementById('performance-slider').value,
+            cost: document.getElementById('cost-slider').value,
+            availability: document.getElementById('availability-slider').value
+        };
+        const useCase = document.getElementById('use-case-filter').value;
+        
+        // Create export URL
+        const params = new URLSearchParams({
+            models: selectedModels.join(','),
+            weights: JSON.stringify(weights),
+            use_case: useCase,
+            format: format
+        });
+        
+        // Download export
+        window.open(`/api/models/comparison/export?${params.toString()}`, '_blank');
+    };
+}
+
+function updateComparisonScores() {
+    // Recalculate overall scores based on new weights
+    const performanceWeight = parseFloat(document.getElementById('performance-slider').value) / 100;
+    const costWeight = parseFloat(document.getElementById('cost-slider').value) / 100;
+    const availabilityWeight = parseFloat(document.getElementById('availability-slider').value) / 100;
+    
+    // This would typically trigger an HTMX request to recalculate scores
+    htmx.ajax('POST', '/api/models/comparison/update-weights', {
+        values: {
+            performance_weight: performanceWeight,
+            cost_weight: costWeight,
+            availability_weight: availabilityWeight
+        },
+        target: '#comparison-matrix'
+    });
+}
+
+function setupPerformanceChart() {
+    const ctx = document.getElementById('performance-chart').getContext('2d');
+    const modelNames = {{ models|map(attribute='name')|list|tojson }};
+    const performanceData = {{ models|map(attribute='performance.overall_score')|list|tojson }};
+    
+    new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['Speed', 'Accuracy', 'Consistency', 'Efficiency'],
+            datasets: modelNames.map((name, index) => ({
+                label: name,
+                data: [
+                    {{ models[0].performance.speed_score if models }},
+                    {{ models[0].performance.accuracy_score if models }},
+                    {{ models[0].performance.consistency_score if models }},
+                    {{ models[0].performance.efficiency_score if models }}
+                ],
+                borderColor: `hsl(${index * 137.5}, 70%, 50%)`,
+                backgroundColor: `hsla(${index * 137.5}, 70%, 50%, 0.2)`
+            }))
+        },
+        options: {
+            responsive: true,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+
+function setupCostChart() {
+    const ctx = document.getElementById('cost-chart').getContext('2d');
+    const modelNames = {{ models|map(attribute='name')|list|tojson }};
+    const costData = {{ models|map(attribute='pricing.cost_per_1k_tokens')|list|tojson }};
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: modelNames,
+            datasets: [{
+                label: 'Cost per 1K Tokens ($)',
+                data: costData,
+                backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toFixed(4);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Real-time updates for model status
+setInterval(() => {
+    if (document.querySelectorAll('.model-checkbox:checked').length > 0) {
+        htmx.ajax('GET', '/api/models/comparison/status', {
+            target: '#comparison-matrix',
+            swap: 'none'
+        });
+    }
+}, 30000); // Update every 30 seconds
+</script>
+{% endblock %}

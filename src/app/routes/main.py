@@ -9,7 +9,8 @@ import logging
 import subprocess
 from datetime import datetime, timezone
 
-from flask import Blueprint, render_template, flash, current_app, jsonify, redirect, url_for
+from flask import Blueprint, flash, current_app, jsonify, redirect, url_for
+from ..utils.template_paths import render_template_compat as render_template
 
 from ..models import (
     ModelCapability, GeneratedApplication,

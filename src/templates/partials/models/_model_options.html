@@ -1,5 +1,0 @@
-{# Renders a set of <option> tags for model selects #}
-<option value="">All Models</option>
-{% for m in models %}
-<option value="{{ m.canonical_slug }}">{{ m.provider }} — {{ m.model_name }}</option>
-{% endfor %}

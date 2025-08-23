@@ -300,7 +300,7 @@ def security_analysis_task(self, model_slug: str, app_number: int,
         # Fetch analysis record (if provided) and mark RUNNING
         if analysis_id:
             with get_session() as session:
-                analysis = session.query(SecurityAnalysis).get(analysis_id)
+                analysis = session.get(SecurityAnalysis, analysis_id)
                 if analysis:
                     analysis.status = AnalysisStatus.RUNNING
                     analysis.started_at = datetime.now(timezone.utc)
@@ -331,7 +331,7 @@ def security_analysis_task(self, model_slug: str, app_number: int,
         # Persist results
         if analysis_id:
             with get_session() as session:
-                analysis = session.query(SecurityAnalysis).get(analysis_id)
+                analysis = session.get(SecurityAnalysis, analysis_id)
                 if analysis:
                     analysis.status = AnalysisStatus.COMPLETED if status == 'completed' else AnalysisStatus.FAILED
                     analysis.completed_at = datetime.now(timezone.utc)
@@ -392,7 +392,7 @@ def security_analysis_task(self, model_slug: str, app_number: int,
         if analysis_id:
             try:
                 with get_session() as session:
-                    analysis = session.query(SecurityAnalysis).get(analysis_id)
+                    analysis = session.get(SecurityAnalysis, analysis_id)
                     if analysis:
                         analysis.status = AnalysisStatus.FAILED
                         analysis.completed_at = datetime.now(timezone.utc)
@@ -890,7 +890,7 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
         # Mark RUNNING if an analysis record is provided
         if analysis_id:
             with get_session() as session:
-                analysis = session.query(ZAPAnalysis).get(analysis_id)
+                analysis = session.get(ZAPAnalysis, analysis_id)
                 if analysis:
                     analysis.status = AnalysisStatus.RUNNING
                     analysis.started_at = datetime.now(timezone.utc)
@@ -914,7 +914,7 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
         # Persist results if analysis record provided
         if analysis_id:
             with get_session() as session:
-                analysis = session.query(ZAPAnalysis).get(analysis_id)
+                analysis = session.get(ZAPAnalysis, analysis_id)
                 if analysis:
                     analysis.status = AnalysisStatus.COMPLETED if status == 'completed' else AnalysisStatus.FAILED
                     analysis.completed_at = datetime.now(timezone.utc)
@@ -974,7 +974,7 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
         if analysis_id:
             try:
                 with get_session() as session:
-                    analysis = session.query(ZAPAnalysis).get(analysis_id)
+                    analysis = session.get(ZAPAnalysis, analysis_id)
                     if analysis:
                         analysis.status = AnalysisStatus.FAILED
                         analysis.completed_at = datetime.now(timezone.utc)

@@ -10,7 +10,8 @@ import time
 from functools import wraps
 import math
 
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify
+from ..utils.template_paths import render_template_compat as render_template
 from flask import Response, redirect, url_for
 
 from ..services.task_manager import TaskManager
@@ -90,7 +91,6 @@ def analysis_hub():
         trends = {}
         try:
             from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, ModelCapability
-            from ..extensions import db
             from sqlalchemy import func
             from datetime import datetime, timedelta, timezone
             
@@ -112,10 +112,15 @@ def analysis_hub():
             }
             
             # Status distribution for security analyses
-            status_counts = dict(
-                db.session.query(SecurityAnalysis.status, func.count(SecurityAnalysis.id))
-                .group_by(SecurityAnalysis.status).all()
-            )
+            # Status distribution for security analyses (defer import to avoid cycles)
+            try:
+                from ..extensions import db as _db  # noqa: WPS433 (local import intentional)
+                status_counts = dict(
+                    _db.session.query(SecurityAnalysis.status, func.count(SecurityAnalysis.id))
+                    .group_by(SecurityAnalysis.status).all()
+                )
+            except Exception:
+                status_counts = {}
             stats.update({
                 'security_completed': status_counts.get('completed', 0),
                 'security_running': status_counts.get('running', 0),
@@ -205,7 +210,6 @@ def analyses_create_submit():
                 return render_template('partials/common/error.html', error='Application not found for given model/app'), 404
 
             from ..services import analysis_service as svc
-            from ..extensions import db
             # SECURITY (all tools enabled)
             sec_created = svc.create_comprehensive_security_analysis(app.id)
             sec_started = svc.start_security_analysis(sec_created['id'])
@@ -423,7 +427,10 @@ def htmx_list_security():
         from ..models import GeneratedApplication
         for it in items:
             try:
-                app = GeneratedApplication.query.get(it.get('application_id'))
+                # Use modern Session.get to avoid deprecated Query.get
+                from app.extensions import get_session
+                with get_session() as _s:
+                    app = _s.get(GeneratedApplication, it.get('application_id'))
                 if app:
                     it['model_slug'] = app.model_slug
                     it['app_number'] = app.app_number
@@ -444,7 +451,9 @@ def htmx_list_dynamic():
         from ..models import GeneratedApplication
         for it in items:
             try:
-                app = GeneratedApplication.query.get(it.get('application_id'))
+                from app.extensions import get_session
+                with get_session() as _s:
+                    app = _s.get(GeneratedApplication, it.get('application_id'))
                 if app:
                     it['model_slug'] = app.model_slug
                     it['app_number'] = app.app_number
@@ -465,7 +474,9 @@ def htmx_list_performance():
         from ..models import GeneratedApplication
         for it in items:
             try:
-                app = GeneratedApplication.query.get(it.get('application_id'))
+                from app.extensions import get_session
+                with get_session() as _s:
+                    app = _s.get(GeneratedApplication, it.get('application_id'))
                 if app:
                     it['model_slug'] = app.model_slug
                     it['app_number'] = app.app_number
@@ -1136,7 +1147,9 @@ def dynamic_analysis_results_view(analysis_id: int):
         from flask import render_template, flash, redirect, url_for
         from ..models import ZAPAnalysis
 
-        analysis = ZAPAnalysis.query.get(analysis_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            analysis = _s.get(ZAPAnalysis, analysis_id)
         if not analysis:
             flash('Dynamic analysis not found', 'error')
             return redirect(url_for('analysis.analysis_hub'))
@@ -1209,7 +1222,9 @@ def security_analysis_results_view(analysis_id):
         from ..models import SecurityAnalysis
         import json
         
-        analysis = SecurityAnalysis.query.get(analysis_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            analysis = _s.get(SecurityAnalysis, analysis_id)
         if not analysis:
             flash('Security analysis not found', 'error')
             return redirect(url_for('analysis.analysis_hub'))
@@ -1403,7 +1418,9 @@ def performance_test_results_view(analysis_id: int):
         from flask import render_template, flash, redirect, url_for
         from ..models import PerformanceTest
 
-        test = PerformanceTest.query.get(analysis_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            test = _s.get(PerformanceTest, analysis_id)
         if not test:
             flash('Performance test not found', 'error')
             return redirect(url_for('analysis.analysis_hub'))
@@ -1434,7 +1451,9 @@ def export_security_analysis(analysis_id: int):
     try:
         from flask import jsonify
         from ..models import SecurityAnalysis
-        analysis = SecurityAnalysis.query.get(analysis_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            analysis = _s.get(SecurityAnalysis, analysis_id)
         if not analysis:
             return jsonify({'success': False, 'error': 'Security analysis not found'}), 404
         return jsonify({
@@ -1457,7 +1476,9 @@ def export_performance_test(analysis_id: int):
     try:
         from flask import jsonify
         from ..models import PerformanceTest
-        test = PerformanceTest.query.get(analysis_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            test = _s.get(PerformanceTest, analysis_id)
         if not test:
             return jsonify({'success': False, 'error': 'Performance test not found'}), 404
         return jsonify({
@@ -1484,7 +1505,9 @@ def htmx_security_tools_status(analysis_id: int):
     """
     try:
         from ..models import SecurityAnalysis
-        analysis = SecurityAnalysis.query.get(analysis_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            analysis = _s.get(SecurityAnalysis, analysis_id)
         if not analysis:
             return render_template('partials/common/error.html', error='Security analysis not found'), 404
 
@@ -1563,7 +1586,9 @@ def security_analysis_complete_view(analysis_id):
         from ..models import SecurityAnalysis
         import json
         
-        analysis = SecurityAnalysis.query.get(analysis_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            analysis = _s.get(SecurityAnalysis, analysis_id)
         if not analysis:
             flash('Security analysis not found', 'error')
             return redirect(url_for('analysis.analysis_hub'))

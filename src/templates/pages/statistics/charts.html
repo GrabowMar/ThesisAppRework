@@ -1,0 +1,699 @@
+{# slug: pages/statistics/charts (auto-migrated) #}
+{#
+  Statistics Charts View
+  
+  Purpose: Interactive data visualizations and custom chart builder
+  Features:
+  - Multiple chart types (line, bar, pie, scatter, heatmap)
+  - Custom chart builder with drag-and-drop
+  - Real-time data updates
+  - Chart export and sharing
+  - Dashboard-style layout with multiple charts
+  
+  Routes:
+  - GET /statistics/charts
+  - GET /statistics/charts/<chart_type>
+  
+  Technical Details:
+  - Extends dashboard.html for optimal chart display
+  - Chart.js and D3.js integration
+  - WebSocket updates for real-time data
+  - Responsive chart layouts
+  
+  Components Used:
+  - components/statistics/chart-container.html
+  - components/forms/filter-panel.html
+  - components/common/modal.html
+  
+  HTMX Endpoints:
+  - /api/charts/data
+  - /api/charts/create
+  - /api/charts/update
+#}
+
+{% extends 'layouts/dashboard.html' %}
+
+{% block title %}Interactive Charts - {{ super() }}{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@9.2.0/dist/gridstack.min.css">
+
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="/statistics">Statistics</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Charts</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block dashboard_title %}Interactive Charts{% endblock %}
+
+{% block quick_actions %}
+<div class="btn-group">
+    <button type="button" class="btn btn-outline-primary btn-sm" id="add-chart-btn"
+            data-bs-toggle="modal" data-bs-target="#chart-builder-modal">
+        <i class="fas fa-plus me-1"></i>Add Chart
+    </button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="save-dashboard">
+        <i class="fas fa-save me-1"></i>Save Layout
+    </button>
+    <button type="button" class="btn btn-outline-info btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="fas fa-share-alt me-1"></i>Share
+    </button>
+    <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="#" id="export-dashboard">
+            <i class="fas fa-download me-2"></i>Export Dashboard</a></li>
+        <li><a class="dropdown-item" href="#" id="share-link">
+            <i class="fas fa-link me-2"></i>Share Link</a></li>
+        <li><a class="dropdown-item" href="#" id="embed-code">
+            <i class="fas fa-code me-2"></i>Embed Code</a></li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block dashboard_stats %}
+<div class="col-md-3 mb-4">
+    <div class="card bg-primary text-white">
+        <div class="card-body text-center">
+            <i class="fas fa-chart-bar fa-2x mb-2"></i>
+            <h4 class="mb-0" id="total-charts">{{ stats.total_charts|default(0) }}</h4>
+            <small>Total Charts</small>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3 mb-4">
+    <div class="card bg-success text-white">
+        <div class="card-body text-center">
+            <i class="fas fa-eye fa-2x mb-2"></i>
+            <h4 class="mb-0" id="chart-views">{{ stats.chart_views|default(0) }}</h4>
+            <small>Chart Views</small>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3 mb-4">
+    <div class="card bg-warning text-white">
+        <div class="card-body text-center">
+            <i class="fas fa-sync-alt fa-2x mb-2"></i>
+            <h4 class="mb-0" id="auto-updates">{{ stats.auto_updates|default(0) }}</h4>
+            <small>Auto Updates</small>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3 mb-4">
+    <div class="card bg-info text-white">
+        <div class="card-body text-center">
+            <i class="fas fa-share-alt fa-2x mb-2"></i>
+            <h4 class="mb-0" id="shared-dashboards">{{ stats.shared_dashboards|default(0) }}</h4>
+            <small>Shared Dashboards</small>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block primary_content %}
+<div class="col-12">
+    {# Chart Dashboard Grid #}
+    <div class="grid-stack" id="chart-dashboard">
+        {% if saved_charts %}
+            {% for chart in saved_charts %}
+            <div class="grid-stack-item" data-gs-x="{{ chart.position.x }}" data-gs-y="{{ chart.position.y }}" 
+                 data-gs-w="{{ chart.position.w }}" data-gs-h="{{ chart.position.h }}" data-chart-id="{{ chart.id }}">
+                <div class="grid-stack-item-content">
+                    <div class="chart-header">
+                        <h6 class="mb-0">{{ chart.title }}</h6>
+                        <div class="chart-controls">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="editChart('{{ chart.id }}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteChart('{{ chart.id }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-{{ chart.id }}" data-chart-config="{{ chart.config|tojson }}"></canvas>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-chart-line fa-4x text-muted mb-3"></i>
+                <h4>No Charts Yet</h4>
+                <p class="text-muted">Create your first chart to get started with data visualization.</p>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#chart-builder-modal">
+                    <i class="fas fa-plus me-1"></i>Create First Chart
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{# Chart Builder Modal #}
+<div class="modal fade" id="chart-builder-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Chart Builder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        {# Chart Configuration Panel #}
+                        <div class="chart-builder-sidebar">
+                            <h6 class="mb-3">Chart Configuration</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Chart Title</label>
+                                <input type="text" class="form-control" id="chart-title" placeholder="Enter chart title">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Chart Type</label>
+                                <div class="chart-type-selector">
+                                    <button type="button" class="chart-type-btn" data-type="line">
+                                        <i class="fas fa-chart-line fa-2x mb-1"></i>
+                                        <small>Line</small>
+                                    </button>
+                                    <button type="button" class="chart-type-btn" data-type="bar">
+                                        <i class="fas fa-chart-bar fa-2x mb-1"></i>
+                                        <small>Bar</small>
+                                    </button>
+                                    <button type="button" class="chart-type-btn" data-type="pie">
+                                        <i class="fas fa-chart-pie fa-2x mb-1"></i>
+                                        <small>Pie</small>
+                                    </button>
+                                    <button type="button" class="chart-type-btn" data-type="doughnut">
+                                        <i class="fas fa-circle-notch fa-2x mb-1"></i>
+                                        <small>Donut</small>
+                                    </button>
+                                    <button type="button" class="chart-type-btn" data-type="scatter">
+                                        <i class="fas fa-braille fa-2x mb-1"></i>
+                                        <small>Scatter</small>
+                                    </button>
+                                    <button type="button" class="chart-type-btn" data-type="area">
+                                        <i class="fas fa-chart-area fa-2x mb-1"></i>
+                                        <small>Area</small>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Data Source</label>
+                                <select class="form-select" id="data-source">
+                                    <option value="">Select data source</option>
+                                    <option value="analyses">Analysis Results</option>
+                                    <option value="models">Model Performance</option>
+                                    <option value="security">Security Metrics</option>
+                                    <option value="performance">Performance Data</option>
+                                    <option value="custom">Custom Query</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Metrics</label>
+                                <div class="data-selector" id="metrics-selector">
+                                    <div class="text-muted text-center py-2">
+                                        Select a data source first
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Time Range</label>
+                                <select class="form-select" id="time-range">
+                                    <option value="7d">Last 7 days</option>
+                                    <option value="30d">Last 30 days</option>
+                                    <option value="90d">Last 90 days</option>
+                                    <option value="1y">Last year</option>
+                                    <option value="all">All time</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="real-time-updates">
+                                    <label class="form-check-label" for="real-time-updates">
+                                        Real-time updates
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-8">
+                        {# Chart Preview #}
+                        <div class="mb-3">
+                            <h6>Preview</h6>
+                            <div class="chart-container" style="height: 400px;">
+                                <canvas id="chart-preview"></canvas>
+                                <div class="chart-placeholder" id="chart-placeholder">
+                                    <div>
+                                        <i class="fas fa-chart-bar fa-3x mb-2"></i>
+                                        <div>Configure your chart to see preview</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {# Chart Data Preview #}
+                        <div class="mb-3">
+                            <h6>Data Preview</h6>
+                            <div class="table-responsive" style="max-height: 200px;">
+                                <table class="table table-sm" id="data-preview-table">
+                                    <thead>
+                                        <tr>
+                                            <th colspan="100%" class="text-center text-muted">
+                                                No data to preview
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-chart" disabled>
+                    <i class="fas fa-save me-1"></i>Add Chart
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@9.2.0/dist/gridstack-all.js"></script>
+
+<script>
+    // Charts View JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // Initialize GridStack
+        const grid = GridStack.init({
+            cellHeight: 70,
+            acceptWidgets: true,
+            removable: false,
+            column: 12,
+            margin: 10,
+            minRow: 10,
+            animate: true
+        });
+        
+        // Chart instances
+        const charts = new Map();
+        let previewChart = null;
+        let currentChartType = 'line';
+        
+        // Initialize existing charts
+        initializeExistingCharts();
+        
+        // Chart type selection
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.chart-type-btn')) {
+                const btn = e.target.closest('.chart-type-btn');
+                document.querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentChartType = btn.dataset.type;
+                updateChartPreview();
+            }
+        });
+        
+        // Data source change
+        document.getElementById('data-source').addEventListener('change', function() {
+            loadMetrics(this.value);
+        });
+        
+        // Form changes
+        ['chart-title', 'time-range', 'real-time-updates'].forEach(id => {
+            document.getElementById(id).addEventListener('change', updateChartPreview);
+        });
+        
+        // Metrics selection
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('metric-item')) {
+                e.target.classList.toggle('selected');
+                updateChartPreview();
+            }
+        });
+        
+        // Save chart
+        document.getElementById('save-chart').addEventListener('click', function() {
+            saveChart();
+        });
+        
+        // Dashboard actions
+        document.getElementById('save-dashboard').addEventListener('click', saveDashboard);
+        document.getElementById('export-dashboard').addEventListener('click', exportDashboard);
+        document.getElementById('share-link').addEventListener('click', shareLink);
+        document.getElementById('embed-code').addEventListener('click', embedCode);
+        
+        function initializeExistingCharts() {
+            const chartElements = document.querySelectorAll('[data-chart-config]');
+            chartElements.forEach(element => {
+                const config = JSON.parse(element.dataset.chartConfig);
+                const ctx = element;
+                const chart = new Chart(ctx, config);
+                charts.set(element.id, chart);
+            });
+        }
+        
+        function loadMetrics(dataSource) {
+            const selector = document.getElementById('metrics-selector');
+            
+            if (!dataSource) {
+                selector.innerHTML = '<div class="text-muted text-center py-2">Select a data source first</div>';
+                return;
+            }
+            
+            fetch(`/api/charts/metrics/${dataSource}`)
+                .then(response => response.json())
+                .then(metrics => {
+                    let html = '';
+                    metrics.forEach(metric => {
+                        html += `
+                            <div class="metric-item" data-metric="${metric.key}">
+                                <div class="fw-bold">${metric.name}</div>
+                                <small class="text-muted">${metric.description}</small>
+                            </div>
+                        `;
+                    });
+                    selector.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading metrics:', error);
+                    selector.innerHTML = '<div class="text-danger text-center py-2">Error loading metrics</div>';
+                });
+        }
+        
+        function updateChartPreview() {
+            const title = document.getElementById('chart-title').value;
+            const dataSource = document.getElementById('data-source').value;
+            const timeRange = document.getElementById('time-range').value;
+            const selectedMetrics = Array.from(document.querySelectorAll('.metric-item.selected')).map(el => el.dataset.metric);
+            
+            if (!dataSource || selectedMetrics.length === 0) {
+                showPlaceholder();
+                document.getElementById('save-chart').disabled = true;
+                return;
+            }
+            
+            document.getElementById('save-chart').disabled = false;
+            
+            // Load chart data
+            fetch('/api/charts/preview-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: currentChartType,
+                    dataSource: dataSource,
+                    metrics: selectedMetrics,
+                    timeRange: timeRange,
+                    title: title
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                createPreviewChart(data);
+                updateDataPreview(data.rawData);
+            })
+            .catch(error => {
+                console.error('Error loading preview data:', error);
+                showPlaceholder();
+            });
+        }
+        
+        function createPreviewChart(chartData) {
+            const ctx = document.getElementById('chart-preview');
+            document.getElementById('chart-placeholder').style.display = 'none';
+            ctx.style.display = 'block';
+            
+            if (previewChart) {
+                previewChart.destroy();
+            }
+            
+            previewChart = new Chart(ctx, {
+                type: currentChartType,
+                data: chartData.data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: !!chartData.title,
+                            text: chartData.title
+                        }
+                    }
+                }
+            });
+        }
+        
+        function showPlaceholder() {
+            const preview = document.getElementById('chart-preview');
+            const placeholder = document.getElementById('chart-placeholder');
+            
+            preview.style.display = 'none';
+            placeholder.style.display = 'flex';
+            
+            if (previewChart) {
+                previewChart.destroy();
+                previewChart = null;
+            }
+        }
+        
+        function updateDataPreview(rawData) {
+            const table = document.getElementById('data-preview-table');
+            if (!rawData || rawData.length === 0) {
+                table.innerHTML = '<thead><tr><th class="text-center text-muted">No data to preview</th></tr></thead>';
+                return;
+            }
+            
+            const columns = Object.keys(rawData[0]);
+            let html = '<thead><tr>';
+            columns.forEach(col => {
+                html += `<th>${col}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            rawData.slice(0, 5).forEach(row => {
+                html += '<tr>';
+                columns.forEach(col => {
+                    html += `<td>${row[col]}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            if (rawData.length > 5) {
+                html += `<tr><td colspan="${columns.length}" class="text-center text-muted">... and ${rawData.length - 5} more rows</td></tr>`;
+            }
+            
+            html += '</tbody>';
+            table.innerHTML = html;
+        }
+        
+        function saveChart() {
+            const config = {
+                title: document.getElementById('chart-title').value,
+                type: currentChartType,
+                dataSource: document.getElementById('data-source').value,
+                metrics: Array.from(document.querySelectorAll('.metric-item.selected')).map(el => el.dataset.metric),
+                timeRange: document.getElementById('time-range').value,
+                realTimeUpdates: document.getElementById('real-time-updates').checked
+            };
+            
+            fetch('/api/charts/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Add chart to grid
+                    addChartToGrid(data.chart);
+                    
+                    // Close modal
+                    bootstrap.Modal.getInstance(document.getElementById('chart-builder-modal')).hide();
+                    
+                    // Show success message
+                    showSuccess('Chart created successfully!');
+                } else {
+                    showError(data.message || 'Failed to create chart');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving chart:', error);
+                showError('Failed to create chart. Please try again.');
+            });
+        }
+        
+        function addChartToGrid(chartData) {
+            const widget = grid.addWidget({
+                w: 6, h: 4,
+                content: `
+                    <div class="grid-stack-item-content">
+                        <div class="chart-header">
+                            <h6 class="mb-0">${chartData.title}</h6>
+                            <div class="chart-controls">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="editChart('${chartData.id}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteChart('${chartData.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-${chartData.id}"></canvas>
+                        </div>
+                    </div>
+                `
+            });
+            
+            // Initialize the chart
+            const canvas = widget.querySelector(`#chart-${chartData.id}`);
+            const chart = new Chart(canvas, chartData.config);
+            charts.set(`chart-${chartData.id}`, chart);
+            
+            widget.dataset.chartId = chartData.id;
+        }
+        
+        function saveDashboard() {
+            const layout = [];
+            grid.engine.nodes.forEach(node => {
+                const element = node.el;
+                layout.push({
+                    chartId: element.dataset.chartId,
+                    x: node.x,
+                    y: node.y,
+                    w: node.w,
+                    h: node.h
+                });
+            });
+            
+            fetch('/api/charts/save-dashboard', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ layout: layout })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccess('Dashboard layout saved!');
+                } else {
+                    showError(data.message || 'Failed to save dashboard');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving dashboard:', error);
+                showError('Failed to save dashboard. Please try again.');
+            });
+        }
+        
+        // Global functions for chart actions
+        window.editChart = function(chartId) {
+            // Implement chart editing
+            console.log('Edit chart:', chartId);
+        };
+        
+        window.deleteChart = function(chartId) {
+            if (confirm('Are you sure you want to delete this chart?')) {
+                fetch(`/api/charts/delete/${chartId}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const widget = document.querySelector(`[data-chart-id="${chartId}"]`);
+                            if (widget) {
+                                grid.removeWidget(widget);
+                            }
+                            showSuccess('Chart deleted successfully!');
+                        } else {
+                            showError(data.message || 'Failed to delete chart');
+                        }
+                    });
+            }
+        };
+        
+        // Utility functions
+        function showSuccess(message) {
+            // Implementation for success notifications
+            const toast = document.createElement('div');
+            toast.className = 'toast-container position-fixed top-0 end-0 p-3';
+            toast.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-header">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <strong class="me-auto">Success</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">${message}</div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 5000);
+        }
+        
+        function showError(message) {
+            // Implementation for error notifications
+            const toast = document.createElement('div');
+            toast.className = 'toast-container position-fixed top-0 end-0 p-3';
+            toast.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-header">
+                        <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                        <strong class="me-auto">Error</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">${message}</div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 5000);
+        }
+        
+        // Export, share, and embed functions
+        function exportDashboard() {
+            // Implementation for dashboard export
+            window.open('/api/charts/export-dashboard', '_blank');
+        }
+        
+        function shareLink() {
+            // Implementation for share link generation
+            navigator.clipboard.writeText(window.location.href);
+            showSuccess('Share link copied to clipboard!');
+        }
+        
+        function embedCode() {
+            // Implementation for embed code generation
+            const embedCode = `<iframe src="${window.location.origin}/charts/embed" width="100%" height="600" frameborder="0"></iframe>`;
+            navigator.clipboard.writeText(embedCode);
+            showSuccess('Embed code copied to clipboard!');
+        }
+    });
+</script>
+{% endblock %}

@@ -707,7 +707,9 @@ class AnalyzerConfigService:
     def get_security_config(self, config_id: Optional[int] = None) -> SecurityAnalyzerConfig:
         """Get security analyzer configuration."""
         if config_id:
-            config_record = AnalysisConfig.query.get(config_id)
+            from app.extensions import get_session
+            with get_session() as _s:
+                config_record = _s.get(AnalysisConfig, config_id)
             if config_record and config_record.config_type == 'security':
                 return self._deserialize_config(config_record.config_data, SecurityAnalyzerConfig)
         

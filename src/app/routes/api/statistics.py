@@ -7,7 +7,8 @@ API endpoints for statistics and data aggregation.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from flask import render_template, request, Response
+from flask import request, Response
+from app.utils.template_paths import render_template_compat as render_template
 from sqlalchemy import text, func
 
 from . import api_bp

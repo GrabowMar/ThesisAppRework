@@ -92,3 +92,104 @@ python scripts/build_start_app.py --model anthropic_claude-3.7-sonnet --app 1
 
 ---
 For detailed analyzer operations see `analyzer/README.md`.
+
+## Template Restructuring (2025-08)
+
+The Jinja template layer was reorganized to simplify navigation and reduce deep nested folders.
+
+### New High-Level Structure
+
+```
+src/templates/
+  layouts/            # Base, dashboard, full-width, modal, etc.
+  pages/              # Feature (domain) pages and their domain-scoped partials
+    analysis/
+    applications/
+    models/
+    batch/
+    statistics/
+    system/
+    about/
+    index/            # Former dashboard index page
+  ui/
+    elements/         # Reusable shared widgets
+      common/
+      navigation/
+      forms/
+      dashboard/
+      misc/
+  errors/
+  RESTRUCTURE_MAPPING.json  # Generated report
+```
+
+Domain-specific components now live in `pages/<domain>/partials/`. Truly shared widgets moved to `ui/elements/` categorized by concern.
+
+### Migration Script
+
+Script: `scripts/restructure_templates.py`
+
+Capabilities:
+* Dry-run default — shows planned moves and reference rewrites
+* Applies moves with `--apply` (creates timestamped backups under `src/templates/template_backups/<timestamp>/`)
+* Updates `{% include %}` / `{% extends %}` paths and removes self-recursive includes
+* Adds a slug header comment to migrated files for traceability
+* Generates `RESTRUCTURE_MAPPING.json` containing mapping metadata
+* Supports `--rollback <timestamp>` to restore from a backup
+
+Examples:
+
+```bash
+# Preview changes
+python scripts/restructure_templates.py
+
+# Apply restructuring
+python scripts/restructure_templates.py --apply
+
+# Rollback (choose timestamp dir name from template_backups)
+python scripts/restructure_templates.py --rollback 20250823_101530
+```
+
+### Updating Python References
+
+If any Flask `render_template` calls referenced old paths (e.g. `views/analysis/list.html`), update them to the new path (`pages/analysis/list.html`). Most includes were automatically rewritten; search for the old prefixes to confirm nothing remains:
+
+```bash
+grep -R "views/" src/app || echo "No legacy view references"
+```
+
+### Rationale
+
+Problems addressed:
+* Too many parallel top-level buckets (`components`, `partials`, `fragments`, `views`)
+* Difficulty locating domain-specific vs shared snippets
+* Redundant self-including component templates
+
+Benefits:
+* Clear feature ownership (`pages/<domain>/*`)
+* Easier to audit and prune unused shared widgets
+* Simplified mental model for adding new partials
+
+### Follow-Up Opportunities
+* Introduce Jinja macros for repeated table / card patterns in `ui/macros/`
+* Add unit tests that render critical templates to catch missing includes after future moves
+* Create a linter script ensuring no new templates are added at root without classification
+
+### Legacy Path Compatibility Wrapper
+
+To minimize churn in Python route modules immediately after the restructure, a compatibility shim was added at `src/app/utils/template_paths.py`.
+
+Key points:
+* Provides `render_template_compat` which transparently remaps legacy template names using `RESTRUCTURE_MAPPING.json`.
+* Heuristics also cover simple patterns (e.g. `views/` -> `pages/`, and the moved error partial).
+* Context keys commonly storing partial paths (e.g. `main_partial`) are remapped automatically.
+
+Usage pattern (inside a route file):
+
+```python
+from ..utils.template_paths import render_template_compat as render_template
+
+return render_template('views/applications/index.html', **context)  # auto-remapped to pages/applications/index.html
+```
+
+Over time you can replace legacy paths with their canonical new counterparts and then optionally remove the shim once `grep` shows no `views/` or `partials/common/error.html` references remain.
+

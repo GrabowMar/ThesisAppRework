@@ -7,7 +7,8 @@ API endpoints for AI model management and information.
 
 import logging
 from typing import Any, Iterable, List
-from flask import jsonify, render_template, request, Response
+from flask import jsonify, request, Response
+from app.utils.template_paths import render_template_compat as render_template
 import os
 from flask import current_app
 

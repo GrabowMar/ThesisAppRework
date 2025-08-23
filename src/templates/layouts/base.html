@@ -1,3 +1,4 @@
+{# slug: layouts/base (auto-migrated) #}
 {#
   Base Layout Template
   
@@ -28,11 +29,24 @@
 #}
 
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
+<html lang="en" data-bs-theme="light" data-theme="light"> {# data-theme kept for custom CSS, data-bs-theme for Bootstrap 5.3 color modes #}
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}AI Model Analysis Platform{% endblock %}</title>
+        {# Early theme application to prevent flash of incorrect theme (FOUC) #}
+        <script>
+            (function() {
+                try {
+                    var stored = localStorage.getItem('theme');
+                    if (stored) {
+                        var effective = stored === 'auto' ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : stored;
+                        document.documentElement.setAttribute('data-theme', stored);
+                        document.documentElement.setAttribute('data-bs-theme', effective);
+                    }
+                } catch(e) { /* ignore */ }
+            })();
+        </script>
     
     {# SEO and Meta Tags #}
     <meta name="description" content="{% block description %}AI Model Analysis Platform for comprehensive analysis of AI-generated applications{% endblock %}">
@@ -71,13 +85,13 @@
     {# Navigation Header #}
     {% block header %}
     {# Include shared navbar component #}
-    {% include 'components/navigation/navbar.html' %}
+    {% include 'ui/elements/navigation/navbar.html' %}
     {% endblock %}
     
     {# Sidebar Navigation #}
     {% block sidebar %}
     {# Include shared sidebar component (desktop + mobile offcanvas) #}
-    {% include 'components/navigation/sidebar.html' %}
+    {% include 'ui/elements/navigation/sidebar.html' %}
     {% endblock %}
     
     {# Main Content Container #}
@@ -101,7 +115,7 @@
             {% endblock %}
 
             {# Optional standard page header (opt-in via blocks) #}
-            {% from 'partials/common/_page_header.html' import page_header %}
+            {% from 'ui/elements/common/_page_header.html' import page_header %}
             {# Provide empty defaults so self.page_title() is always callable #}
             {% block page_title %}{% endblock %}
             {% block page_subtitle %}{% endblock %}

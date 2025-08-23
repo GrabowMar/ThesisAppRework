@@ -1,0 +1,61 @@
+{# slug: pages/models/import (auto-migrated) #}
+{% extends 'layouts/base.html' %}
+
+{% block title %}Import Models - AI Model Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+      <h1 class="h4 mb-0"><i class="fas fa-upload me-2"></i>Import Models</h1>
+      <a href="/models" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back to Models</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <p class="text-muted">Upload a JSON file exported from this app (via Export Data) or an OpenRouter models JSON payload.</p>
+      <div class="mb-3">
+        <input type="file" class="form-control" id="models-file" accept="application/json">
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary" onclick="importModels()"><i class="fas fa-upload me-1"></i>Import</button>
+        <button class="btn btn-outline-secondary" onclick="clearResult()">Clear</button>
+      </div>
+      <div class="mt-3" id="import-result"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function importModels() {
+  const input = document.getElementById('models-file');
+  const out = document.getElementById('import-result');
+  out.innerHTML = '';
+  if (!input.files || !input.files[0]) {
+    out.innerHTML = '<div class="alert alert-warning">Please choose a JSON file to import.</div>';
+    return;
+  }
+  try {
+    const text = await input.files[0].text();
+    const json = JSON.parse(text);
+    const res = await fetch('/api/models/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(json)
+    });
+    const data = await res.json();
+    if (!res.ok || data.success === false) {
+      out.innerHTML = `<div class="alert alert-danger">Import failed: ${data.error || res.statusText}</div>`;
+    } else {
+      out.innerHTML = `<div class="alert alert-success">Imported successfully. Strategy: <strong>${data.import_strategy}</strong>. Created: ${data.created}, Updated: ${data.updated}</div>`;
+    }
+  } catch (e) {
+    out.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`;
+  }
+}
+function clearResult() {
+  document.getElementById('import-result').innerHTML = '';
+}
+</script>
+{% endblock %}

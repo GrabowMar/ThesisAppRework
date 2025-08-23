@@ -6,7 +6,8 @@ API endpoints for dashboard data and visualizations.
 """
 
 import logging
-from flask import jsonify, render_template
+from flask import jsonify
+from app.utils.template_paths import render_template_compat as render_template
 from flask import Response
 import psutil
 from datetime import datetime, timedelta, timezone
@@ -152,7 +153,6 @@ def api_dashboard_activity():
 def dashboard_activity_timeline():
     """Render activity timeline HTML for dashboard."""
     try:
-        from flask import render_template
         # Build recent activities list
         activities = []
 

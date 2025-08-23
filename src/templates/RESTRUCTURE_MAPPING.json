@@ -1,0 +1,973 @@
+{
+  "timestamp": "20250823_114505",
+  "applied": true,
+  "changed_files": {
+    "components/analysis/dynamic_tabs.html": "pages/analysis/partials/dynamic_tabs.html",
+    "components/analysis/performance_tabs.html": "pages/analysis/partials/performance_tabs.html",
+    "components/analysis/security_tabs.html": "pages/analysis/partials/security_tabs.html",
+    "components/applications/app-card.html": "pages/applications/partials/app-card.html",
+    "components/applications/container-controls.html": "pages/applications/partials/container-controls.html",
+    "components/applications/deployment-info.html": "pages/applications/partials/deployment-info.html",
+    "components/applications/file-browser.html": "pages/applications/partials/file-browser.html",
+    "components/applications/port-status.html": "pages/applications/partials/port-status.html",
+    "components/batch/job-card.html": "pages/batch/partials/job-card.html",
+    "components/batch/progress-monitor.html": "pages/batch/partials/progress-monitor.html",
+    "components/batch/queue-status.html": "pages/batch/partials/queue-status.html",
+    "components/batch/results-summary.html": "pages/batch/partials/results-summary.html",
+    "components/common/alert.html": "ui/elements/common/alert.html",
+    "components/common/breadcrumb.html": "ui/elements/common/breadcrumb.html",
+    "components/common/card.html": "ui/elements/common/card.html",
+    "components/common/confirmation.html": "ui/elements/common/confirmation.html",
+    "components/common/empty-state.html": "ui/elements/common/empty-state.html",
+    "components/common/loading.html": "ui/elements/common/loading.html",
+    "components/common/modal.html": "ui/elements/common/modal.html",
+    "components/common/pagination.html": "ui/elements/common/pagination.html",
+    "components/common/progress.html": "ui/elements/common/progress.html",
+    "components/common/status-badge.html": "ui/elements/common/status-badge.html",
+    "components/dashboard/activity-timeline.html": "ui/elements/dashboard/activity-timeline.html",
+    "components/dashboard/chart-card.html": "ui/elements/dashboard/chart-card.html",
+    "components/dashboard/quick-actions.html": "ui/elements/dashboard/quick-actions.html",
+    "components/dashboard/recent-items.html": "ui/elements/dashboard/recent-items.html",
+    "components/dashboard/service-status.html": "ui/elements/dashboard/service-status.html",
+    "components/dashboard/stat-card.html": "ui/elements/dashboard/stat-card.html",
+    "components/dashboard/system-health.html": "pages/system/partials/system-health.html",
+    "components/forms/app-selector.html": "ui/elements/forms/app-selector.html",
+    "components/forms/bulk-actions.html": "ui/elements/forms/bulk-actions.html",
+    "components/forms/date-range.html": "ui/elements/forms/date-range.html",
+    "components/forms/filter-panel.html": "ui/elements/forms/filter-panel.html",
+    "components/forms/model-selector.html": "ui/elements/forms/model-selector.html",
+    "components/forms/search-box.html": "ui/elements/forms/search-box.html",
+    "components/models/capability-matrix.html": "pages/models/partials/capability-matrix.html",
+    "components/models/model-card.html": "pages/models/partials/model-card.html",
+    "components/models/pricing-info.html": "pages/models/partials/pricing-info.html",
+    "components/models/provider-badge.html": "pages/models/partials/provider-badge.html",
+    "components/navigation/breadcrumbs.html": "ui/elements/navigation/breadcrumbs.html",
+    "components/navigation/navbar.html": "ui/elements/navigation/navbar.html",
+    "components/navigation/sidebar.html": "ui/elements/navigation/sidebar.html",
+    "components/navigation/step-indicator.html": "ui/elements/navigation/step-indicator.html",
+    "components/navigation/tab-navigation.html": "ui/elements/navigation/tab-navigation.html",
+    "components/statistics/chart-container.html": "pages/statistics/partials/chart-container.html",
+    "components/statistics/comparison-chart.html": "pages/statistics/partials/comparison-chart.html",
+    "components/statistics/data-table.html": "pages/statistics/partials/data-table.html",
+    "components/statistics/metric-card.html": "pages/statistics/partials/metric-card.html",
+    "components/statistics/trend-indicator.html": "pages/statistics/partials/trend-indicator.html",
+    "fragments/applications_grid.html": "pages/applications/partials/applications_grid.html",
+    "fragments/api/analysis-list.html": "pages/analysis/partials/analysis-list.html",
+    "fragments/api/model-applications.html": "pages/applications/partials/model-applications.html",
+    "fragments/api/model-grid.html": "ui/elements/misc/model-grid.html",
+    "fragments/htmx/analysis-progress.html": "pages/analysis/partials/analysis-progress.html",
+    "fragments/htmx/dashboard-stats.html": "ui/elements/misc/dashboard-stats.html",
+    "fragments/htmx/live-logs.html": "ui/elements/misc/live-logs.html",
+    "fragments/htmx/recent-activity.html": "ui/elements/misc/recent-activity.html",
+    "fragments/modals/analysis-detail.html": "pages/analysis/partials/analysis-detail.html",
+    "fragments/tables/analysis-rows.html": "pages/analysis/partials/analysis-rows.html",
+    "partials/application_logs.html": "ui/elements/misc/application_logs.html",
+    "partials/app_logs_modal.html": "ui/elements/misc/app_logs_modal.html",
+    "partials/bulk_operations.html": "ui/elements/misc/bulk_operations.html",
+    "partials/realtime_dashboard.html": "ui/elements/misc/realtime_dashboard.html",
+    "partials/analysis/dynamic_complete.html": "pages/analysis/partials/dynamic_complete.html",
+    "partials/analysis/hub_stats.html": "pages/analysis/partials/hub_stats.html",
+    "partials/analysis/performance_complete.html": "pages/analysis/partials/performance_complete.html",
+    "partials/analysis/recent_combined.html": "pages/analysis/partials/recent_combined.html",
+    "partials/analysis/security_complete.html": "pages/analysis/partials/security_complete.html",
+    "partials/analysis/security_tools_status.html": "pages/analysis/partials/security_tools_status.html",
+    "partials/analysis/_stats_cards_inner.html": "pages/analysis/partials/_stats_cards_inner.html",
+    "partials/analysis/create/batch_form.html": "pages/analysis/partials/batch_form.html",
+    "partials/analysis/create/comprehensive_start_result.html": "pages/analysis/partials/comprehensive_start_result.html",
+    "partials/analysis/create/dynamic_test_form.html": "pages/analysis/partials/dynamic_test_form.html",
+    "partials/analysis/create/performance_test_form.html": "pages/analysis/partials/performance_test_form.html",
+    "partials/analysis/create/security_test_form.html": "pages/analysis/partials/security_test_form.html",
+    "partials/analysis/create/start_result.html": "pages/analysis/partials/start_result.html",
+    "partials/analysis/list/active_tasks.html": "pages/analysis/partials/active_tasks.html",
+    "partials/analysis/list/combined.html": "pages/analysis/partials/combined.html",
+    "partials/analysis/list/completed_tasks.html": "pages/analysis/partials/completed_tasks.html",
+    "partials/analysis/list/dynamic.html": "pages/analysis/partials/dynamic.html",
+    "partials/analysis/list/performance.html": "pages/analysis/partials/performance.html",
+    "partials/analysis/list/security.html": "pages/analysis/partials/security.html",
+    "partials/analysis/list/shell.html": "pages/analysis/partials/shell.html",
+    "partials/analysis/list/task_history.html": "pages/analysis/partials/task_history.html",
+    "partials/applications/file_preview.html": "pages/applications/partials/file_preview.html",
+    "partials/applications/sections/analyses.html": "pages/applications/partials/analyses.html",
+    "partials/applications/sections/artifacts.html": "pages/applications/partials/artifacts.html",
+    "partials/applications/sections/container.html": "pages/applications/partials/container.html",
+    "partials/applications/sections/files.html": "pages/applications/partials/files.html",
+    "partials/applications/sections/metadata.html": "pages/applications/partials/metadata.html",
+    "partials/applications/sections/overview.html": "pages/applications/partials/overview.html",
+    "partials/applications/sections/ports.html": "pages/applications/partials/ports.html",
+    "partials/applications/sections/prompts.html": "pages/applications/partials/prompts.html",
+    "partials/apps_grid/model_apps_inline.html": "ui/elements/misc/model_apps_inline.html",
+    "partials/common/error.html": "ui/elements/common/error.html",
+    "partials/common/model_apps_select.html": "ui/elements/common/model_apps_select.html",
+    "partials/common/_module_wrapper.html": "ui/elements/common/_module_wrapper.html",
+    "partials/common/_page_header.html": "ui/elements/common/_page_header.html",
+    "partials/common/_sidebar_stats_inner.html": "ui/elements/common/_sidebar_stats_inner.html",
+    "partials/dashboard/analyzer_services.html": "ui/elements/dashboard/analyzer_services.html",
+    "partials/dashboard/top_models.html": "pages/models/partials/top_models.html",
+    "partials/dashboard/_dashboard_stats_inner.html": "ui/elements/dashboard/_dashboard_stats_inner.html",
+    "partials/dashboard/_docker_status_inner.html": "ui/elements/dashboard/_docker_status_inner.html",
+    "partials/dashboard/_system_health_inner.html": "pages/system/partials/_system_health_inner.html",
+    "partials/models/comparison_matrix.html": "pages/models/partials/comparison_matrix.html",
+    "partials/models/disabled_badge.html": "pages/models/partials/disabled_badge.html",
+    "partials/models/more_info_modal_body.html": "pages/models/partials/more_info_modal_body.html",
+    "partials/models/_model_options.html": "pages/models/partials/_model_options.html",
+    "partials/statistics/top_models_table.html": "pages/statistics/partials/top_models_table.html",
+    "partials/tasks/shell.html": "ui/elements/misc/shell.html",
+    "spa/analysis_content.html": "pages/analysis/spa/analysis_content.html",
+    "spa/applications_content.html": "pages/applications/spa/applications_content.html",
+    "spa/dashboard_content.html": "pages/misc/spa/dashboard_content.html",
+    "spa/models_content.html": "pages/models/spa/models_content.html",
+    "views/about.html": "pages/about/about.html",
+    "views/analysis/compare.html": "pages/analysis/compare.html",
+    "views/analysis/create.html": "pages/analysis/create.html",
+    "views/analysis/detail.html": "pages/analysis/detail.html",
+    "views/analysis/hub.html": "pages/analysis/hub.html",
+    "views/analysis/list.html": "pages/analysis/list.html",
+    "views/applications/detail.html": "pages/applications/detail.html",
+    "views/applications/files.html": "pages/applications/files.html",
+    "views/applications/index.html": "pages/applications/index.html",
+    "views/batch/create.html": "pages/batch/create.html",
+    "views/batch/history.html": "pages/batch/history.html",
+    "views/batch/overview.html": "pages/batch/overview.html",
+    "views/dashboard/index.html": "pages/index/index.html",
+    "views/models/comparison.html": "pages/models/comparison.html",
+    "views/models/detail.html": "pages/models/detail.html",
+    "views/models/import.html": "pages/models/import.html",
+    "views/models/overview.html": "pages/models/overview.html",
+    "views/statistics/charts.html": "pages/statistics/charts.html",
+    "views/statistics/overview.html": "pages/statistics/overview.html",
+    "views/statistics/reports.html": "pages/statistics/reports.html",
+    "views/system/logs.html": "pages/system/logs.html",
+    "views/system/settings.html": "pages/system/settings.html",
+    "views/system/status.html": "pages/system/status.html"
+  },
+  "mapping": {
+    "components/analysis/dynamic_tabs.html": {
+      "old": "components/analysis/dynamic_tabs.html",
+      "new": "pages/analysis/partials/dynamic_tabs.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "components/analysis/performance_tabs.html": {
+      "old": "components/analysis/performance_tabs.html",
+      "new": "pages/analysis/partials/performance_tabs.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "components/analysis/security_tabs.html": {
+      "old": "components/analysis/security_tabs.html",
+      "new": "pages/analysis/partials/security_tabs.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "components/applications/app-card.html": {
+      "old": "components/applications/app-card.html",
+      "new": "pages/applications/partials/app-card.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "components/applications/container-controls.html": {
+      "old": "components/applications/container-controls.html",
+      "new": "pages/applications/partials/container-controls.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "components/applications/deployment-info.html": {
+      "old": "components/applications/deployment-info.html",
+      "new": "pages/applications/partials/deployment-info.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "components/applications/file-browser.html": {
+      "old": "components/applications/file-browser.html",
+      "new": "pages/applications/partials/file-browser.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "components/applications/port-status.html": {
+      "old": "components/applications/port-status.html",
+      "new": "pages/applications/partials/port-status.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "components/batch/job-card.html": {
+      "old": "components/batch/job-card.html",
+      "new": "pages/batch/partials/job-card.html",
+      "reason": "domain partial",
+      "domain": "batch"
+    },
+    "components/batch/progress-monitor.html": {
+      "old": "components/batch/progress-monitor.html",
+      "new": "pages/batch/partials/progress-monitor.html",
+      "reason": "domain partial",
+      "domain": "batch"
+    },
+    "components/batch/queue-status.html": {
+      "old": "components/batch/queue-status.html",
+      "new": "pages/batch/partials/queue-status.html",
+      "reason": "domain partial",
+      "domain": "batch"
+    },
+    "components/batch/results-summary.html": {
+      "old": "components/batch/results-summary.html",
+      "new": "pages/batch/partials/results-summary.html",
+      "reason": "domain partial",
+      "domain": "batch"
+    },
+    "components/common/alert.html": {
+      "old": "components/common/alert.html",
+      "new": "ui/elements/common/alert.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/breadcrumb.html": {
+      "old": "components/common/breadcrumb.html",
+      "new": "ui/elements/common/breadcrumb.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/card.html": {
+      "old": "components/common/card.html",
+      "new": "ui/elements/common/card.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/confirmation.html": {
+      "old": "components/common/confirmation.html",
+      "new": "ui/elements/common/confirmation.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/empty-state.html": {
+      "old": "components/common/empty-state.html",
+      "new": "ui/elements/common/empty-state.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/loading.html": {
+      "old": "components/common/loading.html",
+      "new": "ui/elements/common/loading.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/modal.html": {
+      "old": "components/common/modal.html",
+      "new": "ui/elements/common/modal.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/pagination.html": {
+      "old": "components/common/pagination.html",
+      "new": "ui/elements/common/pagination.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/progress.html": {
+      "old": "components/common/progress.html",
+      "new": "ui/elements/common/progress.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/common/status-badge.html": {
+      "old": "components/common/status-badge.html",
+      "new": "ui/elements/common/status-badge.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/dashboard/activity-timeline.html": {
+      "old": "components/dashboard/activity-timeline.html",
+      "new": "ui/elements/dashboard/activity-timeline.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/dashboard/chart-card.html": {
+      "old": "components/dashboard/chart-card.html",
+      "new": "ui/elements/dashboard/chart-card.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/dashboard/quick-actions.html": {
+      "old": "components/dashboard/quick-actions.html",
+      "new": "ui/elements/dashboard/quick-actions.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/dashboard/recent-items.html": {
+      "old": "components/dashboard/recent-items.html",
+      "new": "ui/elements/dashboard/recent-items.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/dashboard/service-status.html": {
+      "old": "components/dashboard/service-status.html",
+      "new": "ui/elements/dashboard/service-status.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/dashboard/stat-card.html": {
+      "old": "components/dashboard/stat-card.html",
+      "new": "ui/elements/dashboard/stat-card.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/dashboard/system-health.html": {
+      "old": "components/dashboard/system-health.html",
+      "new": "pages/system/partials/system-health.html",
+      "reason": "domain partial",
+      "domain": "system"
+    },
+    "components/forms/app-selector.html": {
+      "old": "components/forms/app-selector.html",
+      "new": "ui/elements/forms/app-selector.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/forms/bulk-actions.html": {
+      "old": "components/forms/bulk-actions.html",
+      "new": "ui/elements/forms/bulk-actions.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/forms/date-range.html": {
+      "old": "components/forms/date-range.html",
+      "new": "ui/elements/forms/date-range.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/forms/filter-panel.html": {
+      "old": "components/forms/filter-panel.html",
+      "new": "ui/elements/forms/filter-panel.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/forms/model-selector.html": {
+      "old": "components/forms/model-selector.html",
+      "new": "ui/elements/forms/model-selector.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/forms/search-box.html": {
+      "old": "components/forms/search-box.html",
+      "new": "ui/elements/forms/search-box.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/models/capability-matrix.html": {
+      "old": "components/models/capability-matrix.html",
+      "new": "pages/models/partials/capability-matrix.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "components/models/model-card.html": {
+      "old": "components/models/model-card.html",
+      "new": "pages/models/partials/model-card.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "components/models/pricing-info.html": {
+      "old": "components/models/pricing-info.html",
+      "new": "pages/models/partials/pricing-info.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "components/models/provider-badge.html": {
+      "old": "components/models/provider-badge.html",
+      "new": "pages/models/partials/provider-badge.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "components/navigation/breadcrumbs.html": {
+      "old": "components/navigation/breadcrumbs.html",
+      "new": "ui/elements/navigation/breadcrumbs.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/navigation/navbar.html": {
+      "old": "components/navigation/navbar.html",
+      "new": "ui/elements/navigation/navbar.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/navigation/sidebar.html": {
+      "old": "components/navigation/sidebar.html",
+      "new": "ui/elements/navigation/sidebar.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/navigation/step-indicator.html": {
+      "old": "components/navigation/step-indicator.html",
+      "new": "ui/elements/navigation/step-indicator.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/navigation/tab-navigation.html": {
+      "old": "components/navigation/tab-navigation.html",
+      "new": "ui/elements/navigation/tab-navigation.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "components/statistics/chart-container.html": {
+      "old": "components/statistics/chart-container.html",
+      "new": "pages/statistics/partials/chart-container.html",
+      "reason": "domain partial",
+      "domain": "statistics"
+    },
+    "components/statistics/comparison-chart.html": {
+      "old": "components/statistics/comparison-chart.html",
+      "new": "pages/statistics/partials/comparison-chart.html",
+      "reason": "domain partial",
+      "domain": "statistics"
+    },
+    "components/statistics/data-table.html": {
+      "old": "components/statistics/data-table.html",
+      "new": "pages/statistics/partials/data-table.html",
+      "reason": "domain partial",
+      "domain": "statistics"
+    },
+    "components/statistics/metric-card.html": {
+      "old": "components/statistics/metric-card.html",
+      "new": "pages/statistics/partials/metric-card.html",
+      "reason": "domain partial",
+      "domain": "statistics"
+    },
+    "components/statistics/trend-indicator.html": {
+      "old": "components/statistics/trend-indicator.html",
+      "new": "pages/statistics/partials/trend-indicator.html",
+      "reason": "domain partial",
+      "domain": "statistics"
+    },
+    "fragments/applications_grid.html": {
+      "old": "fragments/applications_grid.html",
+      "new": "pages/applications/partials/applications_grid.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "fragments/api/analysis-list.html": {
+      "old": "fragments/api/analysis-list.html",
+      "new": "pages/analysis/partials/analysis-list.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "fragments/api/model-applications.html": {
+      "old": "fragments/api/model-applications.html",
+      "new": "pages/applications/partials/model-applications.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "fragments/api/model-grid.html": {
+      "old": "fragments/api/model-grid.html",
+      "new": "ui/elements/misc/model-grid.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "fragments/htmx/analysis-progress.html": {
+      "old": "fragments/htmx/analysis-progress.html",
+      "new": "pages/analysis/partials/analysis-progress.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "fragments/htmx/dashboard-stats.html": {
+      "old": "fragments/htmx/dashboard-stats.html",
+      "new": "ui/elements/misc/dashboard-stats.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "fragments/htmx/live-logs.html": {
+      "old": "fragments/htmx/live-logs.html",
+      "new": "ui/elements/misc/live-logs.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "fragments/htmx/recent-activity.html": {
+      "old": "fragments/htmx/recent-activity.html",
+      "new": "ui/elements/misc/recent-activity.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "fragments/htmx/system-health.html": {
+      "old": "fragments/htmx/system-health.html",
+      "new": "pages/system/partials/system-health.html",
+      "reason": "domain partial",
+      "domain": "system"
+    },
+    "fragments/modals/analysis-detail.html": {
+      "old": "fragments/modals/analysis-detail.html",
+      "new": "pages/analysis/partials/analysis-detail.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "fragments/tables/analysis-rows.html": {
+      "old": "fragments/tables/analysis-rows.html",
+      "new": "pages/analysis/partials/analysis-rows.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/application_logs.html": {
+      "old": "partials/application_logs.html",
+      "new": "ui/elements/misc/application_logs.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/app_logs_modal.html": {
+      "old": "partials/app_logs_modal.html",
+      "new": "ui/elements/misc/app_logs_modal.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/bulk_operations.html": {
+      "old": "partials/bulk_operations.html",
+      "new": "ui/elements/misc/bulk_operations.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/realtime_dashboard.html": {
+      "old": "partials/realtime_dashboard.html",
+      "new": "ui/elements/misc/realtime_dashboard.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/analysis/dynamic_complete.html": {
+      "old": "partials/analysis/dynamic_complete.html",
+      "new": "pages/analysis/partials/dynamic_complete.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/hub_stats.html": {
+      "old": "partials/analysis/hub_stats.html",
+      "new": "pages/analysis/partials/hub_stats.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/performance_complete.html": {
+      "old": "partials/analysis/performance_complete.html",
+      "new": "pages/analysis/partials/performance_complete.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/recent_combined.html": {
+      "old": "partials/analysis/recent_combined.html",
+      "new": "pages/analysis/partials/recent_combined.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/security_complete.html": {
+      "old": "partials/analysis/security_complete.html",
+      "new": "pages/analysis/partials/security_complete.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/security_tools_status.html": {
+      "old": "partials/analysis/security_tools_status.html",
+      "new": "pages/analysis/partials/security_tools_status.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/_stats_cards_inner.html": {
+      "old": "partials/analysis/_stats_cards_inner.html",
+      "new": "pages/analysis/partials/_stats_cards_inner.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/create/batch_form.html": {
+      "old": "partials/analysis/create/batch_form.html",
+      "new": "pages/analysis/partials/batch_form.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/create/comprehensive_start_result.html": {
+      "old": "partials/analysis/create/comprehensive_start_result.html",
+      "new": "pages/analysis/partials/comprehensive_start_result.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/create/dynamic_test_form.html": {
+      "old": "partials/analysis/create/dynamic_test_form.html",
+      "new": "pages/analysis/partials/dynamic_test_form.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/create/performance_test_form.html": {
+      "old": "partials/analysis/create/performance_test_form.html",
+      "new": "pages/analysis/partials/performance_test_form.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/create/security_test_form.html": {
+      "old": "partials/analysis/create/security_test_form.html",
+      "new": "pages/analysis/partials/security_test_form.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/create/start_result.html": {
+      "old": "partials/analysis/create/start_result.html",
+      "new": "pages/analysis/partials/start_result.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/list/active_tasks.html": {
+      "old": "partials/analysis/list/active_tasks.html",
+      "new": "pages/analysis/partials/active_tasks.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/list/combined.html": {
+      "old": "partials/analysis/list/combined.html",
+      "new": "pages/analysis/partials/combined.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/list/completed_tasks.html": {
+      "old": "partials/analysis/list/completed_tasks.html",
+      "new": "pages/analysis/partials/completed_tasks.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/list/dynamic.html": {
+      "old": "partials/analysis/list/dynamic.html",
+      "new": "pages/analysis/partials/dynamic.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/list/performance.html": {
+      "old": "partials/analysis/list/performance.html",
+      "new": "pages/analysis/partials/performance.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/list/security.html": {
+      "old": "partials/analysis/list/security.html",
+      "new": "pages/analysis/partials/security.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/list/shell.html": {
+      "old": "partials/analysis/list/shell.html",
+      "new": "pages/analysis/partials/shell.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/analysis/list/task_history.html": {
+      "old": "partials/analysis/list/task_history.html",
+      "new": "pages/analysis/partials/task_history.html",
+      "reason": "domain partial",
+      "domain": "analysis"
+    },
+    "partials/applications/file_preview.html": {
+      "old": "partials/applications/file_preview.html",
+      "new": "pages/applications/partials/file_preview.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/applications/sections/analyses.html": {
+      "old": "partials/applications/sections/analyses.html",
+      "new": "pages/applications/partials/analyses.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/applications/sections/artifacts.html": {
+      "old": "partials/applications/sections/artifacts.html",
+      "new": "pages/applications/partials/artifacts.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/applications/sections/container.html": {
+      "old": "partials/applications/sections/container.html",
+      "new": "pages/applications/partials/container.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/applications/sections/files.html": {
+      "old": "partials/applications/sections/files.html",
+      "new": "pages/applications/partials/files.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/applications/sections/metadata.html": {
+      "old": "partials/applications/sections/metadata.html",
+      "new": "pages/applications/partials/metadata.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/applications/sections/overview.html": {
+      "old": "partials/applications/sections/overview.html",
+      "new": "pages/applications/partials/overview.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/applications/sections/ports.html": {
+      "old": "partials/applications/sections/ports.html",
+      "new": "pages/applications/partials/ports.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/applications/sections/prompts.html": {
+      "old": "partials/applications/sections/prompts.html",
+      "new": "pages/applications/partials/prompts.html",
+      "reason": "domain partial",
+      "domain": "applications"
+    },
+    "partials/apps_grid/model_apps_inline.html": {
+      "old": "partials/apps_grid/model_apps_inline.html",
+      "new": "ui/elements/misc/model_apps_inline.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/common/error.html": {
+      "old": "partials/common/error.html",
+      "new": "ui/elements/common/error.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/common/model_apps_select.html": {
+      "old": "partials/common/model_apps_select.html",
+      "new": "ui/elements/common/model_apps_select.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/common/_module_wrapper.html": {
+      "old": "partials/common/_module_wrapper.html",
+      "new": "ui/elements/common/_module_wrapper.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/common/_page_header.html": {
+      "old": "partials/common/_page_header.html",
+      "new": "ui/elements/common/_page_header.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/common/_sidebar_stats_inner.html": {
+      "old": "partials/common/_sidebar_stats_inner.html",
+      "new": "ui/elements/common/_sidebar_stats_inner.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/dashboard/analyzer_services.html": {
+      "old": "partials/dashboard/analyzer_services.html",
+      "new": "ui/elements/dashboard/analyzer_services.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/dashboard/top_models.html": {
+      "old": "partials/dashboard/top_models.html",
+      "new": "pages/models/partials/top_models.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "partials/dashboard/_dashboard_stats_inner.html": {
+      "old": "partials/dashboard/_dashboard_stats_inner.html",
+      "new": "ui/elements/dashboard/_dashboard_stats_inner.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/dashboard/_docker_status_inner.html": {
+      "old": "partials/dashboard/_docker_status_inner.html",
+      "new": "ui/elements/dashboard/_docker_status_inner.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "partials/dashboard/_system_health_inner.html": {
+      "old": "partials/dashboard/_system_health_inner.html",
+      "new": "pages/system/partials/_system_health_inner.html",
+      "reason": "domain partial",
+      "domain": "system"
+    },
+    "partials/models/comparison_matrix.html": {
+      "old": "partials/models/comparison_matrix.html",
+      "new": "pages/models/partials/comparison_matrix.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "partials/models/disabled_badge.html": {
+      "old": "partials/models/disabled_badge.html",
+      "new": "pages/models/partials/disabled_badge.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "partials/models/more_info_modal_body.html": {
+      "old": "partials/models/more_info_modal_body.html",
+      "new": "pages/models/partials/more_info_modal_body.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "partials/models/_model_options.html": {
+      "old": "partials/models/_model_options.html",
+      "new": "pages/models/partials/_model_options.html",
+      "reason": "domain partial",
+      "domain": "models"
+    },
+    "partials/statistics/top_models_table.html": {
+      "old": "partials/statistics/top_models_table.html",
+      "new": "pages/statistics/partials/top_models_table.html",
+      "reason": "domain partial",
+      "domain": "statistics"
+    },
+    "partials/tasks/shell.html": {
+      "old": "partials/tasks/shell.html",
+      "new": "ui/elements/misc/shell.html",
+      "reason": "shared element",
+      "domain": null
+    },
+    "spa/analysis_content.html": {
+      "old": "spa/analysis_content.html",
+      "new": "pages/analysis/spa/analysis_content.html",
+      "reason": "spa content",
+      "domain": "analysis"
+    },
+    "spa/applications_content.html": {
+      "old": "spa/applications_content.html",
+      "new": "pages/applications/spa/applications_content.html",
+      "reason": "spa content",
+      "domain": "applications"
+    },
+    "spa/dashboard_content.html": {
+      "old": "spa/dashboard_content.html",
+      "new": "pages/misc/spa/dashboard_content.html",
+      "reason": "spa content",
+      "domain": null
+    },
+    "spa/models_content.html": {
+      "old": "spa/models_content.html",
+      "new": "pages/models/spa/models_content.html",
+      "reason": "spa content",
+      "domain": "models"
+    },
+    "views/about.html": {
+      "old": "views/about.html",
+      "new": "pages/about/about.html",
+      "reason": "page view",
+      "domain": "about"
+    },
+    "views/analysis/compare.html": {
+      "old": "views/analysis/compare.html",
+      "new": "pages/analysis/compare.html",
+      "reason": "page view",
+      "domain": "analysis"
+    },
+    "views/analysis/create.html": {
+      "old": "views/analysis/create.html",
+      "new": "pages/analysis/create.html",
+      "reason": "page view",
+      "domain": "analysis"
+    },
+    "views/analysis/detail.html": {
+      "old": "views/analysis/detail.html",
+      "new": "pages/analysis/detail.html",
+      "reason": "page view",
+      "domain": "analysis"
+    },
+    "views/analysis/hub.html": {
+      "old": "views/analysis/hub.html",
+      "new": "pages/analysis/hub.html",
+      "reason": "page view",
+      "domain": "analysis"
+    },
+    "views/analysis/list.html": {
+      "old": "views/analysis/list.html",
+      "new": "pages/analysis/list.html",
+      "reason": "page view",
+      "domain": "analysis"
+    },
+    "views/applications/detail.html": {
+      "old": "views/applications/detail.html",
+      "new": "pages/applications/detail.html",
+      "reason": "page view",
+      "domain": "applications"
+    },
+    "views/applications/files.html": {
+      "old": "views/applications/files.html",
+      "new": "pages/applications/files.html",
+      "reason": "page view",
+      "domain": "applications"
+    },
+    "views/applications/index.html": {
+      "old": "views/applications/index.html",
+      "new": "pages/applications/index.html",
+      "reason": "page view",
+      "domain": "applications"
+    },
+    "views/batch/create.html": {
+      "old": "views/batch/create.html",
+      "new": "pages/batch/create.html",
+      "reason": "page view",
+      "domain": "batch"
+    },
+    "views/batch/history.html": {
+      "old": "views/batch/history.html",
+      "new": "pages/batch/history.html",
+      "reason": "page view",
+      "domain": "batch"
+    },
+    "views/batch/overview.html": {
+      "old": "views/batch/overview.html",
+      "new": "pages/batch/overview.html",
+      "reason": "page view",
+      "domain": "batch"
+    },
+    "views/dashboard/index.html": {
+      "old": "views/dashboard/index.html",
+      "new": "pages/index/index.html",
+      "reason": "page view",
+      "domain": null
+    },
+    "views/models/comparison.html": {
+      "old": "views/models/comparison.html",
+      "new": "pages/models/comparison.html",
+      "reason": "page view",
+      "domain": "models"
+    },
+    "views/models/detail.html": {
+      "old": "views/models/detail.html",
+      "new": "pages/models/detail.html",
+      "reason": "page view",
+      "domain": "models"
+    },
+    "views/models/import.html": {
+      "old": "views/models/import.html",
+      "new": "pages/models/import.html",
+      "reason": "page view",
+      "domain": "models"
+    },
+    "views/models/overview.html": {
+      "old": "views/models/overview.html",
+      "new": "pages/models/overview.html",
+      "reason": "page view",
+      "domain": "models"
+    },
+    "views/statistics/charts.html": {
+      "old": "views/statistics/charts.html",
+      "new": "pages/statistics/charts.html",
+      "reason": "page view",
+      "domain": "statistics"
+    },
+    "views/statistics/overview.html": {
+      "old": "views/statistics/overview.html",
+      "new": "pages/statistics/overview.html",
+      "reason": "page view",
+      "domain": "statistics"
+    },
+    "views/statistics/reports.html": {
+      "old": "views/statistics/reports.html",
+      "new": "pages/statistics/reports.html",
+      "reason": "page view",
+      "domain": "statistics"
+    },
+    "views/system/logs.html": {
+      "old": "views/system/logs.html",
+      "new": "pages/system/logs.html",
+      "reason": "page view",
+      "domain": "system"
+    },
+    "views/system/settings.html": {
+      "old": "views/system/settings.html",
+      "new": "pages/system/settings.html",
+      "reason": "page view",
+      "domain": "system"
+    },
+    "views/system/status.html": {
+      "old": "views/system/status.html",
+      "new": "pages/system/status.html",
+      "reason": "page view",
+      "domain": "system"
+    }
+  }
+}
