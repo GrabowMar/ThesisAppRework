@@ -1,0 +1,284 @@
+# Routes Reference
+
+Comprehensive auto-generated inventory of Flask routes. Columns:
+- Path: URL rule pattern
+- Function: Endpoint function name
+- BP: Blueprint (heuristic from decorator object)
+- Methods: HTTP methods (default GET if unspecified)
+- HTMX: flag if implementation references HX-Request
+- Services: ServiceLocator calls detected nearby
+- File: Source module
+
+Path | Function | BP | Methods | HTMX | Services | File
+--- | --- | --- | --- | --- | --- | ---
+`/` | `analysis_hub` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/` | `dashboard` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/` | `models_overview` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/` | `statistics_overview` | `stats_bp` | GET |  |  | `src\app\routes\statistics.py`
+`/` | `api_overview` | `api_bp` | GET |  |  | `src\app\routes\api\core.py`
+`/` | `batch_overview` | `batch_bp` | GET,POST |  |  | `src\app\routes\batch.py`
+`/<batch_id>` | `batch_detail` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/about` | `about` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/activity/clear` | `activity_clear` | `api_bp` | POST |  |  | `src\app\routes\api\dashboard.py`
+`/activity/export` | `activity_export` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/analyses` | `get_active_analyses` | `websocket_api` | GET |  |  | `src\app\routes\api\websocket.py`
+`/analysis/<analysis_id>/cancel` | `cancel_analysis` | `websocket_api` | POST |  |  | `src\app\routes\api\websocket.py`
+`/analysis/active-tests` | `testing_active_tests` | `api_bp` | GET |  |  | `src\app\routes\api\misc.py`
+`/analysis/batch` | `api_analysis_batch` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/bulk/start` | `api_analysis_bulk_start` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/configure/<int:app_id>` | `api_analysis_configure_modal` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/containerized` | `api_analysis_containerized` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/dynamic` | `api_list_dynamic_analyses` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/dynamic` | `api_create_dynamic_analysis` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/dynamic/<int:analysis_id>/results` | `api_analysis_dynamic_results` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/dynamic/start` | `api_start_dynamic_analysis` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/model/<model_slug>/performance` | `api_model_performance_batch` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/model/<model_slug>/security` | `api_model_security_batch` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/performance` | `api_list_performance_tests` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/performance` | `api_create_performance_test` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/performance/<int:app_id>` | `api_analysis_performance` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/security` | `api_list_security_analyses` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/security` | `api_create_security_analysis` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/security/<int:analysis_id>/results` | `api_analysis_security_results` | `api_bp` | GET |  |  | `src\app\routes\api\analysis.py`
+`/analysis/security/<int:app_id>` | `api_analysis_security` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/security/configure` | `api_analysis_security_configure` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/security/start` | `api_analysis_security_start` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/service-status` | `testing_service_status` | `api_bp` | GET |  |  | `src\app\routes\api\misc.py`
+`/analysis/start` | `start_analysis` | `websocket_api` | POST |  |  | `src\app\routes\api\websocket.py`
+`/analysis/start/<int:app_id>` | `api_analysis_start` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/analysis/summary` | `api_analysis_summary` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/analysis/templates` | `testing_templates` | `api_bp` | GET |  |  | `src\app\routes\api\misc.py`
+`/analysis/test-history` | `testing_test_history` | `api_bp` | GET |  |  | `src\app\routes\api\misc.py`
+`/analyzer-services-count` | `analyzer_services_count` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/analyzer/ping` | `ping_analyzer_services` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/analyzer/restart-all` | `restart_all_analyzer_services` | `api_bp` | POST |  |  | `src\app\routes\api\system.py`
+`/analyzer/start` | `start_analyzer_services` | `api_bp` | POST |  |  | `src\app\routes\api\system.py`
+`/analyzer/start-all` | `start_all_analyzer_services` | `api_bp` | POST |  |  | `src\app\routes\api\system.py`
+`/analyzer/stats` | `stats_analyzer_services` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/analyzer/status` | `get_analyzer_status` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/analyzer/stop` | `stop_analyzer_services` | `api_bp` | POST |  |  | `src\app\routes\api\system.py`
+`/analyzer/stop-all` | `stop_all_analyzer_services` | `api_bp` | POST |  |  | `src\app\routes\api\system.py`
+`/api/analysis/configuration` | `api_analysis_configuration` | `advanced` | POST |  |  | `src\app\routes\advanced.py`
+`/api/analysis/start` | `api_start_analysis` | `advanced` | POST |  |  | `src\app\routes\advanced.py`
+`/api/analyzer/start` | `start_analyzer_services` | `main_bp` | POST |  |  | `src\app\routes\main.py`
+`/api/apps/<app_id>/details` | `api_app_details` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/api/apps/<app_id>/urls` | `api_app_urls` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/api/apps/grid` | `api_apps_grid` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/api/containers/bulk-action` | `api_bulk_container_action` | `advanced` | POST |  | docker_manager | `src\app\routes\advanced.py`
+`/api/dashboard/stats` | `api_dashboard_stats` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/api/data/initialize` | `api_initialize_data` | `main_bp` | POST |  |  | `src\app\routes\main.py`
+`/api/data/reload` | `api_reload_core_data` | `main_bp` | POST |  | docker_manager | `src\app\routes\main.py`
+`/api/data/status` | `api_data_status` | `main_bp` | POST |  |  | `src\app\routes\main.py`
+`/api/delete/<batch_id>` | `api_delete_batch` | `batch_bp` | DELETE |  |  | `src\app\routes\batch.py`
+`/api/infrastructure/start` | `api_start_infrastructure` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+`/api/infrastructure/status` | `api_infrastructure_status` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/api/infrastructure/stop` | `api_stop_infrastructure` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+`/api/list` | `api_list_batches` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/api/models/<int:model_id>/details` | `api_model_details` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/api/models/display` | `api_models_display` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/api/models/stats/active` | `api_models_stats_active` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/api/models/stats/last-updated` | `api_models_stats_last_updated` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/api/models/stats/performance` | `api_models_stats_performance` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/api/start/<batch_id>` | `api_start_batch` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+`/api/stats` | `api_stats` | `main_bp` | POST |  |  | `src\app\routes\main.py`
+`/api/status/<batch_id>` | `api_batch_status` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+`/api/stop/<batch_id>` | `api_stop_batch` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+`/api/system/health` | `api_system_health` | `main_bp` | GET |  | docker_manager | `src\app\routes\main.py`
+`/app/<model_slug>/<int:app_num>/build` | `build_app_by_model` | `api_bp` | POST |  | docker_manager | `src\app\routes\api\applications.py`
+`/app/<model_slug>/<int:app_num>/logs` | `api_application_logs_modal_by_slug` | `api_bp` | GET |  | docker_manager | `src\app\routes\api\applications.py`
+`/app/<model_slug>/<int:app_num>/logs.json` | `app_logs` | `api_bp` | GET |  | docker_manager | `src\app\routes\api\models.py`
+`/app/<model_slug>/<int:app_num>/proxy/frontend` | `proxy_frontend_root` | `api_bp` | GET |  |  | `src\app\routes\api\applications.py`
+`/app/<model_slug>/<int:app_num>/restart` | `restart_app_by_model` | `api_bp` | POST |  | docker_manager | `src\app\routes\api\applications.py`
+`/app/<model_slug>/<int:app_num>/start` | `start_app_by_model` | `api_bp` | POST |  | docker_manager | `src\app\routes\api\applications.py`
+`/app/<model_slug>/<int:app_num>/status` | `app_status` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/app/<model_slug>/<int:app_num>/stop` | `stop_app_by_model` | `api_bp` | POST |  | docker_manager | `src\app\routes\api\applications.py`
+`/application/<model_slug>/<int:app_number>` | `application_detail` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/application/<model_slug>/<int:app_number>/export.csv` | `export_application_csv` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/application/<model_slug>/<int:app_number>/file` | `application_file_preview` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/application/<model_slug>/<int:app_number>/section/<string:section>` | `application_detail_section` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/applications` | `applications` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/applications` | `api_list_applications` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications` | `api_create_application` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>` | `api_delete_application` | `api_bp` | DELETE |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>` | `api_get_application` | `api_bp` | PUT |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>` | `api_update_application` | `api_bp` | PUT |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>/code` | `api_get_application_code` | `api_bp` | GET |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>/details` | `api_application_details` | `api_bp` | GET |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>/logs` | `api_application_logs_modal` | `api_bp` | GET |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>/restart` | `api_application_restart` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>/start` | `api_application_start` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>/status` | `api_update_application_status` | `api_bp` | PATCH |  |  | `src\app\routes\api\applications.py`
+`/applications/<int:app_id>/stop` | `api_application_stop` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/bulk/delete` | `api_applications_bulk_delete` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/bulk/download` | `api_applications_bulk_download` | `api_bp` | GET |  |  | `src\app\routes\api\applications.py`
+`/applications/bulk/start` | `api_applications_bulk_start` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/bulk/stop` | `api_applications_bulk_stop` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/cleanup` | `api_applications_cleanup` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/export` | `api_applications_export` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/applications/generate` | `generate_application` | `models_bp` | POST |  |  | `src\app\routes\models.py`
+`/applications/types` | `api_get_application_types` | `api_bp` | GET |  |  | `src\app\routes\api\applications.py`
+`/apps` | `apps_grid` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/apps/grid` | `api_apps_grid` | `api_bp` | GET |  |  | `src\app\routes\api\applications.py`
+`/batch` | `api_create_batch` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/batch/<batch_id>/start` | `api_batch_start` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/batch/<batch_id>/status` | `api_batch_status` | `api_bp` | GET |  |  | `src\app\routes\api\analysis.py`
+`/batch/active` | `api_batch_active` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/batch/create` | `api_batch_create` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/batch/start` | `start_batch_analysis` | `analysis_bp` | POST | yes |  | `src\app\routes\analysis.py`
+`/batch_test_form` | `batch_test_form` | `analysis_bp` | POST |  |  | `src\app\routes\analysis.py`
+`/broadcast` | `broadcast_message` | `websocket_api` | POST |  |  | `src\app\routes\api\websocket.py`
+`/cpu-usage-simple` | `cpu_usage_simple` | `api_bp` | POST |  |  | `src\app\routes\api\system.py`
+`/cpu_usage` | `cpu_usage` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/cpu_usage_bar` | `cpu_usage_bar` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/create` | `create_batch` | `batch_bp` | GET,POST |  |  | `src\app\routes\batch.py`
+`/dashboard/activity` | `api_dashboard_activity` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/activity-timeline` | `dashboard_activity_timeline` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/analyzer-services` | `dashboard_analyzer_services` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/chart-data` | `api_dashboard_chart_data_alias` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/charts` | `api_dashboard_charts` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/docker-status` | `dashboard_docker_status` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/health` | `api_dashboard_health` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/overview` | `api_dashboard_overview` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/recent-models` | `dashboard_recent_models` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/refresh` | `api_dashboard_refresh` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/services` | `dashboard_services_alias` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/stats-fragment` | `dashboard_stats_fragment` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/stats-update` | `api_dashboard_stats_update_alias` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/system-health-fragment` | `dashboard_system_health_fragment` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/dashboard/top-models` | `dashboard_top_models` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/disk_usage_bar` | `disk_usage_bar` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/disk_usage_percent` | `disk_usage_percent` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/dynamic/<int:analysis_id>` | `dynamic_analysis_results_view` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/dynamic/run` | `run_dynamic_test` | `analysis_bp` | POST |  |  | `src\app\routes\analysis.py`
+`/dynamic/start` | `start_dynamic_analysis` | `analysis_bp` | POST | yes |  | `src\app\routes\analysis.py`
+`/dynamic_test_form` | `dynamic_test_form` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/events` | `get_events` | `websocket_api` | GET |  |  | `src\app\routes\api\websocket.py`
+`/events/clear` | `clear_events` | `websocket_api` | POST,GET |  |  | `src\app\routes\api\websocket.py`
+`/export` | `api_export_statistics` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/export/models.csv` | `export_models_csv` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/form` | `batch_form` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/generation/trends` | `api_generation_trends` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/get_model_apps` | `get_model_apps` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/health` | `api_health` | `api_bp` | GET |  |  | `src\app\routes\api\core.py`
+`/import` | `models_import_page` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/list` | `batch_list` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/logs/application/<int:app_id>` | `api_application_logs` | `api_bp` | GET |  |  | `src\app\routes\api\applications.py`
+`/memory_usage` | `memory_usage` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/memory_usage_bar` | `memory_usage_bar` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/memory_usage_percent` | `memory_usage_percent` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/model/<model_slug>/container-status` | `model_container_status` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/model/<model_slug>/containers/build` | `build_model_containers` | `api_bp` | POST |  | docker_manager | `src\app\routes\api\applications.py`
+`/model/<model_slug>/containers/restart` | `restart_model_containers` | `api_bp` | POST |  | docker_manager | `src\app\routes\api\applications.py`
+`/model/<model_slug>/containers/start` | `start_model_containers` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/model/<model_slug>/containers/stop` | `stop_model_containers` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/model/<model_slug>/containers/sync-status` | `sync_model_status` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/model/<model_slug>/details` | `model_details` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/model/<model_slug>/more-info` | `model_more_info` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/model/<model_slug>/running-count` | `model_running_count` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/model_actions` | `model_actions` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/model_actions/<model_slug>` | `model_actions` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/model_apps/<model_slug>` | `model_apps` | `models_bp` | GET |  |  | `src\app\routes\models.py`
+`/models` | `models_overview` | `advanced` | GET |  |  | `src\app\routes\advanced.py`
+`/models` | `api_models` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/<model_slug>/applications` | `api_model_applications_fragment` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/<model_slug>/apps` | `api_model_apps` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/all` | `api_models_all` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/comparison/export` | `api_models_comparison_export` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/comparison/refresh` | `api_models_comparison_refresh` | `api_bp` | POST |  |  | `src\app\routes\api\models.py`
+`/models/comparison/update` | `api_models_comparison_update` | `api_bp` | POST |  |  | `src\app\routes\api\models.py`
+`/models/distribution` | `api_models_distribution` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/models/export` | `api_models_export` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/filtered` | `api_models_filtered` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/grid` | `api_models_grid_fragment` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/import` | `api_models_import` | `api_bp` | POST |  |  | `src\app\routes\api\models.py`
+`/models/list` | `api_models_list` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/list-options` | `api_models_list_options` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/load-openrouter` | `api_models_load_openrouter` | `api_bp` | POST |  |  | `src\app\routes\api\models.py`
+`/models/mark-installed` | `api_models_mark_installed` | `api_bp` | POST |  |  | `src\app\routes\api\models.py`
+`/models/openrouter/all` | `api_models_openrouter_all` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/openrouter/filtered` | `api_models_openrouter_filtered` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/providers` | `api_models_providers` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/stats/last-updated` | `models_stats_last_updated` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/stats/performance` | `models_stats_performance` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/stats/providers` | `api_models_stats_providers` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models/stats/total` | `api_models_stats_total` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`
+`/models_overview` | `models_overview` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/models_overview_summary` | `models_overview_summary` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/network_activity_bar` | `network_activity_bar` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/network_activity_percent` | `network_activity_percent` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/notifications/count` | `notifications_count` | `api_bp` | GET |  |  | `src\app\routes\api\misc.py`
+`/performance/<int:analysis_id>` | `performance_test_results_view` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/performance/<int:analysis_id>/export` | `export_performance_test` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/performance/run` | `run_performance_test` | `analysis_bp` | POST |  |  | `src\app\routes\analysis.py`
+`/performance/start` | `start_performance_test` | `analysis_bp` | POST | yes |  | `src\app\routes\analysis.py`
+`/performance_chart_data` | `performance_chart_data` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/performance_test_form` | `performance_test_form` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/quick_search` | `quick_search` | `api_bp` | POST |  |  | `src\app\routes\api\misc.py`
+`/realtime/dashboard` | `realtime_dashboard` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/recent_activity` | `recent_activity` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/recent_activity_detailed` | `recent_activity_detailed` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/results` | `get_api_results` | `api_bp` | GET |  |  | `src\app\routes\api\results.py`
+`/results/<int:result_id>` | `get_api_result_detail` | `api_bp` | GET |  |  | `src\app\routes\api\results.py`
+`/results/<int:result_id>/export` | `export_api_result` | `api_bp` | GET |  |  | `src\app\routes\api\results.py`
+`/results/cards` | `get_api_results_cards` | `api_bp` | GET |  |  | `src\app\routes\api\results.py`
+`/results/running` | `get_api_running_results` | `api_bp` | GET |  |  | `src\app\routes\api\results.py`
+`/results/statistics` | `get_api_results_statistics` | `api_bp` | GET |  |  | `src\app\routes\api\results.py`
+`/results/timeline` | `get_api_results_timeline` | `api_bp` | GET |  |  | `src\app\routes\api\results.py`
+`/security/<int:analysis_id>` | `security_analysis_short_redirect` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/security/<int:analysis_id>/export` | `export_security_analysis` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/security/<int:analysis_id>/results/complete` | `security_analysis_complete_view` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/security/<int:analysis_id>/results/view` | `security_analysis_results_view` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
+`/security/run` | `run_security_test` | `analysis_bp` | POST |  |  | `src\app\routes\analysis.py`
+`/security/start` | `start_security_analysis` | `analysis_bp` | POST |  |  | `src\app\routes\analysis.py`
+`/security_distribution_data` | `security_distribution_data` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/security_test_form` | `security_test_form` | `analysis_bp` | GET | yes |  | `src\app\routes\analysis.py`
+`/server-uptime` | `server_uptime` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/sidebar_stats` | `sidebar_stats` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
+`/socket.io/` | `socket_io_fallback` | `app` | GET |  |  | `src\app\routes\websocket_fallbacks.py`
+`/spa/analysis` | `spa_analysis` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/spa/applications` | `spa_applications` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/spa/dashboard` | `spa_dashboard` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/spa/models` | `spa_models` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/statistics/chart-data` | `statistics_chart_data` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/statistics/error-analysis` | `statistics_error_analysis` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/statistics/export/<fmt>` | `statistics_export` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/statistics/insights` | `statistics_insights` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/statistics/model-rankings` | `statistics_model_rankings` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/statistics/refresh` | `statistics_refresh` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/statistics/summary` | `statistics_summary_html` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/statistics/test-results` | `statistics_test_results` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/statistics/top-models` | `statistics_top_models_table` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats/analysis` | `api_stats_analysis` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats/apps` | `api_stats_apps` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats/models` | `api_stats_models` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats/recent` | `api_stats_recent` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_analysis_trend` | `stats_analysis_trend` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_completed_analyses` | `stats_completed_analyses` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_container_status` | `stats_container_status` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_models_trend` | `stats_models_trend` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_performance_tests` | `stats_performance_tests` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_running_containers` | `stats_running_containers` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_security_tests` | `stats_security_tests` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_system_health` | `stats_system_health` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_total_apps` | `stats_total_apps` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_total_models` | `stats_total_models` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/stats_uptime` | `stats_uptime` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+`/status` | `get_websocket_status` | `websocket_api` | GET |  |  | `src\app\routes\api\websocket.py`
+`/system-status` | `system_status` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/system/health` | `api_system_health` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/system/info` | `api_system_info` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/system/logs` | `api_system_logs` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/system/metrics` | `api_system_metrics` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/system/overview` | `api_system_overview` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/system_health` | `system_health` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/tasks/<task_id>/cancel` | `api_tasks_cancel` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/tasks/<task_id>/status` | `task_status` | `api_bp` | GET |  |  | `src\app\routes\api\misc.py`
+`/tasks/active` | `tasks_active` | `api_bp` | GET |  |  | `src\app\routes\api\misc.py`
+`/tasks/cleanup` | `api_tasks_cleanup` | `api_bp` | POST |  |  | `src\app\routes\api\analysis.py`
+`/tasks/history` | `api_tasks_history` | `api_bp` | GET |  |  | `src\app\routes\api\analysis.py`
+`/tasks/status` | `api_tasks_status` | `api_bp` | GET |  |  | `src\app\routes\api\analysis.py`
+`/tasks/status` | `tasks_status` | `api_bp` | GET |  |  | `src\app\routes\api\misc.py`
+`/test` | `test_websocket` | `websocket_api` | POST |  |  | `src\app\routes\api\websocket.py`
+`/test-platform` | `testing` | `main_bp` | GET |  |  | `src\app\routes\main.py`
+`/test-toast` | `test_toast` | `api_bp` | GET |  |  | `src\app\routes\api\system.py`
+`/ws/analysis` | `websocket_analysis` | `app` | GET |  |  | `src\app\routes\websocket_fallbacks.py`
