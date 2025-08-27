@@ -10,9 +10,11 @@ import time
 from functools import wraps
 import math
 
-from flask import Blueprint, request, jsonify, flash
+from flask import (
+    Blueprint, request, jsonify, current_app,
+    url_for, Response, redirect, flash
+)
 from ..utils.template_paths import render_template_compat as render_template
-from flask import Response, redirect, url_for
 
 from ..services.task_manager import TaskManager
 from ..services import results_loader
@@ -253,39 +255,90 @@ def analysis_list():
 @analysis_bp.get('/create/security')
 def analyses_create_security_page():
     """Create page focused on Security form only (redirects to unified wizard)."""
-    return redirect(url_for('analysis.analyses_create_page'))
+    return redirect(url_for('analysis.analysis_create_wizard'))
 
 
 @analysis_bp.get('/create/dynamic')
 def analyses_create_dynamic_page():
     """Create page focused on Dynamic (ZAP) form only (redirects to unified wizard)."""
-    return redirect(url_for('analysis.analyses_create_page'))
+    return redirect(url_for('analysis.analysis_create_wizard'))
 
 
 @analysis_bp.get('/create/performance')
 def analyses_create_performance_page():
     """Create page focused on Performance test form only (redirects to unified wizard)."""
-    return redirect(url_for('analysis.analyses_create_page'))
+    return redirect(url_for('analysis.analysis_create_wizard'))
 
 
 @analysis_bp.get('/create/batch')
 def analyses_create_batch_page():
     """Create page focused on Batch analysis form only (redirects to unified wizard)."""
-    return redirect(url_for('analysis.analyses_create_page'))
+    return redirect(url_for('analysis.analysis_create_wizard'))
+
+
+@analysis_bp.get('/create')
+def analysis_create_wizard():
+    """Multi-step analysis creation wizard (placeholder initial implementation).
+
+    Provides a shell where the user can select model/app and desired analysis
+    types (security, performance, dynamic, or comprehensive). Future enhancement
+    will load partial forms via HTMX.
+    """
+    try:
+        # Unified create experience now lives in pages/analysis/create.html
+        return render_template(
+            'single_page.html',
+            page_title='Create Analysis',
+            page_icon='fa-plus-circle',
+            main_partial='pages/analysis/create.html'
+        )
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error loading analysis create wizard: {e}")
+        return render_template('single_page.html', page_title='Error', main_partial='partials/common/error.html', error=str(e)), 500
+
+# Backward compatibility alias used by legacy redirects/tests
+@analysis_bp.get('/create/page')
+def analyses_create_page():  # pragma: no cover - legacy alias
+    return redirect(url_for('analysis.analysis_create_wizard'))
+
+
+@analysis_bp.get('/create/legacy')
+def analysis_create_legacy():  # pragma: no cover - retained as alias; serves unified create now
+    """Backward compatibility alias for any bookmarked "legacy" create URL.
+
+    Requirement: User wants a single create experience everywhere (use create.html).
+    Strategy: Keep the /analysis/create/legacy route (avoids 404 if referenced) but
+    render the unified wizard template so there is exactly one creation UX.
+    """
+    try:
+        return render_template(
+            'single_page.html',
+            page_title='Create Analysis',
+            page_icon='fa-plus-circle',
+            # Point directly at the canonical create page (NOT legacy partial anymore)
+            main_partial='pages/analysis/create.html'
+        )
+    except Exception as e:
+        logger.error(f"Error rendering create (legacy alias) form: {e}")
+        return render_template('single_page.html', page_title='Error', main_partial='partials/common/error.html', error=str(e)), 500
 
 
 @analysis_bp.post('/create')
 def analysis_create():  # pragma: no cover - validated via tests
     """Unified creation endpoint (currently supports 'comprehensive').
 
-    Returns JSON payload with analysis IDs and redirect URL as expected by
-    existing tests (see test_comprehensive_template.py). The legacy template
-    rendering path was removed; this keeps test contract stable.
+    Deterministic test contract:
+    - Always returns JSON (tests assert JSON fields even when COMPREHENSIVE_TEST_FORCE_RENDER is set)
+    - Avoids ServiceLocator (tests monkeypatch module-level functions)
+    - Provides IDs + redirect_url + success flag
     """
     try:
-        from ..services.service_locator import ServiceLocator
+        from flask import current_app
         from ..models import GeneratedApplication
+        # Direct import; tests monkeypatch functions on this module
+        import app.services.analysis_service as analysis_service  # type: ignore
 
+        # Accept JSON or form data
         data = request.get_json(silent=True) or request.form.to_dict()
         analysis_type = data.get('analysis_type') or 'security'
         model_slug = data.get('model_slug')
@@ -295,57 +348,58 @@ def analysis_create():  # pragma: no cover - validated via tests
             return jsonify({'success': False, 'message': 'model_slug and app_number required'}), 400
         try:
             app_number = int(app_number)
-        except ValueError:
+        except (TypeError, ValueError):
             return jsonify({'success': False, 'message': 'app_number must be int'}), 400
 
         app_obj = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
         if not app_obj:
             return jsonify({'success': False, 'message': 'Application not found'}), 404
 
-        analysis_service = ServiceLocator.get_analysis_service()
-
         if analysis_type == 'comprehensive':
-            # Create analyses
             security = analysis_service.create_comprehensive_security_analysis(app_obj.id)
             performance = analysis_service.create_performance_test({'application_id': app_obj.id})
             dynamic = analysis_service.create_dynamic_analysis({'application_id': app_obj.id})
 
-            # Fire off tasks (best-effort)
-            for starter, ident in (
-                (analysis_service.start_security_analysis, security['id']),
-                (analysis_service.start_performance_test, performance['id']),
-                (analysis_service.start_dynamic_analysis, dynamic['id']),
-            ):
+            # Fire off tasks (best-effort; ignore failures individually)
+            for starter, ident in [
+                (analysis_service.start_security_analysis, security.get('id')),
+                (analysis_service.start_performance_test, performance.get('id')),
+                (analysis_service.start_dynamic_analysis, dynamic.get('id')),
+            ]:
                 try:
-                    starter(ident)
+                    if ident is not None:
+                        starter(ident)
                 except Exception:  # noqa: BLE001
                     logger.exception('Failed to start analysis component')
 
             redirect_url = f"/analysis/results/{model_slug}/{app_number}"
-            result_payload = {
+            payload = {
                 'success': True,
                 'message': 'Comprehensive analysis started successfully!',
+                'heading': 'Comprehensive Analysis Started',
                 'redirect_url': redirect_url,
-                'security_id': security['id'],
-                'performance_id': performance['id'],
-                'dynamic_id': dynamic['id'],
+                'security_id': security.get('id'),
+                'performance_id': performance.get('id'),
+                'dynamic_id': dynamic.get('id'),
                 'show_modal': True
             }
-            # Test compatibility: some legacy tests still expect the HTML heading
-            # "Comprehensive Analysis Started" even when posting JSON. Honor
-            # COMPREHENSIVE_TEST_FORCE_RENDER flag to force template rendering.
-            if (analysis_bp.app and  # type: ignore[attr-defined]
-                analysis_bp.app.config.get('COMPREHENSIVE_TEST_FORCE_RENDER')):  # pragma: no cover - exercised indirectly
-                return render_template(
-                    'partials/analysis/create/comprehensive_start_result.html',
-                    **result_payload
-                )
-            return jsonify(result_payload)
+
+            # Unified contract: always JSON for comprehensive creation (tests rely on keys)
+            return jsonify(payload)
 
         return jsonify({'success': False, 'message': f'Unsupported analysis_type {analysis_type}'}), 400
     except Exception as e:  # pragma: no cover
         logger.error(f"Error in analysis_create: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+# Trailing slash aliases (prevent automatic 308/302 redirects if tests or callers use a slash)
+@analysis_bp.get('/create/')
+def analysis_create_wizard_slash():  # pragma: no cover - simple alias
+    return analysis_create_wizard()
+
+@analysis_bp.post('/create/')
+def analysis_create_slash():  # pragma: no cover - simple alias
+    return analysis_create()
 
 
 @analysis_bp.get('/preview/<model_slug>/<int:app_number>')
@@ -2101,7 +2155,7 @@ def dynamic_analysis_preview(analysis_id: int):
 @analysis_bp.route('/<int:analysis_id>')
 def analysis_detail(analysis_id: int):
     """Universal analysis detail view that works for any analysis type."""
-    from flask import flash
+    # from flask import flash
     from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis
     from ..extensions import get_session
     

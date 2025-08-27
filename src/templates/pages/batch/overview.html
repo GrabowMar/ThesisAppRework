@@ -47,6 +47,16 @@
 <div class="container-fluid">
     <!-- Standard page header rendered by base template -->
 
+    {% if deprecation_notice %}
+    <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+        <i class="fas fa-info-circle me-2" aria-hidden="true"></i>
+        <div class="flex-grow-1 small">
+            {{ deprecation_notice }}
+            <a href="{{ url_for('tasks.tasks_overview') }}" class="alert-link">Go to Tasks</a>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Statistics Overview (HTMX partial) -->
     <div class="batch-stats" id="stats-summary" hx-get="/batch/partials/stats" hx-trigger="load, every 5s" hx-swap="outerHTML">
         {% include 'pages/batch/partials/stats_summary.html' %}

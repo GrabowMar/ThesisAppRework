@@ -6,7 +6,7 @@ Common utility functions used throughout the application.
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 import re
 from typing import Dict, Any, Optional, Union
@@ -150,6 +150,16 @@ def get_models_base_path() -> Path:
 def _normalize_slug_for_match(s: str) -> str:
     """Normalize slugs for fuzzy matching: lowercase and remove non-alphanumerics."""
     return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def utc_now() -> datetime:
+    """Return a timezone-aware UTC datetime.
+
+    Central helper to avoid direct use of deprecated utcnow() and to
+    provide a single place to adjust time source if we later introduce
+    clock abstraction (e.g., for testing or monotonic sequencing).
+    """
+    return datetime.now(UTC)
 
 
 def make_safe_dom_id(value: str, prefix: Optional[str] = None) -> str:

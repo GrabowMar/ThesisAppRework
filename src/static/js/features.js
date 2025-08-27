@@ -422,20 +422,26 @@ class AnalysisManager {
   }
 }
 
-// Initialize managers when DOM is ready
+// Initialize managers when DOM is ready (defensive)
 document.addEventListener('DOMContentLoaded', () => {
   // Only initialize if relevant elements exist
   if (document.querySelector('[data-model-row], .model-checkbox')) {
-    window.modelManager = new ModelManager();
+    if (typeof window.modelManager === 'undefined') {
+      window.modelManager = new ModelManager();
+    }
   }
 
   if (document.querySelector('[data-start-analysis], [data-analysis-progress]')) {
-    window.analysisManager = new AnalysisManager();
+    if (typeof window.analysisManager === 'undefined') {
+      window.analysisManager = new AnalysisManager();
+    }
   }
 });
 
-// Export for manual initialization
-window.AppFeatures = {
-  ModelManager,
-  AnalysisManager
-};
+// Export for manual initialization (defensive)
+if (typeof window.AppFeatures === 'undefined') {
+  window.AppFeatures = {
+    ModelManager,
+    AnalysisManager
+  };
+}

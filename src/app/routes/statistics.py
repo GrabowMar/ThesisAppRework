@@ -141,6 +141,99 @@ def statistics_overview():
             error=str(e)
         )
 
+@stats_bp.route('/generation')
+def statistics_generation():
+    """Split page: focuses on generation/model statistics only (no analysis panels)."""
+    try:
+        now = datetime.now(timezone.utc)
+        last_30_days = now - timedelta(days=30)
+        last_7_days = now - timedelta(days=7)
+
+        total_models = db.session.query(ModelCapability).count()
+        total_applications = db.session.query(GeneratedApplication).count()
+
+        provider_stats = db.session.query(
+            ModelCapability.provider,
+            func.count(ModelCapability.id).label('count')
+        ).group_by(ModelCapability.provider).all()
+
+        model_stats = _get_comprehensive_model_stats()
+
+        generation_stats = {
+            'total_models': total_models,
+            'total_applications': total_applications,
+            'total_calls': total_applications,
+            'success_rate': _calculate_success_rate(),
+            'avg_generation_time': _calculate_avg_generation_time(),
+            'successful_calls': _count_successful_generations(),
+            'recent_generations_7d': _count_recent_generations(last_7_days),
+            'recent_generations_30d': _count_recent_generations(last_30_days),
+            'avg_apps_per_model': total_applications / max(total_models, 1),
+            'total_providers': len(provider_stats)
+        }
+
+        capability_stats = _get_capability_distribution()
+        cost_analysis = _get_cost_analysis()
+        framework_stats = _get_framework_distribution()
+        external_data = _load_external_statistics()
+
+        return render_template(
+            'single_page.html',
+            page_title='Generation Statistics',
+            page_icon='fa-chart-bar',
+            main_partial='pages/statistics/generation.html',
+            stats=generation_stats,
+            provider_stats=dict(provider_stats),
+            model_stats=model_stats,
+            capability_stats=capability_stats,
+            cost_analysis=cost_analysis,
+            framework_stats=framework_stats,
+            external_data=external_data
+        )
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error loading generation statistics: {e}")
+        return render_template('single_page.html', page_title='Error', main_partial='partials/common/error.html', error=str(e)), 500
+
+
+@stats_bp.route('/analysis')
+def statistics_analysis():
+    """Split page: focuses on analysis (security/performance/dynamic) statistics only."""
+    try:
+        security_analyses = db.session.query(SecurityAnalysis).count()
+        performance_tests = db.session.query(PerformanceTest).count()
+        zap_analyses = db.session.query(ZAPAnalysis).count()
+        ai_analyses = db.session.query(OpenRouterAnalysis).count()
+
+        analysis_stats = {
+            'total_security_analyses': security_analyses,
+            'total_performance_tests': performance_tests,
+            'total_zap_analyses': zap_analyses,
+            'total_ai_analyses': ai_analyses,
+            'total_analyses': security_analyses + performance_tests + zap_analyses + ai_analyses,
+            'avg_security_issues': _get_avg_security_issues(),
+            'avg_performance_score': _get_avg_performance_score(),
+            'critical_vulnerabilities': _get_critical_vulnerabilities_count(),
+            'high_performance_apps': _get_high_performance_apps_count()
+        }
+
+        daily_stats = _get_daily_statistics(datetime.now(timezone.utc) - timedelta(days=30))
+        analysis_trends = _get_analysis_trends()
+        error_analysis = _get_error_analysis()
+
+        return render_template(
+            'single_page.html',
+            page_title='Analysis Statistics',
+            page_icon='fa-chart-line',
+            main_partial='pages/statistics/analysis.html',
+            analysis_stats=analysis_stats,
+            daily_stats=daily_stats,
+            analysis_trends=analysis_trends,
+            error_analysis=error_analysis
+        )
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error loading analysis statistics: {e}")
+        return render_template('single_page.html', page_title='Error', main_partial='partials/common/error.html', error=str(e)), 500
+
 def _load_external_generation_data() -> Dict[str, Any]:
     """Load generation data from misc folder files."""
     try:

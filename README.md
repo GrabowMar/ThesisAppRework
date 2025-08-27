@@ -85,6 +85,35 @@ pytest -q
 python scripts/build_start_app.py --model anthropic_claude-3.7-sonnet --app 1
 ```
 
+## Operational Dashboards (2025-08 Refactor)
+
+The platform now distinguishes between three related UI areas:
+
+| Area | Path | Purpose | Notes |
+|------|------|---------|-------|
+| Analysis Hub | `/analysis/` | Unified view of recent & running analyses across all types | Replaces scattered legacy analysis sub-pages |
+| Tasks Hub | `/tasks/` | Active & queued operations (supersedes legacy Batch dashboard) | `/batch/` now only renders in TESTING; otherwise redirects here |
+| Legacy Batch | `/batch/` | Backward compatibility for tests | Shows a deprecation banner pointing to `/tasks/` |
+
+Statistics were split for clarity:
+
+| Page | Path | Focus |
+|------|------|-------|
+| Generation Stats | `/statistics/generation` | Model & application generation metrics |
+| Analysis Stats | `/statistics/analysis` | Security / performance / dynamic analysis throughput & outcomes |
+| Unified (legacy) | `/statistics/` | Aggregated overview kept for compatibility |
+
+Comprehensive analysis creation now uses a deterministic JSON contract via `POST /analysis/create` (with trailing slash alias). Tests rely on the presence of keys: `success`, `message`, `heading`, `redirect_url`, and the component IDs (`security_id`, `performance_id`, `dynamic_id`).
+
+## Migration Summary
+
+- Batch dashboard deprecated → use Tasks hub.
+- Added trailing slash tolerant routes for `/analysis/create` to avoid 308/302 during form submissions.
+- Introduced deprecation banner on legacy batch page (only visible when rendered and not redirected in production config).
+- Added timezone‑aware `utc_now()` helper (`app.utils.helpers.utc_now`) replacing direct `datetime.utcnow()` calls.
+
+If extending docs elsewhere, ensure new references point to `/tasks/` instead of `/batch/` unless explicitly covering legacy behavior.
+
 ## Next Documentation Enhancements
 - Add section covering comprehensive analysis orchestration flow
 - Add template troubleshooting log examples

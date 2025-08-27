@@ -1,0 +1,60 @@
+{# Legacy-style analysis create form (restored on request). #}
+<div class="container py-3" id="legacy-analysis-create">
+  <div class="d-flex align-items-center mb-3">
+    <h1 class="h4 mb-0"><i class="fas fa-flask me-2"></i>Legacy Create Analysis</h1>
+    <span class="badge bg-secondary ms-2">Legacy</span>
+    <a href="{{ url_for('analysis.analysis_create_wizard') }}" class="btn btn-link btn-sm ms-auto">
+      Modern Wizard
+    </a>
+  </div>
+
+  <form id="legacy-create-form" class="card shadow-sm" hx-post="{{ url_for('analysis.analysis_create') }}" hx-target="#legacy-create-result" hx-swap="innerHTML">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold">Model Slug</label>
+          <input name="model_slug" type="text" class="form-control form-control-sm" placeholder="anthropic_claude-3.7-sonnet" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">App #</label>
+          <input name="app_number" type="number" min="1" value="1" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold">Analysis Type</label>
+          <div class="d-flex flex-wrap gap-3 pt-1">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="analysis_type" id="atypeComprehensive" value="comprehensive" checked>
+              <label class="form-check-label" for="atypeComprehensive">Comprehensive</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="analysis_type" id="atypeSecurity" value="security" disabled>
+              <label class="form-check-label" for="atypeSecurity">Security</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="analysis_type" id="atypePerformance" value="performance" disabled>
+              <label class="form-check-label" for="atypePerformance">Performance</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="analysis_type" id="atypeDynamic" value="dynamic" disabled>
+              <label class="form-check-label" for="atypeDynamic">Dynamic</label>
+            </div>
+          </div>
+          <div class="form-text">Only comprehensive launcher active (fires security + performance + dynamic).</div>
+        </div>
+      </div>
+      <hr>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary">
+          <i class="fas fa-play-circle me-1"></i>Start Analysis
+        </button>
+        <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+      <div id="legacy-create-result" class="mt-3"></div>
+    </div>
+  </form>
+
+  <div class="alert alert-warning mt-4 small">
+    <i class="fas fa-exclamation-triangle me-1"></i>
+    This legacy form will be removed after the wizard reaches feature parity. Prefer the Modern Wizard for future-use.
+  </div>
+</div>

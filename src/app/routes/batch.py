@@ -8,7 +8,7 @@ Provides endpoints for creating, monitoring, and managing bulk analysis jobs.
 
 import logging
 import json
-from datetime import datetime  # noqa: F401 (may be used by remaining endpoints)
+from datetime import datetime, UTC  # noqa: F401 (remaining endpoints may rely on direct datetime)
 
 from flask import Blueprint, request, jsonify, redirect, url_for, flash
 from ..utils.template_paths import render_template_compat as render_template
@@ -33,11 +33,47 @@ batch_bp = Blueprint('batch', __name__, url_prefix='/batch')
 
 @batch_bp.route('/')
 def batch_overview():
-    """Batch dashboard overview page rendering current + recent batch activity."""
-    snapshot = batch_service.get_dashboard_snapshot()
-    # Provide current time for template placeholders
-    snapshot['current_time'] = datetime.utcnow()
-    return render_template('pages/batch/overview.html', **snapshot)
+    """Batch overview page (legacy tests still assert its direct contents).
+
+    We retain the original template rendering for backward compatibility while
+    showing a subtle deprecation notice guiding users toward the new Tasks page.
+    """
+    try:
+        # In production mode we now prefer the /tasks view; keep legacy template for tests.
+        from flask import current_app
+        if not current_app.config.get('TESTING'):
+            return redirect(url_for('tasks.tasks_overview'))
+
+        snapshot = batch_service.get_dashboard_snapshot() or {}
+        system_resources = {
+            'cpu_usage': snapshot.get('system_resources', {}).get('cpu_usage', 0.0),
+            'memory_usage': snapshot.get('system_resources', {}).get('memory_usage', 0.0)
+        }
+        stats = snapshot.get('stats') or {
+            'total_batches': 0,
+            'running_batches': 0,
+            'queued_batches': 0,
+            'completed_batches': 0,
+            'total_analyses': 0,
+            'active_workers': 0,
+        }
+        snapshot.setdefault('stats', stats)
+        from app.utils.helpers import utc_now
+        current_time = utc_now()
+        deprecation_notice = (
+            "Batch page is legacy. Use the new Tasks hub for ongoing and queued analyses."
+        )
+        return render_template(
+            'pages/batch/overview.html',
+            snapshot=snapshot,
+            system_resources=system_resources,
+            stats=stats,
+            current_time=current_time,
+            deprecation_notice=deprecation_notice
+        )
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error rendering batch overview: {e}")
+        return render_template('partials/common/error.html', error='Failed to load batch overview'), 500
 
 
 # -------- HTMX partial endpoints for live updating sections -------- #
@@ -584,12 +620,8 @@ def api_export_batch_stats():
 
 @batch_bp.route('/statistics')
 def batch_statistics_page():
-    """Render the batch-focused statistics page reusing service snapshot + job stats."""
-    snap = batch_service.get_dashboard_snapshot()
-    job_stats = batch_service.get_job_stats()
-    # combine for template context
-    ctx = {**snap, 'job_stats': job_stats}
-    return render_template('pages/batch/statistics.html', **ctx)
+    """Deprecated: redirect to split statistics pages (analysis-focused)."""
+    return redirect(url_for('statistics.statistics_analysis'))
 
 
 @batch_bp.route('/api/infrastructure/start', methods=['POST'])

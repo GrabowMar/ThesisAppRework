@@ -361,9 +361,13 @@ class WebSocketManager {
   }
 }
 
-// Create global instances
-window.API = new AppAPI();
-window.WebSocketManager = WebSocketManager;
+// Create global instances (defensive)
+if (typeof window.API === 'undefined') {
+  window.API = new AppAPI();
+}
+if (typeof window.WebSocketManager === 'undefined') {
+  window.WebSocketManager = WebSocketManager;
+}
 
 // Helper function for async operations with loading states
 window.withLoading = async function(element, asyncFn) {

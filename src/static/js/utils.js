@@ -4,7 +4,7 @@
  */
 
 // Date and Time Utilities
-const DateUtils = {
+const DateUtils = window.DateUtils || {
   formatRelative(date) {
     const now = new Date();
     const diff = now - new Date(date);

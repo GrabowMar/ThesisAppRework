@@ -146,4 +146,5 @@ scripts or extensions that may reference pre-restructure template names.
 ## Changelog
 
 - 2025-08-15: Removed flat alias duplicates under `partials/analysis` (`*_shell.html`, `list_*.html`, `active_tasks.html`) and removed the entire `partials/testing/` folder. Canonical names remain under `partials/analysis/list/`, `partials/analysis/preview/`, and `partials/analysis/create/`.
+- 2025-08-27: Eliminated legacy standalone create form (`pages/analysis/legacy_create.html`). All create routes and legacy aliases (`/analysis/create/legacy`, `/analysis/create/page`, trailing slash variants) now point to the unified wizard template `pages/analysis/create.html` rendered inside `single_page.html`. The POST endpoint `/analysis/create` always returns a deterministic JSON payload for comprehensive analysis launches (`success, message, heading, redirect_url, security_id, performance_id, dynamic_id, show_modal`). Any bookmarked legacy URLs remain functional but no longer have a separate template.
 This document reflects the current structure after the partials cleanup. When in doubt, look for an existing example in the closest namespace and follow the same pattern.

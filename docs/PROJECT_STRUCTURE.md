@@ -26,8 +26,9 @@ src/
 │   │   ├── main.py               # ✅ Dashboard & landing views
 │   │   ├── models.py             # ✅ Model catalog & app listing views
 │   │   ├── analysis.py           # ✅ Analysis hub views
-│   │   ├── batch.py              # ✅ Batch operations UI
-│   │   ├── statistics.py         # ✅ Metrics & statistics views
+│   │   ├── batch.py              # ✅ Legacy batch operations UI (redirects to tasks in prod)
+│   │   ├── tasks.py              # ✅ Unified tasks/operations hub (supersedes batch)
+│   │   ├── statistics.py         # ✅ Metrics & statistics views (split generation vs analysis pages)
 │   │   ├── testing.py            # ❌ Removed (consolidated into analysis)
 │   │   ├── advanced.py           # ✅ Advanced / experimental views
 │   │   ├── errors.py             # ✅ Error handlers
@@ -75,10 +76,11 @@ src/
 │   ├── single_page.html          # ✅ Lightweight single-page base
 │   ├── pages/                    # Page-level views
 │   │   ├── dashboard.html        # ✅ Interactive dashboard UI
-│   │   ├── analysis.html         # ✅ Analysis hub screen
+│   │   ├── analysis.html         # ✅ Analysis hub screen (modern unified dashboard)
 │   │   ├── applications.html     # ✅ Generated apps explorer
 │   │   ├── models.html           # ✅ Model registry overview
-│   │   ├── statistics.html       # ✅ Metrics & trends page
+│   │   ├── statistics.html       # ✅ Legacy unified metrics (kept for compatibility)
+│   │   ├── statistics/           # ✅ Split statistics pages (generation.html, analysis.html)
 │   │   ├── system_status.html    # ✅ System/container status page
 │   │   └── about.html            # ✅ About / info
 │   └── partials/                 # HTMX-fragment & component templates

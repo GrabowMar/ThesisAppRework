@@ -322,10 +322,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Export for manual initialization
-window.Components = {
-  DataTable,
-  ProgressTracker,
-  StatusIndicator,
-  CodeViewer
-};
+// Export for manual initialization (defensive)
+if (typeof window.Components === 'undefined') {
+  window.Components = {
+    DataTable,
+    ProgressTracker,
+    StatusIndicator,
+    CodeViewer
+  };
+}

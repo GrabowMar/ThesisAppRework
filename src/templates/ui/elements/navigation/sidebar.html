@@ -215,19 +215,11 @@
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('batch.batch_overview') else '' }}" 
-                 href="{{ url_for('batch.batch_overview') }}"
-                 {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Batch Dashboard"' if enable_tooltips and collapsed else '' }}>
-                <i class="nav-icon fas fa-layer-group" aria-hidden="true"></i>
-                <span class="nav-text">Batch Dashboard</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('batch.batch_statistics_page') else '' }}" 
-                 href="{{ url_for('batch.batch_statistics_page') }}"
-                 {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Batch Statistics"' if enable_tooltips and collapsed else '' }}>
-                <i class="nav-icon fas fa-chart-line text-info" aria-hidden="true"></i>
-                <span class="nav-text">Batch Statistics</span>
+              <a class="nav-link {{ 'active' if request.endpoint and 'tasks' in request.endpoint else '' }}" 
+                 href="{{ url_for('tasks.tasks_overview') }}"
+                 {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Tasks Overview"' if enable_tooltips and collapsed else '' }}>
+                <i class="nav-icon fas fa-tasks" aria-hidden="true"></i>
+                <span class="nav-text">Tasks</span>
               </a>
             </li>
           </ul>
@@ -277,14 +269,44 @@
         </div>
       </li>
 
-      <!-- Statistics -->
+      <!-- Statistics (split) -->
       <li class="nav-item">
-        <a class="nav-link {{ 'active' if request.endpoint and 'statistics' in request.endpoint else '' }}" 
-           href="{{ url_for('statistics.statistics_overview') }}"
-           {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Statistics"' if enable_tooltips and collapsed else '' }}>
+        <a class="nav-link nav-link-collapse {{ 'active' if request.endpoint and 'statistics' in request.endpoint else '' }}" 
+           data-bs-toggle="collapse" 
+           data-bs-target="#statistics-menu"
+           aria-expanded="{{ 'true' if request.endpoint and 'statistics' in request.endpoint else 'false' }}"
+           aria-controls="statistics-menu"
+           href="#"
+           role="button">
           <i class="nav-icon fas fa-chart-bar" aria-hidden="true"></i>
           <span class="nav-text">Statistics</span>
+          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
         </a>
+        <div class="collapse {{ 'show' if request.endpoint and 'statistics' in request.endpoint else '' }}" id="statistics-menu">
+          <ul class="nav nav-pills flex-column nav-sub">
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if request.endpoint == 'statistics.statistics_generation' else '' }}" 
+                 href="{{ url_for('statistics.statistics_generation') }}">
+                <i class="nav-icon fas fa-chart-bar" aria-hidden="true"></i>
+                <span class="nav-text">Generation</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if request.endpoint == 'statistics.statistics_analysis' else '' }}" 
+                 href="{{ url_for('statistics.statistics_analysis') }}">
+                <i class="nav-icon fas fa-chart-line" aria-hidden="true"></i>
+                <span class="nav-text">Analysis</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if request.endpoint == 'statistics.statistics_overview' else '' }}" 
+                 href="{{ url_for('statistics.statistics_overview') }}">
+                <i class="nav-icon fas fa-layer-group" aria-hidden="true"></i>
+                <span class="nav-text">Unified</span>
+              </a>
+            </li>
+          </ul>
+        </div>
       </li>
 
       <!-- Divider -->

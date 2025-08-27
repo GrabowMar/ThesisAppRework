@@ -30,6 +30,12 @@
 </a>
 {% endblock %}
 
+{# Remove all padding from main content to optimize wizard layout.
+    The header offset (padding-top: var(--header-height)) comes from theme.css via .main-content class.
+    Use ps-3 to add a small left padding instead of the full sidebar width.
+    Cards and form elements provide their own internal spacing. #}
+{% block main_class %}pt-0 pb-0 ps-3{% endblock %}
+
 {% block content %}
 <!-- Error alerts container -->
 <div id="error-alerts" class="container-fluid mb-3"></div>
@@ -749,7 +755,111 @@
 {% endblock %}
 
 {% block extra_css %}
+<style>
+/* Override the excessive left padding for the analysis wizard */
+body.with-sidebar .main-content {
+    padding-left: 1rem !important;
+}
 
+/* Loading Skeleton Styles */
+.model-grid-skeleton {
+    opacity: 0.7;
+}
+
+.skeleton-card {
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+}
+
+.skeleton-avatar,
+.skeleton-text,
+.skeleton-badge,
+.skeleton-button {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+}
+
+.skeleton-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.skeleton-title {
+    height: 16px;
+    width: 70%;
+    margin-bottom: 4px;
+}
+
+.skeleton-subtitle {
+    height: 12px;
+    width: 50%;
+}
+
+.skeleton-line {
+    height: 12px;
+    width: 100%;
+}
+
+.skeleton-line-short {
+    height: 12px;
+    width: 60%;
+}
+
+.skeleton-badge {
+    height: 14px;
+    width: 40px;
+    border-radius: 12px;
+}
+
+.skeleton-button {
+    height: 32px;
+    width: 100%;
+    border-radius: 6px;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Keyboard navigation */
+.model-card.keyboard-focus {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* Enhanced wizard transitions */
+.wizard-panel {
+    transition: all 0.3s ease-in-out;
+}
+
+.wizard-panel:not(.active) {
+    display: none;
+}
+
+/* Filter transition effects */
+#model-selection-grid {
+    min-height: 200px;
+    transition: opacity 0.2s ease;
+}
+
+#model-selection-grid.htmx-request {
+    opacity: 0.6;
+}
+
+/* Dark theme skeleton adjustments */
+[data-bs-theme="dark"] .skeleton-avatar,
+[data-bs-theme="dark"] .skeleton-text,
+[data-bs-theme="dark"] .skeleton-badge,
+[data-bs-theme="dark"] .skeleton-button {
+    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -1734,105 +1844,4 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 </script>
 
-<!-- Custom styles for wizard enhancements -->
-<style>
-/* Loading Skeleton Styles */
-.model-grid-skeleton {
-    opacity: 0.7;
-}
-
-.skeleton-card {
-    border: 1px solid var(--bs-border-color);
-    background: var(--bs-body-bg);
-}
-
-.skeleton-avatar,
-.skeleton-text,
-.skeleton-badge,
-.skeleton-button {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 4px;
-}
-
-.skeleton-avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.skeleton-title {
-    height: 16px;
-    width: 70%;
-    margin-bottom: 4px;
-}
-
-.skeleton-subtitle {
-    height: 12px;
-    width: 50%;
-}
-
-.skeleton-line {
-    height: 12px;
-    width: 100%;
-}
-
-.skeleton-line-short {
-    height: 12px;
-    width: 60%;
-}
-
-.skeleton-badge {
-    height: 14px;
-    width: 40px;
-    border-radius: 12px;
-}
-
-.skeleton-button {
-    height: 32px;
-    width: 100%;
-    border-radius: 6px;
-}
-
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
-/* Keyboard navigation */
-.model-card.keyboard-focus {
-    outline: 2px solid var(--bs-primary);
-    outline-offset: 2px;
-}
-
-/* Enhanced wizard transitions */
-.wizard-panel {
-    transition: all 0.3s ease-in-out;
-}
-
-.wizard-panel:not(.active) {
-    display: none;
-}
-
-/* Filter transition effects */
-#model-selection-grid {
-    min-height: 200px;
-    transition: opacity 0.2s ease;
-}
-
-#model-selection-grid.htmx-request {
-    opacity: 0.6;
-}
-
-/* Dark theme skeleton adjustments */
-[data-bs-theme="dark"] .skeleton-avatar,
-[data-bs-theme="dark"] .skeleton-text,
-[data-bs-theme="dark"] .skeleton-badge,
-[data-bs-theme="dark"] .skeleton-button {
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 200% 100%;
-}
-</style>
 {% endblock %}

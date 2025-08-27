@@ -340,11 +340,15 @@ window.App = {
   formatNumber: (num) => new Intl.NumberFormat().format(num)
 };
 
-// Initialize when DOM is ready
+// Initialize when DOM is ready (defensive)
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    window.appCore = new AppCore();
+    if (typeof window.appCore === 'undefined') {
+      window.appCore = new AppCore();
+    }
   });
 } else {
-  window.appCore = new AppCore();
+  if (typeof window.appCore === 'undefined') {
+    window.appCore = new AppCore();
+  }
 }
