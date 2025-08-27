@@ -545,7 +545,7 @@ def api_model_applications_fragment(model_slug: str):
     try:
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         apps = GeneratedApplication.query.filter_by(model_slug=model_slug).order_by(GeneratedApplication.app_number.asc()).all()
-        return render_template('fragments/api/model-applications.html', model=model, apps=apps, model_slug=model_slug)
+        return render_template('pages/applications/partials/model-applications.html', model=model, apps=apps, model_slug=model_slug)
     except Exception as e:
         logger.error(f"Error rendering applications for model {model_slug}: {e}")
         # Return a small, user-friendly alert suitable for inline swap
