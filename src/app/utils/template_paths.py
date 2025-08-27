@@ -115,6 +115,29 @@ def remap_template(name: str) -> str:
         if (_templates_root() / candidate).exists():
             return candidate
 
+    # Heuristic 7: reports index may still reside under app/templates/pages/reports
+    if name == 'pages/reports/index.html':
+        # Primary location (new structure) would be under global templates root.
+        primary = _templates_root() / name
+        if primary.exists():
+            return name
+        # Fallback: look under src/app/templates/pages/reports (legacy leftover)
+        legacy_alt = Path(__file__).resolve().parents[1] / 'templates' / 'pages' / 'reports' / 'index.html'
+        if legacy_alt.exists():
+            # Jinja search path may not include this legacy path; copy or remap to a shim under global templates.
+            # For safety (avoid filesystem writes at runtime), return original name so caller logs TemplateNotFound
+            # only if neither path exists. If fallback exists but not in search path, we expose a synthetic alias.
+            # We'll return a synthetic alias under 'pages/_legacy_reports_index.html' if needed.
+            synthetic = 'pages/_legacy_reports_index.html'
+            synth_path = _templates_root() / synthetic
+            try:
+                if not synth_path.exists():  # create once
+                    synth_path.write_text(legacy_alt.read_text(encoding='utf-8'), encoding='utf-8')
+                return synthetic
+            except Exception:
+                return name
+        return name
+
     return name
 
 

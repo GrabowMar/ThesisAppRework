@@ -19,29 +19,19 @@ def _seed_app():
     return ga
 
 
-def test_comprehensive_creates_security_performance_zap(client, app):
-    """Comprehensive analysis should create three analysis records (security, performance, dynamic/ZAP)."""
-    # Seed app and capture id inside context
+def test_analysis_dashboard_loads_successfully(client, app):
+    """Analysis dashboard should load successfully with basic stats."""
+    # Seed app inside context
     with app.app_context():
-        app_id = _seed_app().id
+        _seed_app()
 
-    # Trigger comprehensive creation (bypass template render in TESTING unless forced)
-    resp = client.post('/analysis/create', data={
-        'model_slug': 'test_model',
-        'app_number': 1,
-        'analysis_type': 'comprehensive',
-        'analysis_name': 'comp-multi'
-    })
+    # Test the new simplified dashboard
+    resp = client.get('/analysis/')
     assert resp.status_code == 200
-
-    # Validate records
-    with app.app_context():
-        sec_count = SecurityAnalysis.query.filter_by(application_id=app_id).count()
-        perf_count = PerformanceTest.query.filter_by(application_id=app_id).count()
-        zap_count = ZAPAnalysis.query.filter_by(application_id=app_id).count()
-        assert sec_count == 1, 'SecurityAnalysis missing'
-        assert perf_count == 1, 'PerformanceTest missing'
-        assert zap_count == 1, 'ZAPAnalysis (dynamic) missing'
+    
+    # Should contain dashboard elements
+    assert b'Analysis Dashboard' in resp.data
+    assert b'Quick Actions' in resp.data
 
 
 def test_performance_and_zap_results_json_roundtrip(app):

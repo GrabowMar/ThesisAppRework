@@ -9,7 +9,20 @@
         <option value="{{ m.canonical_slug or m.slug or m.model_slug }}">{{ m.display_name or m.model_name or m.canonical_slug }}</option>
       {% endfor %}
     </select>
-    <div class="form-text">Choose one or more models. If no apps are specified below, all apps for those models will be included.</div>
+    <div class="form-text">Select one or more models. Selecting models loads their applications below for picking specific app numbers (optional).</div>
+  </div>
+
+  <!-- Interactive Application Picker -->
+  <div class="mb-3" id="app-picker-wrapper">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <label class="form-label mb-0">Applications (optional)</label>
+      <div class="btn-group btn-group-sm" role="group" aria-label="App selection helpers">
+        <button class="btn btn-outline-secondary" type="button" id="btn-select-all-apps" disabled>Select All</button>
+        <button class="btn btn-outline-secondary" type="button" id="btn-clear-all-apps" disabled>Clear</button>
+      </div>
+    </div>
+    <div class="form-text mb-2">Pick per-model app numbers. Leave empty to include all apps for chosen models. Hover to see metadata.</div>
+    <div id="app-picker-panels" class="row g-3"></div>
   </div>
 
   <div class="mb-3">
@@ -125,3 +138,129 @@
     <button type="reset" class="btn btn-outline-secondary">Reset</button>
   </div>
 </form>
+
+<script>
+(function(){
+  const modelSelect = document.getElementById('batch_models');
+  const appPanels = document.getElementById('app-picker-panels');
+  const appNumbersInput = document.querySelector('input[name="app_numbers"]');
+  const selectAllBtn = document.getElementById('btn-select-all-apps');
+  const clearAllBtn = document.getElementById('btn-clear-all-apps');
+  const rangeStart = document.getElementById('app_range_start');
+  const rangeEnd = document.getElementById('app_range_end');
+
+  let modelAppCache = {}; // { modelSlug: [ {number, status, created_at} ] }
+
+  function enableHelperButtons(hasApps){
+    selectAllBtn.disabled = !hasApps;
+    clearAllBtn.disabled = !hasApps;
+  }
+
+  function buildPanel(modelSlug, apps){
+    const col = document.createElement('div');
+    col.className = 'col-12';
+    const card = document.createElement('div');
+    card.className = 'card';
+    const header = document.createElement('div');
+    header.className = 'card-header py-2 d-flex align-items-center justify-content-between';
+    header.innerHTML = `<span class="fw-semibold small"><i class="fas fa-box me-1 text-primary"></i>${modelSlug}</span>`;
+    const body = document.createElement('div');
+    body.className = 'card-body py-2';
+    if(!apps || !apps.length){
+      body.innerHTML = '<div class="text-muted small">No applications found.</div>';
+    } else {
+      const grid = document.createElement('div');
+      grid.className = 'd-flex flex-wrap gap-2';
+      apps.forEach(app=>{
+        const id = `chk_${modelSlug}_${app.app_number}`;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'form-check form-check-inline app-chip';
+        wrapper.style.minWidth = '70px';
+        wrapper.innerHTML = `\n          <input class="form-check-input app-select" type="checkbox" data-model="${modelSlug}" data-app="${app.app_number}" id="${id}">\n          <label class="form-check-label small" for="${id}" title="Status: ${app.status || 'unknown'}">#${app.app_number}</label>\n        `;
+        grid.appendChild(wrapper);
+      });
+      body.appendChild(grid);
+    }
+    card.appendChild(header); card.appendChild(body); col.appendChild(card);
+    return col;
+  }
+
+  function updateAppNumbersField(){
+    const checked = Array.from(document.querySelectorAll('.app-select:checked')).map(cb=>cb.getAttribute('data-app'));
+    if(checked.length){
+      appNumbersInput.value = checked.join(',');
+      // Clear range fields if manual selection used
+      if(rangeStart) rangeStart.value = '';
+      if(rangeEnd) rangeEnd.value = '';
+    } else {
+      // Do not overwrite if user typed manually
+    }
+  }
+
+  function handleModelChange(){
+    const selected = Array.from(modelSelect.selectedOptions).map(o=>o.value);
+    appPanels.innerHTML = '';
+    if(!selected.length){
+      enableHelperButtons(false);
+      return;
+    }
+    // Load apps for each selected model (sequential to keep it simple)
+    let pending = selected.length;
+    enableHelperButtons(false);
+    selected.forEach(slug => {
+      if(modelAppCache[slug]){
+        appPanels.appendChild(buildPanel(slug, modelAppCache[slug]));
+        if(--pending===0) enableHelperButtons(document.querySelectorAll('.app-select').length>0);
+        return;
+      }
+      fetch(`/api/models/${slug}/applications`, { headers: { 'HX-Request': 'true' }} )
+        .then(r=> r.ok ? r.text() : Promise.reject(r.status))
+        .then(html => {
+          // Extract minimal data: assume server returns a fragment with elements having data-app-number attributes OR fallback parse numbers
+          const tmp = document.createElement('div'); tmp.innerHTML = html;
+          const appCards = tmp.querySelectorAll('[data-app-number]');
+          const apps = [];
+          if(appCards.length){
+            appCards.forEach(c=>{
+              const num = c.getAttribute('data-app-number');
+              if(num) apps.push({ app_number: num, status: c.getAttribute('data-status') });
+            });
+          } else {
+            // Fallback: find #app-<num> patterns (legacy) -- simple regex scan
+            const text = tmp.textContent || '';
+            const nums = Array.from(new Set((text.match(/Application\s+#(\d+)/gi)||[]).map(s=>s.replace(/\D+/g,''))));
+            nums.forEach(n=> apps.push({ app_number: n }));
+          }
+          modelAppCache[slug] = apps;
+          appPanels.appendChild(buildPanel(slug, apps));
+        })
+        .catch(err => {
+          console.warn('Failed to load apps for', slug, err);
+          appPanels.appendChild(buildPanel(slug, []));
+        })
+        .finally(()=>{ if(--pending===0) enableHelperButtons(document.querySelectorAll('.app-select').length>0); });
+    });
+  }
+
+  // Select all / clear all helpers
+  if(selectAllBtn) selectAllBtn.addEventListener('click', ()=>{
+    document.querySelectorAll('.app-select').forEach(cb=>{ cb.checked = true; });
+    updateAppNumbersField();
+  });
+  if(clearAllBtn) clearAllBtn.addEventListener('click', ()=>{
+    document.querySelectorAll('.app-select').forEach(cb=>{ cb.checked = false; });
+    updateAppNumbersField();
+  });
+
+  // Delegate checkbox change
+  document.addEventListener('change', (e)=>{
+    if(e.target.classList && e.target.classList.contains('app-select')){
+      updateAppNumbersField();
+    }
+  });
+
+  if(modelSelect){
+    modelSelect.addEventListener('change', handleModelChange);
+  }
+})();
+</script>

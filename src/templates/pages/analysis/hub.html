@@ -285,7 +285,7 @@
                         <a href="/models" class="btn btn-outline-secondary">
                             <i class="fas fa-robot me-2"></i>Browse Models
                         </a>
-                        <a href="/applications" class="btn btn-outline-secondary">
+                        <a href="/models/applications" class="btn btn-outline-secondary">
                             <i class="fas fa-code me-2"></i>Browse Apps
                         </a>
                     </div>
@@ -321,9 +321,11 @@
 {{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize status pie chart
-    const statusCtx = document.getElementById('statusChart').getContext('2d');
-    const statusChart = new Chart(statusCtx, {
+    try {
+        // Initialize status pie chart
+        const statusCtx = document.getElementById('statusChart');
+        if (statusCtx) {
+            const statusChart = new Chart(statusCtx.getContext('2d'), {
         type: 'doughnut',
         data: {
             labels: ['Completed', 'Running', 'Failed', 'Pending'],
@@ -356,8 +358,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Initialize trends line chart
-    const trendsCtx = document.getElementById('trendsChart').getContext('2d');
-    const trendsChart = new Chart(trendsCtx, {
+    const trendsCtx = document.getElementById('trendsChart');
+    if (trendsCtx) {
+        const trendsChart = new Chart(trendsCtx.getContext('2d'), {
         type: 'line',
         data: {
             labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -403,7 +406,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+        }
+    } catch (chartError) {
+        console.warn('Chart initialization failed:', chartError);
+    }
     
+    try {
     // Period filter buttons
     document.querySelectorAll('[data-period]').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -437,13 +445,33 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update timestamp every 30 seconds
     setInterval(updateTimestamp, 30000);
     updateTimestamp();
+    } catch (jsError) {
+        console.warn('JavaScript initialization failed:', jsError);
+    }
     
-    // HTMX event handling
+    // HTMX event handling (outside try-catch so it always works)
     document.addEventListener('htmx:afterSwap', function(event) {
+        console.log('HTMX swap completed for:', event.target.id);
         if (event.target.id === 'hub-stats') {
-            // Refresh charts when stats are updated
-            location.reload(); // Simple refresh for now
+            // Update charts when stats are updated without full page reload
+            if (typeof statusChart !== 'undefined') {
+                // Chart will be updated by the swapped content's script
+                console.log('Stats updated - chart data refreshed');
+            }
         }
+    });
+    
+    // Debug HTMX loading issues
+    document.addEventListener('htmx:beforeRequest', function(event) {
+        console.log('HTMX request starting:', event.detail.requestConfig.path);
+    });
+    
+    document.addEventListener('htmx:responseError', function(event) {
+        console.error('HTMX response error:', event.detail);
+    });
+    
+    document.addEventListener('htmx:timeout', function(event) {
+        console.warn('HTMX request timeout:', event.detail);
     });
 });
 </script>

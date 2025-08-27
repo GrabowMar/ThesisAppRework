@@ -57,7 +57,7 @@
           <i class="fas fa-folder me-1"></i>File
         </button>
         <ul class="dropdown-menu" aria-labelledby="file-menu">
-          <li><a class="dropdown-item" href="{{ url_for('analysis.analyses_create_page') }}">
+          <li><a class="dropdown-item" href="{{ url_for('analysis.analysis_dashboard') }}">
             <i class="fas fa-plus me-2"></i>New Analysis
           </a></li>
           <li><hr class="dropdown-divider"></li>
@@ -201,15 +201,15 @@
         <div class="collapse {{ 'show' if request.endpoint and 'analysis' in request.endpoint else '' }}" id="analysis-menu">
           <ul class="nav nav-pills flex-column nav-sub">
             <li class="nav-item">
-              <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analysis_hub' else '' }}" 
-                 href="{{ url_for('analysis.analysis_hub') }}">
+              <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analysis_dashboard' else '' }}" 
+                 href="{{ url_for('analysis.analysis_dashboard') }}">
                 <i class="nav-icon fas fa-home" aria-hidden="true"></i>
                 <span class="nav-text">Hub</span>
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analyses_list_page' else '' }}" 
-                 href="{{ url_for('analysis.analyses_list_page') }}">
+              <a class="nav-link {{ 'active' if request.endpoint == 'analysis.analysis_list' else '' }}" 
+                 href="{{ url_for('analysis.analysis_list') }}">
                 <i class="nav-icon fas fa-list" aria-hidden="true"></i>
                 <span class="nav-text">Results</span>
               </a>
@@ -220,14 +220,6 @@
                  {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="Batch Dashboard"' if enable_tooltips and collapsed else '' }}>
                 <i class="nav-icon fas fa-layer-group" aria-hidden="true"></i>
                 <span class="nav-text">Batch Dashboard</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('batch.create_batch') else '' }}" 
-                 href="{{ url_for('batch.create_batch') }}"
-                 {{ 'data-bs-toggle="tooltip" data-bs-placement="right" title="New Batch"' if enable_tooltips and collapsed else '' }}>
-                <i class="nav-icon fas fa-plus-square" aria-hidden="true"></i>
-                <span class="nav-text">New Batch</span>
               </a>
             </li>
             <li class="nav-item">
@@ -331,7 +323,7 @@
     <nav class="sidebar-nav" role="navigation" aria-label="Mobile sidebar navigation">
       <ul class="nav nav-pills flex-column">
         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}"><i class="nav-icon fas fa-tachometer-alt"></i><span class="nav-text">Dashboard</span></a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('analysis.analysis_hub') }}"><i class="nav-icon fas fa-chart-line"></i><span class="nav-text">Analysis</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('analysis.analysis_dashboard') }}"><i class="nav-icon fas fa-chart-line"></i><span class="nav-text">Analysis</span></a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('models.models_overview') }}"><i class="nav-icon fas fa-brain"></i><span class="nav-text">Models</span></a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('models.applications') }}"><i class="nav-icon fas fa-boxes"></i><span class="nav-text">Applications</span></a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}"><i class="nav-icon fas fa-chart-bar"></i><span class="nav-text">Statistics</span></a></li>

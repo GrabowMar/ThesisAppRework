@@ -84,10 +84,15 @@ def test_comprehensive_template_renders(app_ctx, monkeypatch):
     })
 
     assert resp.status_code == 200
-    html = resp.get_data(as_text=True)
-    # Assert presence of the three IDs and key heading
-    assert 'Comprehensive Analysis Started' in html
-    assert 'Security Analysis ID:' in html
-    assert 'Performance Test ID:' in html
-    assert 'Dynamic Analysis ID:' in html
+    json_response = resp.get_json()
+    
+    # New behavior: Should return JSON with redirect URL and analysis IDs
+    assert json_response['success'] is True
+    assert 'redirect_url' in json_response
+    assert json_response['redirect_url'] == f"/analysis/results/{g.model_slug}/{g.app_number}"
+    assert json_response['security_id'] == fake_ids['sec']
+    assert json_response['performance_id'] == fake_ids['perf']
+    assert json_response['dynamic_id'] == fake_ids['dyn']
+    assert json_response['show_modal'] is True
+    assert 'Comprehensive analysis started successfully!' in json_response['message']
 

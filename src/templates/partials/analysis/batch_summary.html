@@ -1,0 +1,78 @@
+{#
+    Batch Summary Partial
+    Purpose: Overview of batch operations status
+#}
+
+{% if batch_stats %}
+<div class="row text-center mb-3">
+    <div class="col-4">
+        <div class="text-primary">
+            <h5 class="mb-0">{{ batch_stats.running }}</h5>
+            <small>Running</small>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="text-warning">
+            <h5 class="mb-0">{{ batch_stats.queued }}</h5>
+            <small>Queued</small>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="text-success">
+            <h5 class="mb-0">{{ batch_stats.completed_today }}</h5>
+            <small>Today</small>
+        </div>
+    </div>
+</div>
+
+{% if batch_stats.recent_batches %}
+<h6 class="small text-uppercase text-muted mb-2">Recent Batches</h6>
+{% for batch in batch_stats.recent_batches %}
+<div class="d-flex justify-content-between align-items-center py-1 mb-2">
+    <div class="d-flex align-items-center">
+        <div class="me-2">
+            {% if batch.status == 'running' %}
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            {% elif batch.status == 'completed' %}
+                <i class="fas fa-check-circle text-success"></i>
+            {% elif batch.status == 'queued' %}
+                <i class="fas fa-clock text-warning"></i>
+            {% else %}
+                <i class="fas fa-exclamation-circle text-danger"></i>
+            {% endif %}
+        </div>
+        <div>
+            <div class="small fw-medium">Batch #{{ batch.id }}</div>
+            <div class="small text-muted">{{ batch.created_at.strftime('%H:%M') }}</div>
+        </div>
+    </div>
+    <div class="text-end">
+        <span class="badge bg-{{ 'primary' if batch.status == 'running' else 'success' if batch.status == 'completed' else 'warning' if batch.status == 'queued' else 'danger' }}">
+            {{ batch.status }}
+        </span>
+        {% if batch.status == 'running' and batch.progress %}
+        <div class="progress progress-sm mt-1" style="width: 60px;">
+            <div class="progress-bar" style="width: {{ batch.progress }}%"></div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+<div class="mt-3">
+    <a href="{{ url_for('batch.batch_overview') }}" class="btn btn-outline-success btn-sm w-100">
+        <i class="fas fa-layer-group me-2"></i>View All Batches
+    </a>
+</div>
+
+{% endif %}
+
+{% else %}
+<div class="text-center text-muted py-3">
+    <i class="fas fa-layer-group fa-2x mb-2"></i>
+    <p class="mb-2">No batch operations yet</p>
+    <a href="{{ url_for('batch.batch_overview') }}" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-plus me-1"></i>Create Batch
+    </a>
+</div>
+{% endif %}

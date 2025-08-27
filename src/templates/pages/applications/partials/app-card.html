@@ -161,7 +161,7 @@
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li>
-                <a class="dropdown-item" href="{{ url_for('analysis.analyses_create_page') }}">
+                <a class="dropdown-item" href="{{ url_for('analysis.analysis_dashboard') }}">
                   <i class="fas fa-chart-line me-2" aria-hidden="true"></i>
                   New Analysis
                 </a>
@@ -367,7 +367,7 @@
         {% endif %}
         
         <!-- New Analysis -->
-  <a href="{{ url_for('analysis.analyses_create_page') }}" 
+  <a href="{{ url_for('analysis.analysis_dashboard') }}" 
            class="btn btn-outline-info btn-sm">
           <i class="fas fa-chart-line me-1" aria-hidden="true"></i>
           Analyze

@@ -8,4 +8,4 @@ def test_reports_history_page_renders(client):
         dummy.write_text('placeholder')
     resp = client.get('/reports/')
     assert resp.status_code == 200
-    assert b'Saved Reports' in resp.data
+    assert b'Analysis Results' in resp.data

@@ -16,8 +16,8 @@ from sqlalchemy import desc
 
 from ..extensions import db
 from ..models import (
-    BatchAnalysis, GeneratedApplication, SecurityAnalysis, 
-    PerformanceTest, ZAPAnalysis, OpenRouterAnalysis, ModelCapability, BatchTemplate
+    BatchAnalysis, GeneratedApplication, SecurityAnalysis,
+    PerformanceTest, ZAPAnalysis, OpenRouterAnalysis, BatchTemplate
 )
 from ..constants import JobStatus, AnalysisStatus
 from ..services.batch_service import batch_service  # global instance with advanced managers
@@ -637,13 +637,13 @@ def batch_list():
 
 @batch_bp.route('/form')
 def batch_form():
-    """HTMX endpoint for batch form."""
-    try:
-        models = ModelCapability.query.all()
-        return render_template('partials/analysis/create/batch_form.html', models=models)
-    except Exception as e:
-        logger.error(f"Error loading batch form: {e}")
-        return render_template('partials/common/error.html', error=f"Error loading batch form: {str(e)}")
+    """Deprecated: redirect to unified analysis create page with batch mode enabled.
+
+    Legacy templates/links may still request /batch/form. We preserve UX by
+    redirecting to /analysis/create?batch=1 so the new unified page auto-opens
+    batch mode and lazy-loads the embedded batch form partial.
+    """
+    return redirect(url_for('analysis.analyses_create_page', batch=1))
 
 
 # Import logger

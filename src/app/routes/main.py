@@ -155,7 +155,7 @@ def testing():
     """Legacy testing platform route -> redirect to Analysis Hub."""
     try:
         flash('Testing has moved to Analysis Hub.', 'info')
-        return redirect(url_for('analysis.analysis_hub'))
+        return redirect(url_for('analysis.analysis_dashboard'))
     except Exception as e:
         logger.error(f"Error redirecting testing page: {e}")
         flash('Error loading testing page', 'error')

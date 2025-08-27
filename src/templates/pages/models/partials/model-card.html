@@ -158,7 +158,7 @@
               </a>
             </li>
             <li>
-              <a class="dropdown-item" href="{{ url_for('analysis.analyses_create_page') }}?model={{ model_slug }}">
+              <a class="dropdown-item" href="{{ url_for('analysis.analysis_dashboard') }}?model={{ model_slug }}">
                 <i class="fas fa-play me-2 text-success" aria-hidden="true"></i>
                 Start Analysis
               </a>
@@ -349,7 +349,7 @@
         
         <button type="button" 
                 class="btn btn-outline-primary btn-sm flex-grow-1"
-                onclick="location.href='{{ url_for('analysis.analyses_create_page') }}?model={{ model_slug }}'"
+                onclick="location.href='{{ url_for('analysis.analysis_dashboard') }}?model={{ model_slug }}'"
                 {{ 'disabled' if status == 'unavailable' else '' }}>
           <i class="fas fa-play me-1" aria-hidden="true"></i>
           Analyze
@@ -376,7 +376,7 @@ class ModelCard {
     // Precompute base URLs from server routes to avoid hard-coded paths
     this.urls = {
       applications: "{{ url_for('models.applications') }}",
-      analysesList: "{{ url_for('analysis.analyses_list_page') }}"
+      analysesList: "{{ url_for('analysis.analysis_list') }}"
     };
     
     this.init();
