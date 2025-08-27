@@ -1,0 +1,28 @@
+{# Batch Analytics Partial #}
+<div id="batch-analytics" hx-get="/batch/api/batch/analytics" hx-trigger="load, every 12s" hx-target="#batch-analytics" hx-swap="outerHTML">
+  <h5 class="mb-2">Batch Analytics</h5>
+  {% if total_batches is defined %}
+  <div class="row g-3 small">
+    <div class="col-6 col-md-3">
+      <div class="stat-tile"><div class="label">Total</div><div class="value">{{ total_batches }}</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-tile"><div class="label">Completed</div><div class="value text-success">{{ completed }}</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-tile"><div class="label">Failed</div><div class="value text-danger">{{ failed }}</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-tile"><div class="label">Running</div><div class="value text-info">{{ running }}</div></div>
+    </div>
+  </div>
+  <div class="mt-2 small text-muted">Success Rate: {{ success_rate_pct }}% | Avg Duration: {% if avg_duration_seconds %}{{ avg_duration_seconds }}s{% else %}-{% endif %}</div>
+  {% else %}
+    <div class="text-muted small">No analytics yet.</div>
+  {% endif %}
+</div>
+<style>
+  .stat-tile {background:#1f2330;padding:.5rem .75rem;border-radius:.5rem;}
+  .stat-tile .label {font-size:.65rem;letter-spacing:.5px;text-transform:uppercase;opacity:.7;}
+  .stat-tile .value {font-size:1.1rem;font-weight:600;}
+</style>

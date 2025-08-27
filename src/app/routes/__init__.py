@@ -35,6 +35,7 @@ def load_blueprints():
     from .batch import batch_bp
     from .statistics import stats_bp
     from .advanced import advanced as advanced_bp
+    from .reports import reports_bp
 
     return [
         {"bp": main_bp, "url_prefix": None, "name": "main"},
@@ -43,6 +44,7 @@ def load_blueprints():
         {"bp": batch_bp, "url_prefix": "/batch", "name": "batch"},
         {"bp": stats_bp, "url_prefix": "/statistics", "name": "statistics"},
         {"bp": advanced_bp, "url_prefix": "/advanced", "name": "advanced"},
+    {"bp": reports_bp, "url_prefix": "/reports", "name": "reports"},
     ]
 
 

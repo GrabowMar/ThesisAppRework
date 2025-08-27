@@ -1291,6 +1291,227 @@ class BatchAnalysis(db.Model):
         return f'<BatchAnalysis {self.batch_id}>'
 
 
+# ---------------------------------------------------------------------------
+# Advanced Batch Orchestration Models (Queue, Scheduling, Resources, Templates)
+# ---------------------------------------------------------------------------
+
+class BatchQueue(db.Model):
+    """Queue entries for batch jobs with priority scheduling.
+
+    Separate from BatchAnalysis to allow multiple queued states, requeueing,
+    and historical retention even if core batch record archived.
+    """
+    __tablename__ = 'batch_queues'
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.String(100), db.ForeignKey('batch_analyses.batch_id'), nullable=False, index=True)
+    priority = db.Column(db.String(20), nullable=False, index=True, default='normal')  # low, normal, high, urgent
+    status = db.Column(db.String(30), nullable=False, default='queued', index=True)  # queued, dispatching, running, paused, completed, cancelled, failed
+    position = db.Column(db.Integer, nullable=True)  # Optional snapshot position within its priority lane
+    attempt_count = db.Column(db.Integer, default=0)
+    last_error = db.Column(db.Text)
+    metadata_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+
+    def get_metadata(self) -> Dict[str, Any]:
+        if self.metadata_json:
+            try:
+                return json.loads(self.metadata_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_metadata(self, data: Dict[str, Any]):
+        self.metadata_json = json.dumps(data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'batch_id': self.batch_id,
+            'priority': self.priority,
+            'status': self.status,
+            'position': self.position,
+            'attempt_count': self.attempt_count,
+            'last_error': self.last_error,
+            'metadata': self.get_metadata(),
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'started_at': self.started_at,
+            'completed_at': self.completed_at,
+        }
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f'<BatchQueue {self.batch_id} prio={self.priority} status={self.status}>'
+
+
+class BatchDependency(db.Model):
+    """Dependency edges between batch jobs (batch B waits for A)."""
+    __tablename__ = 'batch_dependencies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.String(100), db.ForeignKey('batch_analyses.batch_id'), nullable=False, index=True)
+    depends_on_batch_id = db.Column(db.String(100), nullable=False, index=True)
+    satisfied = db.Column(db.Boolean, default=False, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    __table_args__ = (
+        db.UniqueConstraint('batch_id', 'depends_on_batch_id', name='uq_batch_dependency'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'batch_id': self.batch_id,
+            'depends_on_batch_id': self.depends_on_batch_id,
+            'satisfied': self.satisfied,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+        }
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f'<BatchDependency {self.batch_id}->{self.depends_on_batch_id} satisfied={self.satisfied}>'
+
+
+class BatchSchedule(db.Model):
+    """Recurring batch scheduling (cron-like expressions)."""
+    __tablename__ = 'batch_schedules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_config_json = db.Column(db.Text, nullable=False)  # Stored config to instantiate new BatchAnalysis
+    cron_expression = db.Column(db.String(120), nullable=False, index=True)
+    last_run = db.Column(db.DateTime(timezone=True))
+    next_run = db.Column(db.DateTime(timezone=True))
+    enabled = db.Column(db.Boolean, default=True, index=True)
+    metadata_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    def get_batch_config(self) -> Dict[str, Any]:
+        try:
+            return json.loads(self.batch_config_json) if self.batch_config_json else {}
+        except json.JSONDecodeError:
+            return {}
+
+    def get_metadata(self) -> Dict[str, Any]:
+        if self.metadata_json:
+            try:
+                return json.loads(self.metadata_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_metadata(self, data: Dict[str, Any]):
+        self.metadata_json = json.dumps(data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'cron_expression': self.cron_expression,
+            'last_run': self.last_run,
+            'next_run': self.next_run,
+            'enabled': self.enabled,
+            'batch_config': self.get_batch_config(),
+            'metadata': self.get_metadata(),
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+        }
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f'<BatchSchedule cron={self.cron_expression} enabled={self.enabled}>'
+
+
+class BatchResourceUsage(db.Model):
+    """Resource metrics recorded per batch & analyzer type."""
+    __tablename__ = 'batch_resource_usage'
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.String(100), db.ForeignKey('batch_analyses.batch_id'), nullable=False, index=True)
+    analyzer_type = db.Column(db.String(50), nullable=False, index=True)
+    peak_memory = db.Column(db.Float)  # MB
+    peak_cpu = db.Column(db.Float)     # percentage
+    duration = db.Column(db.Float)     # seconds
+    sample_count = db.Column(db.Integer, default=0)
+    metadata_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    def get_metadata(self) -> Dict[str, Any]:
+        if self.metadata_json:
+            try:
+                return json.loads(self.metadata_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_metadata(self, data: Dict[str, Any]):
+        self.metadata_json = json.dumps(data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'batch_id': self.batch_id,
+            'analyzer_type': self.analyzer_type,
+            'peak_memory': self.peak_memory,
+            'peak_cpu': self.peak_cpu,
+            'duration': self.duration,
+            'sample_count': self.sample_count,
+            'metadata': self.get_metadata(),
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+        }
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f'<BatchResourceUsage {self.batch_id} {self.analyzer_type}>'
+
+
+class BatchTemplate(db.Model):
+    """Reusable saved batch configuration templates."""
+    __tablename__ = 'batch_templates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    description = db.Column(db.Text)
+    batch_config_json = db.Column(db.Text, nullable=False)  # Saved payload for creating job
+    metadata_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    def get_batch_config(self) -> Dict[str, Any]:
+        try:
+            return json.loads(self.batch_config_json) if self.batch_config_json else {}
+        except json.JSONDecodeError:
+            return {}
+
+    def get_metadata(self) -> Dict[str, Any]:
+        if self.metadata_json:
+            try:
+                return json.loads(self.metadata_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_metadata(self, data: Dict[str, Any]):
+        self.metadata_json = json.dumps(data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'batch_config': self.get_batch_config(),
+            'metadata': self.get_metadata(),
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+        }
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f'<BatchTemplate {self.name}>'
+
+
 # Initialize database function
 def init_db():
     """Create all database tables."""
@@ -1318,5 +1539,10 @@ __all__ = [
     'ContainerizedTest',
     'BatchAnalysis',
     'AnalysisConfig',
-    'ConfigPreset'
+    'ConfigPreset',
+    'BatchQueue',
+    'BatchDependency',
+    'BatchSchedule',
+    'BatchResourceUsage',
+    'BatchTemplate'
 ]

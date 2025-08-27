@@ -69,3 +69,10 @@ httpx==0.25.2
 # Background Task Management
 celery==5.3.4
 redis==5.0.1
+
+# Scheduling
+croniter==2.0.3
+
+# Export Generation
+reportlab==4.4.3
+openpyxl==3.1.5

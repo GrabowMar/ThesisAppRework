@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "model_slug": "test_model",
+    "app_number": 1,
+    "analysis_type": "security",
+    "timestamp": "2025-08-26T10:28:06.300461",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "static_analysis_result",
+    "status": "success",
+    "service": "static-analyzer",
+    "analysis": {
+      "status": "error",
+      "error": "Model path not found: /app/sources/test_model/app1"
+    },
+    "timestamp": "2025-08-26T08:28:05.987771"
+  }
+}

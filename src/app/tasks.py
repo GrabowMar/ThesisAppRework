@@ -251,10 +251,34 @@ def update_batch_progress(batch_job_id: Optional[str], task_completed: bool = Fa
     """Update batch job progress."""
     if batch_service and batch_job_id:
         try:
-            batch_service.update_task_progress(
-                batch_job_id, task_completed, task_failed, result
-            )
-        except Exception as e:
+            # Guarantee an app context for any downstream DB/session usage
+            from flask import has_app_context
+            if has_app_context():
+                batch_service.update_task_progress(
+                    batch_job_id, task_completed, task_failed, result
+                )
+            else:
+                try:
+                    from app.factory import get_flask_app  # type: ignore
+                    app = get_flask_app()
+                except Exception as _gf_err:  # pragma: no cover
+                    app = None  # type: ignore
+                if app is not None:
+                    try:
+                        with app.app_context():
+                            batch_service.update_task_progress(
+                                batch_job_id, task_completed, task_failed, result
+                            )
+                    except Exception as _ctx_err:  # pragma: no cover
+                        print(f"Progress persistence error: {_ctx_err}")
+                else:  # Last resort: attempt direct call (may still fail but we log it)
+                    try:
+                        batch_service.update_task_progress(
+                            batch_job_id, task_completed, task_failed, result
+                        )
+                    except Exception as _final_err:  # pragma: no cover
+                        print(f"Progress persistence error: {_final_err}")
+        except Exception as e:  # pragma: no cover
             print(f"Failed to update batch progress: {e}")
 
 # =============================================================================

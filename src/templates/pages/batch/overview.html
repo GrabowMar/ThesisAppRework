@@ -47,52 +47,9 @@
 <div class="container-fluid">
     <!-- Standard page header rendered by base template -->
 
-    <!-- Statistics Overview -->
-    <div class="batch-stats">
-        <div class="row text-center">
-            <div class="col-md-2">
-                <div class="mb-2">
-                    <i class="fas fa-tasks fa-2x opacity-75"></i>
-                </div>
-                <h3 class="fw-bold">{{ stats.total_batches }}</h3>
-                <p class="mb-0 opacity-75">Total Batches</p>
-            </div>
-            <div class="col-md-2">
-                <div class="mb-2">
-                    <i class="fas fa-play fa-2x opacity-75"></i>
-                </div>
-                <h3 class="fw-bold">{{ stats.running_batches }}</h3>
-                <p class="mb-0 opacity-75">Running</p>
-            </div>
-            <div class="col-md-2">
-                <div class="mb-2">
-                    <i class="fas fa-clock fa-2x opacity-75"></i>
-                </div>
-                <h3 class="fw-bold">{{ stats.queued_batches }}</h3>
-                <p class="mb-0 opacity-75">Queued</p>
-            </div>
-            <div class="col-md-2">
-                <div class="mb-2">
-                    <i class="fas fa-check fa-2x opacity-75"></i>
-                </div>
-                <h3 class="fw-bold">{{ stats.completed_batches }}</h3>
-                <p class="mb-0 opacity-75">Completed</p>
-            </div>
-            <div class="col-md-2">
-                <div class="mb-2">
-                    <i class="fas fa-chart-line fa-2x opacity-75"></i>
-                </div>
-                <h3 class="fw-bold">{{ stats.total_analyses }}</h3>
-                <p class="mb-0 opacity-75">Total Analyses</p>
-            </div>
-            <div class="col-md-2">
-                <div class="mb-2">
-                    <i class="fas fa-server fa-2x opacity-75"></i>
-                </div>
-                <h3 class="fw-bold">{{ stats.active_workers }}</h3>
-                <p class="mb-0 opacity-75">Active Workers</p>
-            </div>
-        </div>
+    <!-- Statistics Overview (HTMX partial) -->
+    <div class="batch-stats" id="stats-summary" hx-get="/batch/partials/stats" hx-trigger="load, every 5s" hx-swap="outerHTML">
+        {% include 'pages/batch/partials/stats_summary.html' %}
     </div>
 
     <!-- Main Content -->
@@ -119,105 +76,8 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <div id="batch-operations-list">
-                        {% if active_batches %}
-                            {% for batch in active_batches %}
-                            <div class="batch-item batch-{{ batch.status }}" data-batch-id="{{ batch.id }}">
-                                <div class="row align-items-center">
-                                    <div class="col-md-1">
-                                        <div class="progress-ring">
-                                            <svg width="60" height="60">
-                                                <circle cx="30" cy="30" r="25" stroke="{{ '#28a745' if batch.status == 'completed' else '#007bff' if batch.status == 'running' else '#ffc107' if batch.status == 'pending' else '#dc3545' }}" 
-                                                        stroke-dashoffset="{{ 157 - (batch.progress / 100 * 157) }}"></circle>
-                                            </svg>
-                                            <div class="position-absolute top-50 start-50 translate-middle">
-                                                <small class="fw-bold">{{ batch.progress }}%</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-7">
-                                        <div class="d-flex justify-content-between align-items-start mb-1">
-                                            <h6 class="mb-0">{{ batch.name }}</h6>
-                                            <span class="badge bg-{{ 'success' if batch.status == 'completed' else 'primary' if batch.status == 'running' else 'warning' if batch.status == 'pending' else 'danger' }}">
-                                                {{ batch.status|title }}
-                                            </span>
-                                        </div>
-                                        <p class="text-muted small mb-1">
-                                            {{ batch.analysis_type|title }} analysis for {{ batch.application_count }} applications
-                                        </p>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span class="small text-muted">
-                                                Started: {{ batch.created_at.strftime('%m/%d/%Y %H:%M') }}
-                                            </span>
-                                            {% if batch.status == 'running' %}
-                                                <span class="small text-muted">
-                                                    ETA: {{ batch.estimated_completion_time.strftime('%H:%M') if batch.estimated_completion_time else 'Unknown' }}
-                                                </span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <div class="text-center">
-                                            <div class="fw-bold">{{ batch.completed_analyses }}/{{ batch.total_analyses }}</div>
-                                            <small class="text-muted">Analyses</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <div class="batch-actions">
-                                            {% if batch.status == 'running' %}
-                                                <button class="btn btn-sm btn-outline-warning me-1" onclick="pauseBatch('{{ batch.id }}')">
-                                                    <i class="fas fa-pause"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-danger" onclick="cancelBatch('{{ batch.id }}')">
-                                                    <i class="fas fa-stop"></i>
-                                                </button>
-                                            {% elif batch.status == 'pending' %}
-                                                <button class="btn btn-sm btn-outline-success me-1" onclick="startBatch('{{ batch.id }}')">
-                                                    <i class="fas fa-play"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-danger" onclick="cancelBatch('{{ batch.id }}')">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                            {% elif batch.status == 'paused' %}
-                                                <button class="btn btn-sm btn-outline-success me-1" onclick="resumeBatch('{{ batch.id }}')">
-                                                    <i class="fas fa-play"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-danger" onclick="cancelBatch('{{ batch.id }}')">
-                                                    <i class="fas fa-stop"></i>
-                                                </button>
-                                            {% else %}
-                                                <button class="btn btn-sm btn-outline-primary me-1" onclick="viewBatchDetails('{{ batch.id }}')">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-secondary" onclick="downloadBatchResults('{{ batch.id }}')">
-                                                    <i class="fas fa-download"></i>
-                                                </button>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Progress Bar -->
-                                {% if batch.status in ['running', 'pending'] %}
-                                <div class="mt-3">
-                                    <div class="progress u-2f623b">
-                                        <div class="progress-bar progress-bar-striped {{ 'progress-bar-animated' if batch.status == 'running' else '' }}" 
-                                             style="width: {{ batch.progress }}%"></div>
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <div class="text-center py-5">
-                                <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
-                                <h5 class="text-muted">No Active Batch Operations</h5>
-                                <p class="text-muted">Create a new batch operation to analyze multiple applications</p>
-                                <button class="btn btn-primary" onclick="createBatchOperation()">
-                                    <i class="fas fa-plus me-1"></i>Create Batch Operation
-                                </button>
-                            </div>
-                        {% endif %}
+                    <div id="batch-operations-list" hx-get="/batch/partials/active" hx-trigger="load, every 5s" hx-swap="innerHTML">
+                        {% include 'pages/batch/partials/active_batches.html' %}
                     </div>
                 </div>
             </div>
@@ -227,68 +87,8 @@
                 <div class="card-header">
                     <h5 class="mb-0">Recent History</h5>
                 </div>
-                <div class="card-body">
-                    {% if recent_batches %}
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Batch Name</th>
-                                        <th>Type</th>
-                                        <th>Applications</th>
-                                        <th>Status</th>
-                                        <th>Duration</th>
-                                        <th>Completed</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for batch in recent_batches %}
-                                    <tr>
-                                        <td>
-                                            <strong>{{ batch.name }}</strong>
-                                            <br><small class="text-muted">{{ batch.created_at.strftime('%m/%d/%Y %H:%M') }}</small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-secondary">{{ batch.analysis_type|title }}</span>
-                                        </td>
-                                        <td>{{ batch.application_count }}</td>
-                                        <td>
-                                            <span class="badge bg-{{ 'success' if batch.status == 'completed' else 'danger' if batch.status == 'failed' else 'warning' }}">
-                                                {{ batch.status|title }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            {% if batch.duration_minutes %}
-                                                {{ batch.duration_minutes }}m
-                                            {% else %}
-                                                -
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ batch.completion_time.strftime('%m/%d/%Y %H:%M') if batch.completion_time else '-' }}</td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-outline-primary" onclick="viewBatchDetails('{{ batch.id }}')">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                                {% if batch.status == 'completed' %}
-                                                    <button class="btn btn-outline-success" onclick="downloadBatchResults('{{ batch.id }}')">
-                                                        <i class="fas fa-download"></i>
-                                                    </button>
-                                                {% endif %}
-                                                <button class="btn btn-outline-secondary" onclick="duplicateBatch('{{ batch.id }}')">
-                                                    <i class="fas fa-copy"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <p class="text-muted text-center">No batch operations history available.</p>
-                    {% endif %}
+                <div class="card-body" id="recent-batches" hx-get="/batch/partials/recent" hx-trigger="load, every 15s" hx-swap="innerHTML">
+                    {% include 'pages/batch/partials/recent_batches.html' %}
                 </div>
             </div>
         </div>
@@ -296,9 +96,9 @@
         <!-- Sidebar -->
         <div class="col-lg-4">
             <!-- System Resources -->
-            <div class="card mb-4">
+            <div class="card mb-4" id="queue-overview" hx-get="/batch/partials/queue" hx-trigger="load, every 10s" hx-swap="innerHTML">
                 <div class="card-header">
-                    <h6 class="mb-0">System Resources</h6>
+                    <h6 class="mb-0">System Resources / Queue</h6>
                 </div>
                 <div class="card-body">
                     <div class="row text-center">
@@ -317,26 +117,32 @@
                             <p class="small text-muted mt-2">Memory Usage</p>
                         </div>
                     </div>
-                    
+                    <hr>
+                    <h6 class="small text-uppercase text-muted">Queue Overview</h6>
+                    <div id="queue-overview-fragment">
+                        {% include 'pages/batch/partials/queue_overview.html' with context %}
+                    </div>
+                    <hr>
                     <div class="mt-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="small">Active Workers:</span>
-                            <span class="fw-bold">{{ system_resources.active_workers }}/{{ system_resources.max_workers }}</span>
+                            <span class="fw-bold">{{ (system_resources.active_workers if system_resources and system_resources.active_workers is defined else 0) }}/{{ (system_resources.max_workers if system_resources and system_resources.max_workers is defined else 1) }}</span>
                         </div>
                         <div class="progress u-2f623b">
-                            <div class="progress-bar bg-info" 
-                                 style="width: {{ (system_resources.active_workers / system_resources.max_workers * 100)|round(1) }}%"></div>
+                       {% set aw = (system_resources.active_workers if system_resources and system_resources.active_workers is defined else 0) %}
+                       {% set mw = (system_resources.max_workers if system_resources and system_resources.max_workers is defined and system_resources.max_workers else 1) %}
+                       <div class="progress-bar bg-info" 
+                           style="width: {{ (aw / mw * 100)|round(1) }}%"></div>
                         </div>
                     </div>
                     
                     <div class="mt-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="small">Queue Length:</span>
-                            <span class="fw-bold">{{ system_resources.queue_length }}</span>
+                            <span class="fw-bold">{{ queue_overview.total if queue_overview else 0 }}</span>
                         </div>
                         <div class="progress u-2f623b">
-                            <div class="progress-bar bg-warning" 
-                                 style="width: {{ min(system_resources.queue_length / 100 * 100, 100) }}%"></div>
+                            <div class="progress-bar bg-warning" style="width: {{ (queue_overview.total if queue_overview else 0) | default(0) }}%"></div>
                         </div>
                     </div>
                 </div>
@@ -529,7 +335,7 @@ function viewBatchDetails(batchId) {
 }
 
 function downloadBatchResults(batchId) {
-    window.open(`/api/batch/${batchId}/download`, '_blank');
+    openExportModal(batchId);
 }
 
 function duplicateBatch(batchId) {
@@ -596,7 +402,62 @@ function cancelAllBatches() {
 }
 
 function exportBatchResults() {
-    window.open('/api/batch/export', '_blank');
+        openExportModal(null);
+}
+
+// Export modal (lightweight inline implementation)
+function openExportModal(batchId) {
+        const existing = document.getElementById('exportModal');
+        if (existing) existing.remove();
+        const m = document.createElement('div');
+        m.className = 'modal fade show';
+        m.id = 'exportModal';
+        m.style.display = 'block';
+        m.style.background = 'rgba(0,0,0,0.5)';
+        m.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Export ${batchId ? 'Batch '+batchId : 'Batches'}</h5>
+                        <button type="button" class="btn-close" aria-label="Close" onclick="closeExportModal()"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Format</label>
+                            <select id="export-format" class="form-select form-select-sm">
+                                <option value="json">JSON</option>
+                                <option value="csv" ${batchId?'':'selected'}>CSV</option>
+                                <option value="txt">Summary (TXT)</option>
+                                <option value="ndjson">NDJSON</option>
+                                <option value="pdf">PDF (placeholder)</option>
+                                <option value="xlsx">Excel (placeholder)</option>
+                            </select>
+                        </div>
+                        ${batchId? '' : '<div class="form-check"><input class="form-check-input" type="checkbox" id="export-include-db" checked><label class="form-check-label" for="export-include-db">Include persisted DB rows</label></div>'}
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="closeExportModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="confirmExport('${batchId||''}')"><i class="fas fa-download me-1"></i>Download</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(m);
+}
+
+function closeExportModal() {
+        const m = document.getElementById('exportModal');
+        if (m) m.remove();
+}
+
+function confirmExport(batchId) {
+        const fmt = document.getElementById('export-format').value;
+        if (batchId) {
+                window.open(`/batch/api/batch/job/${batchId}/export?format=${fmt}`, '_blank');
+        } else {
+                const includeDb = document.getElementById('export-include-db').checked ? '1':'0';
+                window.open(`/batch/api/batch/export?format=${fmt}&include_db=${includeDb}`, '_blank');
+        }
+        closeExportModal();
 }
 
 function cleanupBatchHistory() {

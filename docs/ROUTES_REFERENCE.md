@@ -18,6 +18,10 @@ Path | Function | BP | Methods | HTMX | Services | File
 `/` | `api_overview` | `api_bp` | GET |  |  | `src\app\routes\api\core.py`
 `/` | `batch_overview` | `batch_bp` | GET,POST |  |  | `src\app\routes\batch.py`
 `/<batch_id>` | `batch_detail` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/partials/active` | `partial_active_batches` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/partials/recent` | `partial_recent_batches` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/partials/queue` | `partial_queue_overview` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/partials/stats` | `partial_stats_summary` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
 `/about` | `about` | `main_bp` | GET |  |  | `src\app\routes\main.py`
 `/activity/clear` | `activity_clear` | `api_bp` | POST |  |  | `src\app\routes\api\dashboard.py`
 `/activity/export` | `activity_export` | `api_bp` | GET |  |  | `src\app\routes\api\dashboard.py`
@@ -70,7 +74,16 @@ Path | Function | BP | Methods | HTMX | Services | File
 `/api/data/reload` | `api_reload_core_data` | `main_bp` | POST |  | docker_manager | `src\app\routes\main.py`
 `/api/data/status` | `api_data_status` | `main_bp` | POST |  |  | `src\app\routes\main.py`
 `/api/delete/<batch_id>` | `api_delete_batch` | `batch_bp` | DELETE |  |  | `src\app\routes\batch.py`
+`/api/batch/queue` | `api_queue_batch` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+`/api/batch/queue/status` | `api_queue_status` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/api/batch/dispatch-next` | `api_dispatch_next` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+`/api/batch/<batch_id>/cancel` | `api_cancel_batch` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+`/api/batch/<batch_id>/report` | `api_batch_report` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/api/batch/job/<job_id>/export` | `api_export_single_job` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/api/batch/export` | `api_export_jobs` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/api/stats/export` | `api_export_batch_stats` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
 `/api/infrastructure/start` | `api_start_infrastructure` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
+> Export Persistence: All batch export endpoints (single job and multi-job, including stats) now also persist a copy of the generated artifact into the `reports/` directory at the project root using the filename returned to the client (e.g. `batch_jobs.csv`, `batch_jobs.pdf`, `<job_id>.json`). Subsequent exports overwrite the prior file with the same name. This provides a lightweight on-disk audit trail without requiring an additional download step.
 `/api/infrastructure/status` | `api_infrastructure_status` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
 `/api/infrastructure/stop` | `api_stop_infrastructure` | `batch_bp` | POST |  |  | `src\app\routes\batch.py`
 `/api/list` | `api_list_batches` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
@@ -157,6 +170,7 @@ Path | Function | BP | Methods | HTMX | Services | File
 `/export` | `api_export_statistics` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
 `/export/models.csv` | `export_models_csv` | `models_bp` | GET |  |  | `src\app\routes\models.py`
 `/form` | `batch_form` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
+`/statistics` | `batch_statistics_page` | `batch_bp` | GET |  |  | `src\app\routes\batch.py`
 `/generation/trends` | `api_generation_trends` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
 `/get_model_apps` | `get_model_apps` | `analysis_bp` | GET |  |  | `src\app\routes\analysis.py`
 `/health` | `api_health` | `api_bp` | GET |  |  | `src\app\routes\api\core.py`
