@@ -430,7 +430,7 @@ def api_models_all():
 def api_models_grid_fragment():
     """Render the models grid fragment used by the Models Overview page."""
     try:
-        # Fetch models; respect simple provider filter best-effort (room to expand later)
+        # Fetch models; support basic provider filter + optional installed_only + exclude_unknown
         q = ModelCapability.query
         provider = (request.args.get('provider') or '').strip()
         if provider:
@@ -438,19 +438,52 @@ def api_models_grid_fragment():
                 q = q.filter(ModelCapability.provider.ilike(provider))
             except Exception:
                 pass
+
+        installed_only_param = (request.args.get('installed') or request.args.get('installed_only') or '').lower()
+        installed_only = installed_only_param in {'1', 'true', 'yes', 'on'}
+        if installed_only:
+            try:
+                from sqlalchemy import true
+                q = q.filter(ModelCapability.installed.is_(true()))
+            except Exception:
+                try:
+                    q = q.filter(ModelCapability.installed.is_(True))
+                except Exception:
+                    pass
+
+        # Whether grid is being used in a selection wizard context (analysis create page)
+        selectable = str(request.args.get('selectable') or '').lower() in {'1', 'true', 'yes', 'on'}
+        # In selectable context, hide provider=='unknown' unless explicitly allowed via show_unknown=1
+        show_unknown = str(request.args.get('show_unknown') or '').lower() in {'1', 'true', 'yes', 'on'}
+
         models = q.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        if selectable and not show_unknown:
+            models = [m for m in models if (m.provider or '').lower() != 'unknown']
 
         # Transform for fragment expected fields
         items = []
         for m in models:
-            caps_raw = m.get_capabilities() or {}
+            try:
+                caps_raw = m.get_capabilities() or {}
+            except Exception:
+                caps_raw = {}
             caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
+            try:
+                app_count = GeneratedApplication.query.filter_by(model_slug=m.canonical_slug).count()
+            except Exception:
+                app_count = 0
+            try:
+                analyses_count = db.session.query(SecurityAnalysis).join(GeneratedApplication, SecurityAnalysis.application_id == GeneratedApplication.id).filter(GeneratedApplication.model_slug == m.canonical_slug).count()
+            except Exception:
+                analyses_count = 0
             items.append({
                 'slug': m.canonical_slug,
                 'display_name': m.model_name,
                 'name': m.model_name,
                 'provider': m.provider,
+                'installed': bool(getattr(m, 'installed', False)),
                 'status': 'active',
+                'app_count': app_count,
                 'capabilities': caps_list,
                 'context_length': m.context_window or 0,
                 'max_tokens': m.max_output_tokens or 0,
@@ -459,12 +492,9 @@ def api_models_grid_fragment():
                     'output_cost': (m.output_price_per_token or 0.0) * 1000,
                 },
                 'statistics': {
-                    'total_analyses': db.session.query(SecurityAnalysis).join(GeneratedApplication, SecurityAnalysis.application_id == GeneratedApplication.id).filter(GeneratedApplication.model_slug == m.canonical_slug).count()
+                    'total_analyses': analyses_count
                 }
             })
-
-        # Whether grid is being used in a selection wizard context
-        selectable = str(request.args.get('selectable') or '').lower() in {'1', 'true', 'yes', 'on'}
 
         # Preserve existing query params for sort links (minus offset)
         try:
@@ -483,11 +513,28 @@ def api_models_grid_fragment():
             'active_filters': {},
             'query_params': query_params,
             'selectable': selectable,
+            'installed_only': installed_only,
         }
-        return render_template('fragments/api/model-grid.html', **context)
+        # Use new canonical template path (explicit to avoid mapping confusion)
+        return render_template('ui/elements/misc/model-grid.html', **context)
     except Exception as e:
         logger.error(f"Error rendering models grid fragment: {e}")
-        return render_template('fragments/api/model-grid.html', models=[], total_models=0, filters_applied=False, active_filters={}, query_params='', selectable=False)
+        # Provide full context defaults to avoid secondary template errors
+        try:
+            return render_template(
+                'ui/elements/misc/model-grid.html',
+                models=[],
+                total_models=0,
+                filters_applied=False,
+                active_filters={},
+                query_params='',
+                selectable=False,
+                installed_only=False,
+            )
+        except Exception as nested:
+            logger.error(f"Secondary error rendering empty grid fragment: {nested}")
+            # Fallback minimal HTML to prevent 500 loop
+            return Response('<div class=\"alert alert-danger\">Failed to load models grid.</div>', mimetype='text/html'), 500
 
 @api_bp.route('/models/<model_slug>/applications')
 def api_model_applications_fragment(model_slug: str):

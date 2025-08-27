@@ -119,8 +119,19 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
   AppConfig.development.showPerformanceMetrics = true;
 }
 
-// User preference overrides from localStorage
-const savedSettings = Utils.Storage.get('appSettings', {});
+// User preference overrides from localStorage (defensive if Utils.Storage not yet defined)
+let savedSettings = {};
+try {
+  if (window.Utils && Utils.Storage && typeof Utils.Storage.get === 'function') {
+    savedSettings = Utils.Storage.get('appSettings', {}) || {};
+  } else {
+    // Fallback to direct localStorage usage
+    const raw = localStorage.getItem('appSettings');
+    if (raw) {
+      try { savedSettings = JSON.parse(raw) || {}; } catch(e) { /* ignore parse errors */ }
+    }
+  }
+} catch(e) { /* swallow */ }
 if (savedSettings.theme) {
   AppConfig.ui.theme = savedSettings.theme;
 }

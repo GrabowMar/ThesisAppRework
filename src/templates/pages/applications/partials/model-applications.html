@@ -22,9 +22,32 @@
   </div>
 
   {% if not apps %}
-    <div class="alert alert-info">
-      <i class="fas fa-info-circle me-2"></i>
-      No applications found for this model yet. You can generate apps from the Applications page.
+    <div class="alert alert-info border-0 bg-light">
+      <div class="d-flex align-items-center">
+        <div class="flex-shrink-0 me-3">
+          <i class="fas fa-info-circle fa-2x text-info"></i>
+        </div>
+        <div class="flex-grow-1">
+          <h6 class="mb-1">No applications found for this model yet</h6>
+          <p class="mb-2 small text-muted">
+            Generate applications from this model to enable analysis. Applications provide 
+            the code and infrastructure needed for comprehensive security and performance testing.
+          </p>
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" 
+                    hx-get="/models/applications?model={{ model_slug }}" 
+                    hx-target="#page-content, #main-content"
+                    hx-push-url="true">
+              <i class="fas fa-plus me-1"></i>Generate Applications
+            </button>
+            <a href="/models/{{ model_slug }}/applications" 
+               class="btn btn-outline-secondary btn-sm" 
+               target="_blank">
+              <i class="fas fa-external-link-alt me-1"></i>View Model Details
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   {% else %}
     <div class="row g-3">

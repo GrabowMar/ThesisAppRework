@@ -2,379 +2,290 @@
 {#
     API Fragment: Models Grid Display
     Route: /api/models/grid
-    Purpose: Grid display of available AI models with capabilities and pricing
+    Purpose: Compact, responsive grid display of available AI models
     
-    Usage:
-    - Loaded via HTMX for model overview and selection interfaces
-    - Supports filtering by provider, capability, pricing tier
-    - Updates model grid without full page reload
-    
-    HTMX Integration:
-    - hx-get="/api/models/grid?provider={{ provider }}&capability={{ capability }}"
-    - hx-target="#models-grid-container"
-    - hx-swap="innerHTML"
+    Features:
+    - Responsive design (6 cols on mobile, 4 on md, 3 on lg, 6 on xl)
+    - Clean card layout with badges and stats
+    - HTMX-powered filtering and selection
+    - Visual selection states for wizard integration
     
     Data Expected:
-    - models: List of model objects with capabilities and pricing
-    - providers: Available providers for filtering
-    - capabilities: Available capabilities for filtering
-    - filters: Current filter parameters
-#}
-
-<!-- Models Grid Fragment -->
-<div class="models-grid">
-    {% if models %}
-    <!-- Results Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h6 class="mb-0">
-                Showing {{ models|length }} of {{ total_models }} models
-                {% if filters_applied %}
-                <span class="text-muted">(filtered)</span>
-                {% endif %}
-            </h6>
-            {% if active_filters %}
-            <div class="mt-1">
-                {% for filter_type, filter_value in active_filters.items() %}
-                <span class="badge bg-primary me-1">
-                    {{ filter_type }}: {{ filter_value }}
-                    <button type="button" class="btn-close btn-close-white ms-1" 
-                            hx-get="/api/models/grid?{{ remove_filter_params(filter_type) }}" 
-                            hx-target="#models-grid-container"
-                            aria-label="Remove {{ filter_type }} filter"></button>
-                </span>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <!-- Sort Options -->
-            <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                    <i class="fas fa-sort me-1"></i>Sort by
-                </button>
-                <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" hx-get="/api/models/grid?{{ query_params }}&sort=name" hx-target="#models-grid-container">
-                        <i class="fas fa-sort-alpha-down me-2"></i>Name A-Z
-                    </a></li>
-                    <li><a class="dropdown-item" hx-get="/api/models/grid?{{ query_params }}&sort=provider" hx-target="#models-grid-container">
-                        <i class="fas fa-building me-2"></i>Provider
-                    </a></li>
-                    <li><a class="dropdown-item" hx-get="/api/models/grid?{{ query_params }}&sort=price_asc" hx-target="#models-grid-container">
-                        <i class="fas fa-dollar-sign me-2"></i>Price: Low to High
-                    </a></li>
-                    <li><a class="dropdown-item" hx-get="/api/models/grid?{{ query_params }}&sort=price_desc" hx-target="#models-grid-container">
-                        <i class="fas fa-dollar-sign me-2"></i>Price: High to Low
-                    </a></li>
-                    <li><a class="dropdown-item" hx-get="/api/models/grid?{{ query_params }}&sort=popularity" hx-target="#models-grid-container">
-                        <i class="fas fa-star me-2"></i>Popularity
-                    </a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
+    - models: List of model objects with capabilities, pricing, app_count, installed status
+    - context: Contains selectable flag and installed_only flag
     
-    <!-- Models Grid -->
-    <div class="row">
+    Note: Removed stray attribute lines that referenced an undefined 'model' outside the loop.
+#}
+<!-- Model Grid Fragment -->
+<div class="model-grid" 
+    hx-swap-oob="outerHTML"
+    data-context-selectable="{{ selectable | default(false) | lower }}"
+    data-context-installed-only="{{ installed_only | default(false) | lower }}">
+    
+    {% if models %}
+    <div class="row g-2 g-md-3">
         {% for model in models %}
-        <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card model-card h-100" data-model-slug="{{ model.slug }}">
-                <!-- Model Header -->
-                <div class="card-header d-flex justify-content-between align-items-center py-3">
-                    <div class="d-flex align-items-center">
-                        <!-- Provider Logo/Icon -->
-                        <div class="me-3">
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="{{ model.slug }}"
+                 data-model-name="{{ model.display_name or model.name }}"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="{{ model.display_name or model.name }} - {{ model.provider|title }}">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  {% if model.installed %}
+                  <span class="badge bg-success">Installed</span>
+                  {% endif %}
+                  {% if model.app_count and model.app_count > 0 %}
+                  <span class="badge bg-primary">{{ model.app_count }} apps</span>
+                  {% endif %}
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
                             {% if model.provider == 'openai' %}
-                                <div class="provider-icon bg-success bg-opacity-10 rounded p-2">
-                                    <i class="fas fa-robot text-success"></i>
+                                <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-robot fa-xs"></i>
                                 </div>
                             {% elif model.provider == 'anthropic' %}
-                                <div class="provider-icon bg-info bg-opacity-10 rounded p-2">
-                                    <i class="fas fa-brain text-info"></i>
+                                <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-brain fa-xs"></i>
                                 </div>
                             {% elif model.provider == 'google' %}
-                                <div class="provider-icon bg-warning bg-opacity-10 rounded p-2">
-                                    <i class="fab fa-google text-warning"></i>
+                                <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fab fa-google fa-xs"></i>
                                 </div>
                             {% else %}
-                                <div class="provider-icon bg-primary bg-opacity-10 rounded p-2">
-                                    <i class="fas fa-microchip text-primary"></i>
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
                                 </div>
                             {% endif %}
                         </div>
-                        <div>
-                            <h6 class="mb-0">{{ model.display_name or model.name }}</h6>
-                            <small class="text-muted">{{ model.provider|title }}</small>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                {{ model.display_name or model.name }}
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">{{ model.provider|title }}</span>
+                                {% if model.pricing and model.pricing.input_cost %}
+                                <span class="text-separator">•</span>
+                                <span class="text-price">${{ '%.3f'|format(model.pricing.input_cost) }}/1K</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                {% if model.context_length %}
+                                                <span><i class="fas fa-database me-1"></i>{{ model.context_length|abbreviate_number }} ctx</span>
+                                                {% endif %}
+                                                {% if model.max_tokens %}
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>{{ model.max_tokens|abbreviate_number }} out</span>
+                                                {% endif %}
+                                                {% if model.statistics and model.statistics.total_analyses %}
+                                                <span><i class="fas fa-chart-line me-1"></i>{{ model.statistics.total_analyses }} runs</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                     
-                    <!-- Status Badge -->
-                    <span class="badge bg-{{ 'success' if model.status == 'active' else 'warning' if model.status == 'beta' else 'secondary' }}">
-                        {{ model.status|title }}
-                    </span>
-                </div>
-                
-                <div class="card-body">
-                    <!-- Model Description -->
-                    {% if model.description %}
-                    <p class="card-text text-muted small mb-3">
-                        {{ model.description[:120] }}{% if model.description|length > 120 %}...{% endif %}
-                    </p>
-                    {% endif %}
-                    
-                    <!-- Capabilities -->
+                    <!-- Capabilities badges -->
                     {% if model.capabilities %}
-                    <div class="mb-3">
-                        <h6 class="small fw-bold text-muted mb-2">
-                            <i class="fas fa-cogs me-1"></i>Capabilities
-                        </h6>
-                        <div class="capabilities-tags">
-                            {% for capability in model.capabilities[:4] %}
-                            <span class="badge bg-light text-dark me-1 mb-1">{{ capability|title }}</span>
-                            {% endfor %}
-                            {% if model.capabilities|length > 4 %}
-                            <span class="badge bg-light text-muted">+{{ model.capabilities|length - 4 }} more</span>
-                            {% endif %}
-                        </div>
-                    </div>
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                {% set maxcaps = 2 %}
+                                                {% for capability in model.capabilities[:maxcaps] %}
+                                                <span class="badge bg-light text-dark border">{{ capability|title }}</span>
+                                                {% endfor %}
+                                                {% if model.capabilities|length > maxcaps %}
+                                                <span class="badge bg-light text-muted border">+{{ model.capabilities|length - maxcaps }}</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                     {% endif %}
                     
-                    <!-- Specifications -->
-                    <div class="mb-3">
-                        <div class="row g-2">
-                            {% if model.context_length %}
-                            <div class="col-6">
-                                <div class="bg-light rounded p-2 text-center">
-                                    <div class="fw-bold text-primary">{{ model.context_length|abbreviate_number }}</div>
-                                    <small class="text-muted">Context</small>
-                                </div>
-                            </div>
-                            {% endif %}
-                            
-                            {% if model.max_tokens %}
-                            <div class="col-6">
-                                <div class="bg-light rounded p-2 text-center">
-                                    <div class="fw-bold text-info">{{ model.max_tokens|abbreviate_number }}</div>
-                                    <small class="text-muted">Max Output</small>
-                                </div>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    <!-- Pricing -->
-                    {% if model.pricing %}
-                    <div class="mb-3">
-                        <h6 class="small fw-bold text-muted mb-2">
-                            <i class="fas fa-dollar-sign me-1"></i>Pricing
-                        </h6>
-                        <div class="pricing-info">
-                            {% if model.pricing.input_cost %}
-                            <small class="d-block text-muted">
-                                Input: ${{ "%.4f"|format(model.pricing.input_cost) }}/1K tokens
-                            </small>
-                            {% endif %}
-                            {% if model.pricing.output_cost %}
-                            <small class="d-block text-muted">
-                                Output: ${{ "%.4f"|format(model.pricing.output_cost) }}/1K tokens
-                            </small>
-                            {% endif %}
-                            {% if model.pricing.estimated_cost %}
-                            <div class="mt-1">
-                                <span class="badge bg-success bg-opacity-10 text-success">
-                                    ~${{ "%.2f"|format(model.pricing.estimated_cost) }} per analysis
-                                </span>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
-                    
-                    <!-- Usage Statistics -->
-                    {% if model.statistics %}
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between text-muted small">
-                            <span>
-                                <i class="fas fa-chart-bar me-1"></i>
-                                {{ model.statistics.total_analyses or 0 }} analyses
-                            </span>
-                            {% if model.statistics.avg_rating %}
-                            <span>
-                                <i class="fas fa-star text-warning me-1"></i>
-                                {{ model.statistics.avg_rating|round(1) }}/5
-                            </span>
-                            {% endif %}
-                        </div>
+                    <!-- Pricing (simplified) -->
+                    {% if model.pricing and (model.pricing.estimated_cost or model.pricing.input_cost) %}
+                    <div class="pricing-row text-center mb-2">
+                        {% if model.pricing.estimated_cost %}
+                        <small class="text-success fw-semibold">~${{ "%.2f"|format(model.pricing.estimated_cost) }}/analysis</small>
+                        {% elif model.pricing.input_cost %}
+                        <small class="text-muted">${{ "%.3f"|format(model.pricing.input_cost) }}/1K tokens</small>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
                 
-                <!-- Card Footer with Actions -->
-                <div class="card-footer bg-transparent">
-                    <div class="d-flex gap-2">
-                        {% if selectable %}
-                        <button class="btn btn-primary btn-sm flex-fill" 
-                                type="button"
-                                onclick="if (window.selectModel) { selectModel('{{ model.slug }}', '{{ model.display_name or model.name }}'); document.getElementById('next-btn')?.click(); } else { window.location.href = '/analysis/create?model={{ model.slug }}'; }">
-                            <i class="fas fa-check me-1"></i>Select Model
-                        </button>
-                        {% else %}
-                        <button class="btn btn-primary btn-sm flex-fill" 
-                                hx-get="/analysis/create?model={{ model.slug }}" 
-                                hx-target="#page-content, #main-content"
-                                hx-push-url="true">
-                            <i class="fas fa-play me-1"></i>Start Analysis
-                        </button>
-                        {% endif %}
-                        <button class="btn btn-outline-info btn-sm" 
-                                hx-get="/api/models/{{ model.slug }}/details" 
-                                hx-target="#model-details-modal-content" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#modelDetailsModal">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
-            <button class="btn btn-outline-secondary btn-sm" 
-                hx-get="/models/{{ model.slug }}/applications" 
-                hx-target="#page-content, #main-content"
-                hx-push-url="true">
-                            <i class="fas fa-rocket"></i>
-                        </button>
-                    </div>
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  {% if selectable %}
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('{{ model.slug }}', '{{ (model.display_name or model.name)|e }}'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('{{ model.slug }}');">Select</button>
+                  {% else %}
+                  <div class="btn-group w-100" role="group">
+                    <button class="btn btn-primary btn-sm" hx-get="/analysis/create?model={{ model.slug }}" hx-target="#page-content, #main-content" hx-push-url="true" hx-indicator="#global-spinner">Analyze</button>
+                    <button class="btn btn-outline-secondary btn-sm" hx-get="/models/{{ model.slug }}/applications" hx-target="#page-content, #main-content" hx-push-url="true" hx-indicator="#global-spinner"><i class="fas fa-rocket"></i></button>
+                  </div>
+                  {% endif %}
                 </div>
             </div>
         </div>
         {% endfor %}
     </div>
     
-    <!-- Load More Button (if pagination) -->
-    {% if has_more %}
-    <div class="text-center mt-4">
-        <button class="btn btn-outline-primary" 
-                hx-get="/api/models/grid?{{ query_params }}&offset={{ models|length }}" 
-                hx-target="#models-grid-container .row" 
-                hx-swap="beforeend">
-            <i class="fas fa-chevron-down me-1"></i>Load More Models
-        </button>
-    </div>
-    {% endif %}
-    
     {% else %}
     <!-- Empty State -->
-    <div class="text-center py-5">
-        <div class="mb-4">
-            <i class="fas fa-brain text-muted" style="font-size: 4rem;"></i>
+    <div class="empty-state text-center py-5">
+        <div class="mb-3">
+            <i class="fas fa-brain text-muted" style="font-size: 3rem;"></i>
         </div>
-        <h5 class="text-muted mb-3">No Models Found</h5>
-        {% if filters_applied %}
-        <p class="text-muted mb-4">
-            No models match your current filter criteria.<br>
-            Try adjusting your filters to see more results.
+        <h5 class="text-muted mb-2">No models found</h5>
+        <p class="text-muted small mb-3">
+            {% if installed_only %}
+                No installed models match your criteria.
+            {% else %}
+                Try adjusting your filters or check back later.
+            {% endif %}
         </p>
-        <button class="btn btn-outline-primary" hx-get="/api/models/grid" hx-target="#models-grid-container">
-            <i class="fas fa-times me-1"></i>Clear All Filters
-        </button>
-        {% else %}
-        <p class="text-muted mb-4">
-            No AI models are currently available.<br>
-            Please check back later or contact support.
-        </p>
-        <button class="btn btn-outline-secondary" hx-get="/api/models/grid" hx-target="#models-grid-container">
-            <i class="fas fa-sync me-1"></i>Refresh
+        {% if installed_only %}
+        <button class="btn btn-outline-primary btn-sm" 
+                hx-get="/api/models/grid?selectable={{ selectable | default(false) | lower }}"
+                hx-target="#model-selection-grid"
+                hx-indicator="#global-spinner">
+            <i class="fas fa-eye me-1"></i>Show All Models
         </button>
         {% endif %}
     </div>
     {% endif %}
 </div>
 
-<!-- JavaScript for Models Grid -->
+<style>
+/* Typography scaling */
+.fs-7 { font-size: 0.875rem !important; }
+.fs-8 { font-size: 0.75rem !important; }
+
+/* Align with application card aesthetics */
+.model-card { transition: all .18s ease; border:1px solid var(--bs-border-color) !important; }
+.model-card:hover { transform:translateY(-2px); box-shadow:0 6px 18px -4px rgba(0,0,0,.35); }
+.model-card.selected { border-color: var(--bs-primary) !important; box-shadow:0 0 0 2px rgba(var(--bs-primary-rgb),.35); }
+.model-card.selected .model-select-btn { background: var(--bs-primary); }
+
+/* Provider / branding */
+.provider-row .provider-icon > div { box-shadow: 0 2px 4px rgba(0,0,0,.25); }
+.model-name { letter-spacing: .2px; }
+.text-price { color: var(--bs-primary); font-weight: 500; }
+.badge-soft-primary { background: rgba(var(--bs-primary-rgb), .15); color: var(--bs-primary); font-weight: 600; }
+.badge-soft-success { background: rgba(var(--bs-success-rgb), .18); color: var(--bs-success); font-weight: 600; }
+.badge-soft-primary, .badge-soft-success { font-size: .65rem; padding: .30rem .5rem; border-radius: .5rem; backdrop-filter: blur(2px); }
+
+/* Simplified capability & stat styling to match app cards */
+.model-stats i { opacity:.8; }
+.model-select-btn { font-weight:600; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .metrics-row { gap:.35rem; }
+    .metric { padding:.15rem .35rem; }
+    .cap-pill { font-size:.55rem; }
+}
+
+/* Animation for HTMX swaps */
+.model-grid [hx-swap-oob] {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading state */
+.htmx-request .model-card {
+    opacity: 0.7;
+    pointer-events: none;
+}
+</style>
+
 <script>
-document.addEventListener('htmx:afterSwap', function(event) {
-    const tgt = event.detail && event.detail.target ? event.detail.target : null;
-    if (tgt && typeof tgt.closest === 'function' && tgt.closest('#models-grid-container')) {
-        // Initialize tooltips
-        const tooltips = event.detail.target.querySelectorAll('[data-bs-toggle="tooltip"]');
-        tooltips.forEach(tooltip => new bootstrap.Tooltip(tooltip));
-        
-        // Animate new model cards
-        const modelCards = event.detail.target.querySelectorAll('.model-card');
-        modelCards.forEach((card, index) => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(30px)';
-            setTimeout(() => {
-                card.style.transition = 'all 0.4s ease-out';
-                card.style.opacity = '1';
-                card.style.transform = 'translateY(0)';
-            }, index * 100);
+// Enhanced model card selection and HTMX integration
+document.addEventListener('htmx:afterSwap', function(evt) {
+    const target = evt.detail.target;
+    
+    // Re-initialize tooltips in swapped content
+    if (target && target.closest && target.closest('.model-grid')) {
+        const tooltips = target.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltips.forEach(el => {
+            if (typeof bootstrap !== 'undefined') {
+                new bootstrap.Tooltip(el);
+            }
         });
+        
+        // Restore selection state if it exists
+        const selectedSlug = window.selectedModel?.slug;
+        if (selectedSlug && window.highlightSelectedModelCard) {
+            setTimeout(() => highlightSelectedModelCard(selectedSlug), 100);
+        }
     }
 });
 
-// Model card hover effects
-document.addEventListener('mouseenter', function(event) {
-    const target = event && event.target;
-    const hasClosest = target && typeof target.closest === 'function';
-    if (hasClosest && target.closest('.model-card')) {
-        const card = target.closest('.model-card');
-        card.style.transform = 'translateY(-5px)';
-        card.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
-    }
-}, true);
-
-document.addEventListener('mouseleave', function(event) {
-    const target = event && event.target;
-    const hasClosest = target && typeof target.closest === 'function';
-    if (hasClosest && target.closest('.model-card')) {
-        const card = target.closest('.model-card');
-        card.style.transform = 'translateY(0)';
-        card.style.boxShadow = '';
-    }
-}, true);
-
-// Quick compare functionality
-let compareList = [];
-
-function toggleCompare(modelSlug) {
-    const index = compareList.indexOf(modelSlug);
-    if (index > -1) {
-        compareList.splice(index, 1);
-    } else {
-        if (compareList.length < 3) {
-            compareList.push(modelSlug);
-        } else {
-            alert('You can compare up to 3 models at once.');
-            return;
-        }
-    }
-    
-    // Update compare buttons
-    document.querySelectorAll(`[data-model-slug="${modelSlug}"]`).forEach(card => {
-        const compareBtn = card.querySelector('.btn-compare');
-        if (compareBtn) {
-            compareBtn.classList.toggle('active', compareList.includes(modelSlug));
-        }
+// Selection highlighting function
+window.highlightSelectedModelCard = function(slug) {
+    // Remove previous selections
+    document.querySelectorAll('.model-card').forEach(card => {
+        card.classList.remove('selected');
+        card.querySelector('.selection-indicator')?.classList.add('d-none');
     });
     
-    // Update compare counter
-    updateCompareCounter();
-}
-
-function updateCompareCounter() {
-    const counter = document.querySelector('#compare-counter');
-    if (counter) {
-        counter.textContent = compareList.length;
-        counter.style.display = compareList.length > 0 ? 'inline' : 'none';
+    // Highlight selected card
+    const selectedCard = document.querySelector(`.model-card[data-model-slug="${slug}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+        const indicator = selectedCard.querySelector('.selection-indicator');
+        if (indicator) indicator.classList.remove('d-none');
     }
-}
+};
 
-function startComparison() {
-    if (compareList.length < 2) {
-        alert('Please select at least 2 models to compare.');
-        return;
+// Keyboard navigation support
+document.addEventListener('keydown', function(e) {
+    if (e.target.classList.contains('model-select-btn')) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.target.click();
+        }
     }
-    
-    window.location.href = `/models/compare?models=${compareList.join(',')}`;
-}
+});
+
+// Error handling for failed HTMX requests
+document.addEventListener('htmx:responseError', function(evt) {
+    if (evt.detail.target && evt.detail.target.closest('.model-grid')) {
+        console.error('Failed to load models:', evt.detail.error);
+        if (window.App && window.App.showToast) {
+            window.App.showToast('Failed to load models. Please try again.', 'error');
+        } else {
+            alert('Failed to load models. Please refresh the page.');
+        }
+    }
+});
+
+// Performance monitoring
+document.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.target && evt.detail.target.closest('.model-grid')) {
+        const duration = Date.now() - evt.detail.requestConfig.startTime;
+        if (duration > 2000) {
+            console.warn(`Slow model grid load: ${duration}ms`);
+        }
+    }
+});
 </script>
-
-<!-- Custom CSS for Models Grid -->
 

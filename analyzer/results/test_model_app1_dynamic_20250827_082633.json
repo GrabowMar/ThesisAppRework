@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "model_slug": "test_model",
+    "app_number": 1,
+    "analysis_type": "dynamic",
+    "timestamp": "2025-08-27T08:26:33.980082",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "dynamic_analysis_result",
+    "status": "success",
+    "service": "dynamic-analyzer",
+    "analysis": {
+      "model_slug": "test_model",
+      "app_number": 1,
+      "analysis_time": "2025-08-27T06:26:33.479947",
+      "tools_used": [
+        "curl",
+        "wget",
+        "nmap",
+        "zap"
+      ],
+      "target_urls": [
+        "http://localhost:6010",
+        "http://localhost:6011"
+      ],
+      "results": {
+        "connectivity": [
+          {
+            "status": "success",
+            "analysis": {
+              "url": "http://localhost:6010",
+              "reachable": false,
+              "curl_exit_code": 7,
+              "error": "% Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\ncurl: (7) Failed to connect to localhost port 6010 after 0 ms: Could not connect to server"
+            }
+          },
+          {
+            "status": "success",
+            "analysis": {
+              "url": "http://localhost:6011",
+              "reachable": false,
+              "curl_exit_code": 7,
+              "error": "% Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\ncurl: (7) Failed to connect to localhost port 6011 after 0 ms: Could not connect to server"
+            }
+          }
+        ],
+        "port_scan": {
+          "status": "success",
+          "host": "localhost",
+          "scanned_ports": [
+            8000,
+            5000,
+            80,
+            8080,
+            443,
+            3000,
+            6010,
+            6011
+          ],
+          "open_ports": [],
+          "total_open": 0
+        }
+      },
+      "summary": {
+        "total_urls_tested": 2,
+        "reachable_urls": 0,
+        "vulnerabilities_found": 0,
+        "analysis_status": "completed"
+      }
+    },
+    "timestamp": "2025-08-27T06:26:33.536609"
+  }
+}

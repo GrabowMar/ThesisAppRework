@@ -147,6 +147,9 @@
     <!-- Hyperscript (for lightweight client behaviors on htmx events) -->
     <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
     
+    <!-- Core Utility Shim (must load before other project scripts) -->
+    <script src="{{ url_for('static', filename='js/utils-shim.js') }}"></script>
+
     <!-- Project JavaScript -->
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
@@ -154,6 +157,7 @@
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/components.js') }}"></script>
     <script src="{{ url_for('static', filename='js/features.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/batch-dashboard.js') }}"></script>
     
     <!-- Application-specific event handlers -->
     <script>
@@ -192,17 +196,30 @@
             }
         });
 
-        // Performance monitoring
+        // Performance monitoring (avoid deprecated performance.timing & negative values)
         window.addEventListener('load', function() {
-            if (window.performance) {
-                const loadTime = window.performance.timing.loadEventEnd - window.performance.timing.navigationStart;
+            try {
+                let loadTime = null;
+                if (performance.getEntriesByType) {
+                    const nav = performance.getEntriesByType('navigation')[0];
+                    if (nav) {
+                        loadTime = Math.round(nav.loadEventEnd);
+                    }
+                }
+                if (loadTime == null && performance.timing) {
+                    const t = performance.timing;
+                    if (t.loadEventEnd && t.navigationStart) {
+                        loadTime = Math.max(0, t.loadEventEnd - t.navigationStart);
+                    }
+                }
+                if (loadTime == null) {
+                    loadTime = Math.round(performance.now());
+                }
                 console.log(`🚀 Page loaded in ${loadTime}ms`);
-                
-                // Report slow loads
                 if (loadTime > 3000) {
                     console.warn('⚠️ Slow page load detected');
                 }
-            }
+            } catch(e) { /* ignore */ }
         });
     </script>
     {% endblock %}
