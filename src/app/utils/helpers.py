@@ -162,6 +162,15 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def now() -> datetime:
+    """Return current timezone-aware datetime for Jinja templates.
+    
+    This function is registered as a Jinja global to provide current time
+    in templates without needing to pass it from every route.
+    """
+    return datetime.now(UTC)
+
+
 def make_safe_dom_id(value: str, prefix: Optional[str] = None) -> str:
     """Create a DOM-safe id from an arbitrary string.
 

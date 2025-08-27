@@ -1,0 +1,116 @@
+{# slug: pages/analysis/partials/recent_security (recreated) #}
+{#
+  Recent Security Analyses Fragment
+  
+  Purpose: Display recent security analysis results
+  Features:
+  - List of recent security analyses
+  - Status indicators
+  - Quick access links
+  
+  Routes:
+  - /api/recent/security (HTMX endpoint)
+  
+  Technical Details:
+  - Expects recent_security context with SecurityAnalysis objects
+  - Designed for dashboard widgets and sidebars
+  - Responsive design with Bootstrap 5
+#}
+
+<div class="recent-security-container">
+    {% if recent_security %}
+        <div class="list-group list-group-flush">
+            {% for analysis in recent_security %}
+            <div class="list-group-item border-0 px-0 py-2">
+                <div class="d-flex align-items-center">
+                    <div class="status-indicator me-3">
+                        {% if analysis.status == 'completed' %}
+                            <i class="fas fa-check-circle text-success"></i>
+                        {% elif analysis.status == 'running' %}
+                            <i class="fas fa-spinner fa-spin text-primary"></i>
+                        {% elif analysis.status == 'failed' %}
+                            <i class="fas fa-exclamation-circle text-danger"></i>
+                        {% else %}
+                            <i class="fas fa-clock text-warning"></i>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">
+                                    <a href="{{ url_for('analysis.analysis_detail', analysis_id=analysis.id) }}" 
+                                       class="text-decoration-none">
+                                        Security Analysis #{{ analysis.id }}
+                                    </a>
+                                </h6>
+                                <small class="text-muted">
+                                    <i class="fas fa-robot me-1"></i>{{ analysis.model_slug|replace('_', ' ')|title }}
+                                    <i class="fas fa-code ms-2 me-1"></i>App #{{ analysis.app_number }}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted d-block">
+                                    {{ analysis.created_at|datetime }}
+                                </small>
+                                <span class="badge bg-{{ 'success' if analysis.status == 'completed' else 'primary' if analysis.status == 'running' else 'danger' if analysis.status == 'failed' else 'warning' }}">
+                                    {{ analysis.status|title }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        {% if analysis.description %}
+                        <p class="mb-0 mt-1 small text-muted">
+                            {{ analysis.description|truncate(80) }}
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="text-center mt-3">
+            <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-eye me-1"></i>View All Security Analyses
+            </a>
+        </div>
+    {% else %}
+        <div class="text-center py-4">
+            <div class="text-muted mb-3">
+                <i class="fas fa-shield-alt fa-3x"></i>
+            </div>
+            <h6 class="text-muted">No Recent Security Analyses</h6>
+            <p class="small text-muted mb-3">
+                Security analyses will appear here once they're completed.
+            </p>
+            <a href="{{ url_for('analysis.create_analysis') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Start Security Analysis
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.recent-security-container .list-group-item {
+    transition: background-color 0.2s ease;
+}
+
+.recent-security-container .list-group-item:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+
+.status-indicator {
+    width: 20px;
+    text-align: center;
+}
+
+.recent-security-container .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.recent-security-container h6 a:hover {
+    color: var(--bs-primary) !important;
+}
+</style>

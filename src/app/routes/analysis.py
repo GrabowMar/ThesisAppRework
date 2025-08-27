@@ -126,8 +126,8 @@ def analysis_dashboard():
             recent_activity.append({
                 'type': 'security',
                 'id': analysis.id,
-                'model_slug': analysis.model_slug,
-                'app_number': analysis.app_number,
+                'model_slug': analysis.application.model_slug if analysis.application else 'unknown',
+                'app_number': analysis.application.app_number if analysis.application else 0,
                 'status': analysis.status,
                 'created_at': analysis.created_at,
                 'description': f"Security analysis #{analysis.id}"
@@ -139,8 +139,8 @@ def analysis_dashboard():
             recent_activity.append({
                 'type': 'performance',
                 'id': test.id,
-                'model_slug': test.model_slug,
-                'app_number': test.app_number,
+                'model_slug': test.application.model_slug if test.application else 'unknown',
+                'app_number': test.application.app_number if test.application else 0,
                 'status': test.status,
                 'created_at': test.created_at,
                 'description': f"Performance test #{test.id}"
@@ -152,8 +152,8 @@ def analysis_dashboard():
             recent_activity.append({
                 'type': 'dynamic',
                 'id': analysis.id,
-                'model_slug': analysis.model_slug,
-                'app_number': analysis.app_number,
+                'model_slug': analysis.application.model_slug if analysis.application else 'unknown',
+                'app_number': analysis.application.app_number if analysis.application else 0,
                 'status': analysis.status,
                 'created_at': analysis.created_at,
                 'description': f"Dynamic scan #{analysis.id}"
@@ -194,7 +194,7 @@ def analysis_dashboard():
         }
         
         return render_template(
-            'single_page.html',
+            'layouts/single-page.html',
             page_title='Analysis Hub',
             page_icon='fa-tachometer-alt',
             main_partial='pages/analysis/dashboard.html',
@@ -210,9 +210,9 @@ def analysis_dashboard():
     except Exception as e:
         logger.error(f"Error loading unified analysis dashboard: {e}")
         return render_template(
-            'single_page.html',
+            'layouts/single-page.html',
             page_title='Error',
-            main_partial='partials/common/error.html',
+            main_partial='ui/elements/common/error.html',
             error=str(e)
         ), 500
 
@@ -233,7 +233,7 @@ def analysis_list():
     """
     try:
         return render_template(
-            'single_page.html',
+            'layouts/single-page.html',
             page_title='All Analyses',
             page_icon='fa-list',
             main_partial='pages/analysis/list.html'
@@ -241,9 +241,9 @@ def analysis_list():
     except Exception as e:
         logger.error(f"Error loading analyses list page: {e}")
         return render_template(
-            'single_page.html', 
+            'layouts/single-page.html',
             page_title='Error',
-            main_partial='partials/common/error.html',
+            main_partial='ui/elements/common/error.html',
             error=str(e)
         ), 500
 
@@ -287,14 +287,14 @@ def analysis_create_wizard():
     try:
         # Unified create experience now lives in pages/analysis/create.html
         return render_template(
-            'single_page.html',
+            'layouts/single-page.html',
             page_title='Create Analysis',
             page_icon='fa-plus-circle',
             main_partial='pages/analysis/create.html'
         )
     except Exception as e:  # pragma: no cover
         logger.error(f"Error loading analysis create wizard: {e}")
-        return render_template('single_page.html', page_title='Error', main_partial='partials/common/error.html', error=str(e)), 500
+        return render_template('layouts/single-page.html', page_title='Error', main_partial='ui/elements/common/error.html', error=str(e)), 500
 
 # Backward compatibility alias used by legacy redirects/tests
 @analysis_bp.get('/create/page')
@@ -312,7 +312,7 @@ def analysis_create_legacy():  # pragma: no cover - retained as alias; serves un
     """
     try:
         return render_template(
-            'single_page.html',
+            'layouts/single-page.html',
             page_title='Create Analysis',
             page_icon='fa-plus-circle',
             # Point directly at the canonical create page (NOT legacy partial anymore)
@@ -320,7 +320,7 @@ def analysis_create_legacy():  # pragma: no cover - retained as alias; serves un
         )
     except Exception as e:
         logger.error(f"Error rendering create (legacy alias) form: {e}")
-        return render_template('single_page.html', page_title='Error', main_partial='partials/common/error.html', error=str(e)), 500
+        return render_template('layouts/single-page.html', page_title='Error', main_partial='ui/elements/common/error.html', error=str(e)), 500
 
 
 @analysis_bp.post('/create')
@@ -630,10 +630,10 @@ def htmx_analysis_trends():
             'security_this_week': SecurityAnalysis.query.filter(SecurityAnalysis.created_at >= week_ago).count(),
             'performance_this_week': PerformanceTest.query.filter(PerformanceTest.created_at >= week_ago).count()
         }
-        return render_template('partials/analysis/trends.html', trends=trends)
+        return render_template('pages/analysis/partials/trends.html', trends=trends)
     except Exception as e:
         logger.error(f"HTMX trends error: {e}")
-        return render_template('partials/common/error.html', error='Failed to load trends'), 500
+        return render_template('ui/elements/common/error.html', error='Failed to load trends'), 500
 
 @analysis_bp.get('/api/recent/security')
 @rate_limited(2.5)
@@ -643,10 +643,10 @@ def htmx_recent_security():
         from ..models import SecurityAnalysis
         from sqlalchemy import desc
         recent_security = SecurityAnalysis.query.order_by(desc(SecurityAnalysis.created_at)).limit(5).all()
-        return render_template('partials/analysis/recent_security.html', recent_security=recent_security)
+        return render_template('pages/analysis/partials/recent_security.html', recent_security=recent_security)
     except Exception as e:
         logger.error(f"HTMX recent security error: {e}")
-        return render_template('partials/common/error.html', error='Failed to load security list'), 500
+        return render_template('ui/elements/common/error.html', error='Failed to load security list'), 500
 
 @analysis_bp.get('/api/recent/performance')
 @rate_limited(2.5)
@@ -656,10 +656,10 @@ def htmx_recent_performance():
         from ..models import PerformanceTest
         from sqlalchemy import desc
         recent_performance = PerformanceTest.query.order_by(desc(PerformanceTest.created_at)).limit(5).all()
-        return render_template('partials/analysis/recent_performance.html', recent_performance=recent_performance)
+        return render_template('pages/analysis/partials/recent_performance.html', recent_performance=recent_performance)
     except Exception as e:
         logger.error(f"HTMX recent performance error: {e}")
-        return render_template('partials/common/error.html', error='Failed to load performance list'), 500
+        return render_template('ui/elements/common/error.html', error='Failed to load performance list'), 500
 
 
 @analysis_bp.route('/security/start', methods=['POST'])
@@ -1752,8 +1752,8 @@ def htmx_unified_activity():
             recent_activity.append({
                 'type': 'security',
                 'id': analysis.id,
-                'model_slug': analysis.model_slug,
-                'app_number': analysis.app_number,
+                'model_slug': analysis.application.model_slug if analysis.application else 'unknown',
+                'app_number': analysis.application.app_number if analysis.application else 0,
                 'status': analysis.status,
                 'created_at': analysis.created_at,
                 'description': f"Security analysis #{analysis.id}"
@@ -1765,8 +1765,8 @@ def htmx_unified_activity():
             recent_activity.append({
                 'type': 'performance',
                 'id': test.id,
-                'model_slug': test.model_slug,
-                'app_number': test.app_number,
+                'model_slug': test.application.model_slug if test.application else 'unknown',
+                'app_number': test.application.app_number if test.application else 0,
                 'status': test.status,
                 'created_at': test.created_at,
                 'description': f"Performance test #{test.id}"
@@ -1778,8 +1778,8 @@ def htmx_unified_activity():
             recent_activity.append({
                 'type': 'dynamic',
                 'id': analysis.id,
-                'model_slug': analysis.model_slug,
-                'app_number': analysis.app_number,
+                'model_slug': analysis.application.model_slug if analysis.application else 'unknown',
+                'app_number': analysis.application.app_number if analysis.application else 0,
                 'status': analysis.status,
                 'created_at': analysis.created_at,
                 'description': f"Dynamic scan #{analysis.id}"
@@ -1788,10 +1788,10 @@ def htmx_unified_activity():
         # Sort by date and limit
         recent_activity = sorted(recent_activity, key=lambda x: x['created_at'], reverse=True)[:15]
         
-        return render_template('partials/analysis/unified_activity.html', recent_activity=recent_activity)
+        return render_template('pages/analysis/partials/unified_activity.html', recent_activity=recent_activity)
     except Exception as e:
         logger.error(f"HTMX unified activity error: {e}")
-        return render_template('partials/common/error.html', error='Failed to load activity timeline'), 500
+        return render_template('ui/elements/common/error.html', error='Failed to load activity timeline'), 500
 
 
 @analysis_bp.get('/api/results/summary')
@@ -1834,8 +1834,8 @@ def htmx_results_summary():
             latest_results.append({
                 'type': 'security',
                 'id': latest_security.id,
-                'model_slug': latest_security.model_slug,
-                'app_number': latest_security.app_number,
+                'model_slug': latest_security.application.model_slug if latest_security.application else 'unknown',
+                'app_number': latest_security.application.app_number if latest_security.application else 0,
                 'completed_at': latest_security.completed_at,
                 'title': f'Security Analysis #{latest_security.id}'
             })
@@ -1845,8 +1845,8 @@ def htmx_results_summary():
             latest_results.append({
                 'type': 'performance',
                 'id': latest_performance.id,
-                'model_slug': latest_performance.model_slug,
-                'app_number': latest_performance.app_number,
+                'model_slug': latest_performance.application.model_slug if latest_performance.application else 'unknown',
+                'app_number': latest_performance.application.app_number if latest_performance.application else 0,
                 'completed_at': latest_performance.completed_at,
                 'title': f'Performance Test #{latest_performance.id}'
             })
@@ -1856,8 +1856,8 @@ def htmx_results_summary():
             latest_results.append({
                 'type': 'dynamic',
                 'id': latest_dynamic.id,
-                'model_slug': latest_dynamic.model_slug,
-                'app_number': latest_dynamic.app_number,
+                'model_slug': latest_dynamic.application.model_slug if latest_dynamic.application else 'unknown',
+                'app_number': latest_dynamic.application.app_number if latest_dynamic.application else 0,
                 'completed_at': latest_dynamic.completed_at,
                 'title': f'Dynamic Scan #{latest_dynamic.id}'
             })
@@ -1874,10 +1874,10 @@ def htmx_results_summary():
             'latest_results': latest_results[:5]
         }
         
-        return render_template('partials/analysis/results_summary.html', summary=summary)
+        return render_template('pages/analysis/partials/results_summary.html', summary=summary)
     except Exception as e:
         logger.error(f"HTMX results summary error: {e}")
-        return render_template('partials/common/error.html', error='Failed to load results summary'), 500
+        return render_template('ui/elements/common/error.html', error='Failed to load results summary'), 500
 
 
 @analysis_bp.get('/api/system/health')
@@ -1921,7 +1921,7 @@ def htmx_system_health():
             'running_tasks': running_analyses
         }
         
-        return render_template('partials/analysis/system_health.html', health=health_data)
+        return render_template('pages/analysis/partials/system_health.html', health=health_data)
     except Exception as e:
         logger.error(f"HTMX system health error: {e}")
         return render_template('partials/common/error.html', error='Failed to load system health'), 500
@@ -1962,7 +1962,7 @@ def htmx_batch_summary():
             ]
         }
         
-        return render_template('partials/analysis/batch_summary.html', batch_stats=batch_summary)
+        return render_template('pages/analysis/partials/batch_summary.html', batch_stats=batch_summary)
     except Exception as e:
         logger.error(f"HTMX batch summary error: {e}")
         return render_template('partials/common/error.html', error='Failed to load batch summary'), 500
@@ -1981,7 +1981,7 @@ def htmx_recent_table():
         from sqlalchemy import desc
         security_items = SecurityAnalysis.query.order_by(desc(SecurityAnalysis.created_at)).limit(50).all()
         performance_items = PerformanceTest.query.order_by(desc(PerformanceTest.created_at)).limit(50).all()
-        return render_template('partials/analysis/recent_table_rows.html',
+        return render_template('pages/analysis/partials/recent_table_rows.html',
                                recent_security=security_items,
                                recent_performance=performance_items)
     except Exception as e:  # pragma: no cover - defensive

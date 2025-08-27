@@ -27,5 +27,9 @@
 
 {# Main content simply comes from child template #}
 {% block content %}
-		{{ super() }}
+		{% if main_partial %}
+			{% include main_partial %}
+		{% else %}
+			{{ super() }}
+		{% endif %}
 {% endblock %}
