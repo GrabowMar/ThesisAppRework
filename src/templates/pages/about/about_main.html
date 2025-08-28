@@ -1,7 +1,7 @@
 {#
   Page: About
   Template: pages/about/about_main.html
-  Layout: layouts/single-page.html
+  Layout: layouts/base.html
   Purpose: Brief overview of platform purpose, architecture highlights, and links to documentation.
   Context Provided:
     - platform_stats (optional): dict with summary counts
@@ -9,7 +9,7 @@
     - Keep lightweight; deep technical docs live under /docs links.
     - Accessible headings structure (h1 then h2+).
 #}
-{% extends 'layouts/single-page.html' %}
+{% extends 'layouts/base.html' %}
 {% block page_title %}About the Platform{% endblock %}
 {% block main %}
   <div class="container py-4" data-page="about" data-component="about-page">

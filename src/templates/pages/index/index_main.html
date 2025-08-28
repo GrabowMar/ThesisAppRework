@@ -1,25 +1,25 @@
 {#
   Page: Root Dashboard Placeholder
   Template: pages/index/index_main.html
-  Layout: layouts/dashboard.html
+  Layout: layouts/base.html
   Purpose: High-level cross-domain overview (placeholder pending further composition of multi-domain stats & quick links).
   Context:
     - summary (optional): dict with high-level counts
 #}
-{% extends 'layouts/dashboard.html' %}
+{% extends 'layouts/base.html' %}
 {% block page_title %}Dashboard{% endblock %}
-{% block dashboard_header %}
-  <div class="d-flex align-items-center gap-2 flex-wrap" data-component="root-dashboard-header">
-    <h1 class="h3 mb-0">Dashboard</h1>
-  </div>
-{% endblock %}
-{% block dashboard_body %}
-  <div class="d-grid gap-4" data-component="root-dashboard">
-    <section class="card" aria-labelledby="welcome-heading">
-      <div class="card-header py-2"><h2 id="welcome-heading" class="h6 mb-0">Welcome</h2></div>
-      <div class="card-body small">
-        <p class="mb-0">This space will aggregate cross-domain metrics (models, analyses, tasks, system health) as they are migrated.</p>
-      </div>
-    </section>
+{% block main %}
+  <div class="container py-4">
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-4" data-component="root-dashboard-header">
+      <h1 class="h3 mb-0">Dashboard</h1>
+    </div>
+    <div class="d-grid gap-4" data-component="root-dashboard">
+      <section class="card" aria-labelledby="welcome-heading">
+        <div class="card-header py-2"><h2 id="welcome-heading" class="h6 mb-0">Welcome</h2></div>
+        <div class="card-body small">
+          <p class="mb-0">This space will aggregate cross-domain metrics (models, analyses, tasks, system health) as they are migrated.</p>
+        </div>
+      </section>
+    </div>
   </div>
 {% endblock %}

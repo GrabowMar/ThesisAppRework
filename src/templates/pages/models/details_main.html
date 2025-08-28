@@ -1,13 +1,13 @@
 {#
   Page: Model Details
   Template: pages/models/details_main.html
-  Layout: layouts/full-width.html
+  Layout: layouts/base.html
   Purpose: Deep dive for a single model including metadata, applications, analysis summaries.
   Context:
     - model: Model
     - analyses: list[AnalysisTask] (optional)
 #}
-{% extends 'layouts/full-width.html' %}
+{% extends 'layouts/base.html' %}
 {% block page_title %}Model Details{% endblock %}
 {% block main %}
   <div class="container-fluid py-3" data-component="model-details">

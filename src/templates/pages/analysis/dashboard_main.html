@@ -10,12 +10,12 @@
   Observability:
     - data-component attributes on major regions
 #}
-{% extends "layouts/dashboard.html" %}
+{% extends "layouts/base.html" %}
 
-{% block title %}Analysis Dashboard{% endblock %}
+{% block page_title %}Analysis Dashboard{% endblock %}
 {% block nav_dashboard_active %}active{% endblock %}
 
-{% block dashboard_content %}
+{% block main %}
 <div class="container-fluid py-4" data-component="analysis-dashboard">
   <header class="mb-4" data-component="dashboard-header">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
@@ -150,7 +150,7 @@
 </div>
 {% endblock %}
 
-{% block extra_scripts %}
+{% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 (function(){

@@ -478,28 +478,223 @@ body {
 }
 
 /* ==========================================
-   Utility Classes
+   Tabler Integration Styles
    ========================================== */
 
-/* Spacing utilities */
-.u-spacing-xs { gap: var(--app-spacing-xs); }
-.u-spacing-sm { gap: var(--app-spacing-sm); }
-.u-spacing-md { gap: var(--app-spacing-md); }
-.u-spacing-lg { gap: var(--app-spacing-lg); }
-.u-spacing-xl { gap: var(--app-spacing-xl); }
+/* Tabler Layout Overrides */
+.page {
+  min-height: 100vh;
+}
 
-/* Border radius utilities */
-.u-rounded-sm { border-radius: var(--app-border-radius-sm); }
-.u-rounded { border-radius: var(--app-border-radius); }
-.u-rounded-lg { border-radius: var(--app-border-radius-lg); }
-.u-rounded-xl { border-radius: var(--app-border-radius-xl); }
+.page-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 
-/* Shadow utilities */
-.u-shadow-sm { box-shadow: var(--app-shadow-sm); }
-.u-shadow { box-shadow: var(--app-shadow); }
-.u-shadow-lg { box-shadow: var(--app-shadow-lg); }
+.page-body {
+  flex: 1;
+}
 
-/* Text utilities */
-.u-text-mono { font-family: var(--app-font-family-monospace); }
-.u-text-medium { font-weight: var(--app-font-weight-medium); }
-.u-text-semibold { font-weight: var(--app-font-weight-semibold); }
+/* Tabler Card Enhancements */
+.card {
+  box-shadow: var(--tblr-box-shadow-card);
+  border: 1px solid var(--tblr-border-color);
+}
+
+.card-header {
+  background-color: var(--tblr-card-cap-bg);
+  border-bottom: 1px solid var(--tblr-border-color);
+  font-weight: var(--tblr-font-weight-medium);
+}
+
+/* Tabler Status Indicators */
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-green {
+  background-color: var(--tblr-green);
+}
+
+.status-yellow {
+  background-color: var(--tblr-yellow);
+}
+
+.status-red {
+  background-color: var(--tblr-red);
+}
+
+/* Tabler Button Enhancements */
+.btn {
+  font-weight: var(--tblr-font-weight-medium);
+  border-radius: var(--tblr-border-radius);
+}
+
+/* Tabler Form Enhancements */
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--tblr-primary);
+  box-shadow: 0 0 0 0.2rem rgba(var(--tblr-primary-rgb), 0.25);
+}
+
+/* Tabler Table Enhancements */
+.table {
+  --tblr-table-hover-color: var(--tblr-body-color);
+  --tblr-table-hover-bg: var(--tblr-bg-surface-secondary);
+}
+
+.table th {
+  font-weight: var(--tblr-font-weight-semibold);
+  color: var(--tblr-muted);
+  font-size: var(--tblr-font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Tabler Navigation Enhancements */
+.navbar-brand {
+  font-weight: var(--tblr-font-weight-bold);
+}
+
+.nav-link {
+  font-weight: var(--tblr-font-weight-medium);
+}
+
+/* Tabler Alert Enhancements */
+.alert {
+  border: none;
+  border-left: 4px solid;
+  border-radius: var(--tblr-border-radius);
+}
+
+.alert-primary {
+  border-left-color: var(--tblr-primary);
+}
+
+.alert-success {
+  border-left-color: var(--tblr-green);
+}
+
+.alert-warning {
+  border-left-color: var(--tblr-yellow);
+}
+
+.alert-danger {
+  border-left-color: var(--tblr-red);
+}
+
+/* Tabler Badge Enhancements */
+.badge {
+  font-weight: var(--tblr-font-weight-medium);
+  border-radius: calc(var(--tblr-border-radius) * 0.75);
+}
+
+/* Tabler Dropdown Enhancements */
+.dropdown-menu {
+  border: 1px solid var(--tblr-border-color);
+  box-shadow: var(--tblr-box-shadow-dropdown);
+}
+
+.dropdown-item {
+  padding: 0.5rem 1rem;
+}
+
+.dropdown-item:hover {
+  background-color: var(--tblr-bg-surface-secondary);
+}
+
+/* Tabler Modal Enhancements */
+.modal-content {
+  border: 1px solid var(--tblr-border-color);
+  box-shadow: var(--tblr-box-shadow-modal);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--tblr-border-color);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--tblr-border-color);
+}
+
+/* Tabler Toast Enhancements */
+.toast {
+  border: 1px solid var(--tblr-border-color);
+  box-shadow: var(--tblr-box-shadow);
+  border-radius: var(--tblr-border-radius);
+}
+
+/* Tabler Loading States */
+.spinner-border {
+  border-color: var(--tblr-primary);
+  border-right-color: transparent;
+}
+
+/* Tabler Responsive Design */
+@media (max-width: 768px) {
+  .page-wrapper {
+    padding-left: 0;
+  }
+  
+  .navbar-vertical {
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1030;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease-in-out;
+  }
+  
+  .navbar-vertical.show {
+    transform: translateX(0);
+  }
+}
+
+/* Tabler Dark Mode Support */
+[data-bs-theme="dark"] {
+  --tblr-bg-surface: #1a1a1a;
+  --tblr-bg-surface-secondary: #2d2d2d;
+  --tblr-border-color: #404040;
+  --tblr-body-color: #ffffff;
+  --tblr-muted: #adb5bd;
+}
+
+/* Tabler Accessibility Enhancements */
+@media (prefers-contrast: high) {
+  :root {
+    --tblr-border-color: #000000;
+    --tblr-muted: #000000;
+  }
+  
+  .card {
+    border: 2px solid var(--tblr-border-color);
+  }
+}
+
+/* Tabler Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .navbar-vertical {
+    transition: none;
+  }
+}
+
+/* Tabler Focus Visible for Keyboard Navigation */
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid var(--tblr-primary);
+  outline-offset: 2px;
+}

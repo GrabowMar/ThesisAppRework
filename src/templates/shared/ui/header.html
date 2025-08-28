@@ -1,0 +1,205 @@
+{#
+  Component: Header Navigation Bar
+  Purpose: Top navigation with branding, search, and user actions
+#}
+<header class="navbar navbar-expand-md d-print-none">
+  <div class="container-xl">
+    {# Brand #}
+    <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+      <a href="{{ url_for('index.index') }}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chart-line" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+          <path d="M4 19l16 0"/>
+          <path d="M4 15l4 -6l4 2l4 -5l4 4"/>
+        </svg>
+        Thesis Platform
+      </a>
+    </h1>
+
+    {# Mobile menu toggle #}
+    <div class="navbar-nav flex-row order-md-last">
+      <div class="d-none d-md-flex">
+        <a href="?theme=dark" class="nav-link px-0 hide-theme-dark" title="Enable dark mode" data-bs-toggle="tooltip" data-bs-placement="bottom">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>
+          </svg>
+        </a>
+        <a href="?theme=light" class="nav-link px-0 hide-theme-light" title="Enable light mode" data-bs-toggle="tooltip" data-bs-placement="bottom">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/>
+            <path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -6.4l.7 .7m12.1 -.7l-.7 .7m0 5.6l.7 .7m-12.1 -.7l-.7 .7"/>
+          </svg>
+        </a>
+      </div>
+
+      {# Search #}
+      <div class="nav-item d-none d-md-flex me-3">
+        <div class="btn-list">
+          <a href="#" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#search-modal">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/>
+              <path d="M21 21l-6 -6"/>
+            </svg>
+            Search
+          </a>
+        </div>
+      </div>
+
+      {# User menu #}
+      <div class="nav-item dropdown">
+        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+          <div class="d-none d-xl-block ps-2">
+            <div>User</div>
+            <div class="mt-1 small text-muted">Administrator</div>
+          </div>
+        </a>
+        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+          <a href="{{ url_for('system.status') }}" class="dropdown-item">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M3 12a9 9 0 0 0 9 9a9 9 0 0 0 9 -9a9 9 0 0 0 -9 -9"/>
+              <path d="M13 12a6 6 0 0 0 -6 -6"/>
+              <path d="M12 7v5l2 1"/>
+            </svg>
+            System Status
+          </a>
+          <a href="{{ url_for('tasks.overview') }}" class="dropdown-item">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M9 12l2 2l4 -4"/>
+              <path d="M21 12c-1 0 -3 -3.5 -3 -6c0 -1.5 .5 -3 3 -3s3 1.5 3 3c0 2.5 -2 6 -3 6"/>
+              <path d="M5 6v12l4 2"/>
+            </svg>
+            Task Manager
+          </a>
+          <a href="{{ url_for('statistics.overview') }}" class="dropdown-item">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M3 12h4l3 8l4 -16l3 8h4"/>
+            </svg>
+            Statistics
+          </a>
+          <div class="dropdown-divider"></div>
+          <a href="{{ url_for('about.about') }}" class="dropdown-item">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/>
+              <path d="M12 9h.01"/>
+              <path d="M11 12h1v4h1"/>
+            </svg>
+            About
+          </a>
+        </div>
+      </div>
+    </div>
+
+    {# Mobile menu toggle button #}
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+  </div>
+</header>
+
+{# Navigation Menu #}
+<div class="collapse navbar-collapse" id="navbar-menu">
+  <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('index.index') }}">
+          <span class="nav-link-icon d-md-none d-lg-inline-block">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M5 12l-2 0l9 -9l9 9l-2 0"/>
+              <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/>
+              <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/>
+            </svg>
+          </span>
+          <span class="nav-link-title">Dashboard</span>
+        </a>
+      </li>
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+          <span class="nav-link-icon d-md-none d-lg-inline-block">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2"/>
+            </svg>
+          </span>
+          <span class="nav-link-title">Analysis</span>
+        </a>
+        <div class="dropdown-menu">
+          <div class="dropdown-menu-columns">
+            <div class="dropdown-menu-column">
+              <a class="dropdown-item" href="{{ url_for('analysis.hub') }}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/>
+                  <path d="M12 12l8 -4.5"/>
+                  <path d="M12 12v9"/>
+                  <path d="M12 12l-8 -4.5"/>
+                </svg>
+                Analysis Hub
+              </a>
+              <a class="dropdown-item" href="{{ url_for('analysis.dashboard') }}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M12 20l-3 -3h-2a3 3 0 0 1 -3 -3v-6a3 3 0 0 1 3 -3h10a3 3 0 0 1 3 3v6a3 3 0 0 1 -3 3h-2l-3 3z"/>
+                  <path d="M7 9l6 6l4 -4"/>
+                </svg>
+                Dashboard
+              </a>
+            </div>
+          </div>
+        </div>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('models.overview') }}">
+          <span class="nav-link-icon d-md-none d-lg-inline-block">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M7 3m0 2a2 2 0 0 1 2 -2h6a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2z"/>
+              <path d="M9 7h6"/>
+              <path d="M9 11h6"/>
+              <path d="M9 15h4"/>
+            </svg>
+          </span>
+          <span class="nav-link-title">Models</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('applications.index') }}">
+          <span class="nav-link-icon d-md-none d-lg-inline-block">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M9 4h6l-1 7h-4l-1 -7z"/>
+              <path d="M9 4v7"/>
+              <path d="M15 4v7"/>
+              <path d="M4 8h16"/>
+              <path d="M4 8v9a3 3 0 0 0 3 3h10a3 3 0 0 0 3 -3v-9"/>
+              <path d="M7 12h10"/>
+            </svg>
+          </span>
+          <span class="nav-link-title">Applications</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('reports.index') }}">
+          <span class="nav-link-icon d-md-none d-lg-inline-block">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+              <path d="M9 9l1 0"/>
+              <path d="M9 13l6 0"/>
+              <path d="M9 17l6 0"/>
+            </svg>
+          </span>
+          <span class="nav-link-title">Reports</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+</div>

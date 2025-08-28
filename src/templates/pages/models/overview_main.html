@@ -1,7 +1,7 @@
 {#
   Page: Models Overview
   Template: pages/models/overview_main.html
-  Layout: layouts/dashboard.html
+  Layout: layouts/base.html
   Purpose: Summarize all ingested models with key statistics and quick actions.
   Context:
     - models_summary: dict (aggregated counts + recent models)
@@ -9,34 +9,34 @@
     - recent models list
     - top performers table
 #}
-{% extends 'layouts/dashboard.html' %}
+{% extends 'layouts/base.html' %}
 {% block page_title %}Models Overview{% endblock %}
-{% block dashboard_header %}
-  <div class="d-flex align-items-center gap-2 flex-wrap" data-component="models-overview-header">
-    <h1 class="h3 mb-0">Models</h1>
-    <div class="ms-auto d-flex gap-2">
-      <button class="btn btn-sm btn-primary" hx-get="/models/import" hx-target="#modal-region" hx-swap="innerHTML">Import</button>
+{% block main %}
+  <div class="container py-4">
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-4" data-component="models-overview-header">
+      <h1 class="h3 mb-0">Models</h1>
+      <div class="ms-auto d-flex gap-2">
+        <button class="btn btn-sm btn-primary" hx-get="/models/import" hx-target="#modal-region" hx-swap="innerHTML">Import</button>
+      </div>
     </div>
-  </div>
-{% endblock %}
-{% block dashboard_body %}
-  <div class="d-grid gap-4" data-component="models-overview">
-    <section aria-labelledby="model-stats-heading">
-      <h2 id="model-stats-heading" class="h5 mb-3">Model Statistics</h2>
-      <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-3">
-        <div class="col">
-          <div class="card card-body p-3 c-metric-card">
-            <h3 class="h6 mb-1">Total Models</h3>
-            <p class="display-6 fs-3 mb-0">{{ models_summary.total if models_summary else '--' }}</p>
+    <div class="d-grid gap-4" data-component="models-overview">
+      <section aria-labelledby="model-stats-heading">
+        <h2 id="model-stats-heading" class="h5 mb-3">Model Statistics</h2>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-3">
+          <div class="col">
+            <div class="card card-body p-3 c-metric-card">
+              <h3 class="h6 mb-1">Total Models</h3>
+              <p class="display-6 fs-3 mb-0">{{ models_summary.total if models_summary else '--' }}</p>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-    <section aria-labelledby="recent-models-heading">
-      <h2 id="recent-models-heading" class="h5 mb-2">Recent Models</h2>
-      <div id="recent-models-region" data-component="recent-models">
-        <div class="placeholder-glow small text-muted">Fragment pending migration.</div>
-      </div>
-    </section>
+      </section>
+      <section aria-labelledby="recent-models-heading">
+        <h2 id="recent-models-heading" class="h5 mb-2">Recent Models</h2>
+        <div id="recent-models-region" data-component="recent-models">
+          <div class="placeholder-glow small text-muted">Fragment pending migration.</div>
+        </div>
+      </section>
+    </div>
   </div>
 {% endblock %}

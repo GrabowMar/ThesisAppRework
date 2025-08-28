@@ -1,37 +1,37 @@
 {#
   Page: Statistics Overview
   Template: pages/statistics/overview_main.html
-  Layout: layouts/dashboard.html
+  Layout: layouts/base.html
   Purpose: Central location for cross-model performance, error, and ranking summaries.
   Context:
     - stats_summary: dict
 #}
-{% extends 'layouts/dashboard.html' %}
+{% extends 'layouts/base.html' %}
 {% block page_title %}Statistics{% endblock %}
-{% block dashboard_header %}
-  <div class="d-flex align-items-center gap-2 flex-wrap" data-component="statistics-header">
-    <h1 class="h3 mb-0">Statistics</h1>
-  </div>
-{% endblock %}
-{% block dashboard_body %}
-  <div class="row g-4" data-component="statistics-overview">
-    <div class="col-xl-4">
-      <section class="card h-100" aria-labelledby="perf-heading">
-        <div class="card-header py-2"><h2 id="perf-heading" class="h6 mb-0">Performance</h2></div>
-        <div class="card-body small">Fragment pending migration.</div>
-      </section>
+{% block main %}
+  <div class="container py-4">
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-4" data-component="statistics-header">
+      <h1 class="h3 mb-0">Statistics</h1>
     </div>
-    <div class="col-xl-4">
-      <section class="card h-100" aria-labelledby="errors-heading">
-        <div class="card-header py-2"><h2 id="errors-heading" class="h6 mb-0">Errors</h2></div>
-        <div class="card-body small">Fragment pending migration.</div>
-      </section>
-    </div>
-    <div class="col-xl-4">
-      <section class="card h-100" aria-labelledby="rankings-heading">
-        <div class="card-header py-2"><h2 id="rankings-heading" class="h6 mb-0">Rankings</h2></div>
-        <div class="card-body small">Fragment pending migration.</div>
-      </section>
+    <div class="row g-4" data-component="statistics-overview">
+      <div class="col-xl-4">
+        <section class="card h-100" aria-labelledby="perf-heading">
+          <div class="card-header py-2"><h2 id="perf-heading" class="h6 mb-0">Performance</h2></div>
+          <div class="card-body small">Fragment pending migration.</div>
+        </section>
+      </div>
+      <div class="col-xl-4">
+        <section class="card h-100" aria-labelledby="errors-heading">
+          <div class="card-header py-2"><h2 id="errors-heading" class="h6 mb-0">Errors</h2></div>
+          <div class="card-body small">Fragment pending migration.</div>
+        </section>
+      </div>
+      <div class="col-xl-4">
+        <section class="card h-100" aria-labelledby="rankings-heading">
+          <div class="card-header py-2"><h2 id="rankings-heading" class="h6 mb-0">Rankings</h2></div>
+          <div class="card-body small">Fragment pending migration.</div>
+        </section>
+      </div>
     </div>
   </div>
 {% endblock %}
